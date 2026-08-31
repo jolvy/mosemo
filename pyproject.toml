@@ -23,7 +23,7 @@ dev = [
 ]
 
 [tool.fastapi]
-entrypoint = "src.main:app"
+entrypoint = "src.mosemo.main:app"
 
 [tool.ruff]
 line-length = 88
