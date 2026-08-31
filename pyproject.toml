@@ -4,7 +4,15 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "asyncpg>=0.31.0",
+    "fastapi>=0.141.1",
+    "fastapi-cli>=0.0.32",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy[asyncio]>=2.0.52",
+    "uvicorn>=0.52.4",
+]
 
 [dependency-groups]
 dev = [
@@ -12,6 +20,9 @@ dev = [
     "ruff>=0.16.5",
     "ty>=0.0.75",
 ]
+
+[tool.fastapi]
+entrypoint = "src.main:app"
 
 [tool.ruff]
 line-length = 88
