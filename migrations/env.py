@@ -6,6 +6,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from mosemo.accounts import models as accounts_models  # noqa: F401
 from mosemo.config import get_config
 from mosemo.database import Base
 
