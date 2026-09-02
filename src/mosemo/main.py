@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from mosemo.api import v1_api_router
 from mosemo.database import engine
+from mosemo.middleware import RedactSensitiveQueryStringMiddleware
 
 
 class AppState(TypedDict):
@@ -26,4 +27,5 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[AppState]:
 
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(RedactSensitiveQueryStringMiddleware)
 app.include_router(v1_api_router)

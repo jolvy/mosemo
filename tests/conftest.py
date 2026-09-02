@@ -19,4 +19,8 @@ def config() -> Config:
             "CLIENT_SECRET": "test-client-secret",
             "REDIRECT_URI": "http://localhost:8000/api/v1/auth/kakao/callback",
         },
+        auth={
+            "JWT_SECRET_KEY": "test-jwt-secret-key-that-is-at-least-32-bytes",
+            "MACOS_CALLBACK_URI": "com.example.mosemo:/auth/callback",
+        },
     )

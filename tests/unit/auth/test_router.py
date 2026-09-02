@@ -1,14 +1,31 @@
 import asyncio
+import json
 from http.cookies import SimpleCookie
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
 from mosemo.accounts.models import Account, AccountProvider
-from mosemo.auth.router import KAKAO_AUTHORIZE_URL, STATE_COOKIE, callback, login
-from mosemo.auth.service import AuthService, KakaoAuthenticationError
+from mosemo.auth.pkce import create_code_challenge
+from mosemo.auth.router import (
+    KAKAO_AUTHORIZE_URL,
+    PKCE_CHALLENGE_COOKIE,
+    STATE_COOKIE,
+    callback,
+    exchange_token,
+    login,
+)
+from mosemo.auth.schemas import TokenRequest
+from mosemo.auth.service import (
+    AuthService,
+    InvalidAuthorizationCodeError,
+    KakaoAuthenticationError,
+)
 from mosemo.config import Config
+
+CODE_VERIFIER = "A" * 43
+CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
 
 
 class StubAuthService(AuthService):
@@ -16,22 +33,54 @@ class StubAuthService(AuthService):
         self,
         *,
         result: Account | None = None,
-        error: KakaoAuthenticationError | None = None,
+        authentication_error: KakaoAuthenticationError | None = None,
+        exchange_error: InvalidAuthorizationCodeError | None = None,
     ) -> None:
         self.result = result
-        self.error = error
-        self.codes: list[str] = []
+        self.authentication_error = authentication_error
+        self.exchange_error = exchange_error
+        self.kakao_codes: list[str] = []
+        self.code_challenges: list[str] = []
+        self.exchange_requests: list[tuple[str, str]] = []
 
     async def authenticate_kakao(self, *, code: str) -> Account:
-        self.codes.append(code)
-        if self.error is not None:
-            raise self.error
+        self.kakao_codes.append(code)
+        if self.authentication_error is not None:
+            raise self.authentication_error
         if self.result is None:
             raise AssertionError("An account result was not configured")
         return self.result
 
+    async def create_authorization_code(
+        self,
+        *,
+        account: Account,
+        code_challenge: str,
+    ) -> str:
+        assert account is self.result
+        self.code_challenges.append(code_challenge)
+        return "one-time-code"
 
-def test_login_redirects_to_kakao_and_sets_state_cookie(
+    async def exchange_authorization_code(
+        self,
+        *,
+        authorization_code: str,
+        code_verifier: str,
+    ) -> str:
+        self.exchange_requests.append((authorization_code, code_verifier))
+        if self.exchange_error is not None:
+            raise self.exchange_error
+        return "access-token"
+
+
+def response_cookies(response) -> SimpleCookie:
+    cookies = SimpleCookie()
+    for header in response.headers.getlist("set-cookie"):
+        cookies.load(header)
+    return cookies
+
+
+def test_login_redirects_to_kakao_and_sets_oauth_cookies(
     config: Config,
     monkeypatch,
 ) -> None:
@@ -40,7 +89,7 @@ def test_login_redirects_to_kakao_and_sets_state_cookie(
         lambda length: "fixed-state",
     )
 
-    response = login(config)
+    response = login(config, CODE_CHALLENGE, "S256")
 
     location = urlsplit(response.headers["location"])
     query = parse_qs(location.query)
@@ -53,20 +102,19 @@ def test_login_redirects_to_kakao_and_sets_state_cookie(
         "response_type": ["code"],
         "state": ["fixed-state"],
     }
-    assert response.status_code == 302
 
-    cookies = SimpleCookie()
-    cookies.load(response.headers["set-cookie"])
-    state_cookie = cookies[STATE_COOKIE]
-    assert state_cookie.value == "fixed-state"
-    assert state_cookie["max-age"] == "600"
-    assert state_cookie["httponly"] is True
-    assert state_cookie["samesite"] == "lax"
-    assert state_cookie["path"] == "/api/v1/auth/kakao"
-    assert state_cookie["secure"] == ""
+    cookies = response_cookies(response)
+    assert cookies[STATE_COOKIE].value == "fixed-state"
+    assert cookies[PKCE_CHALLENGE_COOKIE].value == CODE_CHALLENGE
+    for key in (STATE_COOKIE, PKCE_CHALLENGE_COOKIE):
+        assert cookies[key]["max-age"] == "600"
+        assert cookies[key]["httponly"] is True
+        assert cookies[key]["samesite"] == "lax"
+        assert cookies[key]["path"] == "/api/v1/auth/kakao"
+        assert cookies[key]["secure"] == ""
 
 
-def test_login_uses_secure_cookie_in_production(
+def test_login_uses_secure_cookies_in_production(
     config: Config,
     monkeypatch,
 ) -> None:
@@ -76,102 +124,181 @@ def test_login_uses_secure_cookie_in_production(
     )
     production_config = config.model_copy(update={"app_env": "prod"})
 
-    response = login(production_config)
+    response = login(production_config, CODE_CHALLENGE, "S256")
 
-    cookies = SimpleCookie()
-    cookies.load(response.headers["set-cookie"])
+    cookies = response_cookies(response)
     assert cookies[STATE_COOKIE]["secure"] is True
+    assert cookies[PKCE_CHALLENGE_COOKIE]["secure"] is True
 
 
 @pytest.mark.parametrize(
-    ("code", "state", "state_cookie"),
+    ("state", "state_cookie", "pkce_challenge_cookie"),
     [
-        (None, "state", "state"),
-        ("code", None, "state"),
-        ("code", "state", None),
-        ("code", "state", "different-state"),
+        (None, "state", CODE_CHALLENGE),
+        ("state", None, CODE_CHALLENGE),
+        ("state", "different-state", CODE_CHALLENGE),
+        ("state", "state", None),
+        ("state", "state", "tampered-challenge"),
     ],
 )
-def test_callback_rejects_missing_or_mismatched_state(
-    code: str | None,
+def test_callback_rejects_invalid_state_and_clears_cookies(
+    config: Config,
     state: str | None,
     state_cookie: str | None,
+    pkce_challenge_cookie: str | None,
 ) -> None:
     service = StubAuthService()
 
-    with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(
-            callback(
-                service=service,
-                code=code,
-                state=state,
-                state_cookie=state_cookie,
-                error=None,
-                error_description=None,
-            )
+    response = asyncio.run(
+        callback(
+            service=service,
+            config=config,
+            code="authorization-code",
+            state=state,
+            state_cookie=state_cookie,
+            pkce_challenge_cookie=pkce_challenge_cookie,
+            error=None,
+            error_description=None,
         )
+    )
 
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "Invalid Kakao OAuth state"
-    assert service.codes == []
+    assert response.status_code == 400
+    assert json.loads(response.body) == {"detail": "Invalid Kakao OAuth state"}
+    cookies = response_cookies(response)
+    assert cookies[STATE_COOKIE]["max-age"] == "0"
+    assert cookies[PKCE_CHALLENGE_COOKIE]["max-age"] == "0"
+    assert service.kakao_codes == []
 
 
-def test_callback_authenticates_valid_code() -> None:
+def test_callback_redirects_authorization_code_to_macos_app(
+    config: Config,
+) -> None:
     account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject="123456789",
     )
     service = StubAuthService(result=account)
 
-    result = asyncio.run(
+    response = asyncio.run(
         callback(
             service=service,
+            config=config,
             code="authorization-code",
             state="valid-state",
             state_cookie="valid-state",
+            pkce_challenge_cookie=CODE_CHALLENGE,
             error=None,
             error_description=None,
         )
     )
 
-    assert result is account
-    assert service.codes == ["authorization-code"]
+    location = urlsplit(response.headers["location"])
+    assert response.status_code == 302
+    assert location.scheme == "com.example.mosemo"
+    assert location.path == "/auth/callback"
+    assert parse_qs(location.query) == {"code": ["one-time-code"]}
+    assert service.kakao_codes == ["authorization-code"]
+    assert service.code_challenges == [CODE_CHALLENGE]
+    cookies = response_cookies(response)
+    assert cookies[STATE_COOKIE]["max-age"] == "0"
+    assert cookies[PKCE_CHALLENGE_COOKIE]["max-age"] == "0"
 
 
-def test_callback_converts_authentication_error_to_bad_gateway() -> None:
-    service = StubAuthService(error=KakaoAuthenticationError())
+def test_callback_redirects_authentication_failure_to_macos_app(
+    config: Config,
+) -> None:
+    service = StubAuthService(authentication_error=KakaoAuthenticationError())
 
-    with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(
-            callback(
-                service=service,
-                code="authorization-code",
-                state="valid-state",
-                state_cookie="valid-state",
-                error=None,
-                error_description=None,
-            )
+    response = asyncio.run(
+        callback(
+            service=service,
+            config=config,
+            code="authorization-code",
+            state="valid-state",
+            state_cookie="valid-state",
+            pkce_challenge_cookie=CODE_CHALLENGE,
+            error=None,
+            error_description=None,
         )
+    )
 
-    assert exc_info.value.status_code == 502
-    assert exc_info.value.detail == "Kakao authentication failed"
+    assert parse_qs(urlsplit(response.headers["location"]).query) == {
+        "error": ["authentication_failed"]
+    }
 
 
-def test_callback_returns_provider_error_without_authenticating() -> None:
+@pytest.mark.parametrize(
+    ("provider_error", "public_error"),
+    [
+        ("access_denied", "access_denied"),
+        ("temporarily_unavailable", "authentication_failed"),
+    ],
+)
+def test_callback_maps_provider_error_without_authenticating(
+    config: Config,
+    provider_error: str,
+    public_error: str,
+) -> None:
     service = StubAuthService()
 
+    response = asyncio.run(
+        callback(
+            service=service,
+            config=config,
+            code=None,
+            state="valid-state",
+            state_cookie="valid-state",
+            pkce_challenge_cookie=CODE_CHALLENGE,
+            error=provider_error,
+            error_description="sensitive provider description",
+        )
+    )
+
+    assert parse_qs(urlsplit(response.headers["location"]).query) == {
+        "error": [public_error]
+    }
+    assert service.kakao_codes == []
+
+
+def test_exchange_token_returns_bearer_response(config: Config) -> None:
+    service = StubAuthService()
+
+    result = asyncio.run(
+        exchange_token(
+            TokenRequest(
+                grant_type="authorization_code",
+                code="one-time-code",
+                code_verifier=CODE_VERIFIER,
+            ),
+            service,
+            config,
+            Response(),
+        )
+    )
+
+    assert result.model_dump() == {
+        "access_token": "access-token",
+        "token_type": "Bearer",
+        "expires_in": 86_400,
+    }
+
+
+def test_exchange_token_returns_fixed_error(config: Config) -> None:
+    service = StubAuthService(exchange_error=InvalidAuthorizationCodeError())
+
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
-            callback(
-                service=service,
-                code=None,
-                state=None,
-                state_cookie=None,
-                error="access_denied",
-                error_description="user cancelled",
+            exchange_token(
+                TokenRequest(
+                    grant_type="authorization_code",
+                    code="invalid-code",
+                    code_verifier=CODE_VERIFIER,
+                ),
+                service,
+                config,
+                Response(),
             )
         )
 
     assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "kakao login failed: access_denied"
-    assert service.codes == []
+    assert exc_info.value.detail == "Invalid or expired authorization code"

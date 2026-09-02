@@ -10,6 +10,7 @@ dependencies = [
     "fastapi>=0.141.1",
     "fastapi-cli>=0.0.32",
     "httpx2>=2.12.0",
+    "pyjwt>=2.13.0",
     "pydantic-settings>=2.15.0",
     "sqlalchemy[asyncio]>=2.0.52",
     "uvicorn>=0.52.4",
