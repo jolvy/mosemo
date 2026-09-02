@@ -19,13 +19,21 @@ class DatabaseConfig(BaseModel):
         return f"postgresql+asyncpg://{self.user}:{password}@{self.host}:{self.port}/{self.database}"
 
 
+class KakaoConfig(BaseModel):
+    rest_api_key: str = Field(validation_alias="REST_API_KEY")
+    client_secret: SecretStr = Field(validation_alias="CLIENT_SECRET")
+    redirect_uri: str = Field(validation_alias="REDIRECT_URI")
+
+
 class Config(BaseSettings):
-    env: str = Field(validation_alias="MOSEMO_ENV")
+    app_env: str = Field(validation_alias="MOSEMO_ENV")
     database: DatabaseConfig = Field(validation_alias="DB")
+    kakao: KakaoConfig = Field(validation_alias="KAKAO")
 
     model_config = SettingsConfigDict(
         env_file_encoding="utf-8",
         env_nested_delimiter="_",
+        env_nested_max_split=1,
         populate_by_name=True,
     )
 
