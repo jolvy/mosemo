@@ -29,3 +29,31 @@ repos:
         stages: [pre-commit]
         pass_filenames: false
         files: '(^|/).*\.py$|^pyproject\.toml$|^uv\.lock$'
+      - id: ruff-check-push
+        name: ruff check (pre-push)
+        entry: uv run --locked ruff check .
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+      - id: ruff-format-push
+        name: ruff format --check (pre-push)
+        entry: uv run --locked ruff format --check .
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+      - id: ty-check-push
+        name: ty check (pre-push)
+        entry: uv run --locked ty check
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+      - id: pytest-push
+        name: pytest (pre-push, including integration tests)
+        entry: uv run --locked --env-file .env pytest -q tests
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
