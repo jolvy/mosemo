@@ -1,27 +1,29 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import TypedDict
 
+import httpx2
 from fastapi import FastAPI
 
-from .database import engine
+from mosemo.api import v1_api_router
+from mosemo.database import engine
+
+
+class AppState(TypedDict):
+    http_client: httpx2.AsyncClient
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[AppState]:
+    timeout = httpx2.Timeout(10.0, connect=5.0)
+
     try:
-        yield
+        async with httpx2.AsyncClient(timeout=timeout) as client:
+            yield {"http_client": client}
     finally:
         await engine.dispose()
 
 
 app = FastAPI(lifespan=lifespan)
 
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: str | None = None):
-    return {"item_id": item_id, "q": q}
+app.include_router(v1_api_router)
