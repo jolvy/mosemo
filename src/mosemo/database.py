@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
-from .config import get_config
+from mosemo.config import get_config
 
 POSTGRES_NAMING_CONVENTION = {
     "ix": "%(column_0_label)s_idx",
