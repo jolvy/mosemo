@@ -42,3 +42,16 @@ jobs:
 
       - name: Type-check
         run: uv run --locked ty check --output-format=github
+
+      - name: Test
+        env:
+          MOSEMO_ENV: test
+          DB_DATABASE: mosemo_test
+          DB_USER: test
+          DB_PASSWORD: test
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          KAKAO_REST_API_KEY: test-rest-api-key
+          KAKAO_CLIENT_SECRET: test-client-secret
+          KAKAO_REDIRECT_URI: http://localhost:8000/api/v1/auth/kakao/callback
+        run: uv run --locked pytest -q tests
