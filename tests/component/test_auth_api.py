@@ -13,6 +13,7 @@ from mosemo.auth.router import KAKAO_AUTHORIZE_URL
 from mosemo.auth.service import AuthService
 from mosemo.config import Config, get_config
 from mosemo.dependencies import get_auth_service
+from mosemo.exception_handlers import register_exception_handlers
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
@@ -35,6 +36,7 @@ def make_app(
     service: AuthService,
 ) -> FastAPI:
     app = FastAPI()
+    register_exception_handlers(app)
     app.include_router(v1_api_router)
     app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_auth_service] = lambda: service

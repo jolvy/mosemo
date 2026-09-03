@@ -3,7 +3,7 @@ import secrets
 from typing import Annotated, Literal
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Cookie, HTTPException, Query, Response, status
+from fastapi import APIRouter, Cookie, Query, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from mosemo.auth.pkce import (
@@ -16,6 +16,7 @@ from mosemo.auth.service import (
     KakaoAuthenticationError,
 )
 from mosemo.dependencies import AuthServiceDep, ConfigDep
+from mosemo.exceptions import InvalidAuthorizationCodeApiException
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ def _set_oauth_cookie(
 
 
 def _clear_oauth_cookies(
-    response: JSONResponse | RedirectResponse,
+    response: Response,
     *,
     config: ConfigDep,
 ) -> None:
@@ -67,22 +68,26 @@ def _clear_oauth_cookies(
 
 
 def _app_redirect(config: ConfigDep, **query: str) -> RedirectResponse:
-    response = RedirectResponse(
+    return RedirectResponse(
         url=f"{config.auth.macos_callback_uri}?{urlencode(query)}",
         status_code=status.HTTP_302_FOUND,
     )
-    _prevent_caching(response)
-    return response
 
 
-def _invalid_state_response(config: ConfigDep) -> JSONResponse:
-    response = JSONResponse(
+def _invalid_state_response() -> JSONResponse:
+    return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"detail": "Invalid Kakao OAuth state"},
     )
+
+
+def _finalize_oauth_callback_response(
+    response: Response,
+    *,
+    config: ConfigDep,
+) -> None:
     _prevent_caching(response)
     _clear_oauth_cookies(response, config=config)
-    return response
 
 
 @router.get("/kakao/login")
@@ -140,9 +145,8 @@ async def callback(
         or not is_valid_code_challenge(pkce_challenge_cookie)
         or not secrets.compare_digest(state, state_cookie)
     ):
-        return _invalid_state_response(config)
-
-    if error is not None:
+        response = _invalid_state_response()
+    elif error is not None:
         public_error = (
             "access_denied" if error == "access_denied" else "authentication_failed"
         )
@@ -151,30 +155,25 @@ async def callback(
         else:
             logger.warning("Kakao authorization failed")
         response = _app_redirect(config, error=public_error)
-        _clear_oauth_cookies(response, config=config)
-        return response
-
-    if code is None:
-        response = _app_redirect(config, error="authentication_failed")
-        _clear_oauth_cookies(response, config=config)
-        return response
-
-    try:
-        account = await service.authenticate_kakao(code=code)
-        authorization_code = await service.create_authorization_code(
-            account=account,
-            code_challenge=pkce_challenge_cookie,
-        )
-    except KakaoAuthenticationError:
-        logger.exception("Kakao authentication failed")
-        response = _app_redirect(config, error="authentication_failed")
-    except Exception:
-        logger.exception("Native authorization code issuance failed")
+    elif code is None:
         response = _app_redirect(config, error="authentication_failed")
     else:
-        response = _app_redirect(config, code=authorization_code)
+        try:
+            account = await service.authenticate_kakao(code=code)
+            authorization_code = await service.create_authorization_code(
+                account=account,
+                code_challenge=pkce_challenge_cookie,
+            )
+        except KakaoAuthenticationError:
+            logger.exception("Kakao authentication failed")
+            response = _app_redirect(config, error="authentication_failed")
+        except Exception:
+            logger.exception("Native authorization code issuance failed")
+            response = _app_redirect(config, error="authentication_failed")
+        else:
+            response = _app_redirect(config, code=authorization_code)
 
-    _clear_oauth_cookies(response, config=config)
+    _finalize_oauth_callback_response(response, config=config)
     return response
 
 
@@ -191,10 +190,7 @@ async def exchange_token(
             code_verifier=request.code_verifier,
         )
     except InvalidAuthorizationCodeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired authorization code",
-        ) from exc
+        raise InvalidAuthorizationCodeApiException from exc
 
     _prevent_caching(response)
     return TokenResponse(

@@ -4,7 +4,7 @@ from http.cookies import SimpleCookie
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from fastapi import HTTPException, Response
+from fastapi import Response
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.auth.pkce import create_code_challenge
@@ -23,6 +23,7 @@ from mosemo.auth.service import (
     KakaoAuthenticationError,
 )
 from mosemo.config import Config
+from mosemo.exceptions import InvalidAuthorizationCodeApiException
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
@@ -164,6 +165,8 @@ def test_callback_rejects_invalid_state_and_clears_cookies(
 
     assert response.status_code == 400
     assert json.loads(response.body) == {"detail": "Invalid Kakao OAuth state"}
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
     cookies = response_cookies(response)
     assert cookies[STATE_COOKIE]["max-age"] == "0"
     assert cookies[PKCE_CHALLENGE_COOKIE]["max-age"] == "0"
@@ -197,6 +200,8 @@ def test_callback_redirects_authorization_code_to_macos_app(
     assert location.scheme == "com.example.mosemo"
     assert location.path == "/auth/callback"
     assert parse_qs(location.query) == {"code": ["one-time-code"]}
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
     assert service.kakao_codes == ["authorization-code"]
     assert service.code_challenges == [CODE_CHALLENGE]
     cookies = response_cookies(response)
@@ -286,7 +291,7 @@ def test_exchange_token_returns_bearer_response(config: Config) -> None:
 def test_exchange_token_returns_fixed_error(config: Config) -> None:
     service = StubAuthService(exchange_error=InvalidAuthorizationCodeError())
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(InvalidAuthorizationCodeApiException) as exc_info:
         asyncio.run(
             exchange_token(
                 TokenRequest(

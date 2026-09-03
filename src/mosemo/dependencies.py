@@ -1,7 +1,7 @@
 from typing import Annotated, cast
 
 import httpx2
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,7 @@ from mosemo.auth.service import AuthService
 from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
 from mosemo.config import Config, get_config
 from mosemo.database import get_session
+from mosemo.exceptions import InvalidAccessTokenApiException
 
 
 def get_http_client(request: Request) -> httpx2.AsyncClient:
@@ -106,30 +107,22 @@ BearerCredentialsDep = Annotated[
 ]
 
 
-def _invalid_access_token() -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or expired access token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-
 async def get_current_account(
     credentials: BearerCredentialsDep,
     token_service: TokenServiceDep,
     account_repository: AccountRepositoryDep,
 ) -> Account:
     if credentials is None:
-        raise _invalid_access_token()
+        raise InvalidAccessTokenApiException()
 
     try:
         account_id = token_service.decode_access_token(credentials.credentials)
     except InvalidAccessTokenError as exc:
-        raise _invalid_access_token() from exc
+        raise InvalidAccessTokenApiException() from exc
 
     account = await account_repository.find_by_id(account_id)
     if account is None:
-        raise _invalid_access_token()
+        raise InvalidAccessTokenApiException()
     return account
 
 

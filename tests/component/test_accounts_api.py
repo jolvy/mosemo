@@ -12,6 +12,7 @@ from mosemo.auth.service import AuthService
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config, get_config
 from mosemo.dependencies import get_account_repository, get_auth_service
+from mosemo.exception_handlers import register_exception_handlers
 
 
 def make_account() -> Account:
@@ -31,6 +32,7 @@ def make_app(
     account_repository: AccountRepository,
 ) -> FastAPI:
     app = FastAPI()
+    register_exception_handlers(app)
     app.include_router(v1_api_router)
     app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_auth_service] = lambda: create_autospec(
