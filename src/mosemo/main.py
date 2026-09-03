@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from mosemo.api import v1_api_router
 from mosemo.database import engine
 from mosemo.exception_handlers import register_exception_handlers
+from mosemo.logging import configure_logging
 from mosemo.middleware import RedactSensitiveQueryStringMiddleware
 
 
@@ -25,6 +26,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[AppState]:
     finally:
         await engine.dispose()
 
+
+configure_logging()
 
 app = FastAPI(lifespan=lifespan)
 

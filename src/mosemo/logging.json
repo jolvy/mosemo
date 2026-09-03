@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "filters": {
+    "sensitive_data": {
+      "()": "mosemo.logging.SensitiveDataFilter"
+    }
+  },
+  "formatters": {
+    "json": {
+      "()": "mosemo.logging.JsonFormatter"
+    }
+  },
+  "handlers": {
+    "console": {
+      "class": "logging.StreamHandler",
+      "level": "NOTSET",
+      "formatter": "json",
+      "filters": [
+        "sensitive_data"
+      ],
+      "stream": "ext://sys.stdout"
+    }
+  },
+  "loggers": {
+    "mosemo": {
+      "level": "INFO",
+      "handlers": [
+        "console"
+      ],
+      "propagate": false
+    },
+    "uvicorn": {
+      "level": "INFO",
+      "handlers": [
+        "console"
+      ],
+      "propagate": false
+    },
+    "uvicorn.error": {
+      "level": "INFO",
+      "handlers": [],
+      "propagate": true
+    },
+    "uvicorn.access": {
+      "level": "INFO",
+      "handlers": [],
+      "propagate": false
+    },
+    "sqlalchemy": {
+      "level": "WARNING",
+      "handlers": [],
+      "propagate": true
+    },
+    "httpx": {
+      "level": "WARNING",
+      "handlers": [],
+      "propagate": true
+    },
+    "httpcore": {
+      "level": "WARNING",
+      "handlers": [],
+      "propagate": true
+    }
+  },
+  "root": {
+    "level": "WARNING",
+    "handlers": [
+      "console"
+    ]
+  }
+}
