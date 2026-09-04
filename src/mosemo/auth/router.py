@@ -17,6 +17,7 @@ from mosemo.auth.service import (
 )
 from mosemo.dependencies import AuthServiceDep, ConfigDep
 from mosemo.exceptions import InvalidAuthorizationCodeApiException
+from mosemo.schemas import ApiErrorResponse, RequestValidationErrorResponse
 
 logger = logging.getLogger(__name__)
 
@@ -90,15 +91,63 @@ def _finalize_oauth_callback_response(
     _clear_oauth_cookies(response, config=config)
 
 
-@router.get("/kakao/login")
+@router.get(
+    "/kakao/login",
+    status_code=status.HTTP_302_FOUND,
+    response_class=RedirectResponse,
+    summary="Kakao 로그인 시작",
+    description=(
+        "macOS 앱이 생성한 PKCE code challenge를 저장하고 "
+        "Kakao 인증 화면으로 이동시킵니다."
+    ),
+    response_description="Kakao 인증 화면으로 이동하는 리다이렉트 응답입니다.",
+    responses={
+        status.HTTP_302_FOUND: {
+            "headers": {
+                "Location": {
+                    "description": "Kakao 인증 화면의 URL입니다.",
+                    "schema": {"type": "string", "format": "uri"},
+                },
+                "Set-Cookie": {
+                    "description": (
+                        "10분 동안 유지되는 HttpOnly state 및 PKCE challenge "
+                        "쿠키입니다. 운영 환경에서는 Secure 속성도 사용합니다."
+                    ),
+                    "schema": {"type": "string"},
+                },
+                "Cache-Control": {
+                    "description": "응답을 저장하지 않도록 no-store로 설정됩니다.",
+                    "schema": {"type": "string", "const": "no-store"},
+                },
+                "Pragma": {
+                    "description": "이전 HTTP 캐시와의 호환을 위해 no-cache로 설정됩니다.",
+                    "schema": {"type": "string", "const": "no-cache"},
+                },
+            }
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "model": RequestValidationErrorResponse,
+            "description": "PKCE 쿼리 파라미터가 누락되었거나 형식이 잘못되었습니다.",
+        },
+    },
+)
 def login(
     config: ConfigDep,
     code_challenge: Annotated[
         str,
-        Query(pattern=PKCE_CODE_CHALLENGE_PATTERN),
+        Query(
+            pattern=PKCE_CODE_CHALLENGE_PATTERN,
+            description=(
+                "macOS 앱이 code_verifier로부터 S256 방식으로 생성한 "
+                "PKCE code challenge입니다."
+            ),
+        ),
     ],
-    code_challenge_method: Annotated[Literal["S256"], Query()],
-):
+    code_challenge_method: Annotated[
+        Literal["S256"],
+        Query(description="PKCE code challenge 생성 방식이며 S256으로 고정됩니다."),
+    ],
+) -> RedirectResponse:
     state = secrets.token_urlsafe(32)
     query = urlencode(
         {
@@ -124,19 +173,109 @@ def login(
     return response
 
 
-@router.get("/kakao/callback")
+@router.get(
+    "/kakao/callback",
+    status_code=status.HTTP_302_FOUND,
+    response_class=RedirectResponse,
+    summary="Kakao 로그인 callback 처리",
+    description=(
+        "Kakao 인증 결과와 로그인 요청의 state 및 PKCE 쿠키를 검증합니다. "
+        "성공하면 일회용 인증 코드를, 실패하면 공개 오류 코드를 macOS 앱에 전달합니다."
+    ),
+    response_description="인증 결과를 macOS 앱에 전달하는 리다이렉트 응답입니다.",
+    responses={
+        status.HTTP_302_FOUND: {
+            "headers": {
+                "Location": {
+                    "description": (
+                        "성공 시 code, 실패 시 access_denied 또는 "
+                        "authentication_failed를 포함하는 macOS custom scheme URI입니다."
+                    ),
+                    "schema": {"type": "string", "format": "uri"},
+                },
+                "Set-Cookie": {
+                    "description": "state 및 PKCE challenge 쿠키를 즉시 만료시킵니다.",
+                    "schema": {"type": "string"},
+                },
+                "Cache-Control": {
+                    "description": "응답을 저장하지 않도록 no-store로 설정됩니다.",
+                    "schema": {"type": "string", "const": "no-store"},
+                },
+                "Pragma": {
+                    "description": "이전 HTTP 캐시와의 호환을 위해 no-cache로 설정됩니다.",
+                    "schema": {"type": "string", "const": "no-cache"},
+                },
+            }
+        },
+        status.HTTP_400_BAD_REQUEST: {
+            "model": ApiErrorResponse,
+            "description": "state 또는 PKCE challenge 쿠키가 유효하지 않습니다.",
+            "headers": {
+                "Set-Cookie": {
+                    "description": "state 및 PKCE challenge 쿠키를 즉시 만료시킵니다.",
+                    "schema": {"type": "string"},
+                },
+                "Cache-Control": {
+                    "description": "응답을 저장하지 않도록 no-store로 설정됩니다.",
+                    "schema": {"type": "string", "const": "no-store"},
+                },
+                "Pragma": {
+                    "description": "이전 HTTP 캐시와의 호환을 위해 no-cache로 설정됩니다.",
+                    "schema": {"type": "string", "const": "no-cache"},
+                },
+            },
+            "content": {
+                "application/json": {"example": {"detail": "Invalid Kakao OAuth state"}}
+            },
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "model": RequestValidationErrorResponse,
+            "description": "Callback 파라미터 또는 쿠키의 형식이 잘못되었습니다.",
+        },
+    },
+)
 async def callback(
     service: AuthServiceDep,
     config: ConfigDep,
-    code: str | None = None,
-    state: str | None = None,
-    state_cookie: str | None = Cookie(default=None, alias=STATE_COOKIE),
-    pkce_challenge_cookie: str | None = Cookie(
-        default=None,
-        alias=PKCE_CHALLENGE_COOKIE,
-    ),
-    error: str | None = None,
-    error_description: str | None = None,
+    code: Annotated[
+        str | None,
+        Query(description="Kakao가 인증 성공 시 전달한 authorization code입니다."),
+    ] = None,
+    state: Annotated[
+        str | None,
+        Query(
+            description=(
+                "로그인 요청과 callback을 연결하고 CSRF를 방지하는 state 값입니다."
+            )
+        ),
+    ] = None,
+    state_cookie: Annotated[
+        str | None,
+        Cookie(
+            alias=STATE_COOKIE,
+            description="로그인 시작 시 서버가 저장한 OAuth state 쿠키입니다.",
+        ),
+    ] = None,
+    pkce_challenge_cookie: Annotated[
+        str | None,
+        Cookie(
+            alias=PKCE_CHALLENGE_COOKIE,
+            description="로그인 시작 시 서버가 저장한 PKCE code challenge 쿠키입니다.",
+        ),
+    ] = None,
+    error: Annotated[
+        str | None,
+        Query(description="Kakao가 인증 실패 또는 취소 시 전달한 오류 코드입니다."),
+    ] = None,
+    error_description: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Kakao가 전달한 상세 오류 설명입니다. "
+                "서버는 민감 정보 노출을 방지하기 위해 사용하지 않습니다."
+            )
+        ),
+    ] = None,
 ):
     if (
         state is None
@@ -177,7 +316,48 @@ async def callback(
     return response
 
 
-@router.post("/token", response_model=TokenResponse)
+@router.post(
+    "/token",
+    response_model=TokenResponse,
+    summary="액세스 토큰 발급",
+    description=(
+        "Kakao 로그인 callback에서 발급한 일회용 인증 코드와 "
+        "PKCE code verifier를 검증한 뒤 Mosemo 액세스 토큰을 발급합니다."
+    ),
+    response_description="Mosemo Bearer 액세스 토큰입니다.",
+    responses={
+        status.HTTP_200_OK: {
+            "headers": {
+                "Cache-Control": {
+                    "description": "응답을 저장하지 않도록 no-store로 설정됩니다.",
+                    "schema": {"type": "string", "const": "no-store"},
+                },
+                "Pragma": {
+                    "description": "이전 HTTP 캐시와의 호환을 위해 no-cache로 설정됩니다.",
+                    "schema": {"type": "string", "const": "no-cache"},
+                },
+            }
+        },
+        status.HTTP_400_BAD_REQUEST: {
+            "model": ApiErrorResponse,
+            "description": (
+                "일회용 인증 코드가 없거나 만료되었거나 이미 사용되었거나, "
+                "PKCE code verifier가 유효하지 않습니다."
+            ),
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Invalid or expired authorization code",
+                    }
+                }
+            },
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "model": RequestValidationErrorResponse,
+            "description": "요청 본문의 필수 필드 또는 grant_type이 유효하지 않습니다.",
+        },
+    },
+)
 async def exchange_token(
     request: TokenRequest,
     service: AuthServiceDep,

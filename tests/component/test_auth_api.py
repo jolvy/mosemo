@@ -10,7 +10,7 @@ from mosemo.accounts.models import Account, AccountProvider
 from mosemo.api import v1_api_router
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.router import KAKAO_AUTHORIZE_URL
-from mosemo.auth.service import AuthService
+from mosemo.auth.service import AuthService, InvalidAuthorizationCodeError
 from mosemo.config import Config, get_config
 from mosemo.dependencies import get_auth_service
 from mosemo.exception_handlers import register_exception_handlers
@@ -120,6 +120,27 @@ def test_callback_without_state_cookie_returns_bad_request(config: Config) -> No
     assert response.status_code == 400
     assert response.json() == {"detail": "Invalid Kakao OAuth state"}
     service.authenticate_kakao.assert_not_awaited()
+
+
+def test_token_exchange_returns_documented_bad_request(config: Config) -> None:
+    service = create_autospec(AuthService, instance=True)
+    service.exchange_authorization_code.side_effect = InvalidAuthorizationCodeError()
+    app = make_app(config=config, service=service)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/auth/token",
+            json={
+                "grant_type": "authorization_code",
+                "code": "invalid-code",
+                "code_verifier": CODE_VERIFIER,
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Invalid or expired authorization code",
+    }
 
 
 @pytest.mark.parametrize(

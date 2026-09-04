@@ -100,7 +100,10 @@ AuthServiceDep = Annotated[
 ]
 
 
-bearer_scheme = HTTPBearer(auto_error=False)
+bearer_scheme = HTTPBearer(
+    auto_error=False,
+    description="Mosemo가 발급한 Bearer 액세스 토큰입니다.",
+)
 BearerCredentialsDep = Annotated[
     HTTPAuthorizationCredentials | None,
     Depends(bearer_scheme),
