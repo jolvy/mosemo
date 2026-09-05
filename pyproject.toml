@@ -18,9 +18,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "poethepoet>=0.48.0",
     "pre-commit>=4.6.2",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.16.5",
     "testcontainers[postgres]>=4.15.0",
     "ty>=0.0.75",
@@ -49,3 +51,26 @@ extend-select = ["I"]
 indent-style = "space"
 line-ending = "auto"
 quote-style = "double"
+
+[tool.poe.tasks.dev]
+cmd = "fastapi dev"
+envfile = [".env", ".env.local"]
+
+[tool.poe.tasks.test]
+cmd = "pytest -v"
+envfile = [".env", ".env.test"]
+
+[tool.poe.tasks.coverage]
+cmd = "pytest -v --cov=mosemo --cov-report=term-missing"
+envfile = [".env", ".env.test"]
+
+[tool.poe.tasks.prod]
+cmd = "fastapi run"
+envfile = [".env", ".env.prod"]
+
+[tool.poe.tasks.openapi]
+cmd = "python scripts/export_openapi.py"
+
+[tool.poe.tasks.ci]
+cmd = "act pull_request -j quality"
+help = "Run the pull-request quality job locally"
