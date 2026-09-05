@@ -1,4 +1,6 @@
+import json
 import os
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -18,8 +20,24 @@ OPENAPI_TEST_ENVIRONMENT = {
     "KAKAO_CLIENT_SECRET": "openapi-placeholder",
     "KAKAO_REDIRECT_URI": "http://localhost:8000/api/v1/auth/kakao/callback",
     "AUTH_JWT_SECRET_KEY": "openapi-placeholder-key-at-least-32-bytes",
+    "AUTH_JWT_ISSUER": "mosemo",
+    "AUTH_JWT_AUDIENCE": "mosemo-api",
+    "AUTH_ACCESS_TOKEN_TTL_SECONDS": "86400",
+    "AUTH_AUTHORIZATION_CODE_TTL_SECONDS": "60",
     "AUTH_MACOS_CALLBACK_URI": "com.example.mosemo:/auth/callback",
 }
+OPENAPI_SNAPSHOT_PATH = Path(__file__).resolve().parents[2] / "openapi" / "openapi.json"
+
+
+@pytest.fixture
+def openapi_document(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    for name, value in OPENAPI_TEST_ENVIRONMENT.items():
+        if name not in os.environ:
+            monkeypatch.setenv(name, value)
+
+    from mosemo.main import app
+
+    return app.openapi()
 
 
 def _has_description(value: dict[str, Any]) -> bool:
@@ -76,15 +94,38 @@ def _find_missing_descriptions(document: dict[str, Any]) -> list[str]:
 
 
 def test_public_openapi_descriptions_are_present(
-    monkeypatch: pytest.MonkeyPatch,
+    openapi_document: dict[str, Any],
 ) -> None:
-    for name, value in OPENAPI_TEST_ENVIRONMENT.items():
-        if name not in os.environ:
-            monkeypatch.setenv(name, value)
-
-    from mosemo.main import app
-
-    missing = _find_missing_descriptions(app.openapi())
+    missing = _find_missing_descriptions(openapi_document)
     details = "\n".join(f"- {item}" for item in missing)
 
     assert not missing, f"Missing OpenAPI descriptions:\n{details}"
+
+
+def test_openapi_metadata_is_stable(openapi_document: dict[str, Any]) -> None:
+    assert openapi_document["info"]["title"] == "Mosemo API"
+    assert openapi_document["info"]["version"] == "0.1.0"
+
+
+def test_openapi_operation_ids_are_unique(
+    openapi_document: dict[str, Any],
+) -> None:
+    actual_operation_ids = {
+        (path, method): operation["operationId"]
+        for path, path_item in openapi_document["paths"].items()
+        for method, operation in path_item.items()
+        if method in HTTP_METHODS
+    }
+
+    assert len(set(actual_operation_ids.values())) == len(actual_operation_ids)
+
+
+def test_exported_openapi_matches_runtime_schema(
+    openapi_document: dict[str, Any],
+) -> None:
+    exported_document = json.loads(OPENAPI_SNAPSHOT_PATH.read_text(encoding="utf-8"))
+
+    assert exported_document == openapi_document, (
+        "OpenAPI snapshot is stale. Run "
+        "`uv run --locked python scripts/export_openapi.py`."
+    )

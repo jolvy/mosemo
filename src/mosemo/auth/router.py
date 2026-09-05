@@ -93,6 +93,7 @@ def _finalize_oauth_callback_response(
 
 @router.get(
     "/kakao/login",
+    operation_id="authKakaoLogin",
     status_code=status.HTTP_302_FOUND,
     response_class=RedirectResponse,
     summary="Kakao 로그인 시작",
@@ -175,6 +176,7 @@ def login(
 
 @router.get(
     "/kakao/callback",
+    operation_id="authKakaoCallback",
     status_code=status.HTTP_302_FOUND,
     response_class=RedirectResponse,
     summary="Kakao 로그인 callback 처리",
@@ -318,6 +320,7 @@ async def callback(
 
 @router.post(
     "/token",
+    operation_id="authExchangeToken",
     response_model=TokenResponse,
     summary="액세스 토큰 발급",
     description=(

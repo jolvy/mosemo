@@ -29,7 +29,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[AppState]:
 
 configure_logging()
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="Mosemo API",
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
 register_exception_handlers(app)
 app.add_middleware(RedactSensitiveQueryStringMiddleware)
