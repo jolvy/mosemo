@@ -16,8 +16,12 @@ from mosemo.auth.service import (
     KakaoAuthenticationError,
 )
 from mosemo.dependencies import AuthServiceDep, ConfigDep
-from mosemo.exceptions import InvalidAuthorizationCodeApiException
-from mosemo.schemas import ApiErrorResponse, RequestValidationErrorResponse
+from mosemo.exceptions import (
+    ApiException,
+    ErrorCode,
+)
+from mosemo.openapi import api_error_responses
+from mosemo.responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -76,10 +80,7 @@ def _app_redirect(config: ConfigDep, **query: str) -> RedirectResponse:
 
 
 def _invalid_state_response() -> JSONResponse:
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={"detail": "Invalid Kakao OAuth state"},
-    )
+    return error_response(ErrorCode.AUTH_INVALID_OAUTH_CONTEXT)
 
 
 def _finalize_oauth_callback_response(
@@ -126,10 +127,9 @@ def _finalize_oauth_callback_response(
                 },
             }
         },
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {
-            "model": RequestValidationErrorResponse,
-            "description": "PKCE 쿼리 파라미터가 누락되었거나 형식이 잘못되었습니다.",
-        },
+        **api_error_responses(
+            ErrorCode.INVALID_ARGUMENT,
+        ),
     },
 )
 def login(
@@ -209,31 +209,27 @@ def login(
                 },
             }
         },
-        status.HTTP_400_BAD_REQUEST: {
-            "model": ApiErrorResponse,
-            "description": "state 또는 PKCE challenge 쿠키가 유효하지 않습니다.",
-            "headers": {
-                "Set-Cookie": {
-                    "description": "state 및 PKCE challenge 쿠키를 즉시 만료시킵니다.",
-                    "schema": {"type": "string"},
-                },
-                "Cache-Control": {
-                    "description": "응답을 저장하지 않도록 no-store로 설정됩니다.",
-                    "schema": {"type": "string", "const": "no-store"},
-                },
-                "Pragma": {
-                    "description": "이전 HTTP 캐시와의 호환을 위해 no-cache로 설정됩니다.",
-                    "schema": {"type": "string", "const": "no-cache"},
-                },
+        **api_error_responses(
+            ErrorCode.AUTH_INVALID_OAUTH_CONTEXT,
+            headers={
+                status.HTTP_400_BAD_REQUEST: {
+                    "Set-Cookie": {
+                        "description": "state 및 PKCE challenge 쿠키를 즉시 만료시킵니다.",
+                        "schema": {"type": "string"},
+                    },
+                    "Cache-Control": {
+                        "description": "응답을 저장하지 않도록 no-store로 설정됩니다.",
+                        "schema": {"type": "string", "const": "no-store"},
+                    },
+                    "Pragma": {
+                        "description": (
+                            "이전 HTTP 캐시와의 호환을 위해 no-cache로 설정됩니다."
+                        ),
+                        "schema": {"type": "string", "const": "no-cache"},
+                    },
+                }
             },
-            "content": {
-                "application/json": {"example": {"detail": "Invalid Kakao OAuth state"}}
-            },
-        },
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {
-            "model": RequestValidationErrorResponse,
-            "description": "Callback 파라미터 또는 쿠키의 형식이 잘못되었습니다.",
-        },
+        ),
     },
 )
 async def callback(
@@ -341,24 +337,10 @@ async def callback(
                 },
             }
         },
-        status.HTTP_400_BAD_REQUEST: {
-            "model": ApiErrorResponse,
-            "description": (
-                "일회용 인증 코드가 없거나 만료되었거나 이미 사용되었거나, "
-                "PKCE code verifier가 유효하지 않습니다."
-            ),
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Invalid or expired authorization code",
-                    }
-                }
-            },
-        },
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {
-            "model": RequestValidationErrorResponse,
-            "description": "요청 본문의 필수 필드 또는 grant_type이 유효하지 않습니다.",
-        },
+        **api_error_responses(
+            ErrorCode.AUTH_INVALID_AUTHORIZATION_CODE,
+            ErrorCode.INVALID_ARGUMENT,
+        ),
     },
 )
 async def exchange_token(
@@ -373,7 +355,7 @@ async def exchange_token(
             code_verifier=request.code_verifier,
         )
     except InvalidAuthorizationCodeError as exc:
-        raise InvalidAuthorizationCodeApiException from exc
+        raise ApiException(ErrorCode.AUTH_INVALID_AUTHORIZATION_CODE) from exc
 
     _prevent_caching(response)
     return TokenResponse(

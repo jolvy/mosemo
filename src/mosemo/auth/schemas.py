@@ -1,9 +1,11 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from mosemo.schemas import ApiRequestModel, ApiResponseModel
 
 
-class TokenRequest(BaseModel):
+class TokenRequest(ApiRequestModel):
     """일회용 인증 코드를 Mosemo 액세스 토큰으로 교환하는 요청입니다."""
 
     grant_type: Literal["authorization_code"] = Field(
@@ -20,7 +22,7 @@ class TokenRequest(BaseModel):
     )
 
 
-class TokenResponse(BaseModel):
+class TokenResponse(ApiResponseModel):
     """Mosemo API 인증에 사용하는 액세스 토큰 응답입니다."""
 
     access_token: str = Field(

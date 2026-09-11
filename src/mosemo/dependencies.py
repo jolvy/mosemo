@@ -13,7 +13,7 @@ from mosemo.auth.service import AuthService
 from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
 from mosemo.config import Config, get_config
 from mosemo.database import get_session
-from mosemo.exceptions import InvalidAccessTokenApiException
+from mosemo.exceptions import ApiException, ErrorCode
 
 
 def get_http_client(request: Request) -> httpx2.AsyncClient:
@@ -116,16 +116,16 @@ async def get_current_account(
     account_repository: AccountRepositoryDep,
 ) -> Account:
     if credentials is None:
-        raise InvalidAccessTokenApiException()
+        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN)
 
     try:
         account_id = token_service.decode_access_token(credentials.credentials)
     except InvalidAccessTokenError as exc:
-        raise InvalidAccessTokenApiException() from exc
+        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
 
     account = await account_repository.find_by_id(account_id)
     if account is None:
-        raise InvalidAccessTokenApiException()
+        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN)
     return account
 
 

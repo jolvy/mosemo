@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import create_autospec
 from uuid import uuid4
 
@@ -45,6 +45,27 @@ def make_app(
 
 def test_accounts_me_returns_authenticated_account(config: Config) -> None:
     account = make_account()
+    korean_standard_time = timezone(timedelta(hours=9))
+    account.created_at = datetime(
+        2026,
+        9,
+        5,
+        10,
+        2,
+        3,
+        123456,
+        tzinfo=korean_standard_time,
+    )
+    account.last_authenticated_at = datetime(
+        2026,
+        9,
+        5,
+        10,
+        2,
+        4,
+        987654,
+        tzinfo=korean_standard_time,
+    )
     account_repository = create_autospec(AccountRepository, instance=True)
     account_repository.find_by_id.return_value = account
     app = make_app(config=config, account_repository=account_repository)
@@ -57,13 +78,12 @@ def test_accounts_me_returns_authenticated_account(config: Config) -> None:
         )
 
     assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
     assert response.json() == {
-        "account_id": str(account.account_id),
+        "accountId": str(account.account_id),
         "provider": "KAKAO",
-        "created_at": account.created_at.isoformat().replace("+00:00", "Z"),
-        "last_authenticated_at": account.last_authenticated_at.isoformat().replace(
-            "+00:00", "Z"
-        ),
+        "createdAt": "2026-09-05T01:02:03Z",
+        "lastAuthenticatedAt": "2026-09-05T01:02:04Z",
     }
     assert "provider_subject" not in response.json()
     account_repository.find_by_id.assert_awaited_once_with(account.account_id)
@@ -82,7 +102,14 @@ def test_accounts_me_rejects_missing_or_invalid_bearer(config: Config) -> None:
 
     for response in (missing_response, invalid_response):
         assert response.status_code == 401
-        assert response.json() == {"detail": "Invalid or expired access token"}
+        assert response.json() == {
+            "error": {
+                "status": "AUTH_INVALID_ACCESS_TOKEN",
+                "code": 401,
+                "message": "Invalid or expired access token",
+                "details": [],
+            }
+        }
         assert response.headers["www-authenticate"] == "Bearer"
     account_repository.find_by_id.assert_not_awaited()
 
@@ -101,5 +128,13 @@ def test_accounts_me_rejects_deleted_account(config: Config) -> None:
         )
 
     assert response.status_code == 401
+    assert response.json() == {
+        "error": {
+            "status": "AUTH_INVALID_ACCESS_TOKEN",
+            "code": 401,
+            "message": "Invalid or expired access token",
+            "details": [],
+        }
+    }
     assert response.headers["www-authenticate"] == "Bearer"
     account_repository.find_by_id.assert_awaited_once_with(account_id)

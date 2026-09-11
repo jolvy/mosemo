@@ -23,7 +23,7 @@ from mosemo.auth.service import (
     KakaoAuthenticationError,
 )
 from mosemo.config import Config
-from mosemo.exceptions import InvalidAuthorizationCodeApiException
+from mosemo.exceptions import ApiException
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
@@ -164,7 +164,14 @@ def test_callback_rejects_invalid_state_and_clears_cookies(
     )
 
     assert response.status_code == 400
-    assert json.loads(response.body) == {"detail": "Invalid Kakao OAuth state"}
+    assert json.loads(response.body) == {
+        "error": {
+            "status": "AUTH_INVALID_OAUTH_CONTEXT",
+            "code": 400,
+            "message": "Invalid or expired OAuth login context",
+            "details": [],
+        }
+    }
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["pragma"] == "no-cache"
     cookies = response_cookies(response)
@@ -270,10 +277,12 @@ def test_exchange_token_returns_bearer_response(config: Config) -> None:
 
     result = asyncio.run(
         exchange_token(
-            TokenRequest(
-                grant_type="authorization_code",
-                code="one-time-code",
-                code_verifier=CODE_VERIFIER,
+            TokenRequest.model_validate(
+                {
+                    "grantType": "authorization_code",
+                    "code": "one-time-code",
+                    "codeVerifier": CODE_VERIFIER,
+                }
             ),
             service,
             config,
@@ -282,22 +291,24 @@ def test_exchange_token_returns_bearer_response(config: Config) -> None:
     )
 
     assert result.model_dump() == {
-        "access_token": "access-token",
-        "token_type": "Bearer",
-        "expires_in": 86_400,
+        "accessToken": "access-token",
+        "tokenType": "Bearer",
+        "expiresIn": 86_400,
     }
 
 
 def test_exchange_token_returns_fixed_error(config: Config) -> None:
     service = StubAuthService(exchange_error=InvalidAuthorizationCodeError())
 
-    with pytest.raises(InvalidAuthorizationCodeApiException) as exc_info:
+    with pytest.raises(ApiException) as exc_info:
         asyncio.run(
             exchange_token(
-                TokenRequest(
-                    grant_type="authorization_code",
-                    code="invalid-code",
-                    code_verifier=CODE_VERIFIER,
+                TokenRequest.model_validate(
+                    {
+                        "grantType": "authorization_code",
+                        "code": "invalid-code",
+                        "codeVerifier": CODE_VERIFIER,
+                    }
                 ),
                 service,
                 config,
@@ -305,5 +316,7 @@ def test_exchange_token_returns_fixed_error(config: Config) -> None:
             )
         )
 
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "Invalid or expired authorization code"
+    assert exc_info.value.spec.status == "AUTH_INVALID_AUTHORIZATION_CODE"
+    assert exc_info.value.spec.code == 400
+    assert exc_info.value.spec.message == "Invalid or expired authorization code"
+    assert isinstance(exc_info.value.__cause__, InvalidAuthorizationCodeError)

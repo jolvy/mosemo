@@ -11,22 +11,24 @@
       "AccountResponse": {
         "description": "현재 인증된 Mosemo 계정의 공개 정보입니다.",
         "properties": {
-          "account_id": {
+          "accountId": {
             "description": "Mosemo 계정의 고유 식별자입니다.",
             "format": "uuid",
-            "title": "Account Id",
+            "title": "Accountid",
             "type": "string"
           },
-          "created_at": {
+          "createdAt": {
             "description": "계정이 생성된 시각입니다.",
             "format": "date-time",
-            "title": "Created At",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "title": "Createdat",
             "type": "string"
           },
-          "last_authenticated_at": {
+          "lastAuthenticatedAt": {
             "description": "외부 인증 제공자를 통해 마지막으로 인증한 시각입니다.",
             "format": "date-time",
-            "title": "Last Authenticated At",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "title": "Lastauthenticatedat",
             "type": "string"
           },
           "provider": {
@@ -35,48 +37,68 @@
           }
         },
         "required": [
-          "account_id",
+          "accountId",
           "provider",
-          "created_at",
-          "last_authenticated_at"
+          "createdAt",
+          "lastAuthenticatedAt"
         ],
         "title": "AccountResponse",
         "type": "object"
       },
-      "ApiErrorResponse": {
-        "description": "Mosemo API가 통제된 오류를 반환할 때 사용하는 응답입니다.",
+      "ErrorPayload": {
+        "additionalProperties": false,
+        "description": "공개 오류 envelope 안의 공통 payload입니다.",
         "properties": {
-          "detail": {
-            "description": "클라이언트에 공개하는 오류 메시지입니다.",
-            "title": "Detail",
+          "code": {
+            "description": "실제 HTTP response status와 같은 오류 코드입니다.",
+            "title": "Code",
+            "type": "integer"
+          },
+          "details": {
+            "description": "검증 오류 상세 배열이며 일반 오류에서는 비어 있습니다.",
+            "items": {
+              "$ref": "#/components/schemas/ValidationDetail"
+            },
+            "title": "Details",
+            "type": "array"
+          },
+          "message": {
+            "description": "개발자용 영문 오류 설명입니다.",
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "description": "클라이언트가 분기할 애플리케이션 오류 식별자입니다.",
+            "title": "Status",
             "type": "string"
           }
         },
         "required": [
-          "detail"
+          "status",
+          "code",
+          "message",
+          "details"
         ],
-        "title": "ApiErrorResponse",
+        "title": "ErrorPayload",
         "type": "object"
       },
-      "RequestValidationErrorResponse": {
-        "description": "FastAPI가 요청 입력값 검증 실패 시 반환하는 응답입니다.",
+      "ErrorResponse": {
+        "additionalProperties": false,
+        "description": "Mosemo 공개 API가 반환하는 공통 오류 response입니다.",
         "properties": {
-          "detail": {
-            "description": "요청에서 발견된 입력값 검증 오류 목록입니다.",
-            "items": {
-              "$ref": "#/components/schemas/ValidationErrorDetail"
-            },
-            "title": "Detail",
-            "type": "array"
+          "error": {
+            "$ref": "#/components/schemas/ErrorPayload",
+            "description": "공개 오류 payload입니다."
           }
         },
         "required": [
-          "detail"
+          "error"
         ],
-        "title": "RequestValidationErrorResponse",
+        "title": "ErrorResponse",
         "type": "object"
       },
       "TokenRequest": {
+        "additionalProperties": false,
         "description": "일회용 인증 코드를 Mosemo 액세스 토큰으로 교환하는 요청입니다.",
         "properties": {
           "code": {
@@ -84,22 +106,22 @@
             "title": "Code",
             "type": "string"
           },
-          "code_verifier": {
+          "codeVerifier": {
             "description": "로그인 요청의 code_challenge를 생성할 때 사용한 43~128자의 PKCE code verifier입니다.",
-            "title": "Code Verifier",
+            "title": "Codeverifier",
             "type": "string"
           },
-          "grant_type": {
+          "grantType": {
             "const": "authorization_code",
             "description": "토큰 발급 방식이며 authorization_code만 허용합니다.",
-            "title": "Grant Type",
+            "title": "Granttype",
             "type": "string"
           }
         },
         "required": [
-          "grant_type",
+          "grantType",
           "code",
-          "code_verifier"
+          "codeVerifier"
         ],
         "title": "TokenRequest",
         "type": "object"
@@ -107,59 +129,37 @@
       "TokenResponse": {
         "description": "Mosemo API 인증에 사용하는 액세스 토큰 응답입니다.",
         "properties": {
-          "access_token": {
+          "accessToken": {
             "description": "Authorization 헤더에 사용할 Mosemo 액세스 토큰입니다.",
-            "title": "Access Token",
+            "title": "Accesstoken",
             "type": "string"
           },
-          "expires_in": {
+          "expiresIn": {
             "description": "액세스 토큰이 발급 시점부터 유효한 시간(초)입니다.",
-            "title": "Expires In",
+            "title": "Expiresin",
             "type": "integer"
           },
-          "token_type": {
+          "tokenType": {
             "const": "Bearer",
             "default": "Bearer",
             "description": "액세스 토큰의 인증 방식이며 Bearer로 고정됩니다.",
-            "title": "Token Type",
+            "title": "Tokentype",
             "type": "string"
           }
         },
         "required": [
-          "access_token",
-          "expires_in"
+          "accessToken",
+          "expiresIn"
         ],
         "title": "TokenResponse",
         "type": "object"
       },
-      "ValidationErrorDetail": {
-        "description": "요청에서 발견된 개별 입력값 검증 오류입니다.",
+      "ValidationDetail": {
+        "additionalProperties": false,
+        "description": "RequestValidationError에서 선택한 공개 검증 오류 정보입니다.",
         "properties": {
-          "ctx": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "검증 오류 메시지를 구성하는 추가 정보입니다.",
-            "title": "Ctx"
-          },
-          "input": {
-            "anyOf": [
-              {},
-              {
-                "type": "null"
-              }
-            ],
-            "description": "검증에 실패한 입력값입니다.",
-            "title": "Input"
-          },
           "loc": {
-            "description": "오류가 발생한 요청 영역과 필드의 경로입니다.",
+            "description": "Pydantic validation error의 loc 원문입니다. JSON에서는 문자열과 정수 segment의 배열입니다.",
             "items": {
               "anyOf": [
                 {
@@ -174,12 +174,12 @@
             "type": "array"
           },
           "msg": {
-            "description": "입력값이 유효하지 않은 이유입니다.",
+            "description": "Pydantic validation error의 msg 원문입니다.",
             "title": "Msg",
             "type": "string"
           },
           "type": {
-            "description": "검증 오류 유형을 식별하는 코드입니다.",
+            "description": "Pydantic validation error의 type 원문 또는 서버 정의 오류 유형입니다.",
             "title": "Type",
             "type": "string"
           }
@@ -189,7 +189,7 @@
           "msg",
           "type"
         ],
-        "title": "ValidationErrorDetail",
+        "title": "ValidationDetail",
         "type": "object"
       }
     },
@@ -202,6 +202,7 @@
     }
   },
   "info": {
+    "description": "Mosemo 공개 API입니다.\n\n## 공개 JSON 및 시간 계약\n\n- 공개 JSON 요청과 응답의 필드명은 camelCase를 사용합니다.\n- 성공 응답은 공통 `data`, `result`, `success` envelope 없이 도메인 데이터를 직접 반환합니다.\n- 관측 시각 요청은 `YYYY-MM-DDTHH:MM:SS[.ffffff]Z` 형식이며,\n  소수 초는 0~6자리까지 사용할 수 있습니다.\n- JSON 응답의 서버 시각은 UTC 정수 초 `YYYY-MM-DDTHH:MM:SSZ` 형식입니다.\n  Python 값에서는 마이크로초를 보존하고 JSON 직렬화에서만 반올림 없이 절삭합니다.\n- 관측 시각을 시간 블록으로 구성하는 규칙과 블록 경계는 서버가 결정합니다.\n\n## 공개 오류 계약\n\n- 애플리케이션이 생성하는 JSON 오류는 `error` 안에 `status`, `code`, `message`,\n  `details`를 담는 공통 envelope를 사용합니다.\n- `error.code`는 HTTP status와 같고, `error.status`는 클라이언트가 분기할\n  애플리케이션 오류 식별자입니다. validation detail은 RequestValidationError의\n  `loc`, `msg`, `type` 원문만 가집니다.\n- 404·405·500은 모든 v1 public operation의 공통 JSON 오류이며, 422는 실제 요청\n  입력 검증이 있는 operation에만 선언합니다.\n- 애플리케이션이 처리하지 못한 예외는 `500 INTERNAL_SERVER_ERROR` envelope로\n  반환하며, 원본 예외 정보는 응답에 포함하지 않습니다.\n- 응답 전송이 시작된 뒤 발생한 오류, proxy가 자체 생성한 오류, OAuth\n  custom-scheme redirect는 이 JSON 오류 계약의 범위 밖입니다.\n\nmacOS 생성 클라이언트 갱신은 이 서버 계약 작업의 범위 밖입니다.",
     "title": "Mosemo API",
     "version": "0.1.0"
   },
@@ -225,15 +226,26 @@
           "401": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Invalid or expired access token"
+                "examples": {
+                  "AUTH_INVALID_ACCESS_TOKEN": {
+                    "description": "Bearer 액세스 토큰이 유효하지 않거나 누락되었습니다.",
+                    "summary": "Invalid access token",
+                    "value": {
+                      "error": {
+                        "code": 401,
+                        "details": [],
+                        "message": "Invalid or expired access token",
+                        "status": "AUTH_INVALID_ACCESS_TOKEN"
+                      }
+                    }
+                  }
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "액세스 토큰이 누락되었거나 유효하지 않거나 만료되었거나, 토큰의 계정이 존재하지 않습니다.",
+            "description": "Unauthorized",
             "headers": {
               "WWW-Authenticate": {
                 "description": "클라이언트가 사용해야 하는 인증 방식입니다.",
@@ -243,6 +255,88 @@
                 }
               }
             }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_ROUTE_NOT_FOUND": {
+                    "description": "요청한 API route를 찾을 수 없습니다.",
+                    "summary": "Route not found",
+                    "value": {
+                      "error": {
+                        "code": 404,
+                        "details": [],
+                        "message": "API route not found",
+                        "status": "REQUEST_ROUTE_NOT_FOUND"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found",
+            "headers": {}
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_METHOD_NOT_ALLOWED": {
+                    "description": "요청 method가 해당 API route에서 허용되지 않습니다.",
+                    "summary": "Method not allowed",
+                    "value": {
+                      "error": {
+                        "code": 405,
+                        "details": [],
+                        "message": "Method not allowed",
+                        "status": "REQUEST_METHOD_NOT_ALLOWED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "description": "해당 route에서 허용되는 HTTP method 목록입니다.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_SERVER_ERROR": {
+                    "description": "예상하지 못한 서버 오류가 발생했습니다.",
+                    "summary": "Internal server error",
+                    "value": {
+                      "error": {
+                        "code": 500,
+                        "details": [],
+                        "message": "Internal server error",
+                        "status": "INTERNAL_SERVER_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error",
+            "headers": {}
           }
         },
         "security": [
@@ -406,15 +500,26 @@
           "400": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Invalid Kakao OAuth state"
+                "examples": {
+                  "AUTH_INVALID_OAUTH_CONTEXT": {
+                    "description": "OAuth login context가 유효하지 않습니다.",
+                    "summary": "Invalid OAuth context",
+                    "value": {
+                      "error": {
+                        "code": 400,
+                        "details": [],
+                        "message": "Invalid or expired OAuth login context",
+                        "status": "AUTH_INVALID_OAUTH_CONTEXT"
+                      }
+                    }
+                  }
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "state 또는 PKCE challenge 쿠키가 유효하지 않습니다.",
+            "description": "Bad Request",
             "headers": {
               "Cache-Control": {
                 "description": "응답을 저장하지 않도록 no-store로 설정됩니다.",
@@ -438,15 +543,87 @@
               }
             }
           },
-          "422": {
+          "404": {
             "content": {
               "application/json": {
+                "examples": {
+                  "REQUEST_ROUTE_NOT_FOUND": {
+                    "description": "요청한 API route를 찾을 수 없습니다.",
+                    "summary": "Route not found",
+                    "value": {
+                      "error": {
+                        "code": 404,
+                        "details": [],
+                        "message": "API route not found",
+                        "status": "REQUEST_ROUTE_NOT_FOUND"
+                      }
+                    }
+                  }
+                },
                 "schema": {
-                  "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Callback 파라미터 또는 쿠키의 형식이 잘못되었습니다."
+            "description": "Not Found",
+            "headers": {}
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_METHOD_NOT_ALLOWED": {
+                    "description": "요청 method가 해당 API route에서 허용되지 않습니다.",
+                    "summary": "Method not allowed",
+                    "value": {
+                      "error": {
+                        "code": 405,
+                        "details": [],
+                        "message": "Method not allowed",
+                        "status": "REQUEST_METHOD_NOT_ALLOWED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "description": "해당 route에서 허용되는 HTTP method 목록입니다.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_SERVER_ERROR": {
+                    "description": "예상하지 못한 서버 오류가 발생했습니다.",
+                    "summary": "Internal server error",
+                    "value": {
+                      "error": {
+                        "code": 500,
+                        "details": [],
+                        "message": "Internal server error",
+                        "status": "INTERNAL_SERVER_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error",
+            "headers": {}
           }
         },
         "summary": "Kakao 로그인 callback 처리",
@@ -518,15 +695,123 @@
               }
             }
           },
-          "422": {
+          "404": {
             "content": {
               "application/json": {
+                "examples": {
+                  "REQUEST_ROUTE_NOT_FOUND": {
+                    "description": "요청한 API route를 찾을 수 없습니다.",
+                    "summary": "Route not found",
+                    "value": {
+                      "error": {
+                        "code": 404,
+                        "details": [],
+                        "message": "API route not found",
+                        "status": "REQUEST_ROUTE_NOT_FOUND"
+                      }
+                    }
+                  }
+                },
                 "schema": {
-                  "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "PKCE 쿼리 파라미터가 누락되었거나 형식이 잘못되었습니다."
+            "description": "Not Found",
+            "headers": {}
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_METHOD_NOT_ALLOWED": {
+                    "description": "요청 method가 해당 API route에서 허용되지 않습니다.",
+                    "summary": "Method not allowed",
+                    "value": {
+                      "error": {
+                        "code": 405,
+                        "details": [],
+                        "message": "Method not allowed",
+                        "status": "REQUEST_METHOD_NOT_ALLOWED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "description": "해당 route에서 허용되는 HTTP method 목록입니다.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INVALID_ARGUMENT": {
+                    "description": "요청 입력값 검증에 실패했습니다.",
+                    "summary": "Invalid argument",
+                    "value": {
+                      "error": {
+                        "code": 422,
+                        "details": [
+                          {
+                            "loc": [
+                              "body",
+                              "users",
+                              0,
+                              "email"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ],
+                        "message": "Request validation failed.",
+                        "status": "INVALID_ARGUMENT"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content",
+            "headers": {}
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_SERVER_ERROR": {
+                    "description": "예상하지 못한 서버 오류가 발생했습니다.",
+                    "summary": "Internal server error",
+                    "value": {
+                      "error": {
+                        "code": 500,
+                        "details": [],
+                        "message": "Internal server error",
+                        "status": "INTERNAL_SERVER_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error",
+            "headers": {}
           }
         },
         "summary": "Kakao 로그인 시작",
@@ -579,25 +864,145 @@
           "400": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Invalid or expired authorization code"
+                "examples": {
+                  "AUTH_INVALID_AUTHORIZATION_CODE": {
+                    "description": "authorization code 또는 PKCE 검증에 실패했습니다.",
+                    "summary": "Invalid authorization code",
+                    "value": {
+                      "error": {
+                        "code": 400,
+                        "details": [],
+                        "message": "Invalid or expired authorization code",
+                        "status": "AUTH_INVALID_AUTHORIZATION_CODE"
+                      }
+                    }
+                  }
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "일회용 인증 코드가 없거나 만료되었거나 이미 사용되었거나, PKCE code verifier가 유효하지 않습니다."
+            "description": "Bad Request",
+            "headers": {}
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_ROUTE_NOT_FOUND": {
+                    "description": "요청한 API route를 찾을 수 없습니다.",
+                    "summary": "Route not found",
+                    "value": {
+                      "error": {
+                        "code": 404,
+                        "details": [],
+                        "message": "API route not found",
+                        "status": "REQUEST_ROUTE_NOT_FOUND"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found",
+            "headers": {}
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_METHOD_NOT_ALLOWED": {
+                    "description": "요청 method가 해당 API route에서 허용되지 않습니다.",
+                    "summary": "Method not allowed",
+                    "value": {
+                      "error": {
+                        "code": 405,
+                        "details": [],
+                        "message": "Method not allowed",
+                        "status": "REQUEST_METHOD_NOT_ALLOWED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "description": "해당 route에서 허용되는 HTTP method 목록입니다.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "422": {
             "content": {
               "application/json": {
+                "examples": {
+                  "INVALID_ARGUMENT": {
+                    "description": "요청 입력값 검증에 실패했습니다.",
+                    "summary": "Invalid argument",
+                    "value": {
+                      "error": {
+                        "code": 422,
+                        "details": [
+                          {
+                            "loc": [
+                              "body",
+                              "users",
+                              0,
+                              "email"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ],
+                        "message": "Request validation failed.",
+                        "status": "INVALID_ARGUMENT"
+                      }
+                    }
+                  }
+                },
                 "schema": {
-                  "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "요청 본문의 필수 필드 또는 grant_type이 유효하지 않습니다."
+            "description": "Unprocessable Content",
+            "headers": {}
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_SERVER_ERROR": {
+                    "description": "예상하지 못한 서버 오류가 발생했습니다.",
+                    "summary": "Internal server error",
+                    "value": {
+                      "error": {
+                        "code": 500,
+                        "details": [],
+                        "message": "Internal server error",
+                        "status": "INTERNAL_SERVER_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error",
+            "headers": {}
           }
         },
         "summary": "액세스 토큰 발급",
