@@ -74,3 +74,8 @@ cmd = "python scripts/export_openapi.py"
 [tool.poe.tasks.ci]
 cmd = "act pull_request -j quality"
 help = "Run the pull-request quality job locally"
+
+[tool.poe.tasks.migration-dev]
+cmd = "alembic upgrade head"
+envfile = [".env", ".env.local"]
+help = "Run migration"
