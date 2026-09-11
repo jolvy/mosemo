@@ -1,0 +1,1 @@
+"""Activity collection unit tests."""
