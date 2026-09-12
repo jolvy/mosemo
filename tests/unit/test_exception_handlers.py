@@ -12,6 +12,7 @@ from mosemo.exceptions import (
     ApiException,
     ErrorCode,
 )
+from mosemo.schemas import ValidationDetail
 
 
 def test_validation_details_copies_only_loc_msg_and_type() -> None:
@@ -105,7 +106,16 @@ def test_api_exception_handler_returns_replacement_envelope_and_challenge() -> N
 
     @app.get("/error")
     def error() -> None:
-        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN)
+        raise ApiException(
+            ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+            details=[
+                ValidationDetail(
+                    loc=["header", "Authorization"],
+                    msg="Invalid token",
+                    type="invalid_token",
+                )
+            ],
+        )
 
     with TestClient(app) as client:
         response = client.get("/error")
@@ -116,7 +126,13 @@ def test_api_exception_handler_returns_replacement_envelope_and_challenge() -> N
             "status": "AUTH_INVALID_ACCESS_TOKEN",
             "code": 401,
             "message": "Invalid or expired access token",
-            "details": [],
+            "details": [
+                {
+                    "loc": ["header", "Authorization"],
+                    "msg": "Invalid token",
+                    "type": "invalid_token",
+                }
+            ],
         }
     }
     assert response.headers["www-authenticate"] == "Bearer"

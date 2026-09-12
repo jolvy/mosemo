@@ -4,12 +4,9 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from mosemo.exceptions import (
-    ApiException,
-    ErrorCode,
-)
+from mosemo.exceptions import ErrorCode
 from mosemo.openapi import ERROR_DOCS, api_error_responses
-from mosemo.responses import api_exception_response, error_response
+from mosemo.responses import error_response
 from mosemo.schemas import ErrorResponse, ValidationDetail
 
 
@@ -25,26 +22,6 @@ def test_error_response_uses_one_spec_for_http_and_body_code() -> None:
             "details": [],
         }
     }
-
-
-def test_api_exception_response_serializes_validation_details() -> None:
-    detail = ValidationDetail(
-        loc=["body", "users", 0, "email"],
-        msg="Field required",
-        type="missing",
-    )
-    response = api_exception_response(
-        ApiException(ErrorCode.INVALID_ARGUMENT, details=[detail])
-    )
-
-    assert response.status_code == 422
-    assert json.loads(bytes(response.body))["error"]["details"] == [
-        {
-            "loc": ["body", "users", 0, "email"],
-            "msg": "Field required",
-            "type": "missing",
-        }
-    ]
 
 
 def test_response_builder_serializes_details() -> None:

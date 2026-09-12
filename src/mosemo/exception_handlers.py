@@ -10,7 +10,7 @@ from mosemo.exceptions import (
     ApiException,
     ErrorCode,
 )
-from mosemo.responses import api_exception_response, error_response
+from mosemo.responses import error_response
 from mosemo.schemas import ValidationDetail
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ async def api_exception_handler(
         if exc.spec is ErrorCode.AUTH_INVALID_ACCESS_TOKEN
         else None
     )
-    return api_exception_response(exc, headers=headers)
+    return error_response(exc.spec, details=exc.details, headers=headers)
 
 
 async def request_validation_exception_handler(
