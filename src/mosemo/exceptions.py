@@ -27,6 +27,11 @@ class ErrorCode:
         code=401,
         message="Invalid or expired access token",
     )
+    ACTIVITY_INGEST_NOT_IMPLEMENTED = ErrorSpec(
+        status="ACTIVITY_INGEST_NOT_IMPLEMENTED",
+        code=501,
+        message="Activity ingestion is not implemented",
+    )
     REQUEST_ROUTE_NOT_FOUND = ErrorSpec(
         status="REQUEST_ROUTE_NOT_FOUND",
         code=404,

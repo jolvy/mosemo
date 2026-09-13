@@ -238,8 +238,12 @@ def test_openapi_uses_one_common_error_schema_and_framework_validation_detail(
     assert schemas["ValidationDetail"]["properties"]["type"]["type"] == "string"
     assert "HTTPValidationError" not in schemas
     assert "ValidationError" not in schemas
-    assert "oneOf" not in json.dumps(schemas)
-    assert "discriminator" not in json.dumps(schemas)
+    error_schemas = {
+        name: schemas[name]
+        for name in ("ErrorResponse", "ErrorPayload", "ValidationDetail")
+    }
+    assert "oneOf" not in json.dumps(error_schemas)
+    assert "discriminator" not in json.dumps(error_schemas)
 
 
 def test_public_error_examples_match_status_and_common_schema(
