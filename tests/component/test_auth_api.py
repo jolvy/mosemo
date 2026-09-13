@@ -1,12 +1,9 @@
-from datetime import UTC, datetime
 from unittest.mock import create_autospec
-from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mosemo.accounts.models import Account, AccountProvider
 from mosemo.api import v1_api_router
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.router import KAKAO_AUTHORIZE_URL
@@ -17,17 +14,6 @@ from mosemo.exception_handlers import register_exception_handlers
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
-
-
-def make_account() -> Account:
-    now = datetime.now(UTC)
-    return Account(
-        account_id=uuid4(),
-        provider=AccountProvider.KAKAO,
-        provider_subject="123456789",
-        created_at=now,
-        last_authenticated_at=now,
-    )
 
 
 def make_app(
@@ -47,10 +33,8 @@ def test_login_callback_and_token_exchange_flow(
     config: Config,
     monkeypatch,
 ) -> None:
-    account = make_account()
     service = create_autospec(AuthService, instance=True)
-    service.authenticate_kakao.return_value = account
-    service.create_authorization_code.return_value = "one-time-code"
+    service.complete_kakao_login.return_value = "one-time-code"
     service.exchange_authorization_code.return_value = "access-token"
     monkeypatch.setattr(
         "mosemo.auth.router.secrets.token_urlsafe",
@@ -106,9 +90,8 @@ def test_login_callback_and_token_exchange_flow(
     }
     assert token_response.headers["cache-control"] == "no-store"
     assert token_response.headers["pragma"] == "no-cache"
-    service.authenticate_kakao.assert_awaited_once_with(code="authorization-code")
-    service.create_authorization_code.assert_awaited_once_with(
-        account=account,
+    service.complete_kakao_login.assert_awaited_once_with(
+        code="authorization-code",
         code_challenge=CODE_CHALLENGE,
     )
     service.exchange_authorization_code.assert_awaited_once_with(
@@ -137,7 +120,7 @@ def test_callback_without_state_cookie_returns_bad_request(config: Config) -> No
             "details": [],
         }
     }
-    service.authenticate_kakao.assert_not_awaited()
+    service.complete_kakao_login.assert_not_awaited()
 
 
 def test_token_exchange_returns_documented_bad_request(config: Config) -> None:

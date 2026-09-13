@@ -39,30 +39,39 @@ class AuthService:
         self._token_service = token_service
         self._config = config
 
-    async def authenticate_kakao(self, *, code: str) -> Account:
+    async def complete_kakao_login(
+        self,
+        *,
+        code: str,
+        code_challenge: str,
+    ) -> str:
         try:
             provider_subject = await self._kakao_client.get_user_id(code=code)
         except KakaoClientError as exc:
             raise KakaoAuthenticationError from exc
 
-        account = await self._account_repository.find(
-            provider=AccountProvider.KAKAO,
-            provider_subject=provider_subject,
-        )
-        if account is None:
-            account = self._account_repository.save(
+        async with self._session.begin():
+            account = await self._account_repository.find(
                 provider=AccountProvider.KAKAO,
                 provider_subject=provider_subject,
             )
-        else:
-            account.last_authenticated_at = datetime.now(UTC)
+            if account is None:
+                account = self._account_repository.save(
+                    provider=AccountProvider.KAKAO,
+                    provider_subject=provider_subject,
+                )
+                await self._session.flush()
+            else:
+                account.last_authenticated_at = datetime.now(UTC)
 
-        await self._session.commit()
-        await self._session.refresh(account)
+            authorization_code = await self._create_authorization_code(
+                account=account,
+                code_challenge=code_challenge,
+            )
 
-        return account
+        return authorization_code
 
-    async def create_authorization_code(
+    async def _create_authorization_code(
         self,
         *,
         account: Account,
@@ -80,7 +89,6 @@ class AuthService:
             expires_at=now
             + timedelta(seconds=self._config.authorization_code_ttl_seconds),
         )
-        await self._session.commit()
         return authorization_code
 
     async def exchange_authorization_code(
@@ -116,6 +124,12 @@ class AuthService:
             raise InvalidAuthorizationCodeError
 
         account_id = stored_code.account_id
+        try:
+            access_token = self._token_service.issue_access_token(account_id)
+        except Exception:
+            await self._session.rollback()
+            raise
+
         await self._native_auth_code_repository.delete(stored_code)
         await self._session.commit()
-        return self._token_service.issue_access_token(account_id)
+        return access_token

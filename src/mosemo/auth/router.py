@@ -296,9 +296,8 @@ async def callback(
         response = _app_redirect(config, error="authentication_failed")
     else:
         try:
-            account = await service.authenticate_kakao(code=code)
-            authorization_code = await service.create_authorization_code(
-                account=account,
+            authorization_code = await service.complete_kakao_login(
+                code=code,
                 code_challenge=pkce_challenge_cookie,
             )
         except KakaoAuthenticationError:

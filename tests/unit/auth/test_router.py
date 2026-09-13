@@ -1,12 +1,12 @@
 import asyncio
 import json
 from http.cookies import SimpleCookie
+from unittest.mock import create_autospec
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi import Response
 
-from mosemo.accounts.models import Account, AccountProvider
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.router import (
     KAKAO_AUTHORIZE_URL,
@@ -29,49 +29,8 @@ CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
 
 
-class StubAuthService(AuthService):
-    def __init__(
-        self,
-        *,
-        result: Account | None = None,
-        authentication_error: KakaoAuthenticationError | None = None,
-        exchange_error: InvalidAuthorizationCodeError | None = None,
-    ) -> None:
-        self.result = result
-        self.authentication_error = authentication_error
-        self.exchange_error = exchange_error
-        self.kakao_codes: list[str] = []
-        self.code_challenges: list[str] = []
-        self.exchange_requests: list[tuple[str, str]] = []
-
-    async def authenticate_kakao(self, *, code: str) -> Account:
-        self.kakao_codes.append(code)
-        if self.authentication_error is not None:
-            raise self.authentication_error
-        if self.result is None:
-            raise AssertionError("An account result was not configured")
-        return self.result
-
-    async def create_authorization_code(
-        self,
-        *,
-        account: Account,
-        code_challenge: str,
-    ) -> str:
-        assert account is self.result
-        self.code_challenges.append(code_challenge)
-        return "one-time-code"
-
-    async def exchange_authorization_code(
-        self,
-        *,
-        authorization_code: str,
-        code_verifier: str,
-    ) -> str:
-        self.exchange_requests.append((authorization_code, code_verifier))
-        if self.exchange_error is not None:
-            raise self.exchange_error
-        return "access-token"
+def make_service():
+    return create_autospec(AuthService, instance=True)
 
 
 def response_cookies(response) -> SimpleCookie:
@@ -148,7 +107,7 @@ def test_callback_rejects_invalid_state_and_clears_cookies(
     state_cookie: str | None,
     pkce_challenge_cookie: str | None,
 ) -> None:
-    service = StubAuthService()
+    service = make_service()
 
     response = asyncio.run(
         callback(
@@ -177,17 +136,14 @@ def test_callback_rejects_invalid_state_and_clears_cookies(
     cookies = response_cookies(response)
     assert cookies[STATE_COOKIE]["max-age"] == "0"
     assert cookies[PKCE_CHALLENGE_COOKIE]["max-age"] == "0"
-    assert service.kakao_codes == []
+    service.complete_kakao_login.assert_not_awaited()
 
 
 def test_callback_redirects_authorization_code_to_macos_app(
     config: Config,
 ) -> None:
-    account = Account(
-        provider=AccountProvider.KAKAO,
-        provider_subject="123456789",
-    )
-    service = StubAuthService(result=account)
+    service = make_service()
+    service.complete_kakao_login.return_value = "one-time-code"
 
     response = asyncio.run(
         callback(
@@ -209,8 +165,10 @@ def test_callback_redirects_authorization_code_to_macos_app(
     assert parse_qs(location.query) == {"code": ["one-time-code"]}
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["pragma"] == "no-cache"
-    assert service.kakao_codes == ["authorization-code"]
-    assert service.code_challenges == [CODE_CHALLENGE]
+    service.complete_kakao_login.assert_awaited_once_with(
+        code="authorization-code",
+        code_challenge=CODE_CHALLENGE,
+    )
     cookies = response_cookies(response)
     assert cookies[STATE_COOKIE]["max-age"] == "0"
     assert cookies[PKCE_CHALLENGE_COOKIE]["max-age"] == "0"
@@ -219,7 +177,8 @@ def test_callback_redirects_authorization_code_to_macos_app(
 def test_callback_redirects_authentication_failure_to_macos_app(
     config: Config,
 ) -> None:
-    service = StubAuthService(authentication_error=KakaoAuthenticationError())
+    service = make_service()
+    service.complete_kakao_login.side_effect = KakaoAuthenticationError()
 
     response = asyncio.run(
         callback(
@@ -237,6 +196,10 @@ def test_callback_redirects_authentication_failure_to_macos_app(
     assert parse_qs(urlsplit(response.headers["location"]).query) == {
         "error": ["authentication_failed"]
     }
+    service.complete_kakao_login.assert_awaited_once_with(
+        code="authorization-code",
+        code_challenge=CODE_CHALLENGE,
+    )
 
 
 @pytest.mark.parametrize(
@@ -251,7 +214,7 @@ def test_callback_maps_provider_error_without_authenticating(
     provider_error: str,
     public_error: str,
 ) -> None:
-    service = StubAuthService()
+    service = make_service()
 
     response = asyncio.run(
         callback(
@@ -269,11 +232,12 @@ def test_callback_maps_provider_error_without_authenticating(
     assert parse_qs(urlsplit(response.headers["location"]).query) == {
         "error": [public_error]
     }
-    assert service.kakao_codes == []
+    service.complete_kakao_login.assert_not_awaited()
 
 
 def test_exchange_token_returns_bearer_response(config: Config) -> None:
-    service = StubAuthService()
+    service = make_service()
+    service.exchange_authorization_code.return_value = "access-token"
 
     result = asyncio.run(
         exchange_token(
@@ -295,10 +259,15 @@ def test_exchange_token_returns_bearer_response(config: Config) -> None:
         "tokenType": "Bearer",
         "expiresIn": 86_400,
     }
+    service.exchange_authorization_code.assert_awaited_once_with(
+        authorization_code="one-time-code",
+        code_verifier=CODE_VERIFIER,
+    )
 
 
 def test_exchange_token_returns_fixed_error(config: Config) -> None:
-    service = StubAuthService(exchange_error=InvalidAuthorizationCodeError())
+    service = make_service()
+    service.exchange_authorization_code.side_effect = InvalidAuthorizationCodeError()
 
     with pytest.raises(ApiException) as exc_info:
         asyncio.run(
@@ -320,3 +289,7 @@ def test_exchange_token_returns_fixed_error(config: Config) -> None:
     assert exc_info.value.spec.code == 400
     assert exc_info.value.spec.message == "Invalid or expired authorization code"
     assert isinstance(exc_info.value.__cause__, InvalidAuthorizationCodeError)
+    service.exchange_authorization_code.assert_awaited_once_with(
+        authorization_code="invalid-code",
+        code_verifier=CODE_VERIFIER,
+    )

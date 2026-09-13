@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
-from unittest.mock import create_autospec
+from unittest.mock import Mock, create_autospec
 from uuid import UUID
 
 import pytest
@@ -36,6 +36,114 @@ def make_service(
         token_service=TokenService(config.auth),
         config=config.auth,
     )
+
+
+@pytest.mark.asyncio
+async def test_kakao_login_rolls_back_account_when_code_storage_fails(
+    integration_session: AsyncSession,
+    config: Config,
+) -> None:
+    provider_subject = f"integration-{secrets.token_hex(8)}"
+    kakao_client = create_autospec(KakaoClient, instance=True)
+    kakao_client.get_user_id.return_value = provider_subject
+    auth_code_repository = create_autospec(
+        NativeAuthCodeRepository,
+        instance=True,
+    )
+    auth_code_repository.save.side_effect = RuntimeError("code storage failed")
+    account_repository = AccountRepository(integration_session)
+    service = AuthService(
+        kakao_client=kakao_client,
+        session=integration_session,
+        account_repository=account_repository,
+        native_auth_code_repository=auth_code_repository,
+        token_service=TokenService(config.auth),
+        config=config.auth,
+    )
+
+    with pytest.raises(RuntimeError, match="code storage failed"):
+        await service.complete_kakao_login(
+            code="authorization-code",
+            code_challenge=CODE_CHALLENGE,
+        )
+
+    assert (
+        await account_repository.find(
+            provider=AccountProvider.KAKAO,
+            provider_subject=provider_subject,
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_fails(
+    integration_database_url: str,
+    config: Config,
+    monkeypatch,
+) -> None:
+    engine = create_async_engine(integration_database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    provider_subject = f"integration-{secrets.token_hex(8)}"
+    account_id: UUID | None = None
+    initial_last_authenticated_at = datetime(2000, 1, 1, tzinfo=UTC)
+
+    try:
+        async with session_factory() as session:
+            account = Account(
+                provider=AccountProvider.KAKAO,
+                provider_subject=provider_subject,
+                last_authenticated_at=initial_last_authenticated_at,
+            )
+            session.add(account)
+            await session.commit()
+            await session.refresh(account)
+            account_id = account.account_id
+            initial_last_authenticated_at = account.last_authenticated_at
+
+        async with session_factory() as session:
+            kakao_client = create_autospec(KakaoClient, instance=True)
+            kakao_client.get_user_id.return_value = provider_subject
+            auth_code_repository = NativeAuthCodeRepository(session)
+            save_auth_code = Mock(
+                side_effect=RuntimeError("code storage failed"),
+            )
+            monkeypatch.setattr(auth_code_repository, "save", save_auth_code)
+            service = AuthService(
+                kakao_client=kakao_client,
+                session=session,
+                account_repository=AccountRepository(session),
+                native_auth_code_repository=auth_code_repository,
+                token_service=TokenService(config.auth),
+                config=config.auth,
+            )
+
+            with pytest.raises(RuntimeError, match="code storage failed"):
+                await service.complete_kakao_login(
+                    code="authorization-code",
+                    code_challenge=CODE_CHALLENGE,
+                )
+
+            save_auth_code.assert_called_once()
+
+        async with session_factory() as session:
+            stored_account = await AccountRepository(session).find(
+                provider=AccountProvider.KAKAO,
+                provider_subject=provider_subject,
+            )
+            assert stored_account is not None
+            assert stored_account.account_id == account_id
+            assert stored_account.last_authenticated_at == initial_last_authenticated_at
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(
+                    Account.provider == AccountProvider.KAKAO,
+                    Account.provider_subject == provider_subject,
+                )
+            )
+            await session.commit()
+        await engine.dispose()
 
 
 @pytest.mark.asyncio
