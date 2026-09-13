@@ -4,8 +4,8 @@
 > 범위: macOS 클라이언트의 관찰, 활동 레코드 단건 수신, 원본 저장, 조회 시 타임라인 계산
 > 비범위: 배치 전송, 오프라인 수집, 저장형 타임라인 projection, AI 해석, 사용자 확정 의미, 통계·집중도
 
-현재 `src/mosemo/activities/schemas.py`는 이전 batch 계약을 구현하고 있다. 이 문서는
-그 구현이 아니라 다음 활동 API와 저장 구조의 목표를 설명한다. 기존
+현재 `src/mosemo/activities/schemas.py`는 이 문서의 단건 공개 요청 계약을 구현한다.
+기존
 `docs/REQUIERMENTS.md`의 batch·오프라인 관련 문구는 이번 작업 범위에서 수정하지
 않았으므로 별도로 정합성을 맞춰야 한다.
 
@@ -48,13 +48,13 @@ macOS 클라이언트                  서버                         화면
 
 ```json
 {
-  "device_registration_id": "30000000-0000-0000-0000-000000000000",
-  "event_id": "40000000-0000-0000-0000-000000000000",
+  "deviceRegistrationId": "30000000-0000-0000-0000-000000000000",
+  "eventId": "40000000-0000-0000-0000-000000000000",
   "sequence": 412,
-  "record_type": "activity_observation",
-  "observed_at": "2026-09-13T10:15:30Z",
-  "timezone_id": "Asia/Seoul",
-  "utc_offset_minutes": 540,
+  "recordType": "activity_observation",
+  "observedAt": "2026-09-13T10:15:30Z",
+  "timezoneId": "Asia/Seoul",
+  "utcOffsetMinutes": 540,
   "context": {
     "kind": "opaque"
   }
@@ -63,16 +63,16 @@ macOS 클라이언트                  서버                         화면
 
 | 필드 | 의미 |
 | --- | --- |
-| `device_registration_id` | 인증된 계정에 귀속된 앱 설치 등록의 식별자. |
-| `event_id` | 레코드 재시도와 중복 제거에 사용하는 클라이언트 생성 식별자. |
+| `deviceRegistrationId` | 인증된 계정에 귀속된 앱 설치 등록의 식별자. |
+| `eventId` | 레코드 재시도와 중복 제거에 사용하는 클라이언트 생성 식별자. |
 | `sequence` | 같은 기기 등록 안에서 증가하는 레코드 순번. |
-| `record_type` | `activity_observation` 또는 `collection_state_changed`. |
-| `observed_at` | 클라이언트가 관찰에 부여한 UTC 시각. |
-| `timezone_id`, `utc_offset_minutes` | 관찰 당시의 현지 시간대 문맥. |
+| `recordType` | `activity_observation` 또는 `collection_state_changed`. |
+| `observedAt` | 클라이언트가 관찰에 부여한 UTC 시각. |
+| `timezoneId`, `utcOffsetMinutes` | 관찰 당시의 현지 시간대 문맥. |
 
-`batch_id`, `collection_stream_id`, `clock_epoch_id`, `monotonic_ns`는 초기 공개
-요청과 서버 저장 모델에 포함하지 않는다. 클라이언트는 온라인 시간 동기화로 얻은
-UTC 기준점과 로컬 단조 시계의 경과시간을 이용해 `observed_at`을 만들 수 있지만,
+`batchId`, `collectionStreamId`, `clockEpochId`, `monotonicNs`는 초기 공개 요청에
+포함하지 않으며, 대응하는 서버 저장 컬럼도 두지 않는다. 클라이언트는 온라인 시간
+동기화로 얻은 UTC 기준점과 로컬 단조 시계의 경과시간을 이용해 `observedAt`을 만들 수 있지만,
 서버는 그 내부 계산 근거를 저장하지 않는다.
 
 ### 2.2 활동 관찰
@@ -81,17 +81,17 @@ UTC 기준점과 로컬 단조 시계의 경과시간을 이용해 `observed_at`
 
 ```json
 {
-  "device_registration_id": "30000000-0000-0000-0000-000000000000",
-  "record_type": "activity_observation",
-  "event_id": "40000000-0000-0000-0000-000000000000",
+  "deviceRegistrationId": "30000000-0000-0000-0000-000000000000",
+  "recordType": "activity_observation",
+  "eventId": "40000000-0000-0000-0000-000000000000",
   "sequence": 412,
-  "observed_at": "2026-09-13T10:15:30Z",
-  "timezone_id": "Asia/Seoul",
-  "utc_offset_minutes": 540,
+  "observedAt": "2026-09-13T10:15:30Z",
+  "timezoneId": "Asia/Seoul",
+  "utcOffsetMinutes": 540,
   "context": {
     "kind": "detailed",
     "app": {
-      "bundle_id": { "status": "captured", "value": "com.apple.Safari" },
+      "bundleId": { "status": "captured", "value": "com.apple.Safari" },
       "name": { "status": "captured", "value": "Safari" }
     },
     "window": {
@@ -104,7 +104,7 @@ UTC 기준점과 로컬 단조 시계의 경과시간을 이용해 `observed_at`
     },
     "web": {
       "kind": "browser",
-      "tab_title": {
+      "tabTitle": {
         "status": "captured",
         "value": "Mosemo",
         "truncated": false
@@ -123,7 +123,7 @@ UTC 기준점과 로컬 단조 시계의 경과시간을 이용해 `observed_at`
 
 | 영역 | 구조와 의미 |
 | --- | --- |
-| `app` | `bundle_id`와 표시 이름을 각각 수집한다. |
+| `app` | `bundleId`와 표시 이름을 각각 수집한다. |
 | `window` | `captured`, `absent`, `unavailable` 중 하나다. 창 제목은 길이 제한을 넘으면 앞부분과 원래 바이트 길이를 기록한다. |
 | `web` | `not_applicable` 또는 `browser`다. 브라우저일 때 탭 제목과 URL은 각각 독립 상태다. |
 | 탭 제목·URL | `captured`, `absent`, `unavailable`, `redacted` 중 하나다. `redacted`에는 개인정보 정책상의 사유가 필요하다. |
@@ -150,13 +150,13 @@ URL은 브라우저가 관찰한 문자열을 그대로 보존한다. 서버가 
 
 ```json
 {
-  "device_registration_id": "30000000-0000-0000-0000-000000000000",
-  "record_type": "collection_state_changed",
-  "event_id": "40000000-0000-0000-0000-000000000001",
+  "deviceRegistrationId": "30000000-0000-0000-0000-000000000000",
+  "recordType": "collection_state_changed",
+  "eventId": "40000000-0000-0000-0000-000000000001",
   "sequence": 413,
-  "observed_at": "2026-09-13T10:20:00Z",
-  "timezone_id": "Asia/Seoul",
-  "utc_offset_minutes": 540,
+  "observedAt": "2026-09-13T10:20:00Z",
+  "timezoneId": "Asia/Seoul",
+  "utcOffsetMinutes": 540,
   "state": "suspended",
   "reason": "screen_locked"
 }
@@ -171,16 +171,16 @@ URL은 브라우저가 관찰한 문자열을 그대로 보존한다. 서버가 
 
 ```json
 {
-  "event_id": "40000000-0000-0000-0000-000000000000",
+  "eventId": "40000000-0000-0000-0000-000000000000",
   "status": "accepted",
-  "received_at": "2026-09-13T10:15:31Z"
+  "receivedAt": "2026-09-13T10:15:31Z"
 }
 ```
 
-- 처음 저장한 `event_id`는 `accepted`다.
-- 같은 `event_id`와 같은 레코드를 다시 보내면 기존 결과를 반환한다.
-- 같은 `event_id`와 다른 레코드를 보내면 `409 Conflict`다.
-- 동일성은 서버가 생성한 `received_at`을 제외한 저장 컬럼과 JSONB payload를 직접
+- 처음 저장한 `eventId`는 `accepted`다.
+- 같은 `eventId`와 같은 레코드를 다시 보내면 기존 결과를 반환한다.
+- 같은 `eventId`와 다른 레코드를 보내면 `409 Conflict`다.
+- 동일성은 서버가 생성한 `receivedAt`을 제외한 저장 컬럼과 JSONB payload를 직접
   비교한다. 별도 `event_hash`를 저장하지 않는다.
 
 ## 3. 클라이언트 관찰과 개인정보 경계

@@ -1,6 +1,40 @@
 {
   "components": {
     "schemas": {
+      "AbsentValue": {
+        "additionalProperties": false,
+        "description": "A value that does not exist at the observation point.",
+        "properties": {
+          "status": {
+            "const": "absent",
+            "description": "관찰 시점에 해당 값이 없었음을 나타냅니다.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AbsentValue",
+        "type": "object"
+      },
+      "AbsentWindow": {
+        "additionalProperties": false,
+        "description": "An observation where the focused application has no window.",
+        "properties": {
+          "status": {
+            "const": "absent",
+            "description": "포커싱된 앱에 창이 없었음을 나타냅니다.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AbsentWindow",
+        "type": "object"
+      },
       "AccountProvider": {
         "enum": [
           "KAKAO"
@@ -43,6 +77,445 @@
           "lastAuthenticatedAt"
         ],
         "title": "AccountResponse",
+        "type": "object"
+      },
+      "ActivityObservation": {
+        "additionalProperties": false,
+        "description": "A complete snapshot of the focused activity at one point in time.",
+        "properties": {
+          "context": {
+            "description": "개인정보 필터링을 마친 전체 활동 문맥입니다.",
+            "discriminator": {
+              "mapping": {
+                "detailed": "#/components/schemas/DetailedActivityContext",
+                "opaque": "#/components/schemas/OpaqueActivityContext"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DetailedActivityContext"
+              },
+              {
+                "$ref": "#/components/schemas/OpaqueActivityContext"
+              }
+            ],
+            "title": "Context"
+          },
+          "deviceRegistrationId": {
+            "description": "서버에 등록된 수집 기기의 식별자입니다.",
+            "format": "uuid",
+            "title": "Deviceregistrationid",
+            "type": "string"
+          },
+          "eventId": {
+            "description": "레코드 중복 제거에 사용하는 식별자입니다.",
+            "format": "uuid",
+            "title": "Eventid",
+            "type": "string"
+          },
+          "observedAt": {
+            "description": "클라이언트 벽시계로 기록한 UTC 관찰 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Observedat",
+            "type": "string"
+          },
+          "recordType": {
+            "const": "activity_observation",
+            "description": "활동 전체 스냅샷 레코드임을 나타냅니다.",
+            "title": "Recordtype",
+            "type": "string"
+          },
+          "sequence": {
+            "description": "기기 등록 안에서 단조 증가하는 레코드 순번입니다.",
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "timezoneId": {
+            "description": "관찰 당시의 IANA 시간대 식별자입니다.",
+            "minLength": 1,
+            "title": "Timezoneid",
+            "type": "string"
+          },
+          "utcOffsetMinutes": {
+            "description": "관찰 당시 UTC와 현지 시간의 차이(분)입니다.",
+            "title": "Utcoffsetminutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deviceRegistrationId",
+          "eventId",
+          "sequence",
+          "observedAt",
+          "timezoneId",
+          "utcOffsetMinutes",
+          "recordType",
+          "context"
+        ],
+        "title": "ActivityObservation",
+        "type": "object"
+      },
+      "AppContext": {
+        "additionalProperties": false,
+        "description": "Application identifiers observed independently by the client.",
+        "properties": {
+          "bundleId": {
+            "description": "포커싱된 앱의 bundle ID 상태와 값입니다.",
+            "discriminator": {
+              "mapping": {
+                "absent": "#/components/schemas/AbsentValue",
+                "captured": "#/components/schemas/CapturedString",
+                "unavailable": "#/components/schemas/UnavailableValue"
+              },
+              "propertyName": "status"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CapturedString"
+              },
+              {
+                "$ref": "#/components/schemas/AbsentValue"
+              },
+              {
+                "$ref": "#/components/schemas/UnavailableValue"
+              }
+            ],
+            "title": "Bundleid"
+          },
+          "name": {
+            "description": "포커싱된 앱의 표시 이름 상태와 값입니다.",
+            "discriminator": {
+              "mapping": {
+                "absent": "#/components/schemas/AbsentValue",
+                "captured": "#/components/schemas/CapturedString",
+                "unavailable": "#/components/schemas/UnavailableValue"
+              },
+              "propertyName": "status"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CapturedString"
+              },
+              {
+                "$ref": "#/components/schemas/AbsentValue"
+              },
+              {
+                "$ref": "#/components/schemas/UnavailableValue"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "bundleId",
+          "name"
+        ],
+        "title": "AppContext",
+        "type": "object"
+      },
+      "BrowserWebContext": {
+        "additionalProperties": false,
+        "description": "Browser tab and URL values observed independently by the client.",
+        "properties": {
+          "kind": {
+            "const": "browser",
+            "description": "브라우저에서 관찰한 웹 문맥임을 나타냅니다.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "tabTitle": {
+            "description": "포커싱된 브라우저 탭 제목의 상태와 값입니다.",
+            "discriminator": {
+              "mapping": {
+                "absent": "#/components/schemas/AbsentValue",
+                "captured": "#/components/schemas/CapturedText",
+                "redacted": "#/components/schemas/RedactedValue",
+                "unavailable": "#/components/schemas/UnavailableValue"
+              },
+              "propertyName": "status"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CapturedText"
+              },
+              {
+                "$ref": "#/components/schemas/AbsentValue"
+              },
+              {
+                "$ref": "#/components/schemas/UnavailableValue"
+              },
+              {
+                "$ref": "#/components/schemas/RedactedValue"
+              }
+            ],
+            "title": "Tabtitle"
+          },
+          "url": {
+            "description": "포커싱된 브라우저 탭 URL의 상태와 값입니다.",
+            "discriminator": {
+              "mapping": {
+                "absent": "#/components/schemas/AbsentValue",
+                "captured": "#/components/schemas/CapturedString",
+                "redacted": "#/components/schemas/RedactedValue",
+                "unavailable": "#/components/schemas/UnavailableValue"
+              },
+              "propertyName": "status"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CapturedString"
+              },
+              {
+                "$ref": "#/components/schemas/AbsentValue"
+              },
+              {
+                "$ref": "#/components/schemas/UnavailableValue"
+              },
+              {
+                "$ref": "#/components/schemas/RedactedValue"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "kind",
+          "tabTitle",
+          "url"
+        ],
+        "title": "BrowserWebContext",
+        "type": "object"
+      },
+      "CapturedString": {
+        "additionalProperties": false,
+        "description": "A string value captured by the client.",
+        "properties": {
+          "status": {
+            "const": "captured",
+            "description": "값을 정상적으로 수집했음을 나타냅니다.",
+            "title": "Status",
+            "type": "string"
+          },
+          "value": {
+            "description": "클라이언트가 수집한 원문 값입니다.",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "value"
+        ],
+        "title": "CapturedString",
+        "type": "object"
+      },
+      "CapturedText": {
+        "additionalProperties": false,
+        "description": "Captured display text, including optional truncation metadata.",
+        "properties": {
+          "originalByteLength": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "잘리기 전 원문의 UTF-8 바이트 길이입니다.",
+            "title": "Originalbytelength"
+          },
+          "status": {
+            "const": "captured",
+            "description": "값을 정상적으로 수집했음을 나타냅니다.",
+            "title": "Status",
+            "type": "string"
+          },
+          "truncated": {
+            "default": false,
+            "description": "원문 앞부분만 보관했는지를 나타냅니다.",
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "value": {
+            "description": "클라이언트가 수집한 원문 값입니다.",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "value"
+        ],
+        "title": "CapturedText",
+        "type": "object"
+      },
+      "CapturedWindow": {
+        "additionalProperties": false,
+        "description": "A focused window and its captured title.",
+        "properties": {
+          "status": {
+            "const": "captured",
+            "description": "포커스 창과 제목을 정상적으로 수집했음을 나타냅니다.",
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "$ref": "#/components/schemas/CapturedText",
+            "description": "포커스 창의 제목입니다."
+          }
+        },
+        "required": [
+          "status",
+          "title"
+        ],
+        "title": "CapturedWindow",
+        "type": "object"
+      },
+      "CollectionStateChanged": {
+        "additionalProperties": false,
+        "description": "A change in whether the client can observe activity.",
+        "properties": {
+          "deviceRegistrationId": {
+            "description": "서버에 등록된 수집 기기의 식별자입니다.",
+            "format": "uuid",
+            "title": "Deviceregistrationid",
+            "type": "string"
+          },
+          "eventId": {
+            "description": "레코드 중복 제거에 사용하는 식별자입니다.",
+            "format": "uuid",
+            "title": "Eventid",
+            "type": "string"
+          },
+          "observedAt": {
+            "description": "클라이언트 벽시계로 기록한 UTC 관찰 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Observedat",
+            "type": "string"
+          },
+          "reason": {
+            "description": "수집 상태가 변경된 이유입니다.",
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "recordType": {
+            "const": "collection_state_changed",
+            "description": "수집 가능 상태 변경 레코드임을 나타냅니다.",
+            "title": "Recordtype",
+            "type": "string"
+          },
+          "sequence": {
+            "description": "기기 등록 안에서 단조 증가하는 레코드 순번입니다.",
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "state": {
+            "description": "변경된 활동 수집 가능 상태입니다.",
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "timezoneId": {
+            "description": "관찰 당시의 IANA 시간대 식별자입니다.",
+            "minLength": 1,
+            "title": "Timezoneid",
+            "type": "string"
+          },
+          "utcOffsetMinutes": {
+            "description": "관찰 당시 UTC와 현지 시간의 차이(분)입니다.",
+            "title": "Utcoffsetminutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deviceRegistrationId",
+          "eventId",
+          "sequence",
+          "observedAt",
+          "timezoneId",
+          "utcOffsetMinutes",
+          "recordType",
+          "state",
+          "reason"
+        ],
+        "title": "CollectionStateChanged",
+        "type": "object"
+      },
+      "DetailedActivityContext": {
+        "additionalProperties": false,
+        "description": "A privacy-filtered activity context with observable identifiers.",
+        "properties": {
+          "app": {
+            "$ref": "#/components/schemas/AppContext",
+            "description": "포커싱된 앱의 관찰 문맥입니다."
+          },
+          "kind": {
+            "const": "detailed",
+            "description": "식별 가능한 상세 활동 문맥임을 나타냅니다.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "web": {
+            "description": "브라우저 웹 활동의 관찰 문맥입니다.",
+            "discriminator": {
+              "mapping": {
+                "browser": "#/components/schemas/BrowserWebContext",
+                "not_applicable": "#/components/schemas/NotApplicableWebContext"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NotApplicableWebContext"
+              },
+              {
+                "$ref": "#/components/schemas/BrowserWebContext"
+              }
+            ],
+            "title": "Web"
+          },
+          "window": {
+            "description": "포커스 창의 관찰 문맥입니다.",
+            "discriminator": {
+              "mapping": {
+                "absent": "#/components/schemas/AbsentWindow",
+                "captured": "#/components/schemas/CapturedWindow",
+                "unavailable": "#/components/schemas/UnavailableWindow"
+              },
+              "propertyName": "status"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CapturedWindow"
+              },
+              {
+                "$ref": "#/components/schemas/AbsentWindow"
+              },
+              {
+                "$ref": "#/components/schemas/UnavailableWindow"
+              }
+            ],
+            "title": "Window"
+          }
+        },
+        "required": [
+          "kind",
+          "app",
+          "window",
+          "web"
+        ],
+        "title": "DetailedActivityContext",
         "type": "object"
       },
       "ErrorPayload": {
@@ -95,6 +568,64 @@
           "error"
         ],
         "title": "ErrorResponse",
+        "type": "object"
+      },
+      "NotApplicableWebContext": {
+        "additionalProperties": false,
+        "description": "A non-browser application context.",
+        "properties": {
+          "kind": {
+            "const": "not_applicable",
+            "description": "포커싱된 앱에 웹 문맥을 적용할 수 없음을 나타냅니다.",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "NotApplicableWebContext",
+        "type": "object"
+      },
+      "OpaqueActivityContext": {
+        "additionalProperties": false,
+        "description": "A normal observation whose identifying details were removed.",
+        "properties": {
+          "kind": {
+            "const": "opaque",
+            "description": "식별 정보를 제거한 정상 활동 관찰임을 나타냅니다.",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "OpaqueActivityContext",
+        "type": "object"
+      },
+      "RedactedValue": {
+        "additionalProperties": false,
+        "description": "A value intentionally removed by the client privacy policy.",
+        "properties": {
+          "reason": {
+            "description": "값을 저장하지 않은 개인정보 정책상의 이유입니다.",
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "const": "redacted",
+            "description": "개인정보 정책에 따라 값을 저장하지 않았음을 나타냅니다.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason"
+        ],
+        "title": "RedactedValue",
         "type": "object"
       },
       "TokenRequest": {
@@ -152,6 +683,54 @@
           "expiresIn"
         ],
         "title": "TokenResponse",
+        "type": "object"
+      },
+      "UnavailableValue": {
+        "additionalProperties": false,
+        "description": "A value that the client could not read.",
+        "properties": {
+          "reason": {
+            "description": "값을 읽을 수 없었던 이유입니다.",
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "const": "unavailable",
+            "description": "해당 값을 읽을 수 없었음을 나타냅니다.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason"
+        ],
+        "title": "UnavailableValue",
+        "type": "object"
+      },
+      "UnavailableWindow": {
+        "additionalProperties": false,
+        "description": "A window that the client could not inspect.",
+        "properties": {
+          "reason": {
+            "description": "포커스 창을 읽을 수 없었던 이유입니다.",
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "const": "unavailable",
+            "description": "포커스 창을 읽을 수 없었음을 나타냅니다.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason"
+        ],
+        "title": "UnavailableWindow",
         "type": "object"
       },
       "ValidationDetail": {
@@ -347,6 +926,224 @@
         "summary": "현재 계정 조회",
         "tags": [
           "accounts"
+        ]
+      }
+    },
+    "/api/v1/activities": {
+      "post": {
+        "description": "인증된 계정의 기기에서 관찰한 활동 또는 수집 상태 변경 한 건을 수신합니다. 현재 저장 기능은 구현되지 않았습니다.",
+        "operationId": "activitiesCreate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "activity_observation": "#/components/schemas/ActivityObservation",
+                    "collection_state_changed": "#/components/schemas/CollectionStateChanged"
+                  },
+                  "propertyName": "recordType"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ActivityObservation"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CollectionStateChanged"
+                  }
+                ],
+                "title": "Record"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH_INVALID_ACCESS_TOKEN": {
+                    "description": "Bearer 액세스 토큰이 유효하지 않거나 누락되었습니다.",
+                    "summary": "Invalid access token",
+                    "value": {
+                      "error": {
+                        "code": 401,
+                        "details": [],
+                        "message": "Invalid or expired access token",
+                        "status": "AUTH_INVALID_ACCESS_TOKEN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "클라이언트가 사용해야 하는 인증 방식입니다.",
+                "schema": {
+                  "const": "Bearer",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_ROUTE_NOT_FOUND": {
+                    "description": "요청한 API route를 찾을 수 없습니다.",
+                    "summary": "Route not found",
+                    "value": {
+                      "error": {
+                        "code": 404,
+                        "details": [],
+                        "message": "API route not found",
+                        "status": "REQUEST_ROUTE_NOT_FOUND"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found",
+            "headers": {}
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_METHOD_NOT_ALLOWED": {
+                    "description": "요청 method가 해당 API route에서 허용되지 않습니다.",
+                    "summary": "Method not allowed",
+                    "value": {
+                      "error": {
+                        "code": 405,
+                        "details": [],
+                        "message": "Method not allowed",
+                        "status": "REQUEST_METHOD_NOT_ALLOWED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "description": "해당 route에서 허용되는 HTTP method 목록입니다.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INVALID_ARGUMENT": {
+                    "description": "요청 입력값 검증에 실패했습니다.",
+                    "summary": "Invalid argument",
+                    "value": {
+                      "error": {
+                        "code": 422,
+                        "details": [
+                          {
+                            "loc": [
+                              "body",
+                              "users",
+                              0,
+                              "email"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ],
+                        "message": "Request validation failed.",
+                        "status": "INVALID_ARGUMENT"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content",
+            "headers": {}
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_SERVER_ERROR": {
+                    "description": "예상하지 못한 서버 오류가 발생했습니다.",
+                    "summary": "Internal server error",
+                    "value": {
+                      "error": {
+                        "code": 500,
+                        "details": [],
+                        "message": "Internal server error",
+                        "status": "INTERNAL_SERVER_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error",
+            "headers": {}
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ACTIVITY_INGEST_NOT_IMPLEMENTED": {
+                    "description": "활동 레코드 저장 기능이 아직 구현되지 않았습니다.",
+                    "summary": "Activity ingestion not implemented",
+                    "value": {
+                      "error": {
+                        "code": 501,
+                        "details": [],
+                        "message": "Activity ingestion is not implemented",
+                        "status": "ACTIVITY_INGEST_NOT_IMPLEMENTED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "활동 레코드 생성",
+        "tags": [
+          "activities"
         ]
       }
     },

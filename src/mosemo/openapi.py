@@ -30,6 +30,10 @@ ERROR_DOCS: Mapping[ErrorSpec, ErrorDocs] = {
         summary="Invalid access token",
         description="Bearer 액세스 토큰이 유효하지 않거나 누락되었습니다.",
     ),
+    ErrorCode.ACTIVITY_INGEST_NOT_IMPLEMENTED: ErrorDocs(
+        summary="Activity ingestion not implemented",
+        description="활동 레코드 저장 기능이 아직 구현되지 않았습니다.",
+    ),
     ErrorCode.REQUEST_ROUTE_NOT_FOUND: ErrorDocs(
         summary="Route not found", description="요청한 API route를 찾을 수 없습니다."
     ),

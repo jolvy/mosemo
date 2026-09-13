@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account
 from mosemo.accounts.repository import AccountRepository
+from mosemo.activities.repository import ActivityRepository
+from mosemo.activities.service import ActivityService
 from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.service import AuthService
@@ -38,6 +40,28 @@ def get_account_repository(session: SessionDep) -> AccountRepository:
 AccountRepositoryDep = Annotated[
     AccountRepository,
     Depends(get_account_repository),
+]
+
+
+def get_activity_repository(session: SessionDep) -> ActivityRepository:
+    return ActivityRepository(session)
+
+
+ActivityRepositoryDep = Annotated[
+    ActivityRepository,
+    Depends(get_activity_repository),
+]
+
+
+def get_activity_service(
+    repository: ActivityRepositoryDep,
+) -> ActivityService:
+    return ActivityService(repository)
+
+
+ActivityServiceDep = Annotated[
+    ActivityService,
+    Depends(get_activity_service),
 ]
 
 

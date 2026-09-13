@@ -1,14 +1,13 @@
-from datetime import timedelta
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
+
+from mosemo.schemas import ApiRequestModel, ObservationTimestamp
 
 
-class ActivityRequestModel(BaseModel):
+class ActivityRequestModel(ApiRequestModel):
     """Base model for activity collection request data."""
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class CapturedString(ActivityRequestModel):
@@ -192,12 +191,15 @@ ActivityContext = Annotated[
 class ActivityRecordBase(ActivityRequestModel):
     """Fields shared by every ordered activity collection record."""
 
+    device_registration_id: UUID = Field(
+        description="서버에 등록된 수집 기기의 식별자입니다."
+    )
     event_id: UUID = Field(description="레코드 중복 제거에 사용하는 식별자입니다.")
     sequence: int = Field(
         ge=0,
-        description="수집 스트림 안에서 단조 증가하는 레코드 순번입니다.",
+        description="기기 등록 안에서 단조 증가하는 레코드 순번입니다.",
     )
-    observed_at: AwareDatetime = Field(
+    observed_at: ObservationTimestamp = Field(
         description="클라이언트 벽시계로 기록한 UTC 관찰 시각입니다."
     )
     timezone_id: str = Field(
@@ -207,19 +209,6 @@ class ActivityRecordBase(ActivityRequestModel):
     utc_offset_minutes: int = Field(
         description="관찰 당시 UTC와 현지 시간의 차이(분)입니다."
     )
-    clock_epoch_id: UUID = Field(
-        description="단조 시계 값의 비교 가능 구간을 식별합니다."
-    )
-    monotonic_ns: int = Field(
-        ge=0,
-        description="clock epoch 안에서 측정한 단조 시계 값(나노초)입니다.",
-    )
-
-    @model_validator(mode="after")
-    def validate_observed_at_is_utc(self) -> ActivityRecordBase:
-        if self.observed_at.utcoffset() != timedelta(0):
-            raise ValueError("observed_at must use UTC")
-        return self
 
 
 class ActivityObservation(ActivityRecordBase):
@@ -252,21 +241,3 @@ ActivityRecord = Annotated[
     ActivityObservation | CollectionStateChanged,
     Field(discriminator="record_type"),
 ]
-
-
-class ActivityBatchRequest(ActivityRequestModel):
-    """An ordered FIFO batch from one registered device and collection stream."""
-
-    batch_id: UUID = Field(
-        description="동일 본문 재전송을 식별하는 요청 단위 식별자입니다."
-    )
-    device_registration_id: UUID = Field(
-        description="서버에 등록된 수집 기기의 식별자입니다."
-    )
-    collection_stream_id: UUID = Field(
-        description="레코드 순번이 유효한 연속 수집 계보의 식별자입니다."
-    )
-    records: list[ActivityRecord] = Field(
-        min_length=1,
-        description="한 수집 스트림에서 FIFO 순서로 묶은 활동 레코드입니다.",
-    )
