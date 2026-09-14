@@ -1,12 +1,12 @@
 # 활동 저장 ERD
 
-> 상태: 목표 설계, 구현 전
+> 상태: 초기 활동 원본 저장 구현 완료
 > 범위: 현재 계정 모델과 초기 활동 원본 저장 모델
 
-이 문서는 초기 활동 수집에 필요한 최소 물리 모델을 정의한다. 아래 ERD에 포함한
-테이블 가운데 현재 구현된 것은 `accounts`뿐이다. 인증용 `native_auth_codes`는 이미
-존재하지만 활동 저장 범위가 아니므로 표시하지 않는다. `device_registrations`와
-`activity_records`는 아직 SQLAlchemy 모델이나 migration으로 구현되지 않았다.
+이 문서는 초기 활동 수집에 필요한 최소 물리 모델을 정의한다. 인증용
+`native_auth_codes`는 이미 존재하지만 활동 저장 범위가 아니므로 표시하지 않는다.
+아래 `accounts`, `device_registrations`, `activity_records`는 SQLAlchemy 모델과
+migration으로 구현되어 있다.
 
 ```mermaid
 erDiagram

@@ -30,9 +30,19 @@ ERROR_DOCS: Mapping[ErrorSpec, ErrorDocs] = {
         summary="Invalid access token",
         description="Bearer 액세스 토큰이 유효하지 않거나 누락되었습니다.",
     ),
-    ErrorCode.ACTIVITY_INGEST_NOT_IMPLEMENTED: ErrorDocs(
-        summary="Activity ingestion not implemented",
-        description="활동 레코드 저장 기능이 아직 구현되지 않았습니다.",
+    ErrorCode.ACTIVITY_DEVICE_NOT_FOUND: ErrorDocs(
+        summary="Activity device not found",
+        description=("기기 등록을 찾을 수 없거나 인증된 계정에 속하지 않습니다."),
+    ),
+    ErrorCode.ACTIVITY_EVENT_ID_CONFLICT: ErrorDocs(
+        summary="Activity event ID conflict",
+        description="같은 eventId로 저장된 활동 레코드와 요청 내용이 다릅니다.",
+    ),
+    ErrorCode.ACTIVITY_SEQUENCE_CONFLICT: ErrorDocs(
+        summary="Activity sequence conflict",
+        description=(
+            "같은 기기 등록과 sequence로 저장된 이벤트가 요청 eventId와 다릅니다."
+        ),
     ),
     ErrorCode.REQUEST_ROUTE_NOT_FOUND: ErrorDocs(
         summary="Route not found", description="요청한 API route를 찾을 수 없습니다."
