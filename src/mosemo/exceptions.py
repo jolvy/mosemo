@@ -27,10 +27,20 @@ class ErrorCode:
         code=401,
         message="Invalid or expired access token",
     )
-    ACTIVITY_INGEST_NOT_IMPLEMENTED = ErrorSpec(
-        status="ACTIVITY_INGEST_NOT_IMPLEMENTED",
-        code=501,
-        message="Activity ingestion is not implemented",
+    ACTIVITY_DEVICE_NOT_FOUND = ErrorSpec(
+        status="ACTIVITY_DEVICE_NOT_FOUND",
+        code=404,
+        message="Activity device registration not found",
+    )
+    ACTIVITY_EVENT_ID_CONFLICT = ErrorSpec(
+        status="ACTIVITY_EVENT_ID_CONFLICT",
+        code=409,
+        message="Activity event ID conflicts with a stored record",
+    )
+    ACTIVITY_SEQUENCE_CONFLICT = ErrorSpec(
+        status="ACTIVITY_SEQUENCE_CONFLICT",
+        code=409,
+        message="Activity sequence conflicts with a stored record",
     )
     REQUEST_ROUTE_NOT_FOUND = ErrorSpec(
         status="REQUEST_ROUTE_NOT_FOUND",

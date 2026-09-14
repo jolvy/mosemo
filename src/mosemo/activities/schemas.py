@@ -3,7 +3,12 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from mosemo.schemas import ApiRequestModel, ObservationTimestamp
+from mosemo.schemas import (
+    ApiRequestModel,
+    ApiResponseModel,
+    ObservationTimestamp,
+    PublicTimestamp,
+)
 
 
 class ActivityRequestModel(ApiRequestModel):
@@ -241,3 +246,17 @@ ActivityRecord = Annotated[
     ActivityObservation | CollectionStateChanged,
     Field(discriminator="record_type"),
 ]
+
+
+class ActivityCreateResponse(ApiResponseModel):
+    """활동 레코드 저장 결과입니다."""
+
+    event_id: UUID = Field(
+        description="저장하거나 중복 확인한 활동 이벤트 식별자입니다."
+    )
+    status: Literal["accepted"] = Field(
+        description="서버가 활동 레코드를 영구 저장했음을 나타냅니다."
+    )
+    received_at: PublicTimestamp = Field(
+        description="활동 레코드가 서버에 최초 저장된 시각입니다."
+    )

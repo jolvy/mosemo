@@ -7,7 +7,7 @@ from mosemo.exceptions import ApiException, ErrorCode, ErrorSpec
 from mosemo.schemas import ValidationDetail
 
 
-def test_public_error_registry_contains_the_eight_replacement_specs() -> None:
+def test_public_error_registry_contains_the_ten_replacement_specs() -> None:
     public_members = tuple(
         value for name, value in vars(ErrorCode).items() if not name.startswith("_")
     )
@@ -25,16 +25,26 @@ def test_public_error_registry_contains_the_eight_replacement_specs() -> None:
         ),
         ("AUTH_INVALID_ACCESS_TOKEN", 401, "Invalid or expired access token"),
         (
-            "ACTIVITY_INGEST_NOT_IMPLEMENTED",
-            501,
-            "Activity ingestion is not implemented",
+            "ACTIVITY_DEVICE_NOT_FOUND",
+            404,
+            "Activity device registration not found",
+        ),
+        (
+            "ACTIVITY_EVENT_ID_CONFLICT",
+            409,
+            "Activity event ID conflicts with a stored record",
+        ),
+        (
+            "ACTIVITY_SEQUENCE_CONFLICT",
+            409,
+            "Activity sequence conflicts with a stored record",
         ),
         ("REQUEST_ROUTE_NOT_FOUND", 404, "API route not found"),
         ("REQUEST_METHOD_NOT_ALLOWED", 405, "Method not allowed"),
         ("INVALID_ARGUMENT", 422, "Request validation failed."),
         ("INTERNAL_SERVER_ERROR", 500, "Internal server error"),
     ]
-    assert len({spec.status for spec in public_members}) == 8
+    assert len({spec.status for spec in public_members}) == 10
 
 
 def test_error_spec_is_immutable_and_contains_no_documentation_metadata() -> None:

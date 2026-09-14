@@ -54,9 +54,10 @@ ActivityRepositoryDep = Annotated[
 
 
 def get_activity_service(
+    session: SessionDep,
     repository: ActivityRepositoryDep,
 ) -> ActivityService:
-    return ActivityService(repository)
+    return ActivityService(session=session, repository=repository)
 
 
 ActivityServiceDep = Annotated[

@@ -135,6 +135,11 @@ def test_openapi_metadata_and_public_data_contract_are_stable(
         "createdAt",
         "lastAuthenticatedAt",
     }
+    assert set(schemas["ActivityCreateResponse"]["properties"]) == {
+        "eventId",
+        "status",
+        "receivedAt",
+    }
     created_at_schema = schemas["AccountResponse"]["properties"]["createdAt"]
     assert created_at_schema["type"] == "string"
     assert created_at_schema["format"] == "date-time"
@@ -293,6 +298,23 @@ def test_public_error_examples_match_status_and_common_schema(
     assert set(
         callback_responses["400"]["content"]["application/json"]["examples"]
     ) == {"AUTH_INVALID_OAUTH_CONTEXT"}
+
+    activity_responses = openapi_document["paths"]["/api/v1/activities"]["post"][
+        "responses"
+    ]
+    assert "201" in activity_responses
+    assert set(
+        activity_responses["404"]["content"]["application/json"]["examples"]
+    ) == {
+        "REQUEST_ROUTE_NOT_FOUND",
+        "ACTIVITY_DEVICE_NOT_FOUND",
+    }
+    assert set(
+        activity_responses["409"]["content"]["application/json"]["examples"]
+    ) == {
+        "ACTIVITY_EVENT_ID_CONFLICT",
+        "ACTIVITY_SEQUENCE_CONFLICT",
+    }
 
 
 def test_openapi_documents_fixed_and_dynamic_error_headers(
