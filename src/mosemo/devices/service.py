@@ -22,22 +22,19 @@ class DeviceService:
         account_id: UUID,
         idempotency_key: UUID,
     ) -> DeviceCreateResponse:
-        device = await self._repository.insert(
-            account_id=account_id,
-            idempotency_key=idempotency_key,
-        )
-        if device is not None:
-            await self._session.commit()
+        async with self._session.begin():
+            device = await self._repository.insert(
+                account_id=account_id,
+                idempotency_key=idempotency_key,
+            )
+            if device is not None:
+                return DeviceCreateResponse(device_id=device.device_id)
+
+            device = await self._repository.find_by_idempotency_key(
+                account_id=account_id,
+                idempotency_key=idempotency_key,
+            )
+            if device is None:
+                raise RuntimeError("device conflict could not be resolved")
+
             return DeviceCreateResponse(device_id=device.device_id)
-
-        device = await self._repository.find_by_idempotency_key(
-            account_id=account_id,
-            idempotency_key=idempotency_key,
-        )
-        if device is None:
-            await self._session.rollback()
-            raise RuntimeError("device conflict could not be resolved")
-
-        response = DeviceCreateResponse(device_id=device.device_id)
-        await self._session.rollback()
-        return response

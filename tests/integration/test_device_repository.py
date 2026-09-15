@@ -31,6 +31,7 @@ async def test_device_create_is_idempotent_within_account(
     await integration_session.flush()
     first_account_id = first_account.account_id
     second_account_id = second_account.account_id
+    await integration_session.commit()
     service = DeviceService(
         session=integration_session,
         repository=DeviceRepository(integration_session),

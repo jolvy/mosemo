@@ -99,6 +99,7 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
     account_id = account.account_id
     other_account_id = other_account.account_id
     device_id = device.device_id
+    await integration_session.commit()
     repository = ActivityRepository(integration_session)
     device_repository = DeviceRepository(integration_session)
     service = ActivityService(
