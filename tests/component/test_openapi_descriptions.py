@@ -132,6 +132,7 @@ def test_openapi_metadata_and_public_data_contract_are_stable(
     assert set(schemas["AccountResponse"]["properties"]) == {
         "accountId",
         "provider",
+        "timezone",
         "createdAt",
         "lastAuthenticatedAt",
     }
@@ -327,6 +328,42 @@ def test_public_error_examples_match_status_and_common_schema(
     ) == {
         "ACTIVITY_EVENT_ID_CONFLICT",
         "ACTIVITY_SEQUENCE_CONFLICT",
+    }
+    assert set(
+        activity_responses["503"]["content"]["application/json"]["examples"]
+    ) == {"ACTIVITY_TIMELINE_BUSY"}
+    assert activity_responses["503"]["headers"]["Retry-After"]["schema"] == {
+        "type": "string",
+        "const": "1",
+    }
+
+    timeline = openapi_document["paths"]["/api/v1/activities/timeline"]["get"]
+    assert timeline["operationId"] == "activitiesGetTimeline"
+    assert len(timeline["parameters"]) == 1
+    date_parameter = timeline["parameters"][0]
+    assert date_parameter["name"] == "date"
+    assert date_parameter["in"] == "query"
+    assert date_parameter["required"] is True
+    assert date_parameter["schema"]["format"] == "date"
+    success_schema = timeline["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]
+    assert success_schema["type"] == "array"
+    assert success_schema["items"]["discriminator"] == {
+        "propertyName": "segmentType",
+        "mapping": {
+            "activity": "#/components/schemas/ActivitySegmentResponse",
+            "capture_gap": "#/components/schemas/CaptureGapResponse",
+        },
+    }
+    schemas = openapi_document["components"]["schemas"]
+    assert set(schemas["ActivitySegmentResponse"]["required"]) == {
+        "segmentId",
+        "segmentType",
+        "startedAt",
+        "endedAt",
+        "lastObservedAt",
+        "context",
     }
 
 

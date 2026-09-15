@@ -42,6 +42,11 @@ class ErrorCode:
         code=409,
         message="Activity sequence conflicts with a stored record",
     )
+    ACTIVITY_TIMELINE_BUSY = ErrorSpec(
+        status="ACTIVITY_TIMELINE_BUSY",
+        code=503,
+        message="Activity timeline is busy",
+    )
     REQUEST_ROUTE_NOT_FOUND = ErrorSpec(
         status="REQUEST_ROUTE_NOT_FOUND",
         code=404,

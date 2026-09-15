@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from pydantic import TypeAdapter
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -22,6 +22,8 @@ from mosemo.activities.service import (
     ActivityEventIdConflictError,
     ActivitySequenceConflictError,
     ActivityService,
+    ActivityTimelineBusyError,
+    activity_timeline_lock_key,
 )
 from mosemo.devices.models import Device
 from mosemo.devices.repository import DeviceRepository
@@ -295,6 +297,71 @@ async def test_concurrent_identical_requests_store_one_record(
             async with session_factory() as cleanup_session:
                 await cleanup_session.execute(
                     delete(Account).where(Account.account_id == account_id)
+                )
+                await cleanup_session.commit()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_account_lock_timeout_rolls_back_without_blocking_other_account(
+    integration_database_url: str,
+) -> None:
+    engine = create_async_engine(integration_database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    account_ids: list[UUID] = []
+    try:
+        async with session_factory() as setup_session:
+            locked_account, locked_device = await create_account_and_device(
+                setup_session
+            )
+            other_account, other_device = await create_account_and_device(setup_session)
+            account_ids = [locked_account.account_id, other_account.account_id]
+            await setup_session.commit()
+
+        locked_record = activity_observation(
+            device_id=locked_device.device_id,
+            sequence=1,
+        )
+        other_record = activity_observation(
+            device_id=other_device.device_id,
+            sequence=1,
+        )
+
+        async def ingest(account_id: UUID, record: ActivityRecord):
+            async with session_factory() as session:
+                return await ActivityService(
+                    session=session,
+                    repository=ActivityRepository(session),
+                    device_repository=DeviceRepository(session),
+                ).create_activity(account_id=account_id, record=record)
+
+        async with session_factory() as holder, holder.begin():
+            await holder.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": activity_timeline_lock_key(locked_account.account_id)},
+            )
+            assert (
+                await ingest(other_account.account_id, other_record)
+            ).status == "accepted"
+            with pytest.raises(ActivityTimelineBusyError):
+                await ingest(locked_account.account_id, locked_record)
+
+        async with session_factory() as verification_session:
+            count = await verification_session.scalar(
+                select(func.count())
+                .select_from(StoredActivityRecord)
+                .where(StoredActivityRecord.event_id == locked_record.event_id)
+            )
+            assert count == 0
+
+        assert (
+            await ingest(locked_account.account_id, locked_record)
+        ).status == "accepted"
+    finally:
+        if account_ids:
+            async with session_factory() as cleanup_session:
+                await cleanup_session.execute(
+                    delete(Account).where(Account.account_id.in_(account_ids))
                 )
                 await cleanup_session.commit()
         await engine.dispose()

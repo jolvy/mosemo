@@ -1,9 +1,17 @@
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import (
+    AfterValidator,
+    Field,
+    PlainSerializer,
+    WithJsonSchema,
+    model_validator,
+)
 
 from mosemo.schemas import (
+    OBSERVATION_TIMESTAMP_PATTERN,
     ApiRequestModel,
     ApiResponseModel,
     ObservationTimestamp,
@@ -258,3 +266,63 @@ class ActivityCreateResponse(ApiResponseModel):
     received_at: PublicTimestamp = Field(
         description="활동 레코드가 서버에 최초 저장된 시각입니다."
     )
+
+
+def _timeline_timestamp(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("timeline timestamps must be timezone-aware")
+    return value.astimezone(UTC)
+
+
+TimelineTimestamp = Annotated[
+    datetime,
+    AfterValidator(_timeline_timestamp),
+    PlainSerializer(
+        lambda value: value.isoformat().replace("+00:00", "Z"),
+        return_type=str,
+        when_used="json",
+    ),
+    WithJsonSchema(
+        {
+            "type": "string",
+            "format": "date-time",
+            "pattern": OBSERVATION_TIMESTAMP_PATTERN,
+        },
+        mode="serialization",
+    ),
+]
+
+
+class ActivitySegmentResponse(ApiResponseModel):
+    """실제로 관찰된 동일 문맥의 활동 구간입니다."""
+
+    segment_id: UUID = Field(description="재구축 시 바뀔 수 있는 구간 식별자입니다.")
+    segment_type: Literal["activity"] = Field(description="활동 구간 종류입니다.")
+    started_at: TimelineTimestamp = Field(description="첫 활동 관찰 시각입니다.")
+    ended_at: TimelineTimestamp | None = Field(
+        description="관찰로 확인되거나 침묵으로 닫힌 종료 시각입니다."
+    )
+    last_observed_at: TimelineTimestamp = Field(
+        description="같은 문맥이 마지막으로 실제 관찰된 시각입니다."
+    )
+    context: ActivityContext = Field(
+        description="개인정보 필터 후 원본 전체 문맥입니다."
+    )
+
+
+class CaptureGapResponse(ApiResponseModel):
+    """명시적 수집 중단으로 관찰할 수 없었던 구간입니다."""
+
+    segment_id: UUID = Field(description="재구축 시 바뀔 수 있는 구간 식별자입니다.")
+    segment_type: Literal["capture_gap"] = Field(description="수집 공백 종류입니다.")
+    started_at: TimelineTimestamp = Field(description="첫 suspended 관찰 시각입니다.")
+    ended_at: TimelineTimestamp | None = Field(
+        description="다음 실제 활동 관찰로 확인된 종료 시각입니다."
+    )
+    reason: str = Field(description="첫 suspended의 수집 중단 사유입니다.")
+
+
+TimelineSegmentResponse = Annotated[
+    ActivitySegmentResponse | CaptureGapResponse,
+    Field(discriminator="segment_type"),
+]

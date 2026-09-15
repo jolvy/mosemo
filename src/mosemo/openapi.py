@@ -44,6 +44,10 @@ ERROR_DOCS: Mapping[ErrorSpec, ErrorDocs] = {
             "같은 Device와 sequence로 저장된 이벤트가 요청 eventId와 다릅니다."
         ),
     ),
+    ErrorCode.ACTIVITY_TIMELINE_BUSY: ErrorDocs(
+        summary="Activity timeline busy",
+        description="계정별 관찰 쓰기 잠금을 3초 안에 얻지 못했습니다.",
+    ),
     ErrorCode.REQUEST_ROUTE_NOT_FOUND: ErrorDocs(
         summary="Route not found", description="요청한 API route를 찾을 수 없습니다."
     ),

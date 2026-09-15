@@ -1,5 +1,5 @@
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid7
 
 from sqlalchemy import (
     BigInteger,
@@ -49,3 +49,63 @@ class ActivityRecord(Base):
         DateTime(timezone=True),
         server_default=func.now(),
     )
+
+
+class ActivityTimelineSegment(Base):
+    __tablename__ = "activity_timeline_segments"
+    __table_args__ = (
+        CheckConstraint(
+            "segment_type IN ('activity', 'capture_gap')",
+            name="segment_type",
+        ),
+        CheckConstraint(
+            "ended_at IS NULL OR ended_at >= started_at",
+            name="time_order",
+        ),
+        CheckConstraint(
+            "(segment_type = 'activity' AND last_event_id IS NOT NULL "
+            "AND last_observed_at IS NOT NULL AND context IS NOT NULL "
+            "AND reason IS NULL) OR (segment_type = 'capture_gap' "
+            "AND last_event_id IS NULL AND last_observed_at IS NULL "
+            "AND context IS NULL AND reason IS NOT NULL)",
+            name="kind_fields",
+        ),
+        CheckConstraint(
+            "last_observed_at IS NULL OR "
+            "(last_observed_at >= started_at AND "
+            "(ended_at IS NULL OR last_observed_at <= ended_at))",
+            name="last_observed_order",
+        ),
+        Index(
+            "activity_timeline_segments_account_id_started_at_idx",
+            "account_id",
+            "started_at",
+        ),
+    )
+
+    segment_id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
+    account_id: Mapped[UUID] = mapped_column(
+        ForeignKey("accounts.account_id", ondelete="CASCADE")
+    )
+    segment_type: Mapped[str] = mapped_column(String(32))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_event_id: Mapped[UUID] = mapped_column(
+        ForeignKey(
+            "activity_records.event_id",
+            ondelete="NO ACTION",
+            deferrable=True,
+            initially="DEFERRED",
+        )
+    )
+    last_event_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey(
+            "activity_records.event_id",
+            ondelete="NO ACTION",
+            deferrable=True,
+            initially="DEFERRED",
+        )
+    )
+    last_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    context: Mapped[dict[str, object] | None] = mapped_column(JSONB(none_as_null=True))
+    reason: Mapped[str | None] = mapped_column(Text)
