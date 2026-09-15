@@ -27,7 +27,7 @@ def test_public_error_registry_contains_the_ten_replacement_specs() -> None:
         (
             "ACTIVITY_DEVICE_NOT_FOUND",
             404,
-            "Activity device registration not found",
+            "Activity device not found",
         ),
         (
             "ACTIVITY_EVENT_ID_CONFLICT",

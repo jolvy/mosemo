@@ -15,27 +15,29 @@ from sqlalchemy.ext.asyncio import (
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
-from mosemo.activities.models import DeviceRegistration
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityRecord
 from mosemo.activities.service import (
+    ActivityDeviceNotFoundError,
     ActivityEventIdConflictError,
     ActivitySequenceConflictError,
     ActivityService,
 )
+from mosemo.devices.models import Device
+from mosemo.devices.repository import DeviceRepository
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 
 
 def activity_observation(
     *,
-    device_registration_id: UUID,
+    device_id: UUID,
     event_id: UUID | None = None,
     sequence: int,
 ) -> ActivityRecord:
     return activity_record_adapter.validate_python(
         {
-            "deviceRegistrationId": str(device_registration_id),
+            "deviceId": str(device_id),
             "eventId": str(event_id or uuid4()),
             "sequence": sequence,
             "recordType": "activity_observation",
@@ -49,12 +51,12 @@ def activity_observation(
 
 def collection_state_changed(
     *,
-    device_registration_id: UUID,
+    device_id: UUID,
     sequence: int,
 ) -> ActivityRecord:
     return activity_record_adapter.validate_python(
         {
-            "deviceRegistrationId": str(device_registration_id),
+            "deviceId": str(device_id),
             "eventId": str(uuid4()),
             "sequence": sequence,
             "recordType": "collection_state_changed",
@@ -69,13 +71,16 @@ def collection_state_changed(
 
 async def create_account_and_device(
     session: AsyncSession,
-) -> tuple[Account, DeviceRegistration]:
+) -> tuple[Account, Device]:
     account = AccountRepository(session).save(
         provider=AccountProvider.KAKAO,
         provider_subject=f"activity-integration-{uuid4()}",
     )
     await session.flush()
-    device = DeviceRegistration(account_id=account.account_id)
+    device = Device(
+        account_id=account.account_id,
+        idempotency_key=uuid4(),
+    )
     session.add(device)
     await session.flush()
     return account, device
@@ -93,15 +98,20 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
     await integration_session.flush()
     account_id = account.account_id
     other_account_id = other_account.account_id
-    device_registration_id = device.device_registration_id
+    device_id = device.device_id
     repository = ActivityRepository(integration_session)
-    service = ActivityService(session=integration_session, repository=repository)
+    device_repository = DeviceRepository(integration_session)
+    service = ActivityService(
+        session=integration_session,
+        repository=repository,
+        device_repository=device_repository,
+    )
     observation = activity_observation(
-        device_registration_id=device_registration_id,
+        device_id=device_id,
         sequence=10,
     )
     state_change = collection_state_changed(
-        device_registration_id=device_registration_id,
+        device_id=device_id,
         sequence=2,
     )
 
@@ -123,7 +133,7 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
         await service.create_activity(account_id=account_id, record=changed_event)
 
     reused_sequence = activity_observation(
-        device_registration_id=device_registration_id,
+        device_id=device_id,
         sequence=observation.sequence,
     )
     with pytest.raises(ActivitySequenceConflictError):
@@ -142,23 +152,23 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
     assert state_response.status == "accepted"
     assert retry_response == observation_response
     assert (
-        await repository.find_owned_device(
+        await device_repository.find_owned_by_id(
             account_id=account_id,
-            device_registration_id=device_registration_id,
+            device_id=device_id,
         )
         is not None
     )
     assert (
-        await repository.find_owned_device(
+        await device_repository.find_owned_by_id(
             account_id=other_account_id,
-            device_registration_id=device_registration_id,
+            device_id=device_id,
         )
         is None
     )
     count = await integration_session.scalar(
         select(func.count())
         .select_from(StoredActivityRecord)
-        .where(StoredActivityRecord.device_registration_id == device_registration_id)
+        .where(StoredActivityRecord.device_id == device_id)
     )
     assert count == 2
 
@@ -180,7 +190,7 @@ async def test_activity_record_database_constraints(
 ) -> None:
     _, device = await create_account_and_device(integration_session)
     common_values = {
-        "device_registration_id": device.device_registration_id,
+        "device_id": device.device_id,
         "observed_at": datetime(2026, 9, 14, tzinfo=UTC),
         "timezone_id": "Asia/Seoul",
         "utc_offset_minutes": 540,
@@ -211,6 +221,38 @@ async def test_activity_record_database_constraints(
 
 
 @pytest.mark.asyncio
+async def test_activity_service_hides_missing_and_unowned_devices(
+    integration_session: AsyncSession,
+) -> None:
+    owner, device = await create_account_and_device(integration_session)
+    other_account = AccountRepository(integration_session).save(
+        provider=AccountProvider.KAKAO,
+        provider_subject=f"activity-unowned-{uuid4()}",
+    )
+    await integration_session.commit()
+    owner_id = owner.account_id
+    other_account_id = other_account.account_id
+    device_id = device.device_id
+    service = ActivityService(
+        session=integration_session,
+        repository=ActivityRepository(integration_session),
+        device_repository=DeviceRepository(integration_session),
+    )
+
+    cases = (
+        (owner_id, uuid4()),
+        (other_account_id, device_id),
+    )
+    for account_id, requested_device_id in cases:
+        record = activity_observation(device_id=requested_device_id, sequence=1)
+        with pytest.raises(ActivityDeviceNotFoundError):
+            await service.create_activity(account_id=account_id, record=record)
+
+    count = await integration_session.scalar(select(func.count()).select_from(Device))
+    assert count == 1
+
+
+@pytest.mark.asyncio
 async def test_concurrent_identical_requests_store_one_record(
     integration_database_url: str,
 ) -> None:
@@ -221,11 +263,11 @@ async def test_concurrent_identical_requests_store_one_record(
         async with session_factory() as setup_session:
             account, device = await create_account_and_device(setup_session)
             account_id = account.account_id
-            device_registration_id = device.device_registration_id
+            device_id = device.device_id
             await setup_session.commit()
 
         record = activity_observation(
-            device_registration_id=device_registration_id,
+            device_id=device_id,
             sequence=7,
         )
 
@@ -234,6 +276,7 @@ async def test_concurrent_identical_requests_store_one_record(
                 return await ActivityService(
                     session=session,
                     repository=ActivityRepository(session),
+                    device_repository=DeviceRepository(session),
                 ).create_activity(account_id=account.account_id, record=record)
 
         first, second = await asyncio.gather(ingest(), ingest())

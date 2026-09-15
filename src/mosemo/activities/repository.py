@@ -5,7 +5,6 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
-from mosemo.activities.models import DeviceRegistration
 from mosemo.activities.schemas import ActivityObservation
 from mosemo.activities.schemas import ActivityRecord as ActivityRecordRequest
 
@@ -22,7 +21,7 @@ def is_same_activity_record(
 ) -> bool:
     return (
         stored.event_id == requested.event_id
-        and stored.device_registration_id == requested.device_registration_id
+        and stored.device_id == requested.device_id
         and stored.sequence == requested.sequence
         and stored.record_type == requested.record_type
         and stored.observed_at == requested.observed_at
@@ -36,19 +35,6 @@ class ActivityRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def find_owned_device(
-        self,
-        *,
-        account_id: UUID,
-        device_registration_id: UUID,
-    ) -> DeviceRegistration | None:
-        result = await self._session.scalars(
-            select(DeviceRegistration)
-            .where(DeviceRegistration.device_registration_id == device_registration_id)
-            .where(DeviceRegistration.account_id == account_id)
-        )
-        return result.one_or_none()
-
     async def insert(
         self,
         record: ActivityRecordRequest,
@@ -57,7 +43,7 @@ class ActivityRepository:
             insert(StoredActivityRecord)
             .values(
                 event_id=record.event_id,
-                device_registration_id=record.device_registration_id,
+                device_id=record.device_id,
                 sequence=record.sequence,
                 record_type=record.record_type,
                 observed_at=record.observed_at,
@@ -80,14 +66,12 @@ class ActivityRepository:
     async def find_by_device_sequence(
         self,
         *,
-        device_registration_id: UUID,
+        device_id: UUID,
         sequence: int,
     ) -> StoredActivityRecord | None:
         result = await self._session.scalars(
             select(StoredActivityRecord)
-            .where(
-                StoredActivityRecord.device_registration_id == device_registration_id
-            )
+            .where(StoredActivityRecord.device_id == device_id)
             .where(StoredActivityRecord.sequence == sequence)
         )
         return result.one_or_none()

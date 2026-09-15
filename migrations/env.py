@@ -11,6 +11,7 @@ from mosemo.activities import models as activities_models  # noqa: F401
 from mosemo.auth import models as auth_models  # noqa: F401
 from mosemo.config import get_config
 from mosemo.database import Base
+from mosemo.devices import models as devices_models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

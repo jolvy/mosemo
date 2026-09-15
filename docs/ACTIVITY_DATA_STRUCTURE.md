@@ -32,7 +32,7 @@ macOS 클라이언트                  서버                         화면
 
 | 용어 | 의미 |
 | --- | --- |
-| 기기 등록 | 한 계정에 귀속된 앱 설치의 서버 등록. 재설치로 등록 상태를 잃으면 새 등록을 만든다. |
+| Device | 한 계정에 귀속되어 서버에 등록된 앱 설치. 재설치로 등록 상태를 잃으면 새 Device가 된다. |
 | 관찰 | 클라이언트가 한 시점에 포커싱된 대상을 읽은 사실. |
 | 전체 스냅샷 | 이전 값과의 차이가 아니라 해당 시점에 알 수 있는 전체 관찰값. |
 | 활동 레코드 | 서버가 원본으로 보관하는 하나의 관찰 또는 수집 상태 변경. |
@@ -48,7 +48,7 @@ macOS 클라이언트                  서버                         화면
 
 ```json
 {
-  "deviceRegistrationId": "30000000-0000-0000-0000-000000000000",
+  "deviceId": "30000000-0000-0000-0000-000000000000",
   "eventId": "40000000-0000-0000-0000-000000000000",
   "sequence": 412,
   "recordType": "activity_observation",
@@ -63,9 +63,9 @@ macOS 클라이언트                  서버                         화면
 
 | 필드 | 의미 |
 | --- | --- |
-| `deviceRegistrationId` | 인증된 계정에 귀속된 앱 설치 등록의 식별자. |
+| `deviceId` | 인증된 계정에 귀속된 Device 식별자. |
 | `eventId` | 레코드 재시도와 중복 제거에 사용하는 클라이언트 생성 식별자. |
-| `sequence` | 같은 기기 등록 안에서 증가하는 레코드 순번. |
+| `sequence` | 같은 Device 안에서 증가하는 레코드 순번. |
 | `recordType` | `activity_observation` 또는 `collection_state_changed`. |
 | `observedAt` | 클라이언트가 관찰에 부여한 UTC 시각. |
 | `timezoneId`, `utcOffsetMinutes` | 관찰 당시의 현지 시간대 문맥. |
@@ -81,7 +81,7 @@ macOS 클라이언트                  서버                         화면
 
 ```json
 {
-  "deviceRegistrationId": "30000000-0000-0000-0000-000000000000",
+  "deviceId": "30000000-0000-0000-0000-000000000000",
   "recordType": "activity_observation",
   "eventId": "40000000-0000-0000-0000-000000000000",
   "sequence": 412,
@@ -150,7 +150,7 @@ URL은 브라우저가 관찰한 문자열을 그대로 보존한다. 서버가 
 
 ```json
 {
-  "deviceRegistrationId": "30000000-0000-0000-0000-000000000000",
+  "deviceId": "30000000-0000-0000-0000-000000000000",
   "recordType": "collection_state_changed",
   "eventId": "40000000-0000-0000-0000-000000000001",
   "sequence": 413,
@@ -213,7 +213,7 @@ URL은 브라우저가 관찰한 문자열을 그대로 보존한다. 서버가 
 서버는 기존 `accounts`와 두 신규 테이블만 사용한다.
 
 ```text
-accounts 1 --- N device_registrations 1 --- N activity_records
+accounts 1 --- N devices 1 --- N activity_records
 ```
 
 `activity_records`는 유일한 활동 source of truth다. 공통 식별자·순서·시각은 일반
@@ -224,19 +224,24 @@ accounts 1 --- N device_registrations 1 --- N activity_records
 | `activity_observation` | `{ "context": ... }` |
 | `collection_state_changed` | `{ "state": ..., "reason": ... }` |
 
-`UNIQUE(device_registration_id, sequence)`로 한 기기 등록 안의 순번 충돌을 막는다.
+`UNIQUE(device_id, sequence)`로 한 Device 안의 순번 충돌을 막는다.
 별도 batch, stream watermark, 요청 hash, 레코드 hash, 저장 상태 컬럼은 두지 않는다.
 전체 컬럼과 제약은 `docs/ERD.md`에 정의한다.
 
-## 5. 기기와 인증 경계
+## 5. Device와 인증 경계
 
-한 계정은 여러 `DeviceRegistration` 이력을 가질 수 있다. 초기 제품은 한 시점에
-하나의 기기만 계정에 접속해 활동을 기록한다. 따라서 계정 전체 타임라인은 모든
-등록의 레코드를 시간순으로 조회하되, 각 레코드의 기기 출처를 유지한다.
+한 계정은 여러 Device를 가질 수 있다. 초기 제품은 한 시점에 하나의 Device만
+계정에 접속해 활동을 기록한다. 따라서 계정 전체 타임라인은 모든 Device의 레코드를
+시간순으로 조회하되, 각 레코드의 Device 출처를 유지한다.
+
+클라이언트는 인증 후 `POST /api/v1/devices`를 호출한다. 요청 전에 UUID
+`Idempotency-Key`를 영구 저장하고 응답을 받기 전까지 같은 값을 재사용한다. 서버는
+계정과 멱등 키의 조합마다 하나의 `device_id`를 발급하며, 같은 요청의
+재시도에는 최초 식별자를 반환한다.
 
 동시에 하나의 기기만 접속하도록 강제하는 기능은 활동 저장 모델의 책임이 아니다.
 현재 JWT는 만료 전 즉시 무효화할 수 없으므로 이 제약은 아직 구현된 보장이 아니다.
-새 로그인 시 이전 JWT를 즉시 무효화하고 토큰을 기기 등록에 연결하는 작업은
+새 로그인 시 이전 JWT를 즉시 무효화하고 토큰을 Device에 연결하는 작업은
 루트 `TODO.md`에 별도로 기록한다. 이번 활동 저장 설계에서는 `accounts`에 인증
 상태 컬럼을 추가하지 않는다.
 

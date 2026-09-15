@@ -32,7 +32,7 @@ ERROR_DOCS: Mapping[ErrorSpec, ErrorDocs] = {
     ),
     ErrorCode.ACTIVITY_DEVICE_NOT_FOUND: ErrorDocs(
         summary="Activity device not found",
-        description=("기기 등록을 찾을 수 없거나 인증된 계정에 속하지 않습니다."),
+        description=("Device를 찾을 수 없거나 인증된 계정에 속하지 않습니다."),
     ),
     ErrorCode.ACTIVITY_EVENT_ID_CONFLICT: ErrorDocs(
         summary="Activity event ID conflict",
@@ -41,7 +41,7 @@ ERROR_DOCS: Mapping[ErrorSpec, ErrorDocs] = {
     ErrorCode.ACTIVITY_SEQUENCE_CONFLICT: ErrorDocs(
         summary="Activity sequence conflict",
         description=(
-            "같은 기기 등록과 sequence로 저장된 이벤트가 요청 eventId와 다릅니다."
+            "같은 Device와 sequence로 저장된 이벤트가 요청 eventId와 다릅니다."
         ),
     ),
     ErrorCode.REQUEST_ROUTE_NOT_FOUND: ErrorDocs(

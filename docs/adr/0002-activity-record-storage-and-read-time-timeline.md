@@ -12,12 +12,12 @@ date: 2026-09-13
 
 ## 결정
 
-- 계정은 여러 앱 설치의 `DeviceRegistration` 이력을 가질 수 있다.
-- `sequence`는 `device_registration_id` 안에서 증가한다. 앱 재설치로 등록과 순번
-  상태를 잃으면 새 `device_registration_id`를 발급한다.
+- 계정은 여러 앱 설치의 Device를 가질 수 있다.
+- `sequence`는 `device_id` 안에서 증가한다. 앱 재설치로 등록과 순번 상태를 잃으면
+  새 `device_id`를 발급한다.
 - 활동 요청은 레코드 하나만 포함한다. `batch_id`, `collection_stream_id`, batch
   watermark와 batch 결과 테이블은 만들지 않는다.
-- `activity_records`는 `event_id`, 기기 등록, 순서, 종류, 관찰 시각, 시간대 문맥,
+- `activity_records`는 `event_id`, Device, 순서, 종류, 관찰 시각, 시간대 문맥,
   수신 시각을 일반 컬럼에 저장하고 종류별 본문을 JSONB `payload`에 저장한다.
 - `event_id`는 단건 재시도의 멱등성 키다. 같은 내용의 재전송은 기존 결과를
   반환하고 다른 내용의 재사용은 충돌로 거절한다. 별도 event hash는 저장하지

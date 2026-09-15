@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.repository import ActivityRepository, is_same_activity_record
 from mosemo.activities.schemas import ActivityCreateResponse, ActivityRecord
+from mosemo.devices.repository import DeviceRepository
 
 
 class ActivityDeviceNotFoundError(Exception):
@@ -24,9 +25,11 @@ class ActivityService:
         *,
         session: AsyncSession,
         repository: ActivityRepository,
+        device_repository: DeviceRepository,
     ) -> None:
         self._session = session
         self._repository = repository
+        self._device_repository = device_repository
 
     async def create_activity(
         self,
@@ -34,11 +37,12 @@ class ActivityService:
         account_id: UUID,
         record: ActivityRecord,
     ) -> ActivityCreateResponse:
-        device = await self._repository.find_owned_device(
+        device = await self._device_repository.find_owned_by_id(
             account_id=account_id,
-            device_registration_id=record.device_registration_id,
+            device_id=record.device_id,
         )
         if device is None:
+            await self._session.rollback()
             raise ActivityDeviceNotFoundError
 
         stored = await self._repository.insert(record)
@@ -58,15 +62,19 @@ class ActivityService:
                     status="accepted",
                     received_at=existing_event.received_at,
                 )
+                await self._session.rollback()
                 return response
 
+            await self._session.rollback()
             raise ActivityEventIdConflictError
 
         existing_sequence = await self._repository.find_by_device_sequence(
-            device_registration_id=record.device_registration_id,
+            device_id=record.device_id,
             sequence=record.sequence,
         )
         if existing_sequence is not None:
+            await self._session.rollback()
             raise ActivitySequenceConflictError
 
+        await self._session.rollback()
         raise RuntimeError("activity insert conflict could not be resolved")
