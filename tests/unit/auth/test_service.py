@@ -172,11 +172,13 @@ def test_exchange_authorization_code_consumes_code_and_issues_token(
     )
 
     assert result == "access-token"
+    session.begin.assert_called_once_with()
     auth_code_repository.find_for_update.assert_awaited_once_with(
         hashlib.sha256(b"one-time-code").hexdigest()
     )
     auth_code_repository.delete.assert_awaited_once_with(stored_code)
-    session.commit.assert_awaited_once_with()
+    session.commit.assert_not_awaited()
+    session.rollback.assert_not_awaited()
     token_service.issue_access_token.assert_called_once_with(account_id)
 
 
@@ -201,7 +203,8 @@ def test_exchange_authorization_code_preserves_code_when_token_issuance_fails(
             )
         )
 
-    session.rollback.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.rollback.assert_not_awaited()
     auth_code_repository.delete.assert_not_awaited()
     session.commit.assert_not_awaited()
 
@@ -224,8 +227,10 @@ def test_exchange_authorization_code_rejects_wrong_verifier(config: Config) -> N
             )
         )
 
-    session.rollback.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.rollback.assert_not_awaited()
     auth_code_repository.delete.assert_not_awaited()
+    session.commit.assert_not_awaited()
     token_service.issue_access_token.assert_not_called()
 
 
@@ -247,8 +252,10 @@ def test_exchange_authorization_code_deletes_expired_code(config: Config) -> Non
             )
         )
 
+    session.begin.assert_called_once_with()
     auth_code_repository.delete.assert_awaited_once_with(stored_code)
-    session.commit.assert_awaited_once_with()
+    session.commit.assert_not_awaited()
+    session.rollback.assert_not_awaited()
     token_service.issue_access_token.assert_not_called()
 
 
@@ -264,5 +271,7 @@ def test_exchange_authorization_code_rejects_unknown_code(config: Config) -> Non
             )
         )
 
-    session.rollback.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.rollback.assert_not_awaited()
+    session.commit.assert_not_awaited()
     token_service.issue_access_token.assert_not_called()
