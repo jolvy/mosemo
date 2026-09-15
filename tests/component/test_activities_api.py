@@ -1,13 +1,11 @@
 from datetime import UTC, datetime
 from unittest.mock import create_autospec
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.schemas import ActivityCreateResponse
 from mosemo.activities.service import (
     ActivityDeviceNotFoundError,
@@ -18,7 +16,7 @@ from mosemo.activities.service import (
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config, get_config
-from mosemo.dependencies import get_account_repository, get_activity_service
+from mosemo.dependencies import get_activity_service
 from mosemo.exception_handlers import register_exception_handlers
 
 
@@ -38,29 +36,22 @@ def activity_request(*, event_id: str | None = None) -> dict[str, object]:
 def make_app(
     *,
     config: Config,
-    account: Account,
+    account_id: UUID,
     service: ActivityService,
 ) -> tuple[FastAPI, str]:
-    account_repository = create_autospec(AccountRepository, instance=True)
-    account_repository.find_by_id.return_value = account
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(v1_api_router)
     app.dependency_overrides[get_config] = lambda: config
-    app.dependency_overrides[get_account_repository] = lambda: account_repository
     app.dependency_overrides[get_activity_service] = lambda: service
-    token = TokenService(config.auth).issue_access_token(account.account_id)
+    token = TokenService(config.auth).issue_access_token(account_id)
     return app, token
 
 
 def test_activities_create_returns_camel_case_created_response(
     config: Config,
 ) -> None:
-    account = Account(
-        account_id=uuid4(),
-        provider=AccountProvider.KAKAO,
-        provider_subject="activity-owner",
-    )
+    account_id = uuid4()
     service = create_autospec(ActivityService, instance=True)
     event_id = uuid4()
     service.create_activity.return_value = ActivityCreateResponse(
@@ -68,7 +59,7 @@ def test_activities_create_returns_camel_case_created_response(
         status="accepted",
         received_at=datetime(2026, 9, 14, 1, 2, 3, 456789, tzinfo=UTC),
     )
-    app, token = make_app(config=config, account=account, service=service)
+    app, token = make_app(config=config, account_id=account_id, service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -84,7 +75,7 @@ def test_activities_create_returns_camel_case_created_response(
         "receivedAt": "2026-09-14T01:02:03Z",
     }
     call = service.create_activity.await_args
-    assert call.kwargs["account_id"] == account.account_id
+    assert call.kwargs["account_id"] == account_id
     assert call.kwargs["record"].event_id == event_id
 
 
@@ -118,14 +109,10 @@ def test_activities_create_returns_public_storage_errors(
     public_status: str,
     message: str,
 ) -> None:
-    account = Account(
-        account_id=uuid4(),
-        provider=AccountProvider.KAKAO,
-        provider_subject="activity-owner",
-    )
+    account_id = uuid4()
     service = create_autospec(ActivityService, instance=True)
     service.create_activity.side_effect = service_error
-    app, token = make_app(config=config, account=account, service=service)
+    app, token = make_app(config=config, account_id=account_id, service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -146,13 +133,9 @@ def test_activities_create_returns_public_storage_errors(
 
 
 def test_activities_create_rejects_legacy_device_field(config: Config) -> None:
-    account = Account(
-        account_id=uuid4(),
-        provider=AccountProvider.KAKAO,
-        provider_subject="activity-owner",
-    )
+    account_id = uuid4()
     service = create_autospec(ActivityService, instance=True)
-    app, token = make_app(config=config, account=account, service=service)
+    app, token = make_app(config=config, account_id=account_id, service=service)
     request = activity_request()
     request["deviceRegistrationId"] = request.pop("deviceId")
 
