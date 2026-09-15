@@ -287,6 +287,56 @@ async def test_local_day_boundary_uses_dst_length(
 
 
 @pytest.mark.asyncio
+async def test_earliest_valid_date_returns_empty_with_positive_account_offset(
+    integration_session: AsyncSession,
+) -> None:
+    account_id, _, _ = await account_with_devices(integration_session)
+    await integration_session.commit()
+    service = ActivityService(
+        session=integration_session,
+        repository=ActivityRepository(integration_session),
+        device_repository=DeviceRepository(integration_session),
+    )
+
+    assert await service.get_timeline(account_id=account_id, date=date.min) == []
+
+
+@pytest.mark.asyncio
+async def test_stale_midnight_observation_matches_materialized_closed_span(
+    integration_session: AsyncSession,
+) -> None:
+    account_id, device_id, _ = await account_with_devices(integration_session)
+    await integration_session.commit()
+    service = ActivityService(
+        session=integration_session,
+        repository=ActivityRepository(integration_session),
+        device_repository=DeviceRepository(integration_session),
+    )
+    before_midnight = observation(
+        device_id, 1, "2026-09-15T14:59:30Z", {"kind": "opaque"}
+    )
+    at_midnight = observation(device_id, 2, "2026-09-15T15:00:00Z", {"kind": "opaque"})
+    now = datetime(2026, 9, 15, 15, 2, tzinfo=UTC)
+    for record in (before_midnight, at_midnight):
+        await service.create_activity(
+            account_id=account_id,
+            record=record,
+            now=at_midnight.observed_at,
+        )
+
+    new_date = date(2026, 9, 16)
+    assert (
+        await service.get_timeline(account_id=account_id, date=new_date, now=now) == []
+    )
+
+    active = state_change(device_id, 3, "2026-09-15T15:02:00Z", "active", "resume")
+    await service.create_activity(account_id=account_id, record=active, now=now)
+    assert (
+        await service.get_timeline(account_id=account_id, date=new_date, now=now) == []
+    )
+
+
+@pytest.mark.asyncio
 async def test_cross_midnight_segment_is_unclipped_on_both_dates(
     integration_session: AsyncSession,
 ) -> None:
