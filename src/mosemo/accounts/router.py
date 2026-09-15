@@ -1,8 +1,9 @@
 from fastapi import APIRouter
 
 from mosemo.accounts.schemas import AccountResponse
-from mosemo.dependencies import CurrentAccountDep
-from mosemo.exceptions import ErrorCode
+from mosemo.accounts.service import AccountNotFoundError
+from mosemo.dependencies import AccountServiceDep, AuthenticatedAccountDep
+from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.openapi import api_error_responses
 
 router = APIRouter(prefix="/accounts")
@@ -19,5 +20,12 @@ router = APIRouter(prefix="/accounts")
         ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
     ),
 )
-def get_me(account: CurrentAccountDep) -> AccountResponse:
+async def get_me(
+    authenticated_account: AuthenticatedAccountDep,
+    service: AccountServiceDep,
+) -> AccountResponse:
+    try:
+        account = await service.get_account(authenticated_account.account_id)
+    except AccountNotFoundError as exc:
+        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
     return AccountResponse.model_validate(account)

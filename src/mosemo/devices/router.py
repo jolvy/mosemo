@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, status
 
-from mosemo.dependencies import CurrentAccountDep, DeviceServiceDep
+from mosemo.dependencies import AuthenticatedAccountDep, DeviceServiceDep
 from mosemo.devices.schemas import DeviceCreateResponse
 from mosemo.exceptions import ErrorCode
 from mosemo.openapi import api_error_responses
@@ -41,9 +41,9 @@ IdempotencyKeyHeader = Annotated[
 async def create_device(
     idempotency_key: IdempotencyKeyHeader,
     service: DeviceServiceDep,
-    account: CurrentAccountDep,
+    authenticated_account: AuthenticatedAccountDep,
 ) -> DeviceCreateResponse:
     return await service.create_device(
-        account_id=account.account_id,
+        account_id=authenticated_account.account_id,
         idempotency_key=idempotency_key,
     )

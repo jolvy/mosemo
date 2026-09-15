@@ -5,10 +5,11 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.accounts.models import Account
 from mosemo.accounts.repository import AccountRepository
+from mosemo.accounts.service import AccountService
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import ActivityService
+from mosemo.auth.context import AuthenticatedAccount
 from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.service import AuthService
@@ -42,6 +43,18 @@ def get_account_repository(session: SessionDep) -> AccountRepository:
 AccountRepositoryDep = Annotated[
     AccountRepository,
     Depends(get_account_repository),
+]
+
+
+def get_account_service(
+    account_repository: AccountRepositoryDep,
+) -> AccountService:
+    return AccountService(account_repository=account_repository)
+
+
+AccountServiceDep = Annotated[
+    AccountService,
+    Depends(get_account_service),
 ]
 
 
@@ -165,11 +178,10 @@ BearerCredentialsDep = Annotated[
 ]
 
 
-async def get_current_account(
+async def get_authenticated_account(
     credentials: BearerCredentialsDep,
     token_service: TokenServiceDep,
-    account_repository: AccountRepositoryDep,
-) -> Account:
+) -> AuthenticatedAccount:
     if credentials is None:
         raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN)
 
@@ -178,13 +190,10 @@ async def get_current_account(
     except InvalidAccessTokenError as exc:
         raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
 
-    account = await account_repository.find_by_id(account_id)
-    if account is None:
-        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN)
-    return account
+    return AuthenticatedAccount(account_id=account_id)
 
 
-CurrentAccountDep = Annotated[
-    Account,
-    Depends(get_current_account),
+AuthenticatedAccountDep = Annotated[
+    AuthenticatedAccount,
+    Depends(get_authenticated_account),
 ]

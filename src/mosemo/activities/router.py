@@ -6,7 +6,7 @@ from mosemo.activities.service import (
     ActivityEventIdConflictError,
     ActivitySequenceConflictError,
 )
-from mosemo.dependencies import ActivityServiceDep, CurrentAccountDep
+from mosemo.dependencies import ActivityServiceDep, AuthenticatedAccountDep
 from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.openapi import api_error_responses
 
@@ -36,11 +36,11 @@ router = APIRouter(prefix="/activities")
 async def create_activity(
     record: ActivityRecord,
     service: ActivityServiceDep,
-    account: CurrentAccountDep,
+    authenticated_account: AuthenticatedAccountDep,
 ) -> ActivityCreateResponse:
     try:
         return await service.create_activity(
-            account_id=account.account_id,
+            account_id=authenticated_account.account_id,
             record=record,
         )
     except ActivityDeviceNotFoundError as exc:
