@@ -24,7 +24,7 @@ from mosemo.exception_handlers import register_exception_handlers
 
 def activity_request(*, event_id: str | None = None) -> dict[str, object]:
     return {
-        "deviceRegistrationId": "30000000-0000-0000-0000-000000000000",
+        "deviceId": "30000000-0000-0000-0000-000000000000",
         "eventId": event_id or "40000000-0000-0000-0000-000000000000",
         "sequence": 3,
         "recordType": "activity_observation",
@@ -95,7 +95,7 @@ def test_activities_create_returns_camel_case_created_response(
             ActivityDeviceNotFoundError(),
             404,
             "ACTIVITY_DEVICE_NOT_FOUND",
-            "Activity device registration not found",
+            "Activity device not found",
         ),
         (
             ActivityEventIdConflictError(),
@@ -143,3 +143,26 @@ def test_activities_create_returns_public_storage_errors(
             "details": [],
         }
     }
+
+
+def test_activities_create_rejects_legacy_device_field(config: Config) -> None:
+    account = Account(
+        account_id=uuid4(),
+        provider=AccountProvider.KAKAO,
+        provider_subject="activity-owner",
+    )
+    service = create_autospec(ActivityService, instance=True)
+    app, token = make_app(config=config, account=account, service=service)
+    request = activity_request()
+    request["deviceRegistrationId"] = request.pop("deviceId")
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/activities",
+            headers={"Authorization": f"Bearer {token}"},
+            json=request,
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["status"] == "INVALID_ARGUMENT"
+    service.create_activity.assert_not_awaited()

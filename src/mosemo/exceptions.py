@@ -30,7 +30,7 @@ class ErrorCode:
     ACTIVITY_DEVICE_NOT_FOUND = ErrorSpec(
         status="ACTIVITY_DEVICE_NOT_FOUND",
         code=404,
-        message="Activity device registration not found",
+        message="Activity device not found",
     )
     ACTIVITY_EVENT_ID_CONFLICT = ErrorSpec(
         status="ACTIVITY_EVENT_ID_CONFLICT",

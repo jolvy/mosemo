@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from mosemo.accounts.router import router as accounts_router
 from mosemo.activities.router import router as activities_router
 from mosemo.auth.router import router as auth_router
+from mosemo.devices.router import router as devices_router
 from mosemo.exceptions import ErrorCode
 from mosemo.openapi import api_error_responses
 
@@ -18,3 +19,4 @@ v1_api_router = APIRouter(
 v1_api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 v1_api_router.include_router(accounts_router, tags=["accounts"])
 v1_api_router.include_router(activities_router, tags=["activities"])
+v1_api_router.include_router(devices_router, tags=["devices"])

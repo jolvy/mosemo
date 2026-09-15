@@ -8,7 +8,6 @@ from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
-from mosemo.activities.models import DeviceRegistration
 from mosemo.activities.repository import (
     ActivityRepository,
     activity_payload,
@@ -21,6 +20,8 @@ from mosemo.activities.service import (
     ActivitySequenceConflictError,
     ActivityService,
 )
+from mosemo.devices.models import Device
+from mosemo.devices.repository import DeviceRepository
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 RECEIVED_AT = datetime(2026, 9, 14, 1, 2, 3, tzinfo=UTC)
@@ -28,13 +29,13 @@ RECEIVED_AT = datetime(2026, 9, 14, 1, 2, 3, tzinfo=UTC)
 
 def make_record(
     *,
-    device_registration_id: UUID | None = None,
+    device_id: UUID | None = None,
     event_id: UUID | None = None,
     sequence: int = 3,
 ) -> ActivityRecord:
     return activity_record_adapter.validate_python(
         {
-            "deviceRegistrationId": str(device_registration_id or uuid4()),
+            "deviceId": str(device_id or uuid4()),
             "eventId": str(event_id or uuid4()),
             "sequence": sequence,
             "recordType": "activity_observation",
@@ -49,7 +50,7 @@ def make_record(
 def stored_record(record: ActivityRecord, **changes: object) -> StoredActivityRecord:
     values = {
         "event_id": record.event_id,
-        "device_registration_id": record.device_registration_id,
+        "device_id": record.device_id,
         "sequence": record.sequence,
         "record_type": record.record_type,
         "observed_at": record.observed_at,
@@ -65,18 +66,24 @@ def stored_record(record: ActivityRecord, **changes: object) -> StoredActivityRe
 def make_service():
     session = create_autospec(AsyncSession, instance=True)
     repository = create_autospec(ActivityRepository, instance=True)
-    service = ActivityService(session=session, repository=repository)
-    return service, session, repository
+    device_repository = create_autospec(DeviceRepository, instance=True)
+    service = ActivityService(
+        session=session,
+        repository=repository,
+        device_repository=device_repository,
+    )
+    return service, session, repository, device_repository
 
 
 def test_create_activity_commits_new_record() -> None:
-    service, session, repository = make_service()
+    service, session, repository, device_repository = make_service()
     account_id = uuid4()
     record = make_record(sequence=2)
     stored = stored_record(record)
-    repository.find_owned_device.return_value = DeviceRegistration(
-        device_registration_id=record.device_registration_id,
+    device_repository.find_owned_by_id.return_value = Device(
+        device_id=record.device_id,
         account_id=account_id,
+        idempotency_key=uuid4(),
     )
     repository.insert.return_value = stored
 
@@ -91,13 +98,14 @@ def test_create_activity_commits_new_record() -> None:
 
 
 def test_create_activity_returns_original_result_for_identical_retry() -> None:
-    service, session, repository = make_service()
+    service, session, repository, device_repository = make_service()
     account_id = uuid4()
     record = make_record(sequence=5)
     existing = stored_record(record)
-    repository.find_owned_device.return_value = DeviceRegistration(
-        device_registration_id=record.device_registration_id,
+    device_repository.find_owned_by_id.return_value = Device(
+        device_id=record.device_id,
         account_id=account_id,
+        idempotency_key=uuid4(),
     )
     repository.insert.return_value = None
     repository.find_by_event_id.return_value = existing
@@ -112,12 +120,13 @@ def test_create_activity_returns_original_result_for_identical_retry() -> None:
 
 
 def test_create_activity_rejects_changed_content_for_existing_event_id() -> None:
-    service, session, repository = make_service()
+    service, session, repository, device_repository = make_service()
     account_id = uuid4()
     record = make_record()
-    repository.find_owned_device.return_value = DeviceRegistration(
-        device_registration_id=record.device_registration_id,
+    device_repository.find_owned_by_id.return_value = Device(
+        device_id=record.device_id,
         account_id=account_id,
+        idempotency_key=uuid4(),
     )
     repository.insert.return_value = None
     repository.find_by_event_id.return_value = stored_record(
@@ -134,12 +143,13 @@ def test_create_activity_rejects_changed_content_for_existing_event_id() -> None
 
 
 def test_create_activity_rejects_sequence_used_by_another_event() -> None:
-    service, session, repository = make_service()
+    service, session, repository, device_repository = make_service()
     account_id = uuid4()
     record = make_record()
-    repository.find_owned_device.return_value = DeviceRegistration(
-        device_registration_id=record.device_registration_id,
+    device_repository.find_owned_by_id.return_value = Device(
+        device_id=record.device_id,
         account_id=account_id,
+        idempotency_key=uuid4(),
     )
     repository.insert.return_value = None
     repository.find_by_event_id.return_value = None
@@ -152,7 +162,7 @@ def test_create_activity_rejects_sequence_used_by_another_event() -> None:
         asyncio.run(service.create_activity(account_id=account_id, record=record))
 
     repository.find_by_device_sequence.assert_awaited_once_with(
-        device_registration_id=record.device_registration_id,
+        device_id=record.device_id,
         sequence=record.sequence,
     )
     session.rollback.assert_awaited_once_with()
@@ -160,12 +170,13 @@ def test_create_activity_rejects_sequence_used_by_another_event() -> None:
 
 
 def test_create_activity_allows_an_unused_lower_sequence() -> None:
-    service, session, repository = make_service()
+    service, session, repository, device_repository = make_service()
     account_id = uuid4()
     record = make_record(sequence=2)
-    repository.find_owned_device.return_value = DeviceRegistration(
-        device_registration_id=record.device_registration_id,
+    device_repository.find_owned_by_id.return_value = Device(
+        device_id=record.device_id,
         account_id=account_id,
+        idempotency_key=uuid4(),
     )
     repository.insert.return_value = stored_record(record)
 
@@ -177,17 +188,17 @@ def test_create_activity_allows_an_unused_lower_sequence() -> None:
 
 
 def test_create_activity_hides_missing_and_unowned_devices() -> None:
-    service, session, repository = make_service()
+    service, session, repository, device_repository = make_service()
     account_id = uuid4()
     record = make_record()
-    repository.find_owned_device.return_value = None
+    device_repository.find_owned_by_id.return_value = None
 
     with pytest.raises(ActivityDeviceNotFoundError):
         asyncio.run(service.create_activity(account_id=account_id, record=record))
 
-    repository.find_owned_device.assert_awaited_once_with(
+    device_repository.find_owned_by_id.assert_awaited_once_with(
         account_id=account_id,
-        device_registration_id=record.device_registration_id,
+        device_id=record.device_id,
     )
     repository.insert.assert_not_awaited()
     session.rollback.assert_awaited_once_with()
@@ -198,7 +209,7 @@ def test_create_activity_hides_missing_and_unowned_devices() -> None:
     ("field", "different_value"),
     [
         ("event_id", uuid4()),
-        ("device_registration_id", uuid4()),
+        ("device_id", uuid4()),
         ("sequence", 99),
         ("record_type", "collection_state_changed"),
         ("observed_at", datetime(2026, 9, 14, 2, tzinfo=UTC)),
@@ -223,7 +234,7 @@ def test_activity_record_identity_compares_every_stored_request_field(
 def test_activity_payload_keeps_nested_public_field_names() -> None:
     record = activity_record_adapter.validate_python(
         {
-            "deviceRegistrationId": str(uuid4()),
+            "deviceId": str(uuid4()),
             "eventId": str(uuid4()),
             "sequence": 3,
             "recordType": "activity_observation",

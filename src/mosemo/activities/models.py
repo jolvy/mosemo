@@ -1,5 +1,5 @@
 from datetime import datetime
-from uuid import UUID, uuid7
+from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
@@ -19,41 +19,25 @@ from sqlalchemy.orm import Mapped, mapped_column
 from mosemo.database import Base
 
 
-class DeviceRegistration(Base):
-    __tablename__ = "device_registrations"
-
-    device_registration_id: Mapped[UUID] = mapped_column(
-        primary_key=True,
-        default=uuid7,
-    )
-    account_id: Mapped[UUID] = mapped_column(
-        ForeignKey("accounts.account_id", ondelete="CASCADE"),
-        index=True,
-    )
-
-
 class ActivityRecord(Base):
     __tablename__ = "activity_records"
     __table_args__ = (
-        UniqueConstraint("device_registration_id", "sequence"),
+        UniqueConstraint("device_id", "sequence"),
         CheckConstraint("sequence >= 0", name="sequence_non_negative"),
         CheckConstraint(
             "record_type IN ('activity_observation', 'collection_state_changed')",
             name="record_type",
         ),
         Index(
-            "activity_records_device_registration_id_observed_at_idx",
-            "device_registration_id",
+            "activity_records_device_id_observed_at_idx",
+            "device_id",
             "observed_at",
         ),
     )
 
     event_id: Mapped[UUID] = mapped_column(primary_key=True)
-    device_registration_id: Mapped[UUID] = mapped_column(
-        ForeignKey(
-            "device_registrations.device_registration_id",
-            ondelete="CASCADE",
-        )
+    device_id: Mapped[UUID] = mapped_column(
+        ForeignKey("devices.device_id", ondelete="CASCADE")
     )
     sequence: Mapped[int] = mapped_column(BigInteger)
     record_type: Mapped[str] = mapped_column(String(32))

@@ -5,13 +5,13 @@
 
 이 문서는 초기 활동 수집에 필요한 최소 물리 모델을 정의한다. 인증용
 `native_auth_codes`는 이미 존재하지만 활동 저장 범위가 아니므로 표시하지 않는다.
-아래 `accounts`, `device_registrations`, `activity_records`는 SQLAlchemy 모델과
+아래 `accounts`, `devices`, `activity_records`는 SQLAlchemy 모델과
 migration으로 구현되어 있다.
 
 ```mermaid
 erDiagram
-    accounts ||--o{ device_registrations : owns
-    device_registrations ||--o{ activity_records : produces
+    accounts ||--o{ devices : owns
+    devices ||--o{ activity_records : produces
 
     accounts {
         uuid account_id PK
@@ -21,14 +21,15 @@ erDiagram
         timestamptz last_authenticated_at
     }
 
-    device_registrations {
-        uuid device_registration_id PK
+    devices {
+        uuid device_id PK
         uuid account_id FK
+        uuid idempotency_key
     }
 
     activity_records {
         uuid event_id PK
-        uuid device_registration_id FK
+        uuid device_id FK
         bigint sequence
         varchar record_type
         timestamptz observed_at
@@ -56,20 +57,26 @@ erDiagram
 
 - `UNIQUE(provider, provider_subject)`
 
-## `device_registrations`
+## `devices`
 
-한 계정에 귀속된 앱 설치 등록이다. 한 계정은 여러 등록 이력을 가질 수 있지만
+한 계정에 귀속되어 서버에 등록된 앱 설치다. 한 계정은 여러 Device를 가질 수 있지만
 동시에 하나만 접속하도록 강제하는 인증 상태는 이 테이블에 저장하지 않는다.
 
 | 컬럼 | 타입 | 제약 | 의미 |
 | --- | --- | --- | --- |
-| `device_registration_id` | UUID | PK | 서버가 발급한 앱 설치 등록 식별자. |
-| `account_id` | UUID | NOT NULL, FK | 등록을 소유한 계정. |
+| `device_id` | UUID | PK | 서버가 발급한 Device 식별자. |
+| `account_id` | UUID | NOT NULL, FK | Device를 소유한 계정. |
+| `idempotency_key` | UUID | NOT NULL | 클라이언트가 하나의 등록 시도에 부여한 멱등 키. |
 
 외래 키와 인덱스:
 
 - `account_id -> accounts.account_id ON DELETE CASCADE`
 - `INDEX(account_id)`
+- `UNIQUE(account_id, idempotency_key)`
+
+`POST /api/v1/devices`는 서버가 `device_id`를 발급한다.
+클라이언트는 요청 전에 UUID `Idempotency-Key`를 저장하고, 응답을 받기 전 재시도에는
+같은 값을 사용한다. 같은 계정과 같은 키에는 최초 발급한 식별자를 반환한다.
 
 기기 이름, 플랫폼, 대표 여부, 우선순위, 활성 여부, 폐기 시각은 초기 저장에 필요하지
 않으므로 두지 않는다.
@@ -82,8 +89,8 @@ erDiagram
 | 컬럼 | 타입 | 제약 | 의미 |
 | --- | --- | --- | --- |
 | `event_id` | UUID | PK | 클라이언트가 생성한 레코드 식별자이자 단건 재시도 멱등성 키. |
-| `device_registration_id` | UUID | NOT NULL, FK | 레코드를 생성한 기기 등록. |
-| `sequence` | BIGINT | NOT NULL | 같은 기기 등록 안의 증가 순번. |
+| `device_id` | UUID | NOT NULL, FK | 레코드를 생성한 Device. |
+| `sequence` | BIGINT | NOT NULL | 같은 Device 안의 증가 순번. |
 | `record_type` | VARCHAR(32) | NOT NULL, CHECK | 레코드 종류. |
 | `observed_at` | TIMESTAMPTZ | NOT NULL | 클라이언트가 관찰에 부여한 UTC 시각. |
 | `timezone_id` | TEXT | NOT NULL | 관찰 당시 IANA 시간대 식별자. |
@@ -93,15 +100,15 @@ erDiagram
 
 제약:
 
-- `UNIQUE(device_registration_id, sequence)`
+- `UNIQUE(device_id, sequence)`
 - `CHECK(sequence >= 0)`
 - `CHECK(record_type IN ('activity_observation', 'collection_state_changed'))`
-- `device_registration_id -> device_registrations.device_registration_id ON DELETE CASCADE`
+- `device_id -> devices.device_id ON DELETE CASCADE`
 
 인덱스:
 
-- PK와 UNIQUE 제약이 `event_id`, `(device_registration_id, sequence)` 조회를 지원한다.
-- 기기별 기간 조회를 위해 `INDEX(device_registration_id, observed_at)`를 둔다.
+- PK와 UNIQUE 제약이 `event_id`, `(device_id, sequence)` 조회를 지원한다.
+- Device별 기간 조회를 위해 `INDEX(device_id, observed_at)`를 둔다.
 
 ### JSONB payload
 
@@ -130,9 +137,9 @@ erDiagram
 
 ## 조회 경계
 
-계정 타임라인은 `device_registrations.account_id`로 소유권을 제한한 뒤 조회 기간의
-`activity_records`를 읽어 계산한다. 레코드의 `device_registration_id`는 결과에
-남겨 기기 출처를 잃지 않는다.
+계정 타임라인은 `devices.account_id`로 소유권을 제한한 뒤 조회 기간의
+`activity_records`를 읽어 계산한다. 레코드의 `device_id`는 결과에 남겨 Device
+출처를 잃지 않는다.
 
 초기 제품은 계정마다 동시에 하나의 기기만 접속한다고 가정한다. 이 가정은 현재
 ERD만으로 강제되지 않으며, 새 로그인 시 기존 JWT를 즉시 무효화하는 인증 TODO가

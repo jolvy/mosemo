@@ -17,7 +17,7 @@ activity_record_adapter = TypeAdapter(ActivityRecord)
 
 def record_fields(sequence: int) -> dict[str, object]:
     return {
-        "deviceRegistrationId": "30000000-0000-0000-0000-000000000000",
+        "deviceId": "30000000-0000-0000-0000-000000000000",
         "eventId": f"00000000-0000-0000-0000-{sequence:012d}",
         "sequence": sequence,
         "observedAt": "2026-09-07T10:15:30Z",

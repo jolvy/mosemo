@@ -22,30 +22,36 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Upgrade schema."""
     op.create_table(
-        "device_registrations",
-        sa.Column("device_registration_id", sa.Uuid(), nullable=False),
+        "devices",
+        sa.Column("device_id", sa.Uuid(), nullable=False),
         sa.Column("account_id", sa.Uuid(), nullable=False),
+        sa.Column("idempotency_key", sa.Uuid(), nullable=False),
         sa.ForeignKeyConstraint(
             ["account_id"],
             ["accounts.account_id"],
-            name=op.f("device_registrations_account_id_fkey"),
+            name=op.f("devices_account_id_fkey"),
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint(
-            "device_registration_id",
-            name=op.f("device_registrations_pkey"),
+            "device_id",
+            name=op.f("devices_pkey"),
+        ),
+        sa.UniqueConstraint(
+            "account_id",
+            "idempotency_key",
+            name=op.f("devices_account_id_idempotency_key_key"),
         ),
     )
     op.create_index(
-        op.f("device_registrations_account_id_idx"),
-        "device_registrations",
+        op.f("devices_account_id_idx"),
+        "devices",
         ["account_id"],
         unique=False,
     )
     op.create_table(
         "activity_records",
         sa.Column("event_id", sa.Uuid(), nullable=False),
-        sa.Column("device_registration_id", sa.Uuid(), nullable=False),
+        sa.Column("device_id", sa.Uuid(), nullable=False),
         sa.Column("sequence", sa.BigInteger(), nullable=False),
         sa.Column("record_type", sa.String(length=32), nullable=False),
         sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
@@ -67,22 +73,22 @@ def upgrade() -> None:
             name=op.f("activity_records_sequence_non_negative_check"),
         ),
         sa.ForeignKeyConstraint(
-            ["device_registration_id"],
-            ["device_registrations.device_registration_id"],
-            name=op.f("activity_records_device_registration_id_fkey"),
+            ["device_id"],
+            ["devices.device_id"],
+            name=op.f("activity_records_device_id_fkey"),
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("event_id", name=op.f("activity_records_pkey")),
         sa.UniqueConstraint(
-            "device_registration_id",
+            "device_id",
             "sequence",
-            name=op.f("activity_records_device_registration_id_sequence_key"),
+            name=op.f("activity_records_device_id_sequence_key"),
         ),
     )
     op.create_index(
-        op.f("activity_records_device_registration_id_observed_at_idx"),
+        op.f("activity_records_device_id_observed_at_idx"),
         "activity_records",
-        ["device_registration_id", "observed_at"],
+        ["device_id", "observed_at"],
         unique=False,
     )
 
@@ -90,12 +96,12 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_index(
-        op.f("activity_records_device_registration_id_observed_at_idx"),
+        op.f("activity_records_device_id_observed_at_idx"),
         table_name="activity_records",
     )
     op.drop_table("activity_records")
     op.drop_index(
-        op.f("device_registrations_account_id_idx"),
-        table_name="device_registrations",
+        op.f("devices_account_id_idx"),
+        table_name="devices",
     )
-    op.drop_table("device_registrations")
+    op.drop_table("devices")

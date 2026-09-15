@@ -196,13 +196,11 @@ ActivityContext = Annotated[
 class ActivityRecordBase(ActivityRequestModel):
     """Fields shared by every ordered activity collection record."""
 
-    device_registration_id: UUID = Field(
-        description="서버에 등록된 수집 기기의 식별자입니다."
-    )
+    device_id: UUID = Field(description="서버에 등록된 Device 식별자입니다.")
     event_id: UUID = Field(description="레코드 중복 제거에 사용하는 식별자입니다.")
     sequence: int = Field(
         ge=0,
-        description="기기 등록 안에서 단조 증가하는 레코드 순번입니다.",
+        description="Device 안에서 단조 증가하는 레코드 순번입니다.",
     )
     observed_at: ObservationTimestamp = Field(
         description="클라이언트 벽시계로 기록한 UTC 관찰 시각입니다."

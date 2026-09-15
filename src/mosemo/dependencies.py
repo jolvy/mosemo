@@ -15,6 +15,8 @@ from mosemo.auth.service import AuthService
 from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
 from mosemo.config import Config, get_config
 from mosemo.database import get_session
+from mosemo.devices.repository import DeviceRepository
+from mosemo.devices.service import DeviceService
 from mosemo.exceptions import ApiException, ErrorCode
 
 
@@ -53,11 +55,39 @@ ActivityRepositoryDep = Annotated[
 ]
 
 
+def get_device_repository(session: SessionDep) -> DeviceRepository:
+    return DeviceRepository(session)
+
+
+DeviceRepositoryDep = Annotated[
+    DeviceRepository,
+    Depends(get_device_repository),
+]
+
+
+def get_device_service(
+    session: SessionDep,
+    repository: DeviceRepositoryDep,
+) -> DeviceService:
+    return DeviceService(session=session, repository=repository)
+
+
+DeviceServiceDep = Annotated[
+    DeviceService,
+    Depends(get_device_service),
+]
+
+
 def get_activity_service(
     session: SessionDep,
     repository: ActivityRepositoryDep,
+    device_repository: DeviceRepositoryDep,
 ) -> ActivityService:
-    return ActivityService(session=session, repository=repository)
+    return ActivityService(
+        session=session,
+        repository=repository,
+        device_repository=device_repository,
+    )
 
 
 ActivityServiceDep = Annotated[

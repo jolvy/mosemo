@@ -140,6 +140,19 @@ def test_openapi_metadata_and_public_data_contract_are_stable(
         "status",
         "receivedAt",
     }
+    assert set(schemas["DeviceCreateResponse"]["properties"]) == {"deviceId"}
+    for activity_schema in ("ActivityObservation", "CollectionStateChanged"):
+        assert "deviceId" in schemas[activity_schema]["properties"]
+        assert "deviceRegistrationId" not in schemas[activity_schema]["properties"]
+    device_operation = openapi_document["paths"]["/api/v1/devices"]["post"]
+    assert device_operation["operationId"] == "devicesCreate"
+    assert device_operation["tags"] == ["devices"]
+    assert "requestBody" not in device_operation
+    idempotency_key = device_operation["parameters"][0]
+    assert idempotency_key["name"] == "Idempotency-Key"
+    assert idempotency_key["in"] == "header"
+    assert idempotency_key["required"] is True
+    assert idempotency_key["schema"]["format"] == "uuid"
     created_at_schema = schemas["AccountResponse"]["properties"]["createdAt"]
     assert created_at_schema["type"] == "string"
     assert created_at_schema["format"] == "date-time"
