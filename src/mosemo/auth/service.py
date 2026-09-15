@@ -103,33 +103,27 @@ class AuthService:
             raise InvalidAuthorizationCodeError from exc
 
         code_digest = hashlib.sha256(authorization_code.encode()).hexdigest()
-        stored_code = await self._native_auth_code_repository.find_for_update(
-            code_digest
-        )
-        if stored_code is None:
-            await self._session.rollback()
-            raise InvalidAuthorizationCodeError
+        async with self._session.begin():
+            stored_code = await self._native_auth_code_repository.find_for_update(
+                code_digest
+            )
+            if stored_code is None:
+                raise InvalidAuthorizationCodeError
 
-        now = datetime.now(UTC)
-        if stored_code.expires_at <= now:
-            await self._native_auth_code_repository.delete(stored_code)
-            await self._session.commit()
-            raise InvalidAuthorizationCodeError
+            now = datetime.now(UTC)
+            if stored_code.expires_at <= now:
+                await self._native_auth_code_repository.delete(stored_code)
+            else:
+                if not secrets.compare_digest(
+                    stored_code.code_challenge,
+                    code_challenge,
+                ):
+                    raise InvalidAuthorizationCodeError
 
-        if not secrets.compare_digest(
-            stored_code.code_challenge,
-            code_challenge,
-        ):
-            await self._session.rollback()
-            raise InvalidAuthorizationCodeError
+                access_token = self._token_service.issue_access_token(
+                    stored_code.account_id
+                )
+                await self._native_auth_code_repository.delete(stored_code)
+                return access_token
 
-        account_id = stored_code.account_id
-        try:
-            access_token = self._token_service.issue_access_token(account_id)
-        except Exception:
-            await self._session.rollback()
-            raise
-
-        await self._native_auth_code_repository.delete(stored_code)
-        await self._session.commit()
-        return access_token
+        raise InvalidAuthorizationCodeError
