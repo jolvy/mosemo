@@ -21,6 +21,7 @@ def make_account() -> Account:
         account_id=uuid4(),
         provider=AccountProvider.KAKAO,
         provider_subject="123456789",
+        timezone="Asia/Seoul",
         created_at=now,
         last_authenticated_at=now,
     )
@@ -82,6 +83,7 @@ def test_accounts_me_returns_authenticated_account(config: Config) -> None:
     assert response.json() == {
         "accountId": str(account.account_id),
         "provider": "KAKAO",
+        "timezone": "Asia/Seoul",
         "createdAt": "2026-09-05T01:02:03Z",
         "lastAuthenticatedAt": "2026-09-05T01:02:04Z",
     }

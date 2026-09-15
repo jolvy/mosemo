@@ -40,11 +40,11 @@ async def api_exception_handler(
     _request: Request,
     exc: ApiException,
 ) -> JSONResponse:
-    headers = (
-        {"WWW-Authenticate": "Bearer"}
-        if exc.spec is ErrorCode.AUTH_INVALID_ACCESS_TOKEN
-        else None
-    )
+    headers = None
+    if exc.spec is ErrorCode.AUTH_INVALID_ACCESS_TOKEN:
+        headers = {"WWW-Authenticate": "Bearer"}
+    elif exc.spec is ErrorCode.ACTIVITY_TIMELINE_BUSY:
+        headers = {"Retry-After": "1"}
     return error_response(exc.spec, details=exc.details, headers=headers)
 
 

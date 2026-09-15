@@ -37,6 +37,12 @@ def upgrade() -> None:
         ),
         sa.Column("provider_subject", sa.String(length=255), nullable=False),
         sa.Column(
+            "timezone",
+            sa.String(length=255),
+            server_default=sa.text("'Asia/Seoul'"),
+            nullable=False,
+        ),
+        sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),

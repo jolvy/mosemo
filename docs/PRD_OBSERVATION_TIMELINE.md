@@ -232,16 +232,15 @@ Mosemo 사용자는 한 날짜에 실제로 관찰된 활동의 순서, 문맥 �
 - URL·제목·앱 이름의 의미 정규화, 활동 흐름 생성, 컨텍스트 스위칭 판단, AI 해석, 집중도·통계
 - 활동 구간과 수집 공백의 별도 테이블, projection version/state table, 자동 GET rebuild, background scheduler
 - batch 전송, stream watermark, 오프라인 큐, 활동 원본의 개별 삭제 API 또는 보존 정책
-- macOS 클라이언트 구현, 생성 클라이언트 갱신, 코드 커밋·PR 생성
+- macOS 클라이언트 구현, 생성 클라이언트 갱신, PR 생성
 
 ## Further Notes
 
 - 도메인 용어는 `CONTEXT.md`를 따른다. ADR 0004가 ADR 0002의 read-time
   timeline 결정을 대체하고, 최신 Device 경계 결정인 ADR 0003과 함께 적용된다.
-- 이 PRD는 구현 요청이 아니라 구현 가능한 계약 기록이다. 이 문서 작성 시점의
-  작업트리는 `origin/feat/activities` 기준의 detached checkout으로 최신
-  `origin/main`의 Device 경계보다 앞서 있다. 구현은 최신 Device 계약과
-  transaction ownership 변경을 먼저 통합한 기준에서 진행해야 한다.
+- 이 PRD는 구현 계약 기록이며, 구현은 별도의 사용자 승인에 따라
+  `origin/main`에서 만든 `codex/observation-timeline-spec` 브랜치에서 진행한다.
+  최신 Device 계약과 활동 서비스의 transaction ownership을 기준으로 삼는다.
 - `segmentId`는 안정적인 변경 추적 ID가 아니므로 클라이언트 영속 캐시나
   다른 도메인의 FK로 사용하면 안 된다.
 - 타임라인 timestamp의 소수 초 보존은 원래 경계와 순간 전환을 정확하게

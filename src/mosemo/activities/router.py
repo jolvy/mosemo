@@ -1,10 +1,19 @@
-from fastapi import APIRouter, status
+from datetime import date
+from typing import Annotated
 
-from mosemo.activities.schemas import ActivityCreateResponse, ActivityRecord
+from fastapi import APIRouter, Query, status
+
+from mosemo.activities.schemas import (
+    ActivityCreateResponse,
+    ActivityRecord,
+    TimelineSegmentResponse,
+)
 from mosemo.activities.service import (
+    ActivityAccountNotFoundError,
     ActivityDeviceNotFoundError,
     ActivityEventIdConflictError,
     ActivitySequenceConflictError,
+    ActivityTimelineBusyError,
 )
 from mosemo.dependencies import ActivityServiceDep, AuthenticatedAccountDep
 from mosemo.exceptions import ApiException, ErrorCode
@@ -31,6 +40,15 @@ router = APIRouter(prefix="/activities")
         ErrorCode.ACTIVITY_EVENT_ID_CONFLICT,
         ErrorCode.ACTIVITY_SEQUENCE_CONFLICT,
         ErrorCode.INVALID_ARGUMENT,
+        ErrorCode.ACTIVITY_TIMELINE_BUSY,
+        headers={
+            503: {
+                "Retry-After": {
+                    "description": "같은 eventId와 body로 재시도하기 전 대기할 초입니다.",
+                    "schema": {"type": "string", "const": "1"},
+                }
+            }
+        },
     ),
 )
 async def create_activity(
@@ -49,3 +67,37 @@ async def create_activity(
         raise ApiException(ErrorCode.ACTIVITY_EVENT_ID_CONFLICT) from exc
     except ActivitySequenceConflictError as exc:
         raise ApiException(ErrorCode.ACTIVITY_SEQUENCE_CONFLICT) from exc
+    except ActivityTimelineBusyError as exc:
+        raise ApiException(ErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
+
+
+@router.get(
+    "/timeline",
+    operation_id="activitiesGetTimeline",
+    response_model=list[TimelineSegmentResponse],
+    summary="날짜별 관찰 타임라인 조회",
+    description=(
+        "계정 시간대의 달력 날짜 하나에 해당하는 전체 관찰 타임라인을 "
+        "날짜 경계에서 자르지 않은 구간 배열로 반환합니다."
+    ),
+    response_description="활동 구간과 명시적 수집 공백의 관찰 순서 배열입니다.",
+    responses=api_error_responses(
+        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        ErrorCode.INVALID_ARGUMENT,
+    ),
+)
+async def get_timeline(
+    service: ActivityServiceDep,
+    authenticated_account: AuthenticatedAccountDep,
+    date: Annotated[
+        date,
+        Query(description="계정 시간대 기준 조회할 달력 날짜(YYYY-MM-DD)입니다."),
+    ],
+) -> list[TimelineSegmentResponse]:
+    try:
+        return await service.get_timeline(
+            account_id=authenticated_account.account_id,
+            date=date,
+        )
+    except ActivityAccountNotFoundError as exc:
+        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc

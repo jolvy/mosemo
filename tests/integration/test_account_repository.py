@@ -28,6 +28,7 @@ async def test_repository_saves_and_finds_account(
         provider_subject=provider_subject,
     )
     await integration_session.flush()
+    assert account.timezone == "Asia/Seoul"
 
     found = await repository.find(
         provider=AccountProvider.KAKAO,

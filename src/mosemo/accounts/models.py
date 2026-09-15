@@ -31,6 +31,10 @@ class Account(Base):
         )
     )
     provider_subject: Mapped[str] = mapped_column(String(255))
+    timezone: Mapped[str] = mapped_column(
+        String(255),
+        server_default="Asia/Seoul",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
