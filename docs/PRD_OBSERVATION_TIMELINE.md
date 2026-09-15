@@ -68,8 +68,8 @@ Mosemo 사용자는 한 날짜에 실제로 관찰된 활동의 순서, 문맥 �
 - 공개 조회는 Bearer 인증을 요구하는 `GET /api/v1/activities/timeline?date=YYYY-MM-DD`다.
   `date`는 필수 달력 날짜이며 `from`, `to`, 요청별 시간대와 pagination은 없다.
   operation ID는 `activitiesGetTimeline`이고, 성공 응답은 `200`의 직접 JSON 배열이다.
-- `accounts.timezone`은 IANA 시간대 이름을 저장하는 `NOT NULL` 컬럼이다. 기존
-  계정과 신규 계정의 기본값은 `Asia/Seoul`이다. `GET /api/v1/accounts/me`에 읽기
+- `accounts.timezone`은 IANA 시간대 이름을 저장하는 `NOT NULL` 컬럼이다. 신규
+  계정의 DB 기본값은 `Asia/Seoul`이다. `GET /api/v1/accounts/me`에 읽기
   전용 `timezone`을 노출하고, 시간대 변경 API는 만들지 않는다. 조회 날짜의 현지
   자정과 다음 자정을 각각 UTC instant로 변환해 DST의 23·25시간 날짜도 다룬다.
 - 응답은 `segmentType`으로 식별하는 discriminated union이다. `activity`는
@@ -164,12 +164,14 @@ Mosemo 사용자는 한 날짜에 실제로 관찰된 활동의 순서, 문맥 �
   새 계산 결과가 기존 다음 구간과 완전히 일치하면 중단하고, 불일치가
   이어지면 수렴할 때까지 앞으로 확장한다. 최악에는 계정의 남은 전체
   이력이 대상이 된다. 구간 변경에는 합의한 ID 보존 규칙을 적용한다.
-- 초기 개발 환경에서는 새 Alembic migration으로 계정 시간대와 projection
-  스키마를 만들고, 기존 원본을 같은 변경에서 즉시 backfill한다. POST와 GET은
-  동일 변경에서 새 모델로 교체하며 feature flag, 점진적 rollout, 별도
-  backfill 명령이나 projection 버전 상태를 두지 않는다. 이미 적용된
-  migration은 다시 쓰지 않는다. grouping 규칙이 바뀌면 새 migration에서
-  원본으로 전체 projection을 재생성한다.
+- 초기 개발 환경에서는 기존 계정 생성 Alembic 리비전 `44f2c8ca846b`에
+  `timezone` 컬럼과 `Asia/Seoul` DB 기본값을 추가하고, projection 스키마는
+  새 migration으로 만든다. 타임라인의 기존 원본 데이터가 없으므로 초기
+  backfill은 수행하지 않는다. POST와 GET은 동일 변경에서 새 모델로 교체하며
+  feature flag, 점진적 rollout, 별도 backfill 명령이나 projection 버전 상태를
+  두지 않는다. 기존 migration을 수정하지 않는 저장소 원칙의 이번 개발 단계
+  예외다. 향후 grouping 규칙이 바뀌면 새 migration에서 보존된 원본으로
+  전체 projection을 재생성한다.
 - 공개 오류는 기존 `ErrorCode`·`ApiException`·공통 `ErrorResponse` 경계를
   따른다. 필수 날짜의 누락 또는 형식 오류는 `INVALID_ARGUMENT` 422,
   인증 오류는 기존 401이다. 503의 named OpenAPI example과
@@ -209,7 +211,7 @@ Mosemo 사용자는 한 날짜에 실제로 관찰된 활동의 순서, 문맥 �
   날짜 경계를 넘는 자르지 않은 구간, DST로 23·25시간이 되는 날짜,
   미래 날짜, 열린 활동의 마지막 관찰 날짜 제한, 열린 공백의 오늘까지
   포함을 검증한다.
-- DB migration·제약 테스트는 계정 시간대 default/backfill,
+- DB migration·제약 테스트는 기존 계정 생성 리비전의 시간대 DB 기본값,
   union별 필수·NULL CHECK, 0초 허용, 이벤트 FK의 개별 삭제 제약,
   계정 삭제 cascade, 빈 DB upgrade·downgrade·재upgrade와 단일 Alembic
   head를 검증한다. 현재 repository 및 migration fixture가 선례다.
