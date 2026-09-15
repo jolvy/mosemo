@@ -4,6 +4,10 @@
 > 범위: macOS 클라이언트의 관찰, 활동 레코드 단건 수신, 원본 저장, 조회 시 타임라인 계산
 > 비범위: 배치 전송, 오프라인 수집, 저장형 타임라인 projection, AI 해석, 사용자 확정 의미, 통계·집중도
 
+> 후속 설계: ADR 0004와 `docs/PRD_OBSERVATION_TIMELINE.md`가 이 문서의 조회 시
+> 계산 및 Device 출처 표시 결정을 대체한다. 현재 구현 기준 설명은 projection
+> 구현이 완료될 때까지 아래에 유지한다.
+
 현재 `src/mosemo/activities/schemas.py`는 이 문서의 단건 공개 요청 계약을 구현한다.
 기존
 `docs/REQUIERMENTS.md`의 batch·오프라인 관련 문구는 이번 작업 범위에서 수정하지

@@ -3,6 +3,10 @@
 > 상태: 초기 활동 원본 저장 구현 완료
 > 범위: 현재 계정 모델과 초기 활동 원본 저장 모델
 
+> 후속 설계: ADR 0004와 `docs/PRD_OBSERVATION_TIMELINE.md`는 계정 시간대와
+> `activity_timeline_segments` projection을 추가한다. 이 문서는 해당 구현 전의
+> 현재 물리 모델을 설명한다.
+
 이 문서는 초기 활동 수집에 필요한 최소 물리 모델을 정의한다. 인증용
 `native_auth_codes`는 이미 존재하지만 활동 저장 범위가 아니므로 표시하지 않는다.
 아래 `accounts`, `devices`, `activity_records`는 SQLAlchemy 모델과
