@@ -93,7 +93,8 @@ def test_create_activity_commits_new_record() -> None:
     assert result.status == "accepted"
     assert result.received_at == RECEIVED_AT
     repository.insert.assert_awaited_once_with(record)
-    session.commit.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.commit.assert_not_awaited()
     session.rollback.assert_not_awaited()
 
 
@@ -115,7 +116,8 @@ def test_create_activity_returns_original_result_for_identical_retry() -> None:
     assert result.event_id == record.event_id
     assert result.received_at == RECEIVED_AT
     repository.find_by_device_sequence.assert_not_awaited()
-    session.rollback.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()
 
 
@@ -138,7 +140,8 @@ def test_create_activity_rejects_changed_content_for_existing_event_id() -> None
         asyncio.run(service.create_activity(account_id=account_id, record=record))
 
     repository.find_by_device_sequence.assert_not_awaited()
-    session.rollback.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()
 
 
@@ -165,7 +168,8 @@ def test_create_activity_rejects_sequence_used_by_another_event() -> None:
         device_id=record.device_id,
         sequence=record.sequence,
     )
-    session.rollback.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()
 
 
@@ -184,7 +188,9 @@ def test_create_activity_allows_an_unused_lower_sequence() -> None:
 
     assert result.status == "accepted"
     repository.find_by_device_sequence.assert_not_awaited()
-    session.commit.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.commit.assert_not_awaited()
+    session.rollback.assert_not_awaited()
 
 
 def test_create_activity_hides_missing_and_unowned_devices() -> None:
@@ -201,7 +207,8 @@ def test_create_activity_hides_missing_and_unowned_devices() -> None:
         device_id=record.device_id,
     )
     repository.insert.assert_not_awaited()
-    session.rollback.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()
 
 

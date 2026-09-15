@@ -41,7 +41,8 @@ def test_create_device_commits_new_device() -> None:
         idempotency_key=idempotency_key,
     )
     repository.find_by_idempotency_key.assert_not_awaited()
-    session.commit.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.commit.assert_not_awaited()
     session.rollback.assert_not_awaited()
 
 
@@ -69,7 +70,8 @@ def test_create_device_returns_original_id_for_retry() -> None:
         account_id=account_id,
         idempotency_key=idempotency_key,
     )
-    session.rollback.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()
 
 
@@ -86,5 +88,6 @@ def test_create_device_rolls_back_unresolved_conflict() -> None:
             )
         )
 
-    session.rollback.assert_awaited_once_with()
+    session.begin.assert_called_once_with()
+    session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()
