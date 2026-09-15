@@ -164,7 +164,12 @@ class ActivityService:
             today = current_time.astimezone(timezone).date()
             if date > today:
                 return []
-            start = datetime.combine(date, time.min, tzinfo=timezone).astimezone(UTC)
+            try:
+                start = datetime.combine(date, time.min, tzinfo=timezone).astimezone(
+                    UTC
+                )
+            except OverflowError:
+                start = datetime.min.replace(tzinfo=UTC)
             end = datetime.combine(
                 date + timedelta(days=1), time.min, tzinfo=timezone
             ).astimezone(UTC)
@@ -182,6 +187,7 @@ class ActivityService:
                     assert last_observed_at is not None
                     if current_time - last_observed_at > MAX_OBSERVATION_GAP:
                         ended_at = last_observed_at
+                if ended_at is None and segment.segment_type == "activity":
                     if not (segment.started_at < end and last_observed_at >= start):
                         continue
                 elif ended_at is None:
