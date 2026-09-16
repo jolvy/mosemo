@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,20 +22,21 @@ class InvalidAuthorizationCodeError(Exception):
     pass
 
 
+type OAuthClientResolver = Callable[[AccountProvider], OAuthClient]
+
+
 class AuthService:
     def __init__(
         self,
         *,
-        oauth_client: OAuthClient,
-        provider: AccountProvider,
+        get_oauth_client: OAuthClientResolver,
         session: AsyncSession,
         account_repository: AccountRepository,
         native_auth_code_repository: NativeAuthCodeRepository,
         token_service: TokenService,
         config: AuthConfig,
     ) -> None:
-        self._oauth_client = oauth_client
-        self._provider = provider
+        self._get_oauth_client = get_oauth_client
         self._session = session
         self._account_repository = account_repository
         self._native_auth_code_repository = native_auth_code_repository
@@ -44,22 +46,24 @@ class AuthService:
     async def login(
         self,
         *,
+        provider: AccountProvider,
         code: str,
         code_challenge: str,
     ) -> str:
+        oauth_client = self._get_oauth_client(provider)
         try:
-            provider_subject = await self._oauth_client.get_user_id(code=code)
+            provider_subject = await oauth_client.get_user_id(code=code)
         except OAuthClientError as exc:
             raise OAuthAuthenticationError from exc
 
         async with self._session.begin():
             account = await self._account_repository.find(
-                provider=self._provider,
+                provider=provider,
                 provider_subject=provider_subject,
             )
             if account is None:
                 account = self._account_repository.save(
-                    provider=self._provider,
+                    provider=provider,
                     provider_subject=provider_subject,
                 )
                 await self._session.flush()

@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 from datetime import UTC, datetime, timedelta
-from unittest.mock import create_autospec
+from unittest.mock import Mock, create_autospec
 from uuid import uuid4
 
 import pytest
@@ -34,9 +34,9 @@ def make_service(config: Config):
         instance=True,
     )
     token_service = create_autospec(TokenService, instance=True)
+    get_oauth_client = Mock(return_value=oauth_client)
     service = AuthService(
-        oauth_client=oauth_client,
-        provider=AccountProvider.KAKAO,
+        get_oauth_client=get_oauth_client,
         session=session,
         account_repository=account_repository,
         native_auth_code_repository=auth_code_repository,
@@ -45,7 +45,7 @@ def make_service(config: Config):
     )
     return (
         service,
-        oauth_client,
+        get_oauth_client,
         session,
         account_repository,
         auth_code_repository,
@@ -57,9 +57,10 @@ def test_login_updates_existing_account_and_stores_code(
     config: Config,
     monkeypatch,
 ) -> None:
-    service, oauth_client, session, account_repository, auth_code_repository, _ = (
+    service, get_oauth_client, session, account_repository, auth_code_repository, _ = (
         make_service(config)
     )
+    oauth_client = get_oauth_client.return_value
     existing_account = Account(
         account_id=uuid4(),
         provider=AccountProvider.KAKAO,
@@ -75,12 +76,18 @@ def test_login_updates_existing_account_and_stores_code(
     before = datetime.now(UTC)
     result = asyncio.run(
         service.login(
+            provider=AccountProvider.KAKAO,
             code="authorization-code",
             code_challenge=CODE_CHALLENGE,
         )
     )
 
     assert result == "one-time-authorization-code"
+    get_oauth_client.assert_called_once_with(AccountProvider.KAKAO)
+    account_repository.find.assert_awaited_once_with(
+        provider=AccountProvider.KAKAO,
+        provider_subject="123456789",
+    )
     assert existing_account.last_authenticated_at >= before
     account_repository.save.assert_not_called()
     session.begin.assert_called_once_with()
@@ -100,9 +107,10 @@ def test_login_updates_existing_account_and_stores_code(
 def test_login_flushes_new_account_before_storing_code(
     config: Config,
 ) -> None:
-    service, oauth_client, session, account_repository, auth_code_repository, _ = (
+    service, get_oauth_client, session, account_repository, auth_code_repository, _ = (
         make_service(config)
     )
+    oauth_client = get_oauth_client.return_value
     new_account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject="123456789",
@@ -119,6 +127,7 @@ def test_login_flushes_new_account_before_storing_code(
 
     result = asyncio.run(
         service.login(
+            provider=AccountProvider.KAKAO,
             code="authorization-code",
             code_challenge=CODE_CHALLENGE,
         )
@@ -135,12 +144,14 @@ def test_login_flushes_new_account_before_storing_code(
 
 
 def test_login_converts_client_error(config: Config) -> None:
-    service, oauth_client, session, account_repository, _, _ = make_service(config)
+    service, get_oauth_client, session, account_repository, _, _ = make_service(config)
+    oauth_client = get_oauth_client.return_value
     oauth_client.get_user_id.side_effect = OAuthClientError()
 
     with pytest.raises(OAuthAuthenticationError):
         asyncio.run(
             service.login(
+                provider=AccountProvider.KAKAO,
                 code="authorization-code",
                 code_challenge=CODE_CHALLENGE,
             )

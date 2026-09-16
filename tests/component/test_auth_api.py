@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from mosemo.accounts.models import AccountProvider
 from mosemo.api import v1_api_router
 from mosemo.auth.kakao_client import KAKAO_AUTHORIZE_URL, KakaoClient
 from mosemo.auth.pkce import create_code_challenge
@@ -97,6 +98,7 @@ def test_login_callback_and_token_exchange_flow(
     assert token_response.headers["cache-control"] == "no-store"
     assert token_response.headers["pragma"] == "no-cache"
     service.login.assert_awaited_once_with(
+        provider=AccountProvider.KAKAO,
         code="authorization-code",
         code_challenge=CODE_CHALLENGE,
     )

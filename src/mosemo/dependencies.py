@@ -5,15 +5,16 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.accounts.models import Account, AccountProvider
+from mosemo.accounts.models import AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.accounts.service import AccountService
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import ActivityService
 from mosemo.auth.context import AuthenticatedAccount
 from mosemo.auth.kakao_client import KakaoClient
+from mosemo.auth.oauth_client import OAuthClient
 from mosemo.auth.repository import NativeAuthCodeRepository
-from mosemo.auth.service import AuthService
+from mosemo.auth.service import AuthService, OAuthClientResolver
 from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
 from mosemo.config import Config, get_config
 from mosemo.database import get_session
@@ -145,17 +146,42 @@ KakaoClientDep = Annotated[
 ]
 
 
+def get_oauth_client(
+    provider: AccountProvider,
+    config: Config,
+    http_client: httpx2.AsyncClient,
+) -> OAuthClient:
+    assert isinstance(provider, AccountProvider)
+    if provider is AccountProvider.KAKAO:
+        return get_kakao_client(config, http_client)
+
+
+def get_oauth_client_resolver(
+    config: ConfigDep,
+    http_client: HttpClientDep,
+) -> OAuthClientResolver:
+    def resolve(provider: AccountProvider) -> OAuthClient:
+        return get_oauth_client(provider, config, http_client)
+
+    return resolve
+
+
+OAuthClientResolverDep = Annotated[
+    OAuthClientResolver,
+    Depends(get_oauth_client_resolver),
+]
+
+
 def get_auth_service(
     session: SessionDep,
     account_repository: AccountRepositoryDep,
     native_auth_code_repository: NativeAuthCodeRepositoryDep,
-    kakao_client: KakaoClientDep,
+    get_oauth_client: OAuthClientResolverDep,
     token_service: TokenServiceDep,
     config: ConfigDep,
 ) -> AuthService:
     return AuthService(
-        oauth_client=kakao_client,
-        provider=AccountProvider.KAKAO,
+        get_oauth_client=get_oauth_client,
         session=session,
         account_repository=account_repository,
         native_auth_code_repository=native_auth_code_repository,

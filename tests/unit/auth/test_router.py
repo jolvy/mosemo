@@ -9,6 +9,7 @@ import httpx2
 import pytest
 from fastapi import Response
 
+from mosemo.accounts.models import AccountProvider
 from mosemo.auth.kakao_client import KAKAO_AUTHORIZE_URL, KakaoClient
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.router import (
@@ -180,6 +181,7 @@ def test_callback_redirects_authorization_code_to_macos_app(
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["pragma"] == "no-cache"
     service.login.assert_awaited_once_with(
+        provider=AccountProvider.KAKAO,
         code="authorization-code",
         code_challenge=CODE_CHALLENGE,
     )
@@ -211,6 +213,7 @@ def test_callback_redirects_authentication_failure_to_macos_app(
         "error": ["authentication_failed"]
     }
     service.login.assert_awaited_once_with(
+        provider=AccountProvider.KAKAO,
         code="authorization-code",
         code_challenge=CODE_CHALLENGE,
     )
