@@ -29,8 +29,7 @@ def make_service(
     config: Config,
 ) -> AuthService:
     return AuthService(
-        oauth_client=create_autospec(KakaoClient, instance=True),
-        provider=AccountProvider.KAKAO,
+        get_oauth_client=Mock(return_value=create_autospec(KakaoClient, instance=True)),
         session=session,
         account_repository=AccountRepository(session),
         native_auth_code_repository=NativeAuthCodeRepository(session),
@@ -54,8 +53,7 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
     auth_code_repository.save.side_effect = RuntimeError("code storage failed")
     account_repository = AccountRepository(integration_session)
     service = AuthService(
-        oauth_client=kakao_client,
-        provider=AccountProvider.KAKAO,
+        get_oauth_client=Mock(return_value=kakao_client),
         session=integration_session,
         account_repository=account_repository,
         native_auth_code_repository=auth_code_repository,
@@ -65,6 +63,7 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
 
     with pytest.raises(RuntimeError, match="code storage failed"):
         await service.login(
+            provider=AccountProvider.KAKAO,
             code="authorization-code",
             code_challenge=CODE_CHALLENGE,
         )
@@ -112,8 +111,7 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
             )
             monkeypatch.setattr(auth_code_repository, "save", save_auth_code)
             service = AuthService(
-                oauth_client=kakao_client,
-                provider=AccountProvider.KAKAO,
+                get_oauth_client=Mock(return_value=kakao_client),
                 session=session,
                 account_repository=AccountRepository(session),
                 native_auth_code_repository=auth_code_repository,
@@ -123,6 +121,7 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
 
             with pytest.raises(RuntimeError, match="code storage failed"):
                 await service.login(
+                    provider=AccountProvider.KAKAO,
                     code="authorization-code",
                     code_challenge=CODE_CHALLENGE,
                 )
