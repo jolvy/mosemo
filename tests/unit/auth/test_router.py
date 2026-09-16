@@ -1,15 +1,17 @@
 import asyncio
 import json
 from http.cookies import SimpleCookie
+from typing import cast
 from unittest.mock import create_autospec
 from urllib.parse import parse_qs, urlsplit
 
+import httpx2
 import pytest
 from fastapi import Response
 
+from mosemo.auth.kakao_client import KAKAO_AUTHORIZE_URL, KakaoClient
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.router import (
-    KAKAO_AUTHORIZE_URL,
     PKCE_CHALLENGE_COOKIE,
     STATE_COOKIE,
     callback,
@@ -20,7 +22,7 @@ from mosemo.auth.schemas import TokenRequest
 from mosemo.auth.service import (
     AuthService,
     InvalidAuthorizationCodeError,
-    KakaoAuthenticationError,
+    OAuthAuthenticationError,
 )
 from mosemo.config import Config
 from mosemo.exceptions import ApiException
@@ -31,6 +33,13 @@ CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
 
 def make_service():
     return create_autospec(AuthService, instance=True)
+
+
+def make_kakao_client(config: Config) -> KakaoClient:
+    return KakaoClient(
+        http_client=cast(httpx2.AsyncClient, object()),
+        config=config.kakao,
+    )
 
 
 def response_cookies(response) -> SimpleCookie:
@@ -49,7 +58,7 @@ def test_login_redirects_to_kakao_and_sets_oauth_cookies(
         lambda length: "fixed-state",
     )
 
-    response = login(config, CODE_CHALLENGE, "S256")
+    response = login(config, make_kakao_client(config), CODE_CHALLENGE, "S256")
 
     location = urlsplit(response.headers["location"])
     query = parse_qs(location.query)
@@ -84,7 +93,12 @@ def test_login_uses_secure_cookies_in_production(
     )
     production_config = config.model_copy(update={"app_env": "prod"})
 
-    response = login(production_config, CODE_CHALLENGE, "S256")
+    response = login(
+        production_config,
+        make_kakao_client(production_config),
+        CODE_CHALLENGE,
+        "S256",
+    )
 
     cookies = response_cookies(response)
     assert cookies[STATE_COOKIE]["secure"] is True
@@ -136,14 +150,14 @@ def test_callback_rejects_invalid_state_and_clears_cookies(
     cookies = response_cookies(response)
     assert cookies[STATE_COOKIE]["max-age"] == "0"
     assert cookies[PKCE_CHALLENGE_COOKIE]["max-age"] == "0"
-    service.complete_kakao_login.assert_not_awaited()
+    service.login.assert_not_awaited()
 
 
 def test_callback_redirects_authorization_code_to_macos_app(
     config: Config,
 ) -> None:
     service = make_service()
-    service.complete_kakao_login.return_value = "one-time-code"
+    service.login.return_value = "one-time-code"
 
     response = asyncio.run(
         callback(
@@ -165,7 +179,7 @@ def test_callback_redirects_authorization_code_to_macos_app(
     assert parse_qs(location.query) == {"code": ["one-time-code"]}
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["pragma"] == "no-cache"
-    service.complete_kakao_login.assert_awaited_once_with(
+    service.login.assert_awaited_once_with(
         code="authorization-code",
         code_challenge=CODE_CHALLENGE,
     )
@@ -178,7 +192,7 @@ def test_callback_redirects_authentication_failure_to_macos_app(
     config: Config,
 ) -> None:
     service = make_service()
-    service.complete_kakao_login.side_effect = KakaoAuthenticationError()
+    service.login.side_effect = OAuthAuthenticationError()
 
     response = asyncio.run(
         callback(
@@ -196,7 +210,7 @@ def test_callback_redirects_authentication_failure_to_macos_app(
     assert parse_qs(urlsplit(response.headers["location"]).query) == {
         "error": ["authentication_failed"]
     }
-    service.complete_kakao_login.assert_awaited_once_with(
+    service.login.assert_awaited_once_with(
         code="authorization-code",
         code_challenge=CODE_CHALLENGE,
     )
@@ -232,7 +246,7 @@ def test_callback_maps_provider_error_without_authenticating(
     assert parse_qs(urlsplit(response.headers["location"]).query) == {
         "error": [public_error]
     }
-    service.complete_kakao_login.assert_not_awaited()
+    service.login.assert_not_awaited()
 
 
 def test_exchange_token_returns_bearer_response(config: Config) -> None:

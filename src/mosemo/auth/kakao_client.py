@@ -1,12 +1,16 @@
+from urllib.parse import urlencode
+
 import httpx2
 
+from mosemo.auth.oauth_client import OAuthClientError
 from mosemo.config import KakaoConfig
 
+KAKAO_AUTHORIZE_URL = "https://kauth.kakao.com/oauth/authorize"
 KAKAO_TOKEN_URL = "https://kauth.kakao.com/oauth/token"
 KAKAO_USER_INFO_URL = "https://kapi.kakao.com/v2/user/me"
 
 
-class KakaoClientError(Exception):
+class KakaoClientError(OAuthClientError):
     pass
 
 
@@ -19,6 +23,17 @@ class KakaoClient:
     ) -> None:
         self._http_client = http_client
         self._config = config
+
+    def create_authorization_url(self, *, state: str) -> str:
+        query = urlencode(
+            {
+                "client_id": self._config.rest_api_key,
+                "redirect_uri": self._config.redirect_uri,
+                "response_type": "code",
+                "state": state,
+            }
+        )
+        return f"{KAKAO_AUTHORIZE_URL}?{query}"
 
     async def get_user_id(self, *, code: str) -> str:
         try:
