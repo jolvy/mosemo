@@ -69,7 +69,7 @@ def test_api_error_responses_groups_same_status_with_common_schema() -> None:
 def test_api_error_responses_rejects_invalid_inputs_and_duplicates() -> None:
     with pytest.raises(ValueError, match="at least one"):
         api_error_responses()
-    with pytest.raises(TypeError, match="ErrorSpec"):
+    with pytest.raises(TypeError, match="ErrorCode"):
         api_error_responses(cast(Any, "INVALID_ARGUMENT"))
     with pytest.raises(ValueError, match="duplicate"):
         api_error_responses(ErrorCode.INVALID_ARGUMENT, ErrorCode.INVALID_ARGUMENT)

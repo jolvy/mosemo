@@ -52,9 +52,10 @@ Mosemo API의 구현, OpenAPI 선언, 계약 테스트는 하나의 공개 계�
 ```
 
 - `error.status`는 클라이언트가 분기할 애플리케이션 오류 식별자다.
-- `error.code`는 실제 HTTP response status와 같은 정수이며 두 값은 같은 `ErrorSpec`에서 생성한다.
+- `error.code`는 실제 HTTP response status와 같은 정수이며 `ErrorCode` member의
+  `code` property에서 생성한다.
 - `error.message`는 개발자용 영문 설명이다.
-- `error.details`는 항상 배열이다. 기본값은 빈 배열이며 현재 `RequestValidationError` handler가 요청 검증 실패를 변환할 때 validation detail을 채운다. `ApiException`과 공통 response builder는 details 내용, 비어 있음 또는 `ErrorSpec`과의 조합을 별도 정책으로 제한하지 않는다.
+- `error.details`는 항상 배열이다. 기본값은 빈 배열이며 현재 `RequestValidationError` handler가 요청 검증 실패를 변환할 때 validation detail을 채운다. `ApiException`과 공통 response builder는 details 내용, 비어 있음 또는 `ErrorCode`와의 조합을 별도 정책으로 제한하지 않는다.
 - 현재 공개 오류는 다음과 같다.
 
 | status | HTTP code | message |
@@ -62,6 +63,10 @@ Mosemo API의 구현, OpenAPI 선언, 계약 테스트는 하나의 공개 계�
 | `AUTH_INVALID_AUTHORIZATION_CODE` | 400 | `Invalid or expired authorization code` |
 | `AUTH_INVALID_OAUTH_CONTEXT` | 400 | `Invalid or expired OAuth login context` |
 | `AUTH_INVALID_ACCESS_TOKEN` | 401 | `Invalid or expired access token` |
+| `ACTIVITY_DEVICE_NOT_FOUND` | 404 | `Activity device not found` |
+| `ACTIVITY_EVENT_ID_CONFLICT` | 409 | `Activity event ID conflicts with a stored record` |
+| `ACTIVITY_SEQUENCE_CONFLICT` | 409 | `Activity sequence conflicts with a stored record` |
+| `ACTIVITY_TIMELINE_BUSY` | 503 | `Activity timeline is busy` |
 | `REQUEST_ROUTE_NOT_FOUND` | 404 | `API route not found` |
 | `REQUEST_METHOD_NOT_ALLOWED` | 405 | `Method not allowed` |
 | `INVALID_ARGUMENT` | 422 | `Request validation failed.` |
@@ -88,9 +93,9 @@ Mosemo API의 구현, OpenAPI 선언, 계약 테스트는 하나의 공개 계�
 
 ## 오류 처리와 책임 경계
 
-- `exceptions.py`의 `ErrorCode` namespace가 공개 오류 정의를 소유한다. 각 `ErrorCode.MEMBER`는 `status`, `code`, `message`만 가진 canonical 불변 `ErrorSpec`이며 OpenAPI metadata를 포함하지 않는다. 내부 타입 선언은 런타임에 중복 검증하지 않고 실제 member 값을 계약 테스트로 검증한다.
-- `ApiException`은 `ErrorSpec`과 선택적 details를 운반한다. `ErrorSpec` 타입, details 원소 타입이나 둘의 조합을 수동 검사하지 않으며, 최종 공개 응답 구조는 `ErrorResponse` Pydantic schema가 검증한다. 오류별 얇은 exception subclass는 만들지 않는다.
-- `responses.py`의 공통 builder는 `ErrorSpec`과 details로 `ErrorResponse`를 만들고 HTTP status와 body code를 같은 `ErrorSpec.code`에서 생성한다.
+- `exceptions.py`의 `ErrorCode` Enum이 공개 오류 정의를 소유한다. 각 `ErrorCode.MEMBER`는 Enum 이름에서 파생한 `status`와 value의 `code`, `message` property를 제공하며, value인 frozen `ErrorSpec`은 HTTP `code`와 개발자용 `message`만 보유하고 OpenAPI metadata를 포함하지 않는다. 내부 타입 선언은 런타임에 중복 검증하지 않고 실제 member 값을 계약 테스트로 검증한다.
+- `ApiException`은 `ErrorCode`와 선택적 details를 운반한다. `ErrorCode` 타입, details 원소 타입이나 둘의 조합을 수동 검사하지 않으며, 최종 공개 응답 구조는 `ErrorResponse` Pydantic schema가 검증한다. 오류별 얇은 exception subclass는 만들지 않는다.
+- `responses.py`의 공통 builder는 `ErrorCode`와 details로 `ErrorResponse`를 만들고 HTTP status와 body code를 같은 member의 property에서 생성한다.
 - `RequestValidationError` handler는 framework 오류에서 `loc`, `msg`, `type`만 선택해 validation detail로 반환한다. framework 404·405는 각각 canonical `REQUEST_ROUTE_NOT_FOUND`, `REQUEST_METHOD_NOT_ALLOWED` envelope로 변환하고, 잘못된 요청 문자 인코딩은 canonical `INVALID_ARGUMENT`로 변환한다.
 - 그 밖에 애플리케이션 계층에서 발생한 문서화되지 않은 `Starlette HTTPException` 4xx·5xx는 계약 위반으로 취급한다. 원본 예외를 내부에 한 번 기록하고, status·detail·header를 외부로 통과시키지 않은 채 canonical `INTERNAL_SERVER_ERROR`를 반환한다. 공개할 의도인 오류는 `ErrorCode`와 `ApiException`으로 명시해야 한다.
 - 1xx·2xx·3xx `Starlette HTTPException`은 애플리케이션 오류 계약의 대상이 아니므로 framework 기본 handler에 위임한다.
@@ -103,7 +108,7 @@ Mosemo API의 구현, OpenAPI 선언, 계약 테스트는 하나의 공개 계�
 
 ## OpenAPI 문서 구성
 
-- `openapi.py`의 `ERROR_DOCS`는 `ErrorSpec`을 key로 사용하고 각 오류의 필수 `summary`, `description`과 선택적 validation `example_details`를 소유한다.
+- `openapi.py`의 `ERROR_DOCS`는 `ErrorCode`를 key로 사용하고 각 오류의 필수 `summary`, `description`과 선택적 validation `example_details`를 소유한다.
 - `api_error_responses()`는 `ErrorCode.MEMBER`를 받아 status별 FastAPI `responses` dict로 투영하고 같은 HTTP status의 오류를 하나의 response 아래 병합한다.
 - `public_openapi()`는 FastAPI가 자동 생성한 기본 `HTTPValidationError` 422 response와 사용되지 않는 validation schema를 제거한다. 애플리케이션이 명시한 `INVALID_ARGUMENT` 422 response는 유지한다.
 - 모든 오류 response는 공통 schema, named examples와 실제 동작에 중요한 header를 문서화한다.
