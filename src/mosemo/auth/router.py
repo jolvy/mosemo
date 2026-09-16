@@ -13,9 +13,9 @@ from mosemo.auth.pkce import (
 from mosemo.auth.schemas import TokenRequest, TokenResponse
 from mosemo.auth.service import (
     InvalidAuthorizationCodeError,
-    KakaoAuthenticationError,
+    OAuthAuthenticationError,
 )
-from mosemo.dependencies import AuthServiceDep, ConfigDep
+from mosemo.dependencies import AuthServiceDep, ConfigDep, KakaoClientDep
 from mosemo.exceptions import (
     ApiException,
     ErrorCode,
@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-KAKAO_AUTHORIZE_URL = "https://kauth.kakao.com/oauth/authorize"
 STATE_COOKIE = "kakao_oauth_state"
 PKCE_CHALLENGE_COOKIE = "kakao_oauth_pkce_challenge"
 OAUTH_COOKIE_PATH = "/api/v1/auth/kakao"
@@ -134,6 +133,7 @@ def _finalize_oauth_callback_response(
 )
 def login(
     config: ConfigDep,
+    kakao_client: KakaoClientDep,
     code_challenge: Annotated[
         str,
         Query(
@@ -150,17 +150,8 @@ def login(
     ],
 ) -> RedirectResponse:
     state = secrets.token_urlsafe(32)
-    query = urlencode(
-        {
-            "client_id": config.kakao.rest_api_key,
-            "redirect_uri": config.kakao.redirect_uri,
-            "response_type": "code",
-            "state": state,
-        }
-    )
-
     response = RedirectResponse(
-        url=f"{KAKAO_AUTHORIZE_URL}?{query}",
+        url=kakao_client.create_authorization_url(state=state),
         status_code=status.HTTP_302_FOUND,
     )
     _prevent_caching(response)
@@ -296,11 +287,11 @@ async def callback(
         response = _app_redirect(config, error="authentication_failed")
     else:
         try:
-            authorization_code = await service.complete_kakao_login(
+            authorization_code = await service.login(
                 code=code,
                 code_challenge=pkce_challenge_cookie,
             )
-        except KakaoAuthenticationError:
+        except OAuthAuthenticationError:
             logger.exception("Kakao authentication failed")
             response = _app_redirect(config, error="authentication_failed")
         except Exception:

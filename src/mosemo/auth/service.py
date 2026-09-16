@@ -6,14 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
-from mosemo.auth.kakao_client import KakaoClient, KakaoClientError
+from mosemo.auth.oauth_client import OAuthClient, OAuthClientError
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.tokens import TokenService
 from mosemo.config import AuthConfig
 
 
-class KakaoAuthenticationError(Exception):
+class OAuthAuthenticationError(Exception):
     pass
 
 
@@ -25,39 +25,41 @@ class AuthService:
     def __init__(
         self,
         *,
-        kakao_client: KakaoClient,
+        oauth_client: OAuthClient,
+        provider: AccountProvider,
         session: AsyncSession,
         account_repository: AccountRepository,
         native_auth_code_repository: NativeAuthCodeRepository,
         token_service: TokenService,
         config: AuthConfig,
     ) -> None:
-        self._kakao_client = kakao_client
+        self._oauth_client = oauth_client
+        self._provider = provider
         self._session = session
         self._account_repository = account_repository
         self._native_auth_code_repository = native_auth_code_repository
         self._token_service = token_service
         self._config = config
 
-    async def complete_kakao_login(
+    async def login(
         self,
         *,
         code: str,
         code_challenge: str,
     ) -> str:
         try:
-            provider_subject = await self._kakao_client.get_user_id(code=code)
-        except KakaoClientError as exc:
-            raise KakaoAuthenticationError from exc
+            provider_subject = await self._oauth_client.get_user_id(code=code)
+        except OAuthClientError as exc:
+            raise OAuthAuthenticationError from exc
 
         async with self._session.begin():
             account = await self._account_repository.find(
-                provider=AccountProvider.KAKAO,
+                provider=self._provider,
                 provider_subject=provider_subject,
             )
             if account is None:
                 account = self._account_repository.save(
-                    provider=AccountProvider.KAKAO,
+                    provider=self._provider,
                     provider_subject=provider_subject,
                 )
                 await self._session.flush()

@@ -9,14 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
-from mosemo.auth.kakao_client import KakaoClient, KakaoClientError
 from mosemo.auth.models import NativeAuthCode
+from mosemo.auth.oauth_client import OAuthClient, OAuthClientError
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.service import (
     AuthService,
     InvalidAuthorizationCodeError,
-    KakaoAuthenticationError,
+    OAuthAuthenticationError,
 )
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config
@@ -26,7 +26,7 @@ CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
 
 
 def make_service(config: Config):
-    kakao_client = create_autospec(KakaoClient, instance=True)
+    oauth_client = create_autospec(OAuthClient, instance=True)
     session = create_autospec(AsyncSession, instance=True)
     account_repository = create_autospec(AccountRepository, instance=True)
     auth_code_repository = create_autospec(
@@ -35,7 +35,8 @@ def make_service(config: Config):
     )
     token_service = create_autospec(TokenService, instance=True)
     service = AuthService(
-        kakao_client=kakao_client,
+        oauth_client=oauth_client,
+        provider=AccountProvider.KAKAO,
         session=session,
         account_repository=account_repository,
         native_auth_code_repository=auth_code_repository,
@@ -44,7 +45,7 @@ def make_service(config: Config):
     )
     return (
         service,
-        kakao_client,
+        oauth_client,
         session,
         account_repository,
         auth_code_repository,
@@ -52,11 +53,11 @@ def make_service(config: Config):
     )
 
 
-def test_complete_kakao_login_updates_existing_account_and_stores_code(
+def test_login_updates_existing_account_and_stores_code(
     config: Config,
     monkeypatch,
 ) -> None:
-    service, kakao_client, session, account_repository, auth_code_repository, _ = (
+    service, oauth_client, session, account_repository, auth_code_repository, _ = (
         make_service(config)
     )
     existing_account = Account(
@@ -64,7 +65,7 @@ def test_complete_kakao_login_updates_existing_account_and_stores_code(
         provider=AccountProvider.KAKAO,
         provider_subject="123456789",
     )
-    kakao_client.get_user_id.return_value = "123456789"
+    oauth_client.get_user_id.return_value = "123456789"
     account_repository.find.return_value = existing_account
     monkeypatch.setattr(
         "mosemo.auth.service.secrets.token_urlsafe",
@@ -73,7 +74,7 @@ def test_complete_kakao_login_updates_existing_account_and_stores_code(
 
     before = datetime.now(UTC)
     result = asyncio.run(
-        service.complete_kakao_login(
+        service.login(
             code="authorization-code",
             code_challenge=CODE_CHALLENGE,
         )
@@ -96,10 +97,10 @@ def test_complete_kakao_login_updates_existing_account_and_stores_code(
     assert save_call.kwargs["code_challenge"] == CODE_CHALLENGE
 
 
-def test_complete_kakao_login_flushes_new_account_before_storing_code(
+def test_login_flushes_new_account_before_storing_code(
     config: Config,
 ) -> None:
-    service, kakao_client, session, account_repository, auth_code_repository, _ = (
+    service, oauth_client, session, account_repository, auth_code_repository, _ = (
         make_service(config)
     )
     new_account = Account(
@@ -111,13 +112,13 @@ def test_complete_kakao_login_flushes_new_account_before_storing_code(
     async def assign_account_id() -> None:
         new_account.account_id = account_id
 
-    kakao_client.get_user_id.return_value = "123456789"
+    oauth_client.get_user_id.return_value = "123456789"
     account_repository.find.return_value = None
     account_repository.save.return_value = new_account
     session.flush.side_effect = assign_account_id
 
     result = asyncio.run(
-        service.complete_kakao_login(
+        service.login(
             code="authorization-code",
             code_challenge=CODE_CHALLENGE,
         )
@@ -133,13 +134,13 @@ def test_complete_kakao_login_flushes_new_account_before_storing_code(
     assert auth_code_repository.save.call_args.kwargs["account_id"] == account_id
 
 
-def test_complete_kakao_login_converts_client_error(config: Config) -> None:
-    service, kakao_client, session, account_repository, _, _ = make_service(config)
-    kakao_client.get_user_id.side_effect = KakaoClientError()
+def test_login_converts_client_error(config: Config) -> None:
+    service, oauth_client, session, account_repository, _, _ = make_service(config)
+    oauth_client.get_user_id.side_effect = OAuthClientError()
 
-    with pytest.raises(KakaoAuthenticationError):
+    with pytest.raises(OAuthAuthenticationError):
         asyncio.run(
-            service.complete_kakao_login(
+            service.login(
                 code="authorization-code",
                 code_challenge=CODE_CHALLENGE,
             )

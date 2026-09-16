@@ -29,7 +29,8 @@ def make_service(
     config: Config,
 ) -> AuthService:
     return AuthService(
-        kakao_client=create_autospec(KakaoClient, instance=True),
+        oauth_client=create_autospec(KakaoClient, instance=True),
+        provider=AccountProvider.KAKAO,
         session=session,
         account_repository=AccountRepository(session),
         native_auth_code_repository=NativeAuthCodeRepository(session),
@@ -53,7 +54,8 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
     auth_code_repository.save.side_effect = RuntimeError("code storage failed")
     account_repository = AccountRepository(integration_session)
     service = AuthService(
-        kakao_client=kakao_client,
+        oauth_client=kakao_client,
+        provider=AccountProvider.KAKAO,
         session=integration_session,
         account_repository=account_repository,
         native_auth_code_repository=auth_code_repository,
@@ -62,7 +64,7 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
     )
 
     with pytest.raises(RuntimeError, match="code storage failed"):
-        await service.complete_kakao_login(
+        await service.login(
             code="authorization-code",
             code_challenge=CODE_CHALLENGE,
         )
@@ -110,7 +112,8 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
             )
             monkeypatch.setattr(auth_code_repository, "save", save_auth_code)
             service = AuthService(
-                kakao_client=kakao_client,
+                oauth_client=kakao_client,
+                provider=AccountProvider.KAKAO,
                 session=session,
                 account_repository=AccountRepository(session),
                 native_auth_code_repository=auth_code_repository,
@@ -119,7 +122,7 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
             )
 
             with pytest.raises(RuntimeError, match="code storage failed"):
-                await service.complete_kakao_login(
+                await service.login(
                     code="authorization-code",
                     code_challenge=CODE_CHALLENGE,
                 )

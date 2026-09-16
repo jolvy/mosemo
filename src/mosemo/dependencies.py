@@ -5,6 +5,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.accounts.service import AccountService
 from mosemo.activities.repository import ActivityRepository
@@ -153,7 +154,8 @@ def get_auth_service(
     config: ConfigDep,
 ) -> AuthService:
     return AuthService(
-        kakao_client=kakao_client,
+        oauth_client=kakao_client,
+        provider=AccountProvider.KAKAO,
         session=session,
         account_repository=account_repository,
         native_auth_code_repository=native_auth_code_repository,

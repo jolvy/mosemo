@@ -1,15 +1,17 @@
+from typing import cast
 from unittest.mock import create_autospec
 
+import httpx2
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from mosemo.api import v1_api_router
+from mosemo.auth.kakao_client import KAKAO_AUTHORIZE_URL, KakaoClient
 from mosemo.auth.pkce import create_code_challenge
-from mosemo.auth.router import KAKAO_AUTHORIZE_URL
 from mosemo.auth.service import AuthService, InvalidAuthorizationCodeError
 from mosemo.config import Config, get_config
-from mosemo.dependencies import get_auth_service
+from mosemo.dependencies import get_auth_service, get_kakao_client
 from mosemo.exception_handlers import register_exception_handlers
 
 CODE_VERIFIER = "A" * 43
@@ -26,6 +28,10 @@ def make_app(
     app.include_router(v1_api_router)
     app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_auth_service] = lambda: service
+    app.dependency_overrides[get_kakao_client] = lambda: KakaoClient(
+        http_client=cast(httpx2.AsyncClient, object()),
+        config=config.kakao,
+    )
     return app
 
 
@@ -34,7 +40,7 @@ def test_login_callback_and_token_exchange_flow(
     monkeypatch,
 ) -> None:
     service = create_autospec(AuthService, instance=True)
-    service.complete_kakao_login.return_value = "one-time-code"
+    service.login.return_value = "one-time-code"
     service.exchange_authorization_code.return_value = "access-token"
     monkeypatch.setattr(
         "mosemo.auth.router.secrets.token_urlsafe",
@@ -90,7 +96,7 @@ def test_login_callback_and_token_exchange_flow(
     }
     assert token_response.headers["cache-control"] == "no-store"
     assert token_response.headers["pragma"] == "no-cache"
-    service.complete_kakao_login.assert_awaited_once_with(
+    service.login.assert_awaited_once_with(
         code="authorization-code",
         code_challenge=CODE_CHALLENGE,
     )
@@ -120,7 +126,7 @@ def test_callback_without_state_cookie_returns_bad_request(config: Config) -> No
             "details": [],
         }
     }
-    service.complete_kakao_login.assert_not_awaited()
+    service.login.assert_not_awaited()
 
 
 def test_token_exchange_returns_documented_bad_request(config: Config) -> None:

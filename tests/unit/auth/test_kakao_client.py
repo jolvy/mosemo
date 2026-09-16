@@ -1,10 +1,12 @@
 import asyncio
-from urllib.parse import parse_qs
+from typing import cast
+from urllib.parse import parse_qs, urlsplit
 
 import httpx2
 import pytest
 
 from mosemo.auth.kakao_client import (
+    KAKAO_AUTHORIZE_URL,
     KAKAO_TOKEN_URL,
     KAKAO_USER_INFO_URL,
     KakaoClient,
@@ -86,3 +88,22 @@ def test_get_user_id_converts_user_endpoint_failure(config: Config) -> None:
                 await client.get_user_id(code="authorization-code")
 
     asyncio.run(run())
+
+
+def test_create_authorization_url_uses_config_and_state(config: Config) -> None:
+    client = KakaoClient(
+        http_client=cast(httpx2.AsyncClient, object()),
+        config=config.kakao,
+    )
+
+    location = urlsplit(client.create_authorization_url(state="fixed-state"))
+
+    assert f"{location.scheme}://{location.netloc}{location.path}" == (
+        KAKAO_AUTHORIZE_URL
+    )
+    assert parse_qs(location.query) == {
+        "client_id": ["test-rest-api-key"],
+        "redirect_uri": ["http://localhost:8000/api/v1/auth/kakao/callback"],
+        "response_type": ["code"],
+        "state": ["fixed-state"],
+    }
