@@ -8,11 +8,11 @@ from mosemo.schemas import ValidationDetail
 
 
 def test_public_error_registry_contains_the_public_specs() -> None:
-    public_members = tuple(
-        value for name, value in vars(ErrorCode).items() if not name.startswith("_")
-    )
-    assert all(isinstance(value, ErrorSpec) for value in public_members)
-    assert [(spec.status, spec.code, spec.message) for spec in public_members] == [
+    public_members = tuple(ErrorCode)
+    assert all(isinstance(member.value, ErrorSpec) for member in public_members)
+    assert [
+        (member.status, member.code, member.message) for member in public_members
+    ] == [
         (
             "AUTH_INVALID_AUTHORIZATION_CODE",
             400,
@@ -45,19 +45,29 @@ def test_public_error_registry_contains_the_public_specs() -> None:
         ("INVALID_ARGUMENT", 422, "Request validation failed."),
         ("INTERNAL_SERVER_ERROR", 500, "Internal server error"),
     ]
-    assert len({spec.status for spec in public_members}) == 11
+    assert len({member.status for member in public_members}) == 11
 
 
 def test_error_spec_is_immutable_and_contains_no_documentation_metadata() -> None:
     with pytest.raises(FrozenInstanceError):
-        cast(Any, ErrorCode.AUTH_INVALID_ACCESS_TOKEN).code = 400
+        cast(Any, ErrorCode.AUTH_INVALID_ACCESS_TOKEN.value).code = 400
 
-    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN, "description")
-    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN, "headers")
-    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN, "example")
+    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "status")
+    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "description")
+    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "headers")
+    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "example")
 
 
-def test_api_exception_accepts_error_specs_and_validation_details() -> None:
+def test_error_code_members_have_distinct_error_specs() -> None:
+    members = tuple(ErrorCode)
+    first = ErrorSpec(code=400, message="same")
+    second = ErrorSpec(code=400, message="same")
+
+    assert len({id(member.value) for member in members}) == len(members)
+    assert first != second
+
+
+def test_api_exception_accepts_error_codes_and_validation_details() -> None:
     detail = ValidationDetail(
         loc=["body", "email"],
         msg="Field required",
@@ -75,7 +85,7 @@ def test_api_exception_accepts_error_specs_and_validation_details() -> None:
     assert non_validation_error.details == (detail,)
 
 
-def test_error_specs_are_values_not_exception_subclasses() -> None:
-    assert isinstance(ErrorCode.AUTH_INVALID_AUTHORIZATION_CODE, ErrorSpec)
-    assert isinstance(ErrorCode.AUTH_INVALID_OAUTH_CONTEXT, ErrorSpec)
-    assert isinstance(ErrorCode.INTERNAL_SERVER_ERROR, ErrorSpec)
+def test_error_codes_are_enum_members_with_error_specs_as_values() -> None:
+    assert isinstance(ErrorCode.AUTH_INVALID_AUTHORIZATION_CODE, ErrorCode)
+    assert isinstance(ErrorCode.AUTH_INVALID_OAUTH_CONTEXT, ErrorCode)
+    assert isinstance(ErrorCode.INTERNAL_SERVER_ERROR, ErrorCode)

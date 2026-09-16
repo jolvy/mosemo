@@ -35,9 +35,7 @@ OPENAPI_SNAPSHOT_PATH = Path(__file__).resolve().parents[2] / "openapi" / "opena
 API_DOCUMENTATION_PATH = (
     Path(__file__).resolve().parents[2] / "docs" / "API_DOCUMENTATION.md"
 )
-_PUBLIC_ERROR_SPECS = tuple(
-    value for name, value in vars(ErrorCode).items() if not name.startswith("_")
-)
+_PUBLIC_ERROR_SPECS = tuple(ErrorCode)
 
 
 @pytest.fixture
@@ -91,7 +89,7 @@ def test_public_openapi_descriptions_are_present(
 
 
 def test_error_code_registry_and_error_docs_have_exact_coverage() -> None:
-    assert all(isinstance(spec, ErrorSpec) for spec in _PUBLIC_ERROR_SPECS)
+    assert all(isinstance(spec.value, ErrorSpec) for spec in _PUBLIC_ERROR_SPECS)
     error_codes = set(_PUBLIC_ERROR_SPECS)
     assert set(ERROR_DOCS) == error_codes
     assert all(
@@ -248,6 +246,8 @@ def test_api_documentation_describes_replacement_contract() -> None:
     for required_text in (
         '"status": "INVALID_ARGUMENT"',
         "공통 `ErrorResponse` schema",
+        "Enum 이름에서 파생한 `status`",
+        "`ERROR_DOCS`는 `ErrorCode`를 key로 사용",
         "`loc`, `msg`, `type`",
         "invalid_encoding",
         "macOS 생성 클라이언트",

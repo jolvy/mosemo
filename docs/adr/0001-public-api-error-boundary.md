@@ -13,15 +13,17 @@ Mosemo 공개 API는 의도한 오류를 `ErrorCode`와 `ApiException`으로 명
 
 ## 결정
 
-- `ErrorSpec`은 클라이언트가 분기할 `status`, HTTP `code`, 개발자용
-  `message`만 소유한다. 오류별 exception subclass를 만들거나 HTTP 헤더와
-  OpenAPI metadata를 포함하지 않는다.
+- `ErrorCode` Enum 멤버 이름이 클라이언트가 분기할 `status`의 단일 원천이다.
+  각 멤버의 frozen `ErrorSpec` 값은 HTTP `code`와 개발자용 `message`만
+  소유한다. 오류별 exception subclass를 만들거나 HTTP 헤더와 OpenAPI
+  metadata를 포함하지 않는다.
 - 클라이언트는 공통 `ErrorResponse`를 decode한 뒤 `error.status`로 분기한다.
   같은 HTTP status의 오류는 하나의 schema와 status별 named example로
   문서화하며, 오류별 `oneOf`나 discriminator를 만들지 않는다.
-- `ERROR_DOCS`는 `ErrorSpec`을 key로 사용해 summary, description, example 같은
-  OpenAPI 전용 정보를 소유한다. 런타임 응답 모듈은 OpenAPI 모듈을 import하지
-  않으며, 두 registry의 완전한 대응은 자동 계약 테스트로 검증한다.
+- `ERROR_DOCS`는 `ErrorCode`를 key로 사용해 summary, description, example
+  같은 OpenAPI 전용 정보를 소유한다. 런타임 응답 모듈은 OpenAPI 모듈을
+  import하지 않으며, 두 registry의 완전한 대응은 자동 계약 테스트로
+  검증한다.
 - HTTP 헤더는 전송 문맥이 소유한다. 인증 challenge는 exception handler가,
   동적 `Allow`는 framework 405 응답이, OAuth cookie·cache·redirect 헤더는
   endpoint가 담당하고 OpenAPI는 이를 별도로 설명한다.

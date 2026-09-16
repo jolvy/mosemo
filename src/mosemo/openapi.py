@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
-from mosemo.exceptions import ErrorCode, ErrorSpec
+from mosemo.exceptions import ErrorCode
 from mosemo.schemas import ErrorPayload, ErrorResponse, ValidationDetail
 
 
@@ -17,7 +17,7 @@ class ErrorDocs:
     example_details: tuple[ValidationDetail, ...] = ()
 
 
-ERROR_DOCS: Mapping[ErrorSpec, ErrorDocs] = {
+ERROR_DOCS: Mapping[ErrorCode, ErrorDocs] = {
     ErrorCode.AUTH_INVALID_AUTHORIZATION_CODE: ErrorDocs(
         summary="Invalid authorization code",
         description="authorization code 또는 PKCE 검증에 실패했습니다.",
@@ -86,7 +86,7 @@ _DYNAMIC_HEADER_METADATA: dict[str, dict[str, Any]] = {
 }
 
 
-def _error_example(spec: ErrorSpec) -> dict[str, Any]:
+def _error_example(spec: ErrorCode) -> dict[str, Any]:
     docs = ERROR_DOCS[spec]
     return ErrorResponse(
         error=ErrorPayload(
@@ -99,7 +99,7 @@ def _error_example(spec: ErrorSpec) -> dict[str, Any]:
 
 
 def _merge_headers(
-    specs: Sequence[ErrorSpec],
+    specs: Sequence[ErrorCode],
     additional_headers: Mapping[int, Mapping[str, Any]] | None,
     status_code: int,
 ) -> dict[str, dict[str, Any]]:
@@ -123,21 +123,21 @@ def _merge_headers(
 
 
 def api_error_responses(
-    *errors: ErrorSpec,
+    *errors: ErrorCode,
     headers: Mapping[int, Mapping[str, Any]] | None = None,
 ) -> dict[int | str, dict[str, Any]]:
-    """Project public ErrorSpec values into FastAPI response declarations."""
+    """Project public ErrorCode members into FastAPI response declarations."""
 
     if not errors:
-        raise ValueError("at least one ErrorSpec is required")
-    if any(not isinstance(error, ErrorSpec) for error in errors):
-        raise TypeError("api_error_responses accepts ErrorSpec values")
+        raise ValueError("at least one ErrorCode is required")
+    if any(not isinstance(error, ErrorCode) for error in errors):
+        raise TypeError("api_error_responses accepts ErrorCode members")
     if len(set(errors)) != len(errors):
         raise ValueError(
-            "api_error_responses does not accept duplicate ErrorSpec values"
+            "api_error_responses does not accept duplicate ErrorCode members"
         )
 
-    grouped: dict[int, list[ErrorSpec]] = {}
+    grouped: dict[int, list[ErrorCode]] = {}
     for error in errors:
         grouped.setdefault(error.code, []).append(error)
 

@@ -2,12 +2,12 @@ from collections.abc import Mapping, Sequence
 
 from fastapi.responses import JSONResponse
 
-from mosemo.exceptions import ErrorSpec
+from mosemo.exceptions import ErrorCode
 from mosemo.schemas import ErrorPayload, ErrorResponse, ValidationDetail
 
 
 def error_response(
-    spec: ErrorSpec,
+    spec: ErrorCode,
     *,
     details: Sequence[ValidationDetail] = (),
     headers: Mapping[str, str] | None = None,
