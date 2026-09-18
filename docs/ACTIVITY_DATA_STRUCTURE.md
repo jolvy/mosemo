@@ -72,7 +72,7 @@ macOS 클라이언트                  서버                         화면
 | `sequence` | 같은 Device 안에서 증가하는 레코드 순번. |
 | `recordType` | `activity_observation` 또는 `collection_state_changed`. |
 | `observedAt` | 클라이언트가 관찰에 부여한 UTC 시각. |
-| `timezoneId`, `utcOffsetMinutes` | 관찰 당시의 현지 시간대 문맥. |
+| `timezoneId`, `utcOffsetMinutes` | 관찰 당시의 현지 시간대 문맥. `timezoneId`는 `Asia/Seoul`, `America/New_York`, `UTC` 중 하나다. |
 
 `batchId`, `collectionStreamId`, `clockEpochId`, `monotonicNs`는 초기 공개 요청에
 포함하지 않으며, 대응하는 서버 저장 컬럼도 두지 않는다. 클라이언트는 온라인 시간

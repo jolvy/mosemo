@@ -15,6 +15,7 @@ from mosemo.activities.timeline import (
     ProjectedSegment,
 )
 from mosemo.devices.models import Device
+from mosemo.timezones import Timezone
 
 
 def activity_payload(record: ActivityRecordRequest) -> dict[str, object]:
@@ -84,7 +85,7 @@ class ActivityRepository:
         )
         return result.one_or_none()
 
-    async def find_account_timezone(self, account_id: UUID) -> str | None:
+    async def find_account_timezone(self, account_id: UUID) -> Timezone | None:
         return await self._session.scalar(
             select(Account.timezone).where(Account.account_id == account_id)
         )

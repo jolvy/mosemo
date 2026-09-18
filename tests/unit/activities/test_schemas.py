@@ -11,6 +11,7 @@ from mosemo.activities.schemas import (
     DetailedActivityContext,
     OpaqueActivityContext,
 )
+from mosemo.timezones import Timezone
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 
@@ -24,6 +25,41 @@ def record_fields(sequence: int) -> dict[str, object]:
         "timezoneId": "Asia/Seoul",
         "utcOffsetMinutes": 540,
     }
+
+
+@pytest.mark.parametrize(
+    ("timezone_id", "expected"),
+    [
+        ("Asia/Seoul", Timezone.ASIA_SEOUL),
+        ("America/New_York", Timezone.AMERICA_NEW_YORK),
+        ("UTC", Timezone.UTC),
+    ],
+)
+def test_activity_record_parses_supported_timezone(
+    timezone_id: str, expected: Timezone
+) -> None:
+    record = activity_record_adapter.validate_python(
+        {
+            "recordType": "activity_observation",
+            **record_fields(412),
+            "timezoneId": timezone_id,
+            "context": {"kind": "opaque"},
+        }
+    )
+
+    assert record.timezone_id is expected
+
+
+def test_activity_record_rejects_unsupported_timezone() -> None:
+    with pytest.raises(ValidationError, match="timezoneId"):
+        activity_record_adapter.validate_python(
+            {
+                "recordType": "activity_observation",
+                **record_fields(412),
+                "timezoneId": "Europe/Paris",
+                "context": {"kind": "opaque"},
+            }
+        )
 
 
 def test_activity_record_parses_each_record_and_context_variant() -> None:

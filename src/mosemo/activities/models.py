@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mosemo.database import Base
+from mosemo.timezones import Timezone, TimezoneStorage
 
 
 class ActivityRecord(Base):
@@ -42,7 +43,7 @@ class ActivityRecord(Base):
     sequence: Mapped[int] = mapped_column(BigInteger)
     record_type: Mapped[str] = mapped_column(String(32))
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    timezone_id: Mapped[str] = mapped_column(Text)
+    timezone_id: Mapped[Timezone] = mapped_column(TimezoneStorage(Text()))
     utc_offset_minutes: Mapped[int] = mapped_column(Integer)
     payload: Mapped[dict[str, object]] = mapped_column(JSONB)
     received_at: Mapped[datetime] = mapped_column(

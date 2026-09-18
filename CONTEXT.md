@@ -18,7 +18,7 @@ _Avoid_: Device Registration, physical device, hardware identity
 _Avoid_: 최근 Device, 모든 Device
 
 **계정 시간대**:
-날짜 단위 관찰 타임라인에서 하루의 경계를 정하는 계정의 IANA 시간대.
+날짜 단위 관찰 타임라인에서 하루의 경계를 정하는 계정의 지원 IANA 시간대.
 _Avoid_: 서버 시간대, 관찰 당시 시간대
 
 ## 활동 관찰

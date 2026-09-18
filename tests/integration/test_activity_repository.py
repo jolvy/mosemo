@@ -27,6 +27,7 @@ from mosemo.activities.service import (
 )
 from mosemo.devices.models import Device
 from mosemo.devices.repository import DeviceRepository
+from mosemo.timezones import Timezone
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 
@@ -131,7 +132,7 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
         record=observation,
     )
 
-    changed_event = observation.model_copy(update={"timezone_id": "UTC"})
+    changed_event = observation.model_copy(update={"timezone_id": Timezone.UTC})
     with pytest.raises(ActivityEventIdConflictError):
         await service.create_activity(account_id=account_id, record=changed_event)
 
@@ -146,6 +147,8 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
     stored_state = await repository.find_by_event_id(state_change.event_id)
     assert stored_observation is not None
     assert stored_state is not None
+    await integration_session.refresh(stored_observation, ["timezone_id"])
+    assert stored_observation.timezone_id is Timezone.ASIA_SEOUL
     assert stored_observation.payload == {"context": {"kind": "opaque"}}
     assert stored_state.payload == {
         "state": "suspended",
@@ -195,7 +198,7 @@ async def test_activity_record_database_constraints(
     common_values = {
         "device_id": device.device_id,
         "observed_at": datetime(2026, 9, 14, tzinfo=UTC),
-        "timezone_id": "Asia/Seoul",
+        "timezone_id": Timezone.ASIA_SEOUL,
         "utc_offset_minutes": 540,
         "payload": {"context": {"kind": "opaque"}},
     }

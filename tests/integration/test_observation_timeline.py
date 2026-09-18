@@ -20,6 +20,7 @@ from mosemo.activities.schemas import (
 from mosemo.activities.service import ActivityService
 from mosemo.devices.models import Device
 from mosemo.devices.repository import DeviceRepository
+from mosemo.timezones import Timezone
 
 record_adapter = TypeAdapter(ActivityRecord)
 
@@ -264,7 +265,7 @@ async def test_local_day_boundary_uses_dst_length(
     account_id, device_id, _ = await account_with_devices(integration_session)
     account = await integration_session.get(Account, account_id)
     assert account is not None
-    account.timezone = "America/New_York"
+    account.timezone = Timezone.AMERICA_NEW_YORK
     await integration_session.commit()
     service = ActivityService(
         session=integration_session,
