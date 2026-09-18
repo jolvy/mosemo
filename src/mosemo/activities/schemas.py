@@ -17,6 +17,7 @@ from mosemo.schemas import (
     ObservationTimestamp,
     PublicTimestamp,
 )
+from mosemo.timezones import Timezone
 
 
 class ActivityRequestModel(ApiRequestModel):
@@ -213,9 +214,8 @@ class ActivityRecordBase(ActivityRequestModel):
     observed_at: ObservationTimestamp = Field(
         description="클라이언트 벽시계로 기록한 UTC 관찰 시각입니다."
     )
-    timezone_id: str = Field(
-        min_length=1,
-        description="관찰 당시의 IANA 시간대 식별자입니다.",
+    timezone_id: Timezone = Field(
+        description="관찰 당시의 지원 시간대 식별자입니다.",
     )
     utc_offset_minutes: int = Field(
         description="관찰 당시 UTC와 현지 시간의 차이(분)입니다."

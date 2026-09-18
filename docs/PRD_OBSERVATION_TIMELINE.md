@@ -72,6 +72,10 @@ Mosemo 사용자는 한 날짜에 실제로 관찰된 활동의 순서, 문맥 �
   계정의 DB 기본값은 `Asia/Seoul`이다. `GET /api/v1/accounts/me`에 읽기
   전용 `timezone`을 노출하고, 시간대 변경 API는 만들지 않는다. 조회 날짜의 현지
   자정과 다음 자정을 각각 UTC instant로 변환해 DST의 23·25시간 날짜도 다룬다.
+- 계정 시간대와 활동 원본의 `timezoneId`는 공통 `Timezone` StrEnum으로 다룬다.
+  지원 값은 `Asia/Seoul`, `America/New_York`, `UTC`이며 다른 `timezoneId`는
+  요청 검증에서 422로 거절한다. DB 컬럼은 기존 문자열 타입을 유지하고 enum
+  CHECK는 두지 않는다. 기존 DB 문자열을 자동으로 치환하지 않는다.
 - 응답은 `segmentType`으로 식별하는 discriminated union이다. `activity`는
   `segmentId`, `segmentType`, `startedAt`, nullable `endedAt`, 필수
   `lastObservedAt`, 원본 `context`를 반환한다. `capture_gap`은 `segmentId`,

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import AccountProvider
 from mosemo.accounts.repository import AccountRepository
+from mosemo.timezones import Timezone
 
 
 @pytest.mark.asyncio
@@ -28,7 +29,12 @@ async def test_repository_saves_and_finds_account(
         provider_subject=provider_subject,
     )
     await integration_session.flush()
-    assert account.timezone == "Asia/Seoul"
+    assert account.timezone is Timezone.ASIA_SEOUL
+
+    account.timezone = Timezone.AMERICA_NEW_YORK
+    await integration_session.flush()
+    await integration_session.refresh(account, ["timezone"])
+    assert account.timezone is Timezone.AMERICA_NEW_YORK
 
     found = await repository.find(
         provider=AccountProvider.KAKAO,

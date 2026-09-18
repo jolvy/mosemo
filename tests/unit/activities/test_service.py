@@ -22,6 +22,7 @@ from mosemo.activities.service import (
 )
 from mosemo.devices.models import Device
 from mosemo.devices.repository import DeviceRepository
+from mosemo.timezones import Timezone
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 RECEIVED_AT = datetime(2026, 9, 14, 1, 2, 3, tzinfo=UTC)
@@ -133,7 +134,7 @@ def test_create_activity_rejects_changed_content_for_existing_event_id() -> None
     repository.insert.return_value = None
     repository.find_by_event_id.return_value = stored_record(
         record,
-        timezone_id="UTC",
+        timezone_id=Timezone.UTC,
     )
 
     with pytest.raises(ActivityEventIdConflictError):
@@ -220,7 +221,7 @@ def test_create_activity_hides_missing_and_unowned_devices() -> None:
         ("sequence", 99),
         ("record_type", "collection_state_changed"),
         ("observed_at", datetime(2026, 9, 14, 2, tzinfo=UTC)),
-        ("timezone_id", "UTC"),
+        ("timezone_id", Timezone.UTC),
         ("utc_offset_minutes", 0),
         ("payload", {"context": {"kind": "opaque", "unexpected": True}}),
     ],

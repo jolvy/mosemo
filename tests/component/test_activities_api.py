@@ -156,6 +156,23 @@ def test_activities_create_rejects_legacy_device_field(config: Config) -> None:
     service.create_activity.assert_not_awaited()
 
 
+def test_activities_create_rejects_unsupported_timezone(config: Config) -> None:
+    account_id = uuid4()
+    service = create_autospec(ActivityService, instance=True)
+    app, token = make_app(config=config, account_id=account_id, service=service)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/activities",
+            headers={"Authorization": f"Bearer {token}"},
+            json=activity_request() | {"timezoneId": "Europe/Paris"},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["status"] == "INVALID_ARGUMENT"
+    service.create_activity.assert_not_awaited()
+
+
 def test_activities_create_returns_retryable_busy_error(config: Config) -> None:
     account_id = uuid4()
     service = create_autospec(ActivityService, instance=True)

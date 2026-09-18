@@ -13,6 +13,7 @@ from mosemo.auth.tokens import TokenService
 from mosemo.config import Config, get_config
 from mosemo.dependencies import get_account_service, get_auth_service
 from mosemo.exception_handlers import register_exception_handlers
+from mosemo.timezones import Timezone
 
 
 def make_account() -> Account:
@@ -21,7 +22,7 @@ def make_account() -> Account:
         account_id=uuid4(),
         provider=AccountProvider.KAKAO,
         provider_subject="123456789",
-        timezone="Asia/Seoul",
+        timezone=Timezone.ASIA_SEOUL,
         created_at=now,
         last_authenticated_at=now,
     )

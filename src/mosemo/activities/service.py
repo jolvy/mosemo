@@ -216,10 +216,10 @@ class ActivityService:
     ) -> list[TimelineSegmentResponse]:
         current_time = now or datetime.now(UTC)
         async with self._session.begin():
-            timezone_name = await self._repository.find_account_timezone(account_id)
-            if timezone_name is None:
+            account_timezone = await self._repository.find_account_timezone(account_id)
+            if account_timezone is None:
                 raise ActivityAccountNotFoundError
-            timezone = ZoneInfo(timezone_name)
+            timezone = ZoneInfo(account_timezone.value)
             today = current_time.astimezone(timezone).date()
             if date > today:
                 return []

@@ -43,6 +43,10 @@ def _inspect_schema(connection: Any) -> dict[str, Any]:
         "device_pk": inspector.get_pk_constraint("devices"),
         "device_uniques": inspector.get_unique_constraints("devices"),
         "activity_fks": inspector.get_foreign_keys("activity_records"),
+        "activity_columns": {
+            column["name"]: column
+            for column in inspector.get_columns("activity_records")
+        },
         "activity_uniques": inspector.get_unique_constraints("activity_records"),
         "activity_indexes": inspector.get_indexes("activity_records"),
         "timeline_columns": {
@@ -78,7 +82,9 @@ def test_activity_storage_migration_round_trip(
             "activity_timeline_segments",
         } <= upgraded["tables"]
         assert upgraded["account_columns"]["timezone"]["nullable"] is False
+        assert str(upgraded["account_columns"]["timezone"]["type"]) == "VARCHAR(255)"
         assert "Asia/Seoul" in upgraded["account_columns"]["timezone"]["default"]
+        assert str(upgraded["activity_columns"]["timezone_id"]["type"]) == "TEXT"
         assert set(upgraded["timeline_columns"]) == {
             "segment_id",
             "account_id",

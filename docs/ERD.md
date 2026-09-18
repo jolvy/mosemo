@@ -67,7 +67,7 @@ erDiagram
 | `account_id` | UUID | PK | 계정 식별자. |
 | `provider` | VARCHAR(32) | NOT NULL | 계정 공급자. 현재 `KAKAO`만 사용한다. |
 | `provider_subject` | VARCHAR(255) | NOT NULL | 공급자가 부여한 사용자 식별자. |
-| `timezone` | VARCHAR(255) | NOT NULL, `Asia/Seoul` DB default | 날짜 조회의 계정 IANA 시간대. |
+| `timezone` | VARCHAR(255) | NOT NULL, `Asia/Seoul` DB default | 날짜 조회의 계정 시간대. Python `Timezone` enum으로 다루며 DB CHECK는 없다. |
 | `created_at` | TIMESTAMPTZ | NOT NULL, server default | 계정 생성 시각. |
 | `last_authenticated_at` | TIMESTAMPTZ | NOT NULL, server default | 마지막 인증 시각. |
 
@@ -111,7 +111,7 @@ erDiagram
 | `sequence` | BIGINT | NOT NULL | 같은 Device 안의 증가 순번. |
 | `record_type` | VARCHAR(32) | NOT NULL, CHECK | 레코드 종류. |
 | `observed_at` | TIMESTAMPTZ | NOT NULL | 클라이언트가 관찰에 부여한 UTC 시각. |
-| `timezone_id` | TEXT | NOT NULL | 관찰 당시 IANA 시간대 식별자. |
+| `timezone_id` | TEXT | NOT NULL | 관찰 당시 시간대 식별자. Python `Timezone` enum으로 다루며 DB CHECK는 없다. |
 | `utc_offset_minutes` | INTEGER | NOT NULL | 관찰 당시 UTC와 현지 시간의 차이(분). |
 | `payload` | JSONB | NOT NULL | 레코드 종류별 본문. |
 | `received_at` | TIMESTAMPTZ | NOT NULL, server default | 서버가 레코드를 수신해 저장한 시각. |

@@ -6,6 +6,7 @@ from sqlalchemy import DateTime, Enum, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mosemo.database import Base
+from mosemo.timezones import Timezone, TimezoneStorage
 
 
 class AccountProvider(StrEnum):
@@ -31,9 +32,9 @@ class Account(Base):
         )
     )
     provider_subject: Mapped[str] = mapped_column(String(255))
-    timezone: Mapped[str] = mapped_column(
-        String(255),
-        server_default="Asia/Seoul",
+    timezone: Mapped[Timezone] = mapped_column(
+        TimezoneStorage(String(255)),
+        server_default=Timezone.ASIA_SEOUL.value,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

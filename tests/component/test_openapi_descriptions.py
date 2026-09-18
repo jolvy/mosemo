@@ -136,6 +136,14 @@ def test_openapi_metadata_and_public_data_contract_are_stable(
         "createdAt",
         "lastAuthenticatedAt",
     }
+    assert schemas["Timezone"]["enum"] == [
+        "Asia/Seoul",
+        "America/New_York",
+        "UTC",
+    ]
+    assert schemas["AccountResponse"]["properties"]["timezone"]["$ref"] == (
+        "#/components/schemas/Timezone"
+    )
     assert set(schemas["ActivityCreateResponse"]["properties"]) == {
         "eventId",
         "status",
@@ -145,6 +153,9 @@ def test_openapi_metadata_and_public_data_contract_are_stable(
     for activity_schema in ("ActivityObservation", "CollectionStateChanged"):
         assert "deviceId" in schemas[activity_schema]["properties"]
         assert "deviceRegistrationId" not in schemas[activity_schema]["properties"]
+        assert schemas[activity_schema]["properties"]["timezoneId"]["$ref"] == (
+            "#/components/schemas/Timezone"
+        )
     device_operation = openapi_document["paths"]["/api/v1/devices"]["post"]
     assert device_operation["operationId"] == "devicesCreate"
     assert device_operation["tags"] == ["devices"]
