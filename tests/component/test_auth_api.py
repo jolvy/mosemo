@@ -131,6 +131,77 @@ def test_callback_without_state_cookie_returns_bad_request(config: Config) -> No
     service.login.assert_not_awaited()
 
 
+def test_callback_maps_kakao_error_query_without_exposing_description(
+    config: Config,
+    monkeypatch,
+) -> None:
+    service = create_autospec(AuthService, instance=True)
+    monkeypatch.setattr(
+        "mosemo.auth.router.secrets.token_urlsafe",
+        lambda length: "fixed-state",
+    )
+    app = make_app(config=config, service=service)
+
+    with TestClient(app) as client:
+        client.get(
+            "/api/v1/auth/kakao/login",
+            params={
+                "code_challenge": CODE_CHALLENGE,
+                "code_challenge_method": "S256",
+            },
+            follow_redirects=False,
+        )
+        response = client.get(
+            "/api/v1/auth/kakao/callback",
+            params={
+                "state": "fixed-state",
+                "error": "access_denied",
+                "error_description": "sensitive provider description",
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == (
+        "com.example.mosemo:/auth/callback?error=access_denied"
+    )
+    assert "sensitive provider description" not in response.text
+    service.login.assert_not_awaited()
+
+
+def test_callback_without_code_redirects_authentication_failure(
+    config: Config,
+    monkeypatch,
+) -> None:
+    service = create_autospec(AuthService, instance=True)
+    monkeypatch.setattr(
+        "mosemo.auth.router.secrets.token_urlsafe",
+        lambda length: "fixed-state",
+    )
+    app = make_app(config=config, service=service)
+
+    with TestClient(app) as client:
+        client.get(
+            "/api/v1/auth/kakao/login",
+            params={
+                "code_challenge": CODE_CHALLENGE,
+                "code_challenge_method": "S256",
+            },
+            follow_redirects=False,
+        )
+        response = client.get(
+            "/api/v1/auth/kakao/callback",
+            params={"state": "fixed-state"},
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == (
+        "com.example.mosemo:/auth/callback?error=authentication_failed"
+    )
+    service.login.assert_not_awaited()
+
+
 def test_token_exchange_returns_documented_bad_request(config: Config) -> None:
     service = create_autospec(AuthService, instance=True)
     service.exchange_authorization_code.side_effect = InvalidAuthorizationCodeError()
