@@ -402,6 +402,25 @@ def test_public_error_examples_match_status_and_common_schema(
     }
 
 
+def test_kakao_callback_keeps_optional_query_parameters(
+    openapi_document: dict[str, Any],
+) -> None:
+    parameters = openapi_document["paths"]["/api/v1/auth/kakao/callback"]["get"][
+        "parameters"
+    ]
+    query_parameters = {
+        parameter["name"]: parameter
+        for parameter in parameters
+        if parameter["in"] == "query"
+    }
+
+    assert set(query_parameters) == {"code", "state", "error", "error_description"}
+    assert all(
+        parameter["required"] is False and _has_description(parameter)
+        for parameter in query_parameters.values()
+    )
+
+
 def test_openapi_documents_fixed_and_dynamic_error_headers(
     openapi_document: dict[str, Any],
 ) -> None:

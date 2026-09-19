@@ -11,7 +11,7 @@ from mosemo.auth.pkce import (
     PKCE_CODE_CHALLENGE_PATTERN,
     is_valid_code_challenge,
 )
-from mosemo.auth.schemas import TokenRequest, TokenResponse
+from mosemo.auth.schemas import KakaoCallback, TokenRequest, TokenResponse
 from mosemo.auth.service import (
     InvalidAuthorizationCodeError,
     OAuthAuthenticationError,
@@ -227,18 +227,7 @@ def login(
 async def callback(
     service: AuthServiceDep,
     config: ConfigDep,
-    code: Annotated[
-        str | None,
-        Query(description="Kakao가 인증 성공 시 전달한 authorization code입니다."),
-    ] = None,
-    state: Annotated[
-        str | None,
-        Query(
-            description=(
-                "로그인 요청과 callback을 연결하고 CSRF를 방지하는 state 값입니다."
-            )
-        ),
-    ] = None,
+    kakao_callback: Annotated[KakaoCallback, Query()],
     state_cookie: Annotated[
         str | None,
         Cookie(
@@ -253,44 +242,33 @@ async def callback(
             description="로그인 시작 시 서버가 저장한 PKCE code challenge 쿠키입니다.",
         ),
     ] = None,
-    error: Annotated[
-        str | None,
-        Query(description="Kakao가 인증 실패 또는 취소 시 전달한 오류 코드입니다."),
-    ] = None,
-    error_description: Annotated[
-        str | None,
-        Query(
-            description=(
-                "Kakao가 전달한 상세 오류 설명입니다. "
-                "서버는 민감 정보 노출을 방지하기 위해 사용하지 않습니다."
-            )
-        ),
-    ] = None,
 ):
     if (
-        state is None
+        kakao_callback.state is None
         or state_cookie is None
         or pkce_challenge_cookie is None
         or not is_valid_code_challenge(pkce_challenge_cookie)
-        or not secrets.compare_digest(state, state_cookie)
+        or not secrets.compare_digest(kakao_callback.state, state_cookie)
     ):
         response = _invalid_state_response()
-    elif error is not None:
+    elif kakao_callback.error is not None:
         public_error = (
-            "access_denied" if error == "access_denied" else "authentication_failed"
+            "access_denied"
+            if kakao_callback.error == "access_denied"
+            else "authentication_failed"
         )
         if public_error == "access_denied":
             logger.info("Kakao authorization cancelled")
         else:
             logger.warning("Kakao authorization failed")
         response = _app_redirect(config, error=public_error)
-    elif code is None:
+    elif kakao_callback.code is None:
         response = _app_redirect(config, error="authentication_failed")
     else:
         try:
             authorization_code = await service.login(
                 provider=AccountProvider.KAKAO,
-                code=code,
+                code=kakao_callback.code,
                 code_challenge=pkce_challenge_cookie,
             )
         except OAuthAuthenticationError:

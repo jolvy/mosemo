@@ -19,7 +19,7 @@ from mosemo.auth.router import (
     exchange_token,
     login,
 )
-from mosemo.auth.schemas import TokenRequest
+from mosemo.auth.schemas import KakaoCallback, TokenRequest
 from mosemo.auth.service import (
     AuthService,
     InvalidAuthorizationCodeError,
@@ -128,12 +128,9 @@ def test_callback_rejects_invalid_state_and_clears_cookies(
         callback(
             service=service,
             config=config,
-            code="authorization-code",
-            state=state,
+            kakao_callback=KakaoCallback(code="authorization-code", state=state),
             state_cookie=state_cookie,
             pkce_challenge_cookie=pkce_challenge_cookie,
-            error=None,
-            error_description=None,
         )
     )
 
@@ -164,12 +161,11 @@ def test_callback_redirects_authorization_code_to_macos_app(
         callback(
             service=service,
             config=config,
-            code="authorization-code",
-            state="valid-state",
+            kakao_callback=KakaoCallback(
+                code="authorization-code", state="valid-state"
+            ),
             state_cookie="valid-state",
             pkce_challenge_cookie=CODE_CHALLENGE,
-            error=None,
-            error_description=None,
         )
     )
 
@@ -200,12 +196,11 @@ def test_callback_redirects_authentication_failure_to_macos_app(
         callback(
             service=service,
             config=config,
-            code="authorization-code",
-            state="valid-state",
+            kakao_callback=KakaoCallback(
+                code="authorization-code", state="valid-state"
+            ),
             state_cookie="valid-state",
             pkce_challenge_cookie=CODE_CHALLENGE,
-            error=None,
-            error_description=None,
         )
     )
 
@@ -237,12 +232,13 @@ def test_callback_maps_provider_error_without_authenticating(
         callback(
             service=service,
             config=config,
-            code=None,
-            state="valid-state",
+            kakao_callback=KakaoCallback(
+                state="valid-state",
+                error=provider_error,
+                error_description="sensitive provider description",
+            ),
             state_cookie="valid-state",
             pkce_challenge_cookie=CODE_CHALLENGE,
-            error=provider_error,
-            error_description="sensitive provider description",
         )
     )
 
