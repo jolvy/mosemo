@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from mosemo.activities.enums import SegmentType
 from mosemo.activities.schemas import (
     ActivityCreateResponse,
     ActivitySegmentResponse,
@@ -173,6 +174,36 @@ def test_activities_create_rejects_unsupported_timezone(config: Config) -> None:
     service.create_activity.assert_not_awaited()
 
 
+@pytest.mark.parametrize(
+    ("record_type", "state"),
+    [
+        ("unsupported", None),
+        ("collection_state_changed", "unsupported"),
+    ],
+)
+def test_activities_create_rejects_unsupported_discriminators(
+    config: Config, record_type: str, state: str | None
+) -> None:
+    account_id = uuid4()
+    service = create_autospec(ActivityService, instance=True)
+    app, token = make_app(config=config, account_id=account_id, service=service)
+    request = activity_request() | {"recordType": record_type}
+    if state is not None:
+        request.pop("context")
+        request.update({"state": state, "reason": "screen_locked"})
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/activities",
+            headers={"Authorization": f"Bearer {token}"},
+            json=request,
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["status"] == "INVALID_ARGUMENT"
+    service.create_activity.assert_not_awaited()
+
+
 def test_activities_create_returns_retryable_busy_error(config: Config) -> None:
     account_id = uuid4()
     service = create_autospec(ActivityService, instance=True)
@@ -206,7 +237,7 @@ def test_timeline_returns_direct_discriminated_union_array(config: Config) -> No
     service.get_timeline.return_value = [
         ActivitySegmentResponse(
             segment_id=activity_id,
-            segment_type="activity",
+            segment_type=SegmentType.ACTIVITY,
             started_at=datetime(2026, 9, 14, 0, 0, 0, 123456, tzinfo=UTC),
             ended_at=datetime(2026, 9, 14, 0, 0, 30, tzinfo=UTC),
             last_observed_at=datetime(2026, 9, 14, 0, 0, 20, tzinfo=UTC),
@@ -214,7 +245,7 @@ def test_timeline_returns_direct_discriminated_union_array(config: Config) -> No
         ),
         CaptureGapResponse(
             segment_id=gap_id,
-            segment_type="capture_gap",
+            segment_type=SegmentType.CAPTURE_GAP,
             started_at=datetime(2026, 9, 14, 0, 0, 30, tzinfo=UTC),
             ended_at=None,
             reason="screen_locked",

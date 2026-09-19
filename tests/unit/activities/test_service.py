@@ -7,6 +7,7 @@ import pytest
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mosemo.activities.enums import RecordType
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.repository import (
     ActivityRepository,
@@ -219,7 +220,7 @@ def test_create_activity_hides_missing_and_unowned_devices() -> None:
         ("event_id", uuid4()),
         ("device_id", uuid4()),
         ("sequence", 99),
-        ("record_type", "collection_state_changed"),
+        ("record_type", RecordType.COLLECTION_STATE_CHANGED),
         ("observed_at", datetime(2026, 9, 14, 2, tzinfo=UTC)),
         ("timezone_id", Timezone.UTC),
         ("utc_offset_minutes", 0),

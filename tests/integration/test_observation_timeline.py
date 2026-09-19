@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
+from mosemo.activities.enums import SegmentType
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.repository import ActivityRepository
@@ -435,6 +436,8 @@ async def test_explicit_gap_ignores_active_and_closes_on_next_observation(
     assert isinstance(first, ActivitySegmentResponse)
     assert isinstance(gap, CaptureGapResponse)
     assert isinstance(last, ActivitySegmentResponse)
+    assert first.segment_type is SegmentType.ACTIVITY
+    assert gap.segment_type is SegmentType.CAPTURE_GAP
     assert first.ended_at == gap.started_at == records[1].observed_at
     assert gap.reason == "screen_locked"
     assert gap.ended_at == last.started_at == records[4].observed_at
@@ -443,6 +446,8 @@ async def test_explicit_gap_ignores_active_and_closes_on_next_observation(
     stored = await ActivityRepository(integration_session).list_account_segments(
         account_id
     )
+    assert stored[0].segment_type is SegmentType.ACTIVITY
+    assert stored[1].segment_type is SegmentType.CAPTURE_GAP
     assert stored[1].first_event_id == records[1].event_id
     assert stored[1].last_event_id is None
 
@@ -688,7 +693,7 @@ async def test_late_split_stops_at_unchanged_downstream_segment(
         {"last_observed_at": None},
         {"context": None},
         {"reason": "not_an_activity_reason"},
-        {"segment_type": "capture_gap"},
+        {"segment_type": SegmentType.CAPTURE_GAP},
     ],
 )
 @pytest.mark.asyncio
@@ -707,7 +712,7 @@ async def test_projection_database_rejects_wrong_kind_fields(
     values: dict[str, object] = {
         "segment_id": uuid4(),
         "account_id": account_id,
-        "segment_type": "activity",
+        "segment_type": SegmentType.ACTIVITY,
         "started_at": record.observed_at,
         "ended_at": record.observed_at,
         "first_event_id": record.event_id,
@@ -720,6 +725,38 @@ async def test_projection_database_rejects_wrong_kind_fields(
 
     with pytest.raises(IntegrityError):
         await integration_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_projection_database_rejects_unsupported_segment_type(
+    integration_session: AsyncSession,
+) -> None:
+    account_id, device_id, _ = await account_with_devices(integration_session)
+    await integration_session.commit()
+    record = observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"})
+    await ActivityService(
+        session=integration_session,
+        repository=ActivityRepository(integration_session),
+        device_repository=DeviceRepository(integration_session),
+    ).create_activity(account_id=account_id, record=record, now=record.observed_at)
+
+    with pytest.raises(IntegrityError):
+        await integration_session.execute(
+            text(
+                "INSERT INTO activity_timeline_segments "
+                "(segment_id, account_id, segment_type, started_at, "
+                "first_event_id) "
+                "VALUES (:segment_id, :account_id, :segment_type, "
+                ":started_at, :first_event_id)"
+            ),
+            {
+                "segment_id": uuid4(),
+                "account_id": account_id,
+                "segment_type": "unsupported",
+                "started_at": record.observed_at,
+                "first_event_id": record.event_id,
+            },
+        )
 
 
 @pytest.mark.asyncio

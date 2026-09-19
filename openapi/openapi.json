@@ -536,6 +536,14 @@
         "title": "CapturedWindow",
         "type": "object"
       },
+      "CollectionState": {
+        "enum": [
+          "active",
+          "suspended"
+        ],
+        "title": "CollectionState",
+        "type": "string"
+      },
       "CollectionStateChanged": {
         "additionalProperties": false,
         "description": "A change in whether the client can observe activity.",
@@ -578,13 +586,8 @@
             "type": "integer"
           },
           "state": {
-            "description": "변경된 활동 수집 가능 상태입니다.",
-            "enum": [
-              "active",
-              "suspended"
-            ],
-            "title": "State",
-            "type": "string"
+            "$ref": "#/components/schemas/CollectionState",
+            "description": "변경된 활동 수집 가능 상태입니다."
           },
           "timezoneId": {
             "$ref": "#/components/schemas/Timezone",

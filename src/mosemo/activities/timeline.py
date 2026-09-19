@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import cast
 from uuid import UUID
 
+from mosemo.activities.enums import CollectionState, RecordType
 from mosemo.activities.models import ActivityRecord
 
 MAX_OBSERVATION_GAP = timedelta(seconds=60)
@@ -52,7 +53,7 @@ def project_events(
         if record.event_id == stop_after_event_id:
             seen_new_event = True
         current = segments[-1] if segments else None
-        if record.record_type == "activity_observation":
+        if record.record_type is RecordType.ACTIVITY_OBSERVATION:
             context = cast(dict[str, object], record.payload["context"])
             if isinstance(current, ProjectedActivity):
                 observed_gap = record.observed_at - current.last_observed_at
@@ -89,7 +90,10 @@ def project_events(
                     context=context,
                 )
             )
-        elif record.payload["state"] == "suspended":
+        elif record.record_type is RecordType.COLLECTION_STATE_CHANGED:
+            state = CollectionState(cast(str, record.payload["state"]))
+            if state is not CollectionState.SUSPENDED:
+                continue
             if isinstance(current, ProjectedGap):
                 continue
             if isinstance(current, ProjectedActivity):

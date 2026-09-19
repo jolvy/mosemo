@@ -5,10 +5,10 @@ from sqlalchemy import (
     BigInteger,
     CheckConstraint,
     DateTime,
+    Enum,
     ForeignKey,
     Index,
     Integer,
-    String,
     Text,
     UniqueConstraint,
     func,
@@ -16,6 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from mosemo.activities.enums import RecordType, SegmentType
 from mosemo.database import Base
 from mosemo.timezones import Timezone, TimezoneStorage
 
@@ -41,7 +42,16 @@ class ActivityRecord(Base):
         ForeignKey("devices.device_id", ondelete="CASCADE")
     )
     sequence: Mapped[int] = mapped_column(BigInteger)
-    record_type: Mapped[str] = mapped_column(String(32))
+    record_type: Mapped[RecordType] = mapped_column(
+        Enum(
+            RecordType,
+            values_callable=lambda members: [member.value for member in members],
+            native_enum=False,
+            create_constraint=False,
+            validate_strings=True,
+            length=32,
+        )
+    )
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     timezone_id: Mapped[Timezone] = mapped_column(TimezoneStorage(Text()))
     utc_offset_minutes: Mapped[int] = mapped_column(Integer)
@@ -88,7 +98,16 @@ class ActivityTimelineSegment(Base):
     account_id: Mapped[UUID] = mapped_column(
         ForeignKey("accounts.account_id", ondelete="CASCADE")
     )
-    segment_type: Mapped[str] = mapped_column(String(32))
+    segment_type: Mapped[SegmentType] = mapped_column(
+        Enum(
+            SegmentType,
+            values_callable=lambda members: [member.value for member in members],
+            native_enum=False,
+            create_constraint=False,
+            validate_strings=True,
+            length=32,
+        )
+    )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     first_event_id: Mapped[UUID] = mapped_column(
