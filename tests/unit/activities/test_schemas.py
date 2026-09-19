@@ -3,6 +3,7 @@ from datetime import timedelta
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
+from mosemo.activities.enums import CollectionState, RecordType
 from mosemo.activities.schemas import (
     ActivityObservation,
     ActivityRecord,
@@ -60,6 +61,30 @@ def test_activity_record_rejects_unsupported_timezone() -> None:
                 "context": {"kind": "opaque"},
             }
         )
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        ("active", CollectionState.ACTIVE),
+        ("suspended", CollectionState.SUSPENDED),
+    ],
+)
+def test_collection_state_round_trips_as_string(
+    state: str, expected: CollectionState
+) -> None:
+    record = activity_record_adapter.validate_python(
+        {
+            "recordType": "collection_state_changed",
+            **record_fields(415),
+            "state": state,
+            "reason": "screen_locked",
+        }
+    )
+
+    assert isinstance(record, CollectionStateChanged)
+    assert record.state is expected
+    assert record.model_dump(mode="json", by_alias=True)["state"] == state
 
 
 def test_activity_record_parses_each_record_and_context_variant() -> None:
@@ -124,6 +149,10 @@ def test_activity_record_parses_each_record_and_context_variant() -> None:
     assert isinstance(opaque_record, ActivityObservation)
     assert isinstance(opaque_record.context, OpaqueActivityContext)
     assert isinstance(state_record, CollectionStateChanged)
+    assert detailed_record.record_type is RecordType.ACTIVITY_OBSERVATION
+    assert state_record.record_type is RecordType.COLLECTION_STATE_CHANGED
+    assert state_record.state is CollectionState.SUSPENDED
+    assert state_record.model_dump(mode="json", by_alias=True)["state"] == "suspended"
     assert detailed_record.observed_at.utcoffset() == timedelta(0)
 
 

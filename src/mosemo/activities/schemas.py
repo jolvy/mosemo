@@ -10,6 +10,7 @@ from pydantic import (
     model_validator,
 )
 
+from mosemo.activities.enums import CollectionState, RecordType, SegmentType
 from mosemo.schemas import (
     OBSERVATION_TIMESTAMP_PATTERN,
     ApiRequestModel,
@@ -225,7 +226,7 @@ class ActivityRecordBase(ActivityRequestModel):
 class ActivityObservation(ActivityRecordBase):
     """A complete snapshot of the focused activity at one point in time."""
 
-    record_type: Literal["activity_observation"] = Field(
+    record_type: Literal[RecordType.ACTIVITY_OBSERVATION] = Field(
         description="활동 전체 스냅샷 레코드임을 나타냅니다."
     )
     context: ActivityContext = Field(
@@ -236,12 +237,10 @@ class ActivityObservation(ActivityRecordBase):
 class CollectionStateChanged(ActivityRecordBase):
     """A change in whether the client can observe activity."""
 
-    record_type: Literal["collection_state_changed"] = Field(
+    record_type: Literal[RecordType.COLLECTION_STATE_CHANGED] = Field(
         description="수집 가능 상태 변경 레코드임을 나타냅니다."
     )
-    state: Literal["active", "suspended"] = Field(
-        description="변경된 활동 수집 가능 상태입니다."
-    )
+    state: CollectionState = Field(description="변경된 활동 수집 가능 상태입니다.")
     reason: str = Field(
         min_length=1,
         description="수집 상태가 변경된 이유입니다.",
@@ -297,7 +296,9 @@ class ActivitySegmentResponse(ApiResponseModel):
     """실제로 관찰된 동일 문맥의 활동 구간입니다."""
 
     segment_id: UUID = Field(description="재구축 시 바뀔 수 있는 구간 식별자입니다.")
-    segment_type: Literal["activity"] = Field(description="활동 구간 종류입니다.")
+    segment_type: Literal[SegmentType.ACTIVITY] = Field(
+        description="활동 구간 종류입니다."
+    )
     started_at: TimelineTimestamp = Field(description="첫 활동 관찰 시각입니다.")
     ended_at: TimelineTimestamp | None = Field(
         description="관찰로 확인되거나 침묵으로 닫힌 종료 시각입니다."
@@ -314,7 +315,9 @@ class CaptureGapResponse(ApiResponseModel):
     """명시적 수집 중단으로 관찰할 수 없었던 구간입니다."""
 
     segment_id: UUID = Field(description="재구축 시 바뀔 수 있는 구간 식별자입니다.")
-    segment_type: Literal["capture_gap"] = Field(description="수집 공백 종류입니다.")
+    segment_type: Literal[SegmentType.CAPTURE_GAP] = Field(
+        description="수집 공백 종류입니다."
+    )
     started_at: TimelineTimestamp = Field(description="첫 suspended 관찰 시각입니다.")
     ended_at: TimelineTimestamp | None = Field(
         description="다음 실제 활동 관찰로 확인된 종료 시각입니다."

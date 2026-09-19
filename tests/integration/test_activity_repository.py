@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
+from mosemo.activities.enums import RecordType
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityRecord
@@ -147,7 +148,12 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
     stored_state = await repository.find_by_event_id(state_change.event_id)
     assert stored_observation is not None
     assert stored_state is not None
-    await integration_session.refresh(stored_observation, ["timezone_id"])
+    await integration_session.refresh(
+        stored_observation, ["record_type", "timezone_id"]
+    )
+    await integration_session.refresh(stored_state, ["record_type"])
+    assert stored_observation.record_type is RecordType.ACTIVITY_OBSERVATION
+    assert stored_state.record_type is RecordType.COLLECTION_STATE_CHANGED
     assert stored_observation.timezone_id is Timezone.ASIA_SEOUL
     assert stored_observation.payload == {"context": {"kind": "opaque"}}
     assert stored_state.payload == {
@@ -180,18 +186,16 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
 
 
 @pytest.mark.parametrize(
-    ("sequence", "record_type", "duplicate_sequence"),
+    ("sequence", "duplicate_sequence"),
     [
-        (-1, "activity_observation", False),
-        (1, "unsupported", False),
-        (1, "activity_observation", True),
+        (-1, False),
+        (1, True),
     ],
 )
 @pytest.mark.asyncio
 async def test_activity_record_database_constraints(
     integration_session: AsyncSession,
     sequence: int,
-    record_type: str,
     duplicate_sequence: bool,
 ) -> None:
     _, device = await create_account_and_device(integration_session)
@@ -207,7 +211,7 @@ async def test_activity_record_database_constraints(
             StoredActivityRecord(
                 event_id=uuid4(),
                 sequence=sequence,
-                record_type="activity_observation",
+                record_type=RecordType.ACTIVITY_OBSERVATION,
                 **common_values,
             )
         )
@@ -217,13 +221,39 @@ async def test_activity_record_database_constraints(
         StoredActivityRecord(
             event_id=uuid4(),
             sequence=sequence,
-            record_type=record_type,
+            record_type=RecordType.ACTIVITY_OBSERVATION,
             **common_values,
         )
     )
 
     with pytest.raises(IntegrityError):
         await integration_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_activity_record_database_rejects_unsupported_type(
+    integration_session: AsyncSession,
+) -> None:
+    _, device = await create_account_and_device(integration_session)
+
+    with pytest.raises(IntegrityError):
+        await integration_session.execute(
+            text(
+                "INSERT INTO activity_records "
+                "(event_id, device_id, sequence, record_type, observed_at, "
+                "timezone_id, utc_offset_minutes, payload) "
+                "VALUES (:event_id, :device_id, 1, :record_type, :observed_at, "
+                ":timezone_id, 540, CAST(:payload AS jsonb))"
+            ),
+            {
+                "event_id": uuid4(),
+                "device_id": device.device_id,
+                "record_type": "unsupported",
+                "observed_at": datetime(2026, 9, 14, tzinfo=UTC),
+                "timezone_id": Timezone.ASIA_SEOUL.value,
+                "payload": '{"context":{"kind":"opaque"}}',
+            },
+        )
 
 
 @pytest.mark.asyncio

@@ -144,6 +144,22 @@ def test_openapi_metadata_and_public_data_contract_are_stable(
     assert schemas["AccountResponse"]["properties"]["timezone"]["$ref"] == (
         "#/components/schemas/Timezone"
     )
+    assert schemas["CollectionState"]["enum"] == ["active", "suspended"]
+    assert schemas["ActivityObservation"]["properties"]["recordType"]["const"] == (
+        "activity_observation"
+    )
+    assert schemas["CollectionStateChanged"]["properties"]["recordType"]["const"] == (
+        "collection_state_changed"
+    )
+    assert schemas["CollectionStateChanged"]["properties"]["state"]["$ref"] == (
+        "#/components/schemas/CollectionState"
+    )
+    assert schemas["ActivitySegmentResponse"]["properties"]["segmentType"]["const"] == (
+        "activity"
+    )
+    assert schemas["CaptureGapResponse"]["properties"]["segmentType"]["const"] == (
+        "capture_gap"
+    )
     assert set(schemas["ActivityCreateResponse"]["properties"]) == {
         "eventId",
         "status",
@@ -324,9 +340,17 @@ def test_public_error_examples_match_status_and_common_schema(
         callback_responses["400"]["content"]["application/json"]["examples"]
     ) == {"AUTH_INVALID_OAUTH_CONTEXT"}
 
-    activity_responses = openapi_document["paths"]["/api/v1/activities"]["post"][
-        "responses"
-    ]
+    activity_post = openapi_document["paths"]["/api/v1/activities"]["post"]
+    assert activity_post["requestBody"]["content"]["application/json"]["schema"][
+        "discriminator"
+    ] == {
+        "propertyName": "recordType",
+        "mapping": {
+            "activity_observation": "#/components/schemas/ActivityObservation",
+            "collection_state_changed": "#/components/schemas/CollectionStateChanged",
+        },
+    }
+    activity_responses = activity_post["responses"]
     assert "201" in activity_responses
     assert set(
         activity_responses["404"]["content"]["application/json"]["examples"]

@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account
+from mosemo.activities.enums import SegmentType
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.schemas import ActivityObservation
@@ -21,7 +22,7 @@ from mosemo.timezones import Timezone
 def activity_payload(record: ActivityRecordRequest) -> dict[str, object]:
     if isinstance(record, ActivityObservation):
         return {"context": record.context.model_dump(mode="json", by_alias=True)}
-    return {"state": record.state, "reason": record.reason}
+    return {"state": record.state.value, "reason": record.reason}
 
 
 def is_same_activity_record(
@@ -147,13 +148,13 @@ class ActivityRepository:
                     segment.started_at < end,
                 ),
                 and_(
-                    segment.segment_type == "activity",
+                    segment.segment_type == SegmentType.ACTIVITY,
                     segment.ended_at.is_(None),
                     segment.started_at < end,
                     segment.last_observed_at >= start,
                 ),
                 and_(
-                    segment.segment_type == "capture_gap",
+                    segment.segment_type == SegmentType.CAPTURE_GAP,
                     segment.ended_at.is_(None),
                     segment.started_at < end,
                 ),
@@ -191,9 +192,9 @@ class ActivityRepository:
         for projected_segment in projected:
             old = by_first_event.get(projected_segment.first_event_id)
             segment_type = (
-                "activity"
+                SegmentType.ACTIVITY
                 if isinstance(projected_segment, ProjectedActivity)
-                else "capture_gap"
+                else SegmentType.CAPTURE_GAP
             )
             if old is None or old.segment_id in reused_ids:
                 old = _merged_existing_segment(
@@ -279,7 +280,7 @@ def _same_projected_segment(
 ) -> bool:
     if isinstance(projected, ProjectedActivity):
         return (
-            stored.segment_type == "activity"
+            stored.segment_type is SegmentType.ACTIVITY
             and stored.started_at == projected.started_at
             and stored.ended_at == projected.ended_at
             and stored.first_event_id == projected.first_event_id
@@ -288,7 +289,7 @@ def _same_projected_segment(
             and stored.context == projected.context
         )
     return (
-        stored.segment_type == "capture_gap"
+        stored.segment_type is SegmentType.CAPTURE_GAP
         and stored.started_at == projected.started_at
         and stored.ended_at == projected.ended_at
         and stored.first_event_id == projected.first_event_id
@@ -302,12 +303,15 @@ def _merged_existing_segment(
     *,
     reused_ids: set[UUID],
 ) -> ActivityTimelineSegment | None:
+    segment_type = (
+        SegmentType.ACTIVITY
+        if isinstance(projected, ProjectedActivity)
+        else SegmentType.CAPTURE_GAP
+    )
     for old in existing:
         if old.segment_id in reused_ids:
             continue
-        if old.segment_type != (
-            "activity" if isinstance(projected, ProjectedActivity) else "capture_gap"
-        ):
+        if old.segment_type is not segment_type:
             continue
         if (
             isinstance(projected, ProjectedActivity)

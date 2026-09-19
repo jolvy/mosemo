@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mosemo.activities.enums import SegmentType
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.repository import (
     ActivityRepository,
@@ -62,7 +63,7 @@ def _timeline_ended_at(
     *,
     current_time: datetime,
 ) -> datetime | None:
-    if segment.segment_type != "activity" or segment.ended_at is not None:
+    if segment.segment_type is not SegmentType.ACTIVITY or segment.ended_at is not None:
         return segment.ended_at
 
     assert segment.last_observed_at is not None
@@ -79,7 +80,7 @@ def _overlaps_timeline_window(
     end: datetime,
 ) -> bool:
     if ended_at is None:
-        if segment.segment_type == "activity":
+        if segment.segment_type is SegmentType.ACTIVITY:
             assert segment.last_observed_at is not None
             return segment.started_at < end and segment.last_observed_at >= start
         return segment.started_at < end
@@ -93,12 +94,12 @@ def _timeline_response(
     *,
     ended_at: datetime | None,
 ) -> TimelineSegmentResponse:
-    if segment.segment_type == "activity":
+    if segment.segment_type is SegmentType.ACTIVITY:
         assert segment.last_observed_at is not None
         assert segment.context is not None
         return ActivitySegmentResponse(
             segment_id=segment.segment_id,
-            segment_type="activity",
+            segment_type=SegmentType.ACTIVITY,
             started_at=segment.started_at,
             ended_at=ended_at,
             last_observed_at=segment.last_observed_at,
@@ -108,7 +109,7 @@ def _timeline_response(
     assert segment.reason is not None
     return CaptureGapResponse(
         segment_id=segment.segment_id,
-        segment_type="capture_gap",
+        segment_type=SegmentType.CAPTURE_GAP,
         started_at=segment.started_at,
         ended_at=ended_at,
         reason=segment.reason,
