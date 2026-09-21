@@ -33,7 +33,7 @@ OPENAPI_TEST_ENVIRONMENT = {
 }
 OPENAPI_SNAPSHOT_PATH = Path(__file__).resolve().parents[2] / "openapi" / "openapi.json"
 API_DOCUMENTATION_PATH = (
-    Path(__file__).resolve().parents[2] / "docs" / "API_DOCUMENTATION.md"
+    Path(__file__).resolve().parents[2] / "docs" / "api-document.md"
 )
 _PUBLIC_ERROR_SPECS = tuple(ErrorCode)
 
