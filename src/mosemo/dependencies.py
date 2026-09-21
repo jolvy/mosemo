@@ -21,6 +21,7 @@ from mosemo.database import get_session
 from mosemo.devices.repository import DeviceRepository
 from mosemo.devices.service import DeviceService
 from mosemo.exceptions import ApiException, ErrorCode
+from mosemo.labels.repository import LabelRepository
 
 
 def get_http_client(request: Request) -> httpx2.AsyncClient:
@@ -123,6 +124,16 @@ NativeAuthCodeRepositoryDep = Annotated[
 ]
 
 
+def get_label_repository(session: SessionDep) -> LabelRepository:
+    return LabelRepository(session)
+
+
+LabelRepositoryDep = Annotated[
+    LabelRepository,
+    Depends(get_label_repository),
+]
+
+
 def get_token_service(config: ConfigDep) -> TokenService:
     return TokenService(config.auth)
 
@@ -176,6 +187,7 @@ def get_auth_service(
     session: SessionDep,
     account_repository: AccountRepositoryDep,
     native_auth_code_repository: NativeAuthCodeRepositoryDep,
+    label_repository: LabelRepositoryDep,
     get_oauth_client: OAuthClientResolverDep,
     token_service: TokenServiceDep,
     config: ConfigDep,
@@ -185,6 +197,7 @@ def get_auth_service(
         session=session,
         account_repository=account_repository,
         native_auth_code_repository=native_auth_code_repository,
+        label_repository=label_repository,
         token_service=token_service,
         config=config.auth,
     )

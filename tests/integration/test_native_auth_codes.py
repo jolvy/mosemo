@@ -6,7 +6,7 @@ from unittest.mock import Mock, create_autospec
 from uuid import UUID
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from mosemo.accounts.models import Account, AccountProvider
@@ -18,6 +18,8 @@ from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.service import AuthService, InvalidAuthorizationCodeError
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config
+from mosemo.labels.models import Label
+from mosemo.labels.repository import LabelRepository
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
@@ -33,6 +35,7 @@ def make_service(
         session=session,
         account_repository=AccountRepository(session),
         native_auth_code_repository=NativeAuthCodeRepository(session),
+        label_repository=LabelRepository(session),
         token_service=TokenService(config.auth),
         config=config.auth,
     )
@@ -57,6 +60,7 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
         session=integration_session,
         account_repository=account_repository,
         native_auth_code_repository=auth_code_repository,
+        label_repository=LabelRepository(integration_session),
         token_service=TokenService(config.auth),
         config=config.auth,
     )
@@ -75,6 +79,69 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
         )
         is None
     )
+    assert (await integration_session.scalars(select(Label))).all() == []
+
+
+@pytest.mark.asyncio
+async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
+    integration_session: AsyncSession,
+    config: Config,
+) -> None:
+    provider_subject = f"integration-{secrets.token_hex(8)}"
+    kakao_client = create_autospec(KakaoClient, instance=True)
+    kakao_client.get_user_id.return_value = provider_subject
+    service = AuthService(
+        get_oauth_client=Mock(return_value=kakao_client),
+        session=integration_session,
+        account_repository=AccountRepository(integration_session),
+        native_auth_code_repository=NativeAuthCodeRepository(integration_session),
+        label_repository=LabelRepository(integration_session),
+        token_service=TokenService(config.auth),
+        config=config.auth,
+    )
+
+    await service.login(
+        provider=AccountProvider.KAKAO,
+        code="authorization-code",
+        code_challenge=CODE_CHALLENGE,
+    )
+    account = await AccountRepository(integration_session).find(
+        provider=AccountProvider.KAKAO,
+        provider_subject=provider_subject,
+    )
+    assert account is not None
+    first_labels = (
+        await integration_session.scalars(
+            select(Label)
+            .where(Label.account_id == account.account_id)
+            .order_by(Label.default_key)
+        )
+    ).all()
+    assert len(first_labels) == 5
+    first_label_ids = [label.label_id for label in first_labels]
+    assert [label.default_key for label in first_labels] == [
+        "coding",
+        "communication",
+        "learning",
+        "leisure",
+        "shopping",
+    ]
+    await integration_session.commit()
+
+    await service.login(
+        provider=AccountProvider.KAKAO,
+        code="authorization-code-again",
+        code_challenge=CODE_CHALLENGE,
+    )
+    second_labels = (
+        await integration_session.scalars(
+            select(Label)
+            .where(Label.account_id == account.account_id)
+            .order_by(Label.default_key)
+        )
+    ).all()
+    assert [label.label_id for label in second_labels] == first_label_ids
+    assert len(second_labels) == 5
 
 
 @pytest.mark.asyncio
@@ -115,6 +182,7 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
                 session=session,
                 account_repository=AccountRepository(session),
                 native_auth_code_repository=auth_code_repository,
+                label_repository=LabelRepository(session),
                 token_service=TokenService(config.auth),
                 config=config.auth,
             )

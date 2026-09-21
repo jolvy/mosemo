@@ -1,14 +1,33 @@
 import asyncio
+import importlib.util
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid4
 
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-TIMELINE_REVISION = "d4e6f7a8b9c0"
-PREVIOUS_REVISION = "7d9c3f1a2b4e"
+LABEL_REVISION = "e5f6a7b8c9d0"
+PREVIOUS_REVISION = "d4e6f7a8b9c0"
+LABEL_MIGRATION_PATH = (
+    Path(__file__).parents[2]
+    / "migrations/versions/2026-09-21_0000_e5f6a7b8c9d0_create_label_catalog.py"
+)
+
+
+def load_label_migration() -> Any:
+    spec = importlib.util.spec_from_file_location(
+        "create_label_catalog",
+        LABEL_MIGRATION_PATH,
+    )
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    return migration
 
 
 def alembic_config(database_url: str) -> Config:
@@ -32,7 +51,7 @@ def _inspect_schema(connection: Any) -> dict[str, Any]:
     if "devices" not in tables:
         return {"tables": tables}
 
-    return {
+    snapshot = {
         "tables": tables,
         "account_columns": {
             column["name"]: column for column in inspector.get_columns("accounts")
@@ -59,20 +78,118 @@ def _inspect_schema(connection: Any) -> dict[str, Any]:
             "activity_timeline_segments"
         ),
     }
+    if "labels" in tables:
+        snapshot.update(
+            {
+                "label_columns": {
+                    column["name"]: column for column in inspector.get_columns("labels")
+                },
+                "label_fks": inspector.get_foreign_keys("labels"),
+                "label_uniques": inspector.get_unique_constraints("labels"),
+            }
+        )
+    return snapshot
 
 
-def test_activity_storage_migration_round_trip(
+async def insert_account(database_url: str, account_id: UUID) -> None:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "INSERT INTO accounts (account_id, provider, provider_subject) "
+                    "VALUES (:account_id, 'KAKAO', :provider_subject)"
+                ),
+                {
+                    "account_id": account_id,
+                    "provider_subject": f"migration-{account_id}",
+                },
+            )
+    finally:
+        await engine.dispose()
+
+
+async def delete_account(database_url: str, account_id: UUID) -> None:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text("DELETE FROM accounts WHERE account_id = :account_id"),
+                {"account_id": account_id},
+            )
+    finally:
+        await engine.dispose()
+
+
+async def read_labels(database_url: str, account_id: UUID) -> list[tuple[Any, ...]]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            result = await connection.execute(
+                text(
+                    "SELECT display_name, name_key, default_key, archived_at "
+                    "FROM labels WHERE account_id = :account_id "
+                    "ORDER BY default_key"
+                ),
+                {"account_id": account_id},
+            )
+            return [tuple(row) for row in result.fetchall()]
+    finally:
+        await engine.dispose()
+
+
+async def update_label(
+    database_url: str,
+    account_id: UUID,
+    archived_at: datetime,
+) -> None:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "UPDATE labels SET display_name = :display_name, "
+                    "name_key = :name_key, archived_at = :archived_at "
+                    "WHERE account_id = :account_id AND default_key = 'coding'"
+                ),
+                {
+                    "account_id": account_id,
+                    "display_name": "사용자 코딩",
+                    "name_key": "사용자 코딩",
+                    "archived_at": archived_at,
+                },
+            )
+    finally:
+        await engine.dispose()
+
+
+async def rerun_label_backfill(database_url: str) -> None:
+    engine = create_async_engine(database_url)
+    migration = load_label_migration()
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(migration.backfill_default_labels)
+    finally:
+        await engine.dispose()
+
+
+def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == [TIMELINE_REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == [LABEL_REVISION]
+    account_id = uuid4()
+    asyncio.run(insert_account(integration_database_url, account_id))
 
     command.downgrade(config, PREVIOUS_REVISION)
     try:
         downgraded = asyncio.run(schema_snapshot(integration_database_url))
-        assert "devices" not in downgraded["tables"]
-        assert "activity_records" not in downgraded["tables"]
-        assert "activity_timeline_segments" not in downgraded["tables"]
+        assert {
+            "devices",
+            "activity_records",
+            "activity_timeline_segments",
+        } <= downgraded["tables"]
+        assert "labels" not in downgraded["tables"]
 
         command.upgrade(config, "head")
         upgraded = asyncio.run(schema_snapshot(integration_database_url))
@@ -81,7 +198,54 @@ def test_activity_storage_migration_round_trip(
             "devices",
             "activity_records",
             "activity_timeline_segments",
+            "labels",
         } <= upgraded["tables"]
+        assert set(upgraded["label_columns"]) == {
+            "label_id",
+            "account_id",
+            "display_name",
+            "name_key",
+            "default_key",
+            "created_at",
+            "archived_at",
+        }
+        assert "UUID" in str(upgraded["label_columns"]["label_id"]["type"])
+        assert upgraded["label_columns"]["label_id"]["nullable"] is False
+        assert upgraded["label_columns"]["default_key"]["nullable"] is True
+        assert ["account_id", "name_key"] in [
+            constraint["column_names"] for constraint in upgraded["label_uniques"]
+        ]
+        assert ["account_id", "default_key"] in [
+            constraint["column_names"] for constraint in upgraded["label_uniques"]
+        ]
+        assert any(
+            foreign_key["constrained_columns"] == ["account_id"]
+            and foreign_key["referred_table"] == "accounts"
+            and foreign_key["options"].get("ondelete") == "CASCADE"
+            for foreign_key in upgraded["label_fks"]
+        )
+        assert asyncio.run(read_labels(integration_database_url, account_id)) == [
+            ("코딩", "코딩", "coding", None),
+            ("소통", "소통", "communication", None),
+            ("학습", "학습", "learning", None),
+            ("여가", "여가", "leisure", None),
+            ("쇼핑", "쇼핑", "shopping", None),
+        ]
+        archived_at = datetime(2030, 1, 1, tzinfo=UTC)
+        asyncio.run(
+            update_label(
+                integration_database_url,
+                account_id,
+                archived_at=archived_at,
+            )
+        )
+        asyncio.run(rerun_label_backfill(integration_database_url))
+        coding_label = next(
+            label
+            for label in asyncio.run(read_labels(integration_database_url, account_id))
+            if label[2] == "coding"
+        )
+        assert coding_label == ("사용자 코딩", "사용자 코딩", "coding", archived_at)
         assert upgraded["account_columns"]["timezone"]["nullable"] is False
         assert str(upgraded["account_columns"]["timezone"]["type"]) == "VARCHAR(255)"
         assert "Asia/Seoul" in upgraded["account_columns"]["timezone"]["default"]
@@ -151,3 +315,4 @@ def test_activity_storage_migration_round_trip(
         ]
     finally:
         command.upgrade(config, "head")
+        asyncio.run(delete_account(integration_database_url, account_id))

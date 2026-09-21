@@ -20,6 +20,7 @@ from mosemo.auth.service import (
 )
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config
+from mosemo.labels.repository import LabelRepository
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
@@ -33,6 +34,7 @@ def make_service(config: Config):
         NativeAuthCodeRepository,
         instance=True,
     )
+    label_repository = create_autospec(LabelRepository, instance=True)
     token_service = create_autospec(TokenService, instance=True)
     get_oauth_client = Mock(return_value=oauth_client)
     service = AuthService(
@@ -40,6 +42,7 @@ def make_service(config: Config):
         session=session,
         account_repository=account_repository,
         native_auth_code_repository=auth_code_repository,
+        label_repository=label_repository,
         token_service=token_service,
         config=config.auth,
     )
@@ -49,6 +52,7 @@ def make_service(config: Config):
         session,
         account_repository,
         auth_code_repository,
+        label_repository,
         token_service,
     )
 
@@ -57,9 +61,15 @@ def test_login_updates_existing_account_and_stores_code(
     config: Config,
     monkeypatch,
 ) -> None:
-    service, get_oauth_client, session, account_repository, auth_code_repository, _ = (
-        make_service(config)
-    )
+    (
+        service,
+        get_oauth_client,
+        session,
+        account_repository,
+        auth_code_repository,
+        label_repository,
+        _,
+    ) = make_service(config)
     oauth_client = get_oauth_client.return_value
     existing_account = Account(
         account_id=uuid4(),
@@ -90,6 +100,7 @@ def test_login_updates_existing_account_and_stores_code(
     )
     assert existing_account.last_authenticated_at >= before
     account_repository.save.assert_not_called()
+    label_repository.create_defaults.assert_not_called()
     session.begin.assert_called_once_with()
     session.flush.assert_not_awaited()
     session.commit.assert_not_awaited()
@@ -107,9 +118,15 @@ def test_login_updates_existing_account_and_stores_code(
 def test_login_flushes_new_account_before_storing_code(
     config: Config,
 ) -> None:
-    service, get_oauth_client, session, account_repository, auth_code_repository, _ = (
-        make_service(config)
-    )
+    (
+        service,
+        get_oauth_client,
+        session,
+        account_repository,
+        auth_code_repository,
+        label_repository,
+        _,
+    ) = make_service(config)
     oauth_client = get_oauth_client.return_value
     new_account = Account(
         provider=AccountProvider.KAKAO,
@@ -138,13 +155,18 @@ def test_login_flushes_new_account_before_storing_code(
         provider=AccountProvider.KAKAO,
         provider_subject="123456789",
     )
+    label_repository.create_defaults.assert_called_once_with(
+        account_id=account_id,
+    )
     session.begin.assert_called_once_with()
     session.flush.assert_awaited_once_with()
     assert auth_code_repository.save.call_args.kwargs["account_id"] == account_id
 
 
 def test_login_converts_client_error(config: Config) -> None:
-    service, get_oauth_client, session, account_repository, _, _ = make_service(config)
+    service, get_oauth_client, session, account_repository, _, _, _ = make_service(
+        config
+    )
     oauth_client = get_oauth_client.return_value
     oauth_client.get_user_id.side_effect = OAuthClientError()
 
@@ -165,7 +187,9 @@ def test_login_converts_client_error(config: Config) -> None:
 def test_exchange_authorization_code_consumes_code_and_issues_token(
     config: Config,
 ) -> None:
-    service, _, session, _, auth_code_repository, token_service = make_service(config)
+    service, _, session, _, auth_code_repository, _, token_service = make_service(
+        config
+    )
     account_id = uuid4()
     stored_code = NativeAuthCode(
         code_digest="digest",
@@ -197,7 +221,9 @@ def test_exchange_authorization_code_consumes_code_and_issues_token(
 def test_exchange_authorization_code_preserves_code_when_token_issuance_fails(
     config: Config,
 ) -> None:
-    service, _, session, _, auth_code_repository, token_service = make_service(config)
+    service, _, session, _, auth_code_repository, _, token_service = make_service(
+        config
+    )
     stored_code = NativeAuthCode(
         code_digest="digest",
         account_id=uuid4(),
@@ -222,7 +248,9 @@ def test_exchange_authorization_code_preserves_code_when_token_issuance_fails(
 
 
 def test_exchange_authorization_code_rejects_wrong_verifier(config: Config) -> None:
-    service, _, session, _, auth_code_repository, token_service = make_service(config)
+    service, _, session, _, auth_code_repository, _, token_service = make_service(
+        config
+    )
     stored_code = NativeAuthCode(
         code_digest="digest",
         account_id=uuid4(),
@@ -247,7 +275,9 @@ def test_exchange_authorization_code_rejects_wrong_verifier(config: Config) -> N
 
 
 def test_exchange_authorization_code_deletes_expired_code(config: Config) -> None:
-    service, _, session, _, auth_code_repository, token_service = make_service(config)
+    service, _, session, _, auth_code_repository, _, token_service = make_service(
+        config
+    )
     stored_code = NativeAuthCode(
         code_digest="digest",
         account_id=uuid4(),
@@ -272,7 +302,9 @@ def test_exchange_authorization_code_deletes_expired_code(config: Config) -> Non
 
 
 def test_exchange_authorization_code_rejects_unknown_code(config: Config) -> None:
-    service, _, session, _, auth_code_repository, token_service = make_service(config)
+    service, _, session, _, auth_code_repository, _, token_service = make_service(
+        config
+    )
     auth_code_repository.find_for_update.return_value = None
 
     with pytest.raises(InvalidAuthorizationCodeError):
