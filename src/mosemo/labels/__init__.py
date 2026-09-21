@@ -1,0 +1,1 @@
+"""Label catalog domain objects."""

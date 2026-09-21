@@ -12,6 +12,7 @@ from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.tokens import TokenService
 from mosemo.config import AuthConfig
+from mosemo.labels.repository import LabelRepository
 
 
 class OAuthAuthenticationError(Exception):
@@ -33,6 +34,7 @@ class AuthService:
         session: AsyncSession,
         account_repository: AccountRepository,
         native_auth_code_repository: NativeAuthCodeRepository,
+        label_repository: LabelRepository,
         token_service: TokenService,
         config: AuthConfig,
     ) -> None:
@@ -40,6 +42,7 @@ class AuthService:
         self._session = session
         self._account_repository = account_repository
         self._native_auth_code_repository = native_auth_code_repository
+        self._label_repository = label_repository
         self._token_service = token_service
         self._config = config
 
@@ -67,6 +70,9 @@ class AuthService:
                     provider_subject=provider_subject,
                 )
                 await self._session.flush()
+                self._label_repository.create_defaults(
+                    account_id=account.account_id,
+                )
             else:
                 account.last_authenticated_at = datetime.now(UTC)
 
