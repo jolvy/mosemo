@@ -30,9 +30,8 @@ erDiagram
         uuid label_id PK
         uuid account_id FK
         varchar display_name
-        varchar name_key
-        varchar default_key
         timestamptz created_at
+        timestamptz updated_at
         timestamptz archived_at
     }
 
@@ -88,29 +87,27 @@ erDiagram
 
 ## `labels`
 
-계정별로 활동의 의미를 나타내는 라벨 카탈로그다. `display_name`은 사용자에게
-보여주는 이름이고, `name_key`는 이름 중복을 판정하는 정규화 키다. 기본 라벨은
-`default_key`로 표시 이름과 분리해 식별하므로 이름을 바꾸거나 보관해도 같은
-기본 라벨로 남는다. 사용자 정의 라벨의 `default_key`는 NULL이다.
+계정별로 활동의 의미를 나타내는 라벨 카탈로그다. 기본 라벨 다섯 개는 계정 생성
+시점의 초기 seed일 뿐이며, 이후에는 사용자 정의 라벨과 동일하게 취급한다. 별도의
+기본 라벨 식별자는 저장하지 않는다.
 
 | 컬럼 | 타입 | 제약 | 의미 |
 | --- | --- | --- | --- |
 | `label_id` | UUID | PK | 라벨의 안정적인 식별자. |
 | `account_id` | UUID | NOT NULL, FK | 라벨을 소유한 계정. |
 | `display_name` | VARCHAR(255) | NOT NULL | 사용자에게 표시하는 라벨 이름. |
-| `name_key` | VARCHAR(255) | NOT NULL | NFKC·casefold·공백 정규화 후 이름 키. |
-| `default_key` | VARCHAR(64) | nullable | 기본 라벨의 안정적인 식별 키. 사용자 정의 라벨은 NULL. |
 | `created_at` | TIMESTAMPTZ | NOT NULL, server default | 라벨 생성 시각. |
+| `updated_at` | TIMESTAMPTZ | NOT NULL, server default | 이름 변경·보관·복원 등 마지막 변경 시각. |
 | `archived_at` | TIMESTAMPTZ | nullable | 보관 시각. NULL이면 보관하지 않은 상태. |
 
 추가 제약:
 
-- `UNIQUE(account_id, name_key)`
-- `UNIQUE(account_id, default_key)`
+- `UNIQUE(account_id, display_name)` — 활성·보관 라벨 전체에 적용
 - `account_id -> accounts.account_id ON DELETE CASCADE`
 
-마이그레이션은 기존 계정마다 `coding`, `learning`, `communication`, `shopping`,
-`leisure` 기본 키를 한 번씩 삽입한다. 충돌 시 기존 행을 그대로 보존한다.
+마이그레이션은 기존 계정마다 `코딩`, `학습`, `소통`, `쇼핑`, `여가`를 한 번씩
+삽입한다. `(account_id, display_name)` 충돌 시 기존 행의 이름·상태·시각을 그대로
+보존한다. 보관 라벨은 이력에는 남지만 새 활동의 제안·선택 후보에서는 제외한다.
 
 ## `devices`
 

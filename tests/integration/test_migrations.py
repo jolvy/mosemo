@@ -127,9 +127,9 @@ async def read_labels(database_url: str, account_id: UUID) -> list[tuple[Any, ..
         async with engine.connect() as connection:
             result = await connection.execute(
                 text(
-                    "SELECT display_name, name_key, default_key, archived_at "
+                    "SELECT display_name, created_at, updated_at, archived_at "
                     "FROM labels WHERE account_id = :account_id "
-                    "ORDER BY default_key"
+                    "ORDER BY display_name"
                 ),
                 {"account_id": account_id},
             )
@@ -142,21 +142,21 @@ async def update_label(
     database_url: str,
     account_id: UUID,
     archived_at: datetime,
+    updated_at: datetime,
 ) -> None:
     engine = create_async_engine(database_url)
     try:
         async with engine.begin() as connection:
             await connection.execute(
                 text(
-                    "UPDATE labels SET display_name = :display_name, "
-                    "name_key = :name_key, archived_at = :archived_at "
-                    "WHERE account_id = :account_id AND default_key = 'coding'"
+                    "UPDATE labels SET archived_at = :archived_at, "
+                    "updated_at = :updated_at "
+                    "WHERE account_id = :account_id AND display_name = '코딩'"
                 ),
                 {
                     "account_id": account_id,
-                    "display_name": "사용자 코딩",
-                    "name_key": "사용자 코딩",
                     "archived_at": archived_at,
+                    "updated_at": updated_at,
                 },
             )
     finally:
@@ -204,48 +204,53 @@ def test_schema_migration_round_trip_and_label_backfill(
             "label_id",
             "account_id",
             "display_name",
-            "name_key",
-            "default_key",
             "created_at",
+            "updated_at",
             "archived_at",
         }
         assert "UUID" in str(upgraded["label_columns"]["label_id"]["type"])
         assert upgraded["label_columns"]["label_id"]["nullable"] is False
-        assert upgraded["label_columns"]["default_key"]["nullable"] is True
-        assert ["account_id", "name_key"] in [
+        assert upgraded["label_columns"]["updated_at"]["nullable"] is False
+        assert ["account_id", "display_name"] in [
             constraint["column_names"] for constraint in upgraded["label_uniques"]
         ]
-        assert ["account_id", "default_key"] in [
-            constraint["column_names"] for constraint in upgraded["label_uniques"]
-        ]
+        assert len(upgraded["label_uniques"]) == 1
         assert any(
             foreign_key["constrained_columns"] == ["account_id"]
             and foreign_key["referred_table"] == "accounts"
             and foreign_key["options"].get("ondelete") == "CASCADE"
             for foreign_key in upgraded["label_fks"]
         )
-        assert asyncio.run(read_labels(integration_database_url, account_id)) == [
-            ("코딩", "코딩", "coding", None),
-            ("소통", "소통", "communication", None),
-            ("학습", "학습", "learning", None),
-            ("여가", "여가", "leisure", None),
-            ("쇼핑", "쇼핑", "shopping", None),
-        ]
+        labels_before_rerun = asyncio.run(
+            read_labels(integration_database_url, account_id)
+        )
+        assert sorted(label[0] for label in labels_before_rerun) == sorted(
+            ("코딩", "학습", "소통", "쇼핑", "여가")
+        )
+        assert all(label[1] is not None for label in labels_before_rerun)
+        assert all(label[2] is not None for label in labels_before_rerun)
+        assert all(label[3] is None for label in labels_before_rerun)
         archived_at = datetime(2030, 1, 1, tzinfo=UTC)
+        updated_at = datetime(2031, 1, 1, tzinfo=UTC)
         asyncio.run(
             update_label(
                 integration_database_url,
                 account_id,
                 archived_at=archived_at,
+                updated_at=updated_at,
             )
         )
         asyncio.run(rerun_label_backfill(integration_database_url))
-        coding_label = next(
-            label
-            for label in asyncio.run(read_labels(integration_database_url, account_id))
-            if label[2] == "coding"
+        labels_after_rerun = asyncio.run(
+            read_labels(integration_database_url, account_id)
         )
-        assert coding_label == ("사용자 코딩", "사용자 코딩", "coding", archived_at)
+        assert len(labels_after_rerun) == 5
+        coding_label = next(label for label in labels_after_rerun if label[0] == "코딩")
+        original_coding = next(
+            label for label in labels_before_rerun if label[0] == "코딩"
+        )
+        assert coding_label[1] == original_coding[1]
+        assert coding_label[2:] == (updated_at, archived_at)
         assert upgraded["account_columns"]["timezone"]["nullable"] is False
         assert str(upgraded["account_columns"]["timezone"]["type"]) == "VARCHAR(255)"
         assert "Asia/Seoul" in upgraded["account_columns"]["timezone"]["default"]

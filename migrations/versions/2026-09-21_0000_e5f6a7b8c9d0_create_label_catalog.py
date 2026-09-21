@@ -19,13 +19,7 @@ down_revision: str | Sequence[str] | None = "d4e6f7a8b9c0"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-DEFAULT_LABEL_VALUES: tuple[tuple[str, str, str], ...] = (
-    ("코딩", "코딩", "coding"),
-    ("학습", "학습", "learning"),
-    ("소통", "소통", "communication"),
-    ("쇼핑", "쇼핑", "shopping"),
-    ("여가", "여가", "leisure"),
-)
+DEFAULT_LABEL_NAMES: tuple[str, ...] = ("코딩", "학습", "소통", "쇼핑", "여가")
 
 
 def upgrade() -> None:
@@ -34,10 +28,14 @@ def upgrade() -> None:
         sa.Column("label_id", sa.Uuid(), nullable=False),
         sa.Column("account_id", sa.Uuid(), nullable=False),
         sa.Column("display_name", sa.String(length=255), nullable=False),
-        sa.Column("name_key", sa.String(length=255), nullable=False),
-        sa.Column("default_key", sa.String(length=64), nullable=True),
         sa.Column(
             "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
             nullable=False,
@@ -52,20 +50,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("label_id", name=op.f("labels_pkey")),
         sa.UniqueConstraint(
             "account_id",
-            "name_key",
-            name=op.f("labels_account_id_name_key_key"),
+            "display_name",
+            name=op.f("labels_account_id_display_name_key"),
         ),
-        sa.UniqueConstraint(
-            "account_id",
-            "default_key",
-            name=op.f("labels_account_id_default_key_key"),
-        ),
-    )
-    op.create_index(
-        op.f("labels_account_id_idx"),
-        "labels",
-        ["account_id"],
-        unique=False,
     )
 
     backfill_default_labels(op.get_bind())
@@ -77,8 +64,6 @@ def backfill_default_labels(connection: Connection) -> None:
         sa.column("label_id", sa.Uuid()),
         sa.column("account_id", sa.Uuid()),
         sa.column("display_name", sa.String(length=255)),
-        sa.column("name_key", sa.String(length=255)),
-        sa.column("default_key", sa.String(length=64)),
     )
     accounts_table = sa.table(
         "accounts",
@@ -86,20 +71,18 @@ def backfill_default_labels(connection: Connection) -> None:
     )
     account_ids = connection.execute(sa.select(accounts_table.c.account_id)).scalars()
     for account_id in account_ids:
-        for display_name, name_key, default_key in DEFAULT_LABEL_VALUES:
+        for display_name in DEFAULT_LABEL_NAMES:
             statement = (
                 postgresql.insert(labels_table)
                 .values(
                     label_id=uuid7(),
                     account_id=account_id,
                     display_name=display_name,
-                    name_key=name_key,
-                    default_key=default_key,
                 )
                 .on_conflict_do_nothing(
                     index_elements=[
                         labels_table.c.account_id,
-                        labels_table.c.default_key,
+                        labels_table.c.display_name,
                     ]
                 )
             )
@@ -107,5 +90,4 @@ def backfill_default_labels(connection: Connection) -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("labels_account_id_idx"), table_name="labels")
     op.drop_table("labels")
