@@ -42,9 +42,20 @@ async def test_label_constraints_are_account_scoped_and_cascade(
             integration_session.add(
                 Label(
                     account_id=first_account.account_id,
-                    display_name="다른 표시 이름",
-                    name_key="다른 표시 이름",
-                    default_key="coding",
+                    display_name="코딩",
+                )
+            )
+            await integration_session.flush()
+
+    first_labels[0].archived_at = first_labels[0].created_at
+    await integration_session.flush()
+
+    with pytest.raises(IntegrityError):
+        async with integration_session.begin_nested():
+            integration_session.add(
+                Label(
+                    account_id=first_account.account_id,
+                    display_name="코딩",
                 )
             )
             await integration_session.flush()
@@ -55,8 +66,6 @@ async def test_label_constraints_are_account_scoped_and_cascade(
                 Label(
                     account_id=uuid4(),
                     display_name="고아 라벨",
-                    name_key="고아 라벨",
-                    default_key=None,
                 )
             )
             await integration_session.flush()
@@ -69,15 +78,3 @@ async def test_label_constraints_are_account_scoped_and_cascade(
         )
     ).all()
     assert remaining_labels == []
-
-    with pytest.raises(IntegrityError):
-        async with integration_session.begin_nested():
-            integration_session.add(
-                Label(
-                    account_id=first_account.account_id,
-                    display_name="다른 표시 이름",
-                    name_key="코딩",
-                    default_key=None,
-                )
-            )
-            await integration_session.flush()

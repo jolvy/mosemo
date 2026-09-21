@@ -114,18 +114,14 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
         await integration_session.scalars(
             select(Label)
             .where(Label.account_id == account.account_id)
-            .order_by(Label.default_key)
+            .order_by(Label.display_name)
         )
     ).all()
     assert len(first_labels) == 5
     first_label_ids = [label.label_id for label in first_labels]
-    assert [label.default_key for label in first_labels] == [
-        "coding",
-        "communication",
-        "learning",
-        "leisure",
-        "shopping",
-    ]
+    assert sorted(label.display_name for label in first_labels) == sorted(
+        ("코딩", "학습", "소통", "쇼핑", "여가")
+    )
     await integration_session.commit()
 
     await service.login(
@@ -137,7 +133,7 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
         await integration_session.scalars(
             select(Label)
             .where(Label.account_id == account.account_id)
-            .order_by(Label.default_key)
+            .order_by(Label.display_name)
         )
     ).all()
     assert [label.label_id for label in second_labels] == first_label_ids

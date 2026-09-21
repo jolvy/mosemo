@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.labels.models import DEFAULT_LABELS, Label, normalize_label_name
+from mosemo.labels.models import DEFAULT_LABEL_NAMES, Label
 
 
 class LabelRepository:
@@ -13,11 +13,9 @@ class LabelRepository:
         labels = [
             Label(
                 account_id=account_id,
-                display_name=default.display_name,
-                name_key=normalize_label_name(default.display_name),
-                default_key=default.default_key,
+                display_name=display_name,
             )
-            for default in DEFAULT_LABELS
+            for display_name in DEFAULT_LABEL_NAMES
         ]
         self._session.add_all(labels)
         return labels
