@@ -58,7 +58,24 @@ def activity_timeline_lock_key(account_id: UUID) -> int:
     return int.from_bytes(digest, signed=True)
 
 
-def _timeline_ended_at(
+async def acquire_activity_timeline_lock(
+    session: AsyncSession,
+    *,
+    account_id: UUID,
+) -> None:
+    try:
+        await session.execute(text("SET LOCAL lock_timeout = '3s'"))
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(:key)"),
+            {"key": activity_timeline_lock_key(account_id)},
+        )
+    except DBAPIError as exc:
+        if getattr(exc.orig, "sqlstate", None) == "55P03":
+            raise ActivityTimelineBusyError from exc
+        raise
+
+
+def timeline_ended_at(
     segment: ActivityTimelineSegment,
     *,
     current_time: datetime,
@@ -137,16 +154,10 @@ class ActivityService:
     ) -> ActivityCreateResponse:
         current_time = now or datetime.now(UTC)
         async with self._session.begin():
-            try:
-                await self._session.execute(text("SET LOCAL lock_timeout = '3s'"))
-                await self._session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"),
-                    {"key": activity_timeline_lock_key(account_id)},
-                )
-            except DBAPIError as exc:
-                if getattr(exc.orig, "sqlstate", None) == "55P03":
-                    raise ActivityTimelineBusyError from exc
-                raise
+            await acquire_activity_timeline_lock(
+                self._session,
+                account_id=account_id,
+            )
 
             device = await self._device_repository.find_owned_by_id(
                 account_id=account_id,
@@ -241,7 +252,7 @@ class ActivityService:
 
             responses: list[TimelineSegmentResponse] = []
             for segment in segments:
-                ended_at = _timeline_ended_at(segment, current_time=current_time)
+                ended_at = timeline_ended_at(segment, current_time=current_time)
                 if not _overlaps_timeline_window(
                     segment,
                     ended_at=ended_at,

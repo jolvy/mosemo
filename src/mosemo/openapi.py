@@ -48,6 +48,22 @@ ERROR_DOCS: Mapping[ErrorCode, ErrorDocs] = {
         summary="Activity timeline busy",
         description="계정별 관찰 쓰기 잠금을 3초 안에 얻지 못했습니다.",
     ),
+    ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND: ErrorDocs(
+        summary="Activity segment not found",
+        description="관찰 구간을 찾을 수 없거나 인증된 계정에 속하지 않습니다.",
+    ),
+    ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE: ErrorDocs(
+        summary="Activity segment is not labelable",
+        description="열린 구간·불투명 활동·수집 공백은 라벨 확정 대상이 아닙니다.",
+    ),
+    ErrorCode.ACTIVITY_SEGMENT_CHANGED: ErrorDocs(
+        summary="Activity segment changed",
+        description="관찰 구간이 재구성되었으므로 최신 상태를 다시 조회해야 합니다.",
+    ),
+    ErrorCode.LABEL_NOT_AVAILABLE: ErrorDocs(
+        summary="Label not available",
+        description="라벨을 찾을 수 없거나 현재 선택할 수 없는 상태입니다.",
+    ),
     ErrorCode.REQUEST_ROUTE_NOT_FOUND: ErrorDocs(
         summary="Route not found", description="요청한 API route를 찾을 수 없습니다."
     ),
