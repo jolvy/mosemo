@@ -77,6 +77,14 @@ async def get_segment_label_state(
         ErrorCode.LABEL_NOT_AVAILABLE,
         ErrorCode.ACTIVITY_TIMELINE_BUSY,
         ErrorCode.INVALID_ARGUMENT,
+        headers={
+            503: {
+                "Retry-After": {
+                    "description": "확정 요청을 재시도하기 전 대기할 초입니다.",
+                    "schema": {"type": "string", "const": "1"},
+                }
+            }
+        },
     ),
 )
 async def put_segment_label_confirmation(
