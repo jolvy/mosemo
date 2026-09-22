@@ -40,6 +40,22 @@ class ErrorCode(Enum):
         code=503,
         message="Activity timeline is busy",
     )
+    ACTIVITY_SEGMENT_NOT_FOUND = ErrorSpec(
+        code=404,
+        message="Activity segment not found",
+    )
+    ACTIVITY_SEGMENT_NOT_LABELABLE = ErrorSpec(
+        code=409,
+        message="Activity segment is not labelable",
+    )
+    ACTIVITY_SEGMENT_CHANGED = ErrorSpec(
+        code=409,
+        message="Activity segment changed; refresh before confirming",
+    )
+    LABEL_NOT_AVAILABLE = ErrorSpec(
+        code=404,
+        message="Label not found or inactive",
+    )
     REQUEST_ROUTE_NOT_FOUND = ErrorSpec(
         code=404,
         message="API route not found",

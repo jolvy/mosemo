@@ -163,6 +163,18 @@ class ActivityRepository:
         result = await self._session.scalars(statement)
         return list(result.all())
 
+    async def find_account_segment(
+        self,
+        *,
+        account_id: UUID,
+        segment_id: UUID,
+    ) -> ActivityTimelineSegment | None:
+        return await self._session.scalar(
+            select(ActivityTimelineSegment)
+            .where(ActivityTimelineSegment.account_id == account_id)
+            .where(ActivityTimelineSegment.segment_id == segment_id)
+        )
+
     async def replace_account_segments(
         self,
         *,

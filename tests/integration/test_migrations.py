@@ -12,6 +12,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 LABEL_REVISION = "e5f6a7b8c9d0"
+CONFIRMATION_REVISION = "f6a7b8c9d0e1"
 PREVIOUS_REVISION = "d4e6f7a8b9c0"
 LABEL_MIGRATION_PATH = (
     Path(__file__).parents[2]
@@ -86,6 +87,24 @@ def _inspect_schema(connection: Any) -> dict[str, Any]:
                 },
                 "label_fks": inspector.get_foreign_keys("labels"),
                 "label_uniques": inspector.get_unique_constraints("labels"),
+            }
+        )
+    if "activity_label_confirmations" in tables:
+        snapshot.update(
+            {
+                "confirmation_columns": {
+                    column["name"]: column
+                    for column in inspector.get_columns("activity_label_confirmations")
+                },
+                "confirmation_fks": inspector.get_foreign_keys(
+                    "activity_label_confirmations"
+                ),
+                "confirmation_uniques": inspector.get_unique_constraints(
+                    "activity_label_confirmations"
+                ),
+                "confirmation_indexes": inspector.get_indexes(
+                    "activity_label_confirmations"
+                ),
             }
         )
     return snapshot
@@ -177,7 +196,7 @@ def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == [LABEL_REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == [CONFIRMATION_REVISION]
     account_id = uuid4()
     asyncio.run(insert_account(integration_database_url, account_id))
 
@@ -190,6 +209,7 @@ def test_schema_migration_round_trip_and_label_backfill(
             "activity_timeline_segments",
         } <= downgraded["tables"]
         assert "labels" not in downgraded["tables"]
+        assert "activity_label_confirmations" not in downgraded["tables"]
 
         command.upgrade(config, "head")
         upgraded = asyncio.run(schema_snapshot(integration_database_url))
@@ -199,6 +219,7 @@ def test_schema_migration_round_trip_and_label_backfill(
             "activity_records",
             "activity_timeline_segments",
             "labels",
+            "activity_label_confirmations",
         } <= upgraded["tables"]
         assert set(upgraded["label_columns"]) == {
             "label_id",
@@ -220,6 +241,37 @@ def test_schema_migration_round_trip_and_label_backfill(
             and foreign_key["referred_table"] == "accounts"
             and foreign_key["options"].get("ondelete") == "CASCADE"
             for foreign_key in upgraded["label_fks"]
+        )
+        assert set(upgraded["confirmation_columns"]) == {
+            "confirmation_id",
+            "account_id",
+            "first_event_id",
+            "segment_version",
+            "label_id",
+            "confirmed_at",
+            "updated_at",
+        }
+        assert upgraded["confirmation_columns"]["label_id"]["nullable"] is True
+        assert ["account_id", "first_event_id"] in [
+            constraint["column_names"]
+            for constraint in upgraded["confirmation_uniques"]
+        ]
+        assert any(
+            foreign_key["constrained_columns"] == ["account_id"]
+            and foreign_key["referred_table"] == "accounts"
+            and foreign_key["options"].get("ondelete") == "CASCADE"
+            for foreign_key in upgraded["confirmation_fks"]
+        )
+        assert any(
+            foreign_key["constrained_columns"] == ["first_event_id"]
+            and foreign_key["referred_table"] == "activity_records"
+            and foreign_key["options"].get("ondelete") == "CASCADE"
+            for foreign_key in upgraded["confirmation_fks"]
+        )
+        assert any(
+            foreign_key["constrained_columns"] == ["label_id"]
+            and foreign_key["referred_table"] == "labels"
+            for foreign_key in upgraded["confirmation_fks"]
         )
         labels_before_rerun = asyncio.run(
             read_labels(integration_database_url, account_id)

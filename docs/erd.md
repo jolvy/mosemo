@@ -16,6 +16,9 @@ erDiagram
     accounts ||--o{ activity_timeline_segments : projects
     activity_records ||--o{ activity_timeline_segments : anchors
     accounts ||--o{ labels : owns
+    accounts ||--o{ activity_label_confirmations : owns
+    activity_records ||--o{ activity_label_confirmations : anchors
+    labels ||--o{ activity_label_confirmations : selects
 
     accounts {
         uuid account_id PK
@@ -64,6 +67,16 @@ erDiagram
         timestamptz last_observed_at
         jsonb context
         text reason
+    }
+
+    activity_label_confirmations {
+        uuid confirmation_id PK
+        uuid account_id FK
+        uuid first_event_id FK
+        varchar segment_version
+        uuid label_id FK
+        timestamptz confirmed_at
+        timestamptz updated_at
     }
 ```
 
@@ -209,7 +222,28 @@ projection을 수정하도록 deferred `NO ACTION`이다. 종류별 필수·NULL
 - `clock_epoch_id`, `monotonic_ns`
 - `event_hash`
 - 대표 기기, 기기 우선순위, 활동 자동 병합 상태
-- AI 해석과 사용자 확정 의미
+- AI 제안과 라벨 타임라인 묶음·집계
+
+## `activity_label_confirmations`
+
+사용자가 하나의 닫힌 상세 관찰 구간에 선택한 활성 라벨 또는 미분류를 저장하는
+현재 확정 상태다. `segment_id`는 projection 재구축으로 바뀔 수 있으므로 저장하지
+않고, 구간을 시작한 원본 이벤트와 관찰 결과의 불투명 `segment_version`을 anchor로
+사용한다. 현재 구간의 version이 저장값과 다르면 확정은 더 이상 유효하지 않고
+검토 대기로 표시한다.
+
+| 컬럼 | 타입 | 제약 | 의미 |
+| --- | --- | --- | --- |
+| `confirmation_id` | UUIDv7 | PK | 확정 저장 행 식별자. |
+| `account_id` | UUID | NOT NULL, FK | 확정 소유 계정. 계정 삭제 시 cascade한다. |
+| `first_event_id` | UUID | NOT NULL, FK, account별 unique | 확정 당시 구간을 시작한 원본 이벤트. |
+| `segment_version` | VARCHAR(64) | NOT NULL | 첫·마지막 이벤트, 시간 경계, 상세 문맥의 SHA-256 version. |
+| `label_id` | UUID | nullable, FK | 활성 라벨 식별자. NULL이면 명시적 미분류. |
+| `confirmed_at` | TIMESTAMPTZ | NOT NULL | 현재 version을 최초 확정한 시각. |
+| `updated_at` | TIMESTAMPTZ | NOT NULL | 마지막 정정 시각. |
+
+같은 계정과 anchor에는 최신 확정 하나만 남긴다. 원본 이벤트가 삭제되면 관련
+확정도 cascade하며, 라벨 삭제는 기존 확정 보존을 위해 허용하지 않는다.
 
 ## 조회 경계
 

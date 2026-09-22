@@ -22,6 +22,7 @@ from mosemo.devices.repository import DeviceRepository
 from mosemo.devices.service import DeviceService
 from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.labels.repository import LabelRepository
+from mosemo.labels.service import ActivityLabelService
 
 
 def get_http_client(request: Request) -> httpx2.AsyncClient:
@@ -131,6 +132,24 @@ def get_label_repository(session: SessionDep) -> LabelRepository:
 LabelRepositoryDep = Annotated[
     LabelRepository,
     Depends(get_label_repository),
+]
+
+
+def get_activity_label_service(
+    session: SessionDep,
+    activity_repository: ActivityRepositoryDep,
+    label_repository: LabelRepositoryDep,
+) -> ActivityLabelService:
+    return ActivityLabelService(
+        session=session,
+        activity_repository=activity_repository,
+        label_repository=label_repository,
+    )
+
+
+ActivityLabelServiceDep = Annotated[
+    ActivityLabelService,
+    Depends(get_activity_label_service),
 ]
 
 

@@ -401,6 +401,30 @@ def test_public_error_examples_match_status_and_common_schema(
         "context",
     }
 
+    label_state = openapi_document["paths"][
+        "/api/v1/activities/segments/{segment_id}/label-state"
+    ]["get"]
+    assert label_state["operationId"] == "activitiesGetSegmentLabelState"
+    assert label_state["responses"]["200"]["content"]["application/json"]["schema"][
+        "discriminator"
+    ] == {
+        "propertyName": "state",
+        "mapping": {
+            "pending": "#/components/schemas/PendingActivityLabelStateResponse",
+            "confirmed": "#/components/schemas/ConfirmedActivityLabelStateResponse",
+        },
+    }
+    confirmation = openapi_document["paths"][
+        "/api/v1/activities/segments/{segment_id}/label-confirmation"
+    ]["put"]
+    assert confirmation["operationId"] == "activitiesPutSegmentLabelConfirmation"
+    assert set(
+        confirmation["responses"]["409"]["content"]["application/json"]["examples"]
+    ) == {
+        "ACTIVITY_SEGMENT_NOT_LABELABLE",
+        "ACTIVITY_SEGMENT_CHANGED",
+    }
+
 
 def test_kakao_callback_keeps_optional_query_parameters(
     openapi_document: dict[str, Any],
