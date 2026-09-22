@@ -1876,7 +1876,15 @@
               }
             },
             "description": "Service Unavailable",
-            "headers": {}
+            "headers": {
+              "Retry-After": {
+                "description": "확정 요청을 재시도하기 전 대기할 초입니다.",
+                "schema": {
+                  "const": "1",
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
