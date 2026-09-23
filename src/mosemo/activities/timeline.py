@@ -1,13 +1,12 @@
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import cast
 from uuid import UUID
 
+from mosemo.activities.constants import MAX_OBSERVATION_GAP
 from mosemo.activities.enums import CollectionState, RecordType
 from mosemo.activities.models import ActivityRecord
-
-MAX_OBSERVATION_GAP = timedelta(seconds=60)
 
 
 @dataclass(slots=True)

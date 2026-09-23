@@ -16,7 +16,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mosemo.activities.enums import RecordType, SegmentType
+from mosemo.activities.constants import MAX_OBSERVATION_GAP
+from mosemo.activities.enums import ActivityTimelineKind, RecordType, SegmentType
 from mosemo.database import Base
 from mosemo.timezones import Timezone, TimezoneStorage
 
@@ -129,3 +130,43 @@ class ActivityTimelineSegment(Base):
     last_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     context: Mapped[dict[str, object] | None] = mapped_column(JSONB(none_as_null=True))
     reason: Mapped[str | None] = mapped_column(Text)
+
+    def effective_ended_at(self, now: datetime) -> datetime | None:
+        if self.segment_type is SegmentType.CAPTURE_GAP or self.ended_at is not None:
+            return self.ended_at
+
+        assert self.last_observed_at is not None
+        if now - self.last_observed_at > MAX_OBSERVATION_GAP:
+            return self.last_observed_at
+        return None
+
+    def overlaps_window(
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        now: datetime,
+    ) -> bool:
+        ended_at = self.effective_ended_at(now)
+        if ended_at is None:
+            if self.segment_type is SegmentType.ACTIVITY:
+                assert self.last_observed_at is not None
+                return self.started_at < end and self.last_observed_at >= start
+            return self.started_at < end
+        if ended_at == self.started_at:
+            return start <= self.started_at < end
+        return self.started_at < end and ended_at > start
+
+    def timeline_kind_at(self, now: datetime) -> ActivityTimelineKind:
+        if self.segment_type is SegmentType.CAPTURE_GAP:
+            return ActivityTimelineKind.CAPTURE_GAP
+
+        assert self.context is not None
+        context_kind = self.context.get("kind")
+        if context_kind == "opaque":
+            return ActivityTimelineKind.OPAQUE_ACTIVITY
+        if context_kind != "detailed":
+            raise ValueError(f"unsupported activity context kind: {context_kind!r}")
+        if self.effective_ended_at(now) is None:
+            return ActivityTimelineKind.IN_PROGRESS_ACTIVITY
+        return ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
