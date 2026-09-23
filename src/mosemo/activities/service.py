@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.enums import SegmentType
+from mosemo.activities.enums import ActivityTimelineKind, SegmentType
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.repository import (
     ActivityRepository,
@@ -23,7 +23,7 @@ from mosemo.activities.schemas import (
     CaptureGapResponse,
     TimelineSegmentResponse,
 )
-from mosemo.activities.timeline import MAX_OBSERVATION_GAP, project_events
+from mosemo.activities.timeline import project_events
 from mosemo.devices.repository import DeviceRepository
 from mosemo.timezones import Timezone
 
@@ -76,20 +76,6 @@ async def acquire_activity_timeline_lock(
         raise
 
 
-def timeline_ended_at(
-    segment: ActivityTimelineSegment,
-    *,
-    current_time: datetime,
-) -> datetime | None:
-    if segment.segment_type is not SegmentType.ACTIVITY or segment.ended_at is not None:
-        return segment.ended_at
-
-    assert segment.last_observed_at is not None
-    if current_time - segment.last_observed_at > MAX_OBSERVATION_GAP:
-        return segment.last_observed_at
-    return None
-
-
 def timeline_date_window(
     *,
     account_timezone: Timezone,
@@ -118,29 +104,13 @@ def timeline_date_window(
     return selected_date, start, end
 
 
-def timeline_segment_overlaps_window(
-    segment: ActivityTimelineSegment,
-    *,
-    ended_at: datetime | None,
-    start: datetime,
-    end: datetime,
-) -> bool:
-    if ended_at is None:
-        if segment.segment_type is SegmentType.ACTIVITY:
-            assert segment.last_observed_at is not None
-            return segment.started_at < end and segment.last_observed_at >= start
-        return segment.started_at < end
-    if ended_at == segment.started_at:
-        return start <= segment.started_at < end
-    return segment.started_at < end and ended_at > start
-
-
 def _timeline_response(
     segment: ActivityTimelineSegment,
     *,
+    kind: ActivityTimelineKind,
     ended_at: datetime | None,
 ) -> TimelineSegmentResponse:
-    if segment.segment_type is SegmentType.ACTIVITY:
+    if kind is not ActivityTimelineKind.CAPTURE_GAP:
         assert segment.last_observed_at is not None
         assert segment.context is not None
         return ActivitySegmentResponse(
@@ -276,13 +246,17 @@ class ActivityService:
 
             responses: list[TimelineSegmentResponse] = []
             for segment in segments:
-                ended_at = timeline_ended_at(segment, current_time=current_time)
-                if not timeline_segment_overlaps_window(
-                    segment,
-                    ended_at=ended_at,
+                if not segment.overlaps_window(
                     start=start,
                     end=end,
+                    now=current_time,
                 ):
                     continue
-                responses.append(_timeline_response(segment, ended_at=ended_at))
+                responses.append(
+                    _timeline_response(
+                        segment,
+                        kind=segment.timeline_kind_at(current_time),
+                        ended_at=segment.effective_ended_at(current_time),
+                    )
+                )
             return responses

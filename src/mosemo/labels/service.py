@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.enums import SegmentType
+from mosemo.activities.enums import ActivityTimelineKind
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import (
@@ -17,8 +17,6 @@ from mosemo.activities.service import (
     ActivityAccountNotFoundError,
     acquire_activity_timeline_lock,
     timeline_date_window,
-    timeline_ended_at,
-    timeline_segment_overlaps_window,
 )
 from mosemo.labels.models import ActivityLabelConfirmation
 from mosemo.labels.repository import LabelRepository
@@ -126,18 +124,15 @@ class ActivityLabelService:
 
             labelable_first_event_ids: set[UUID] = set()
             for segment in segments:
-                if (
-                    segment.segment_type is not SegmentType.ACTIVITY
-                    or segment.context is None
-                    or segment.context.get("kind") != "detailed"
-                ):
-                    continue
-                ended_at = timeline_ended_at(segment, current_time=current_time)
-                if ended_at is not None and timeline_segment_overlaps_window(
-                    segment,
-                    ended_at=ended_at,
+                if not segment.overlaps_window(
                     start=start,
                     end=end,
+                    now=current_time,
+                ):
+                    continue
+                if (
+                    segment.timeline_kind_at(current_time)
+                    is ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
                 ):
                     labelable_first_event_ids.add(segment.first_event_id)
 
@@ -158,16 +153,16 @@ class ActivityLabelService:
                     current_group = None
 
             for segment in segments:
-                ended_at = timeline_ended_at(segment, current_time=current_time)
-                if not timeline_segment_overlaps_window(
-                    segment,
-                    ended_at=ended_at,
+                if not segment.overlaps_window(
                     start=start,
                     end=end,
+                    now=current_time,
                 ):
                     continue
 
-                if segment.segment_type is SegmentType.CAPTURE_GAP:
+                kind = segment.timeline_kind_at(current_time)
+                ended_at = segment.effective_ended_at(current_time)
+                if kind is ActivityTimelineKind.CAPTURE_GAP:
                     flush_group()
                     assert segment.reason is not None
                     results.append(
@@ -183,7 +178,7 @@ class ActivityLabelService:
 
                 assert segment.context is not None
                 context = activity_context_adapter.validate_python(segment.context)
-                if context.kind == "opaque":
+                if kind is ActivityTimelineKind.OPAQUE_ACTIVITY:
                     flush_group()
                     assert segment.last_observed_at is not None
                     results.append(
@@ -199,7 +194,7 @@ class ActivityLabelService:
                     continue
 
                 assert segment.last_observed_at is not None
-                if ended_at is None:
+                if kind is ActivityTimelineKind.IN_PROGRESS_ACTIVITY:
                     flush_group()
                     results.append(
                         InProgressActivityResponse(
@@ -213,6 +208,7 @@ class ActivityLabelService:
                     )
                     continue
 
+                assert ended_at is not None
                 version = segment_version(segment, ended_at=ended_at)
                 confirmation_with_name = confirmations.get(segment.first_event_id)
                 confirmation = (
@@ -285,7 +281,7 @@ class ActivityLabelService:
                 segment_id=segment_id,
                 current_time=current_time,
             )
-            ended_at = timeline_ended_at(segment, current_time=current_time)
+            ended_at = segment.effective_ended_at(current_time)
             assert ended_at is not None
             version = segment_version(segment, ended_at=ended_at)
             confirmation = await self._label_repository.find_confirmation(
@@ -322,7 +318,7 @@ class ActivityLabelService:
                 segment_id=segment_id,
                 current_time=current_time,
             )
-            ended_at = timeline_ended_at(segment, current_time=current_time)
+            ended_at = segment.effective_ended_at(current_time)
             assert ended_at is not None
             version = segment_version(segment, ended_at=ended_at)
             if request.segment_version != version:
@@ -380,12 +376,9 @@ class ActivityLabelService:
         )
         if segment is None:
             raise ActivityLabelSegmentNotFoundError
-        effective_ended_at = timeline_ended_at(segment, current_time=current_time)
         if (
-            segment.segment_type is not SegmentType.ACTIVITY
-            or segment.context is None
-            or segment.context.get("kind") != "detailed"
-            or effective_ended_at is None
+            segment.timeline_kind_at(current_time)
+            is not ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
         ):
             raise ActivityLabelSegmentNotLabelableError
         return segment
