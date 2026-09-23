@@ -115,6 +115,84 @@
         "title": "ActivityCreateResponse",
         "type": "object"
       },
+      "ActivityGroupResponse": {
+        "description": "Adjacent closed detailed activity segments with matching label state.",
+        "properties": {
+          "endedAt": {
+            "description": "묶음의 마지막 구간 종료 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Endedat",
+            "type": "string"
+          },
+          "itemType": {
+            "const": "activity_group",
+            "description": "라벨 활동 묶음입니다.",
+            "title": "Itemtype",
+            "type": "string"
+          },
+          "segments": {
+            "description": "묶음에 포함된 닫힌 원본 구간을 관찰 순서대로 담습니다.",
+            "items": {
+              "$ref": "#/components/schemas/LabelTimelineSegmentResponse"
+            },
+            "minItems": 1,
+            "title": "Segments",
+            "type": "array"
+          },
+          "selection": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "label": "#/components/schemas/LabelTimelineLabelSelectionResponse",
+                    "unclassified": "#/components/schemas/UnclassifiedSelectionResponse"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/LabelTimelineLabelSelectionResponse"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UnclassifiedSelectionResponse"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "확정 상태일 때의 라벨 또는 미분류 선택입니다.",
+            "title": "Selection"
+          },
+          "startedAt": {
+            "description": "묶음의 첫 구간 시작 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Startedat",
+            "type": "string"
+          },
+          "state": {
+            "description": "묶음의 공통 라벨 확정 상태입니다.",
+            "enum": [
+              "pending",
+              "confirmed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemType",
+          "startedAt",
+          "endedAt",
+          "state",
+          "segments"
+        ],
+        "title": "ActivityGroupResponse",
+        "type": "object"
+      },
       "ActivityLabelConfirmationRequest": {
         "additionalProperties": false,
         "description": "관찰 구간 하나의 최신 라벨 확정 요청입니다.",
@@ -851,6 +929,56 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "InProgressActivityResponse": {
+        "description": "A detailed activity segment whose end is not yet known.",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/DetailedActivityContext",
+            "description": "개인정보 필터 후 상세 관찰 문맥입니다."
+          },
+          "endedAt": {
+            "description": "종료가 아직 확인되지 않아 항상 null입니다.",
+            "title": "Endedat",
+            "type": "null"
+          },
+          "itemType": {
+            "const": "in_progress_activity",
+            "description": "아직 종료가 확인되지 않은 상세 활동입니다.",
+            "title": "Itemtype",
+            "type": "string"
+          },
+          "lastObservedAt": {
+            "description": "마지막 실제 관찰 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Lastobservedat",
+            "type": "string"
+          },
+          "segmentId": {
+            "description": "관찰 활동 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Segmentid",
+            "type": "string"
+          },
+          "startedAt": {
+            "description": "관찰 구간 시작 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Startedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemType",
+          "segmentId",
+          "startedAt",
+          "endedAt",
+          "lastObservedAt",
+          "context"
+        ],
+        "title": "InProgressActivityResponse",
+        "type": "object"
+      },
       "LabelSelectionRequest": {
         "additionalProperties": false,
         "description": "라벨 하나를 선택하는 확정 요청입니다.",
@@ -898,6 +1026,138 @@
         "title": "LabelSelectionResponse",
         "type": "object"
       },
+      "LabelTimelineCaptureGapResponse": {
+        "description": "A period when activity collection was explicitly suspended.",
+        "properties": {
+          "endedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "수집 공백 종료 시각입니다.",
+            "title": "Endedat"
+          },
+          "itemType": {
+            "const": "capture_gap",
+            "description": "명시적인 수집 공백입니다.",
+            "title": "Itemtype",
+            "type": "string"
+          },
+          "reason": {
+            "description": "첫 수집 중단의 사유입니다.",
+            "title": "Reason",
+            "type": "string"
+          },
+          "segmentId": {
+            "description": "수집 공백 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Segmentid",
+            "type": "string"
+          },
+          "startedAt": {
+            "description": "수집 공백 시작 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Startedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemType",
+          "segmentId",
+          "startedAt",
+          "endedAt",
+          "reason"
+        ],
+        "title": "LabelTimelineCaptureGapResponse",
+        "type": "object"
+      },
+      "LabelTimelineLabelSelectionResponse": {
+        "description": "A confirmed label and its current display name.",
+        "properties": {
+          "displayName": {
+            "description": "현재 라벨 표시 이름입니다.",
+            "title": "Displayname",
+            "type": "string"
+          },
+          "kind": {
+            "const": "label",
+            "description": "확정된 라벨 선택입니다.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "labelId": {
+            "description": "확정 라벨 식별자입니다.",
+            "format": "uuid",
+            "title": "Labelid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "labelId",
+          "displayName"
+        ],
+        "title": "LabelTimelineLabelSelectionResponse",
+        "type": "object"
+      },
+      "LabelTimelineSegmentResponse": {
+        "description": "A closed observation segment included in a label timeline group.",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/DetailedActivityContext",
+            "description": "개인정보 필터 후 상세 관찰 문맥입니다."
+          },
+          "endedAt": {
+            "description": "종료가 확인된 관찰 구간 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Endedat",
+            "type": "string"
+          },
+          "lastObservedAt": {
+            "description": "마지막 실제 관찰 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Lastobservedat",
+            "type": "string"
+          },
+          "segmentId": {
+            "description": "재구축 시 바뀔 수 있는 관찰 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Segmentid",
+            "type": "string"
+          },
+          "segmentVersion": {
+            "description": "현재 관찰 구간의 불투명 version입니다.",
+            "title": "Segmentversion",
+            "type": "string"
+          },
+          "startedAt": {
+            "description": "관찰 구간 시작 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Startedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segmentId",
+          "segmentVersion",
+          "startedAt",
+          "endedAt",
+          "lastObservedAt",
+          "context"
+        ],
+        "title": "LabelTimelineSegmentResponse",
+        "type": "object"
+      },
       "NotApplicableWebContext": {
         "additionalProperties": false,
         "description": "A non-browser application context.",
@@ -930,6 +1190,65 @@
           "kind"
         ],
         "title": "OpaqueActivityContext",
+        "type": "object"
+      },
+      "OpaqueActivityResponse": {
+        "description": "An activity observation with identifying details removed.",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/OpaqueActivityContext",
+            "description": "식별 정보가 제거된 관찰 문맥입니다."
+          },
+          "endedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "종료가 확인된 시각입니다.",
+            "title": "Endedat"
+          },
+          "itemType": {
+            "const": "opaque_activity",
+            "description": "불투명 활동입니다.",
+            "title": "Itemtype",
+            "type": "string"
+          },
+          "lastObservedAt": {
+            "description": "마지막 실제 관찰 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Lastobservedat",
+            "type": "string"
+          },
+          "segmentId": {
+            "description": "관찰 활동 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Segmentid",
+            "type": "string"
+          },
+          "startedAt": {
+            "description": "관찰 구간 시작 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Startedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemType",
+          "segmentId",
+          "startedAt",
+          "endedAt",
+          "lastObservedAt",
+          "context"
+        ],
+        "title": "OpaqueActivityResponse",
         "type": "object"
       },
       "PendingActivityLabelStateResponse": {
@@ -1609,6 +1928,231 @@
           }
         ],
         "summary": "활동 레코드 생성",
+        "tags": [
+          "activities"
+        ]
+      }
+    },
+    "/api/v1/activities/label-timeline": {
+      "get": {
+        "description": "계정 시간대의 날짜별 라벨 타임라인을 반환합니다. date를 생략하면 계정 시간대의 오늘을 조회하며, 시간상 연속이고 라벨과 확정 상태가 같은 닫힌 상세 활동 구간만 하나의 항목으로 묶습니다.",
+        "operationId": "activitiesGetLabelTimeline",
+        "parameters": [
+          {
+            "description": "계정 시간대 기준 조회할 달력 날짜(YYYY-MM-DD)입니다. 생략하면 오늘을 조회합니다.",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계정 시간대 기준 조회할 달력 날짜(YYYY-MM-DD)입니다. 생략하면 오늘을 조회합니다.",
+              "title": "Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "discriminator": {
+                      "mapping": {
+                        "activity_group": "#/components/schemas/ActivityGroupResponse",
+                        "capture_gap": "#/components/schemas/LabelTimelineCaptureGapResponse",
+                        "in_progress_activity": "#/components/schemas/InProgressActivityResponse",
+                        "opaque_activity": "#/components/schemas/OpaqueActivityResponse"
+                      },
+                      "propertyName": "itemType"
+                    },
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/ActivityGroupResponse"
+                      },
+                      {
+                        "$ref": "#/components/schemas/InProgressActivityResponse"
+                      },
+                      {
+                        "$ref": "#/components/schemas/OpaqueActivityResponse"
+                      },
+                      {
+                        "$ref": "#/components/schemas/LabelTimelineCaptureGapResponse"
+                      }
+                    ]
+                  },
+                  "title": "Response Activitiesgetlabeltimeline",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "라벨 활동 묶음, 진행 중 활동, 불투명 활동, 수집 공백 배열입니다."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH_INVALID_ACCESS_TOKEN": {
+                    "description": "Bearer 액세스 토큰이 유효하지 않거나 누락되었습니다.",
+                    "summary": "Invalid access token",
+                    "value": {
+                      "error": {
+                        "code": 401,
+                        "details": [],
+                        "message": "Invalid or expired access token",
+                        "status": "AUTH_INVALID_ACCESS_TOKEN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "클라이언트가 사용해야 하는 인증 방식입니다.",
+                "schema": {
+                  "const": "Bearer",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_ROUTE_NOT_FOUND": {
+                    "description": "요청한 API route를 찾을 수 없습니다.",
+                    "summary": "Route not found",
+                    "value": {
+                      "error": {
+                        "code": 404,
+                        "details": [],
+                        "message": "API route not found",
+                        "status": "REQUEST_ROUTE_NOT_FOUND"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found",
+            "headers": {}
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_METHOD_NOT_ALLOWED": {
+                    "description": "요청 method가 해당 API route에서 허용되지 않습니다.",
+                    "summary": "Method not allowed",
+                    "value": {
+                      "error": {
+                        "code": 405,
+                        "details": [],
+                        "message": "Method not allowed",
+                        "status": "REQUEST_METHOD_NOT_ALLOWED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "description": "해당 route에서 허용되는 HTTP method 목록입니다.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INVALID_ARGUMENT": {
+                    "description": "요청 입력값 검증에 실패했습니다.",
+                    "summary": "Invalid argument",
+                    "value": {
+                      "error": {
+                        "code": 422,
+                        "details": [
+                          {
+                            "loc": [
+                              "body",
+                              "users",
+                              0,
+                              "email"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ],
+                        "message": "Request validation failed.",
+                        "status": "INVALID_ARGUMENT"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content",
+            "headers": {}
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_SERVER_ERROR": {
+                    "description": "예상하지 못한 서버 오류가 발생했습니다.",
+                    "summary": "Internal server error",
+                    "value": {
+                      "error": {
+                        "code": 500,
+                        "details": [],
+                        "message": "Internal server error",
+                        "status": "INTERNAL_SERVER_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "날짜별 라벨 타임라인 조회",
         "tags": [
           "activities"
         ]

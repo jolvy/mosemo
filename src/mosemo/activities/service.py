@@ -25,6 +25,7 @@ from mosemo.activities.schemas import (
 )
 from mosemo.activities.timeline import MAX_OBSERVATION_GAP, project_events
 from mosemo.devices.repository import DeviceRepository
+from mosemo.timezones import Timezone
 
 
 class ActivityDeviceNotFoundError(Exception):
@@ -89,7 +90,35 @@ def timeline_ended_at(
     return None
 
 
-def _overlaps_timeline_window(
+def timeline_date_window(
+    *,
+    account_timezone: Timezone,
+    requested_date: date | None,
+    current_time: datetime,
+) -> tuple[date, datetime, datetime] | None:
+    timezone = ZoneInfo(account_timezone.value)
+    today = current_time.astimezone(timezone).date()
+    selected_date = requested_date or today
+    if selected_date > today:
+        return None
+
+    try:
+        start = datetime.combine(
+            selected_date,
+            time.min,
+            tzinfo=timezone,
+        ).astimezone(UTC)
+    except OverflowError:
+        start = datetime.min.replace(tzinfo=UTC)
+    end = datetime.combine(
+        selected_date + timedelta(days=1),
+        time.min,
+        tzinfo=timezone,
+    ).astimezone(UTC)
+    return selected_date, start, end
+
+
+def timeline_segment_overlaps_window(
     segment: ActivityTimelineSegment,
     *,
     ended_at: datetime | None,
@@ -231,19 +260,14 @@ class ActivityService:
             account_timezone = await self._repository.find_account_timezone(account_id)
             if account_timezone is None:
                 raise ActivityAccountNotFoundError
-            timezone = ZoneInfo(account_timezone.value)
-            today = current_time.astimezone(timezone).date()
-            if date > today:
+            window = timeline_date_window(
+                account_timezone=account_timezone,
+                requested_date=date,
+                current_time=current_time,
+            )
+            if window is None:
                 return []
-            try:
-                start = datetime.combine(date, time.min, tzinfo=timezone).astimezone(
-                    UTC
-                )
-            except OverflowError:
-                start = datetime.min.replace(tzinfo=UTC)
-            end = datetime.combine(
-                date + timedelta(days=1), time.min, tzinfo=timezone
-            ).astimezone(UTC)
+            _, start, end = window
             segments = await self._repository.list_date_segments(
                 account_id=account_id,
                 start=start,
@@ -253,7 +277,7 @@ class ActivityService:
             responses: list[TimelineSegmentResponse] = []
             for segment in segments:
                 ended_at = timeline_ended_at(segment, current_time=current_time)
-                if not _overlaps_timeline_window(
+                if not timeline_segment_overlaps_window(
                     segment,
                     ended_at=ended_at,
                     start=start,

@@ -1,7 +1,8 @@
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Path, status
+from fastapi import APIRouter, Path, Query, status
 
 from mosemo.activities.service import ActivityTimelineBusyError
 from mosemo.dependencies import ActivityLabelServiceDep, AuthenticatedAccountDep
@@ -10,8 +11,10 @@ from mosemo.labels.schemas import (
     ActivityLabelConfirmationRequest,
     ActivityLabelStateResponse,
     ConfirmedActivityLabelStateResponse,
+    LabelTimelineItemResponse,
 )
 from mosemo.labels.service import (
+    ActivityAccountNotFoundError,
     ActivityLabelSegmentChangedError,
     ActivityLabelSegmentNotFoundError,
     ActivityLabelSegmentNotLabelableError,
@@ -19,11 +22,49 @@ from mosemo.labels.service import (
 )
 from mosemo.openapi import api_error_responses
 
-router = APIRouter(prefix="/activities/segments")
+router = APIRouter(prefix="/activities")
 
 
 @router.get(
-    "/{segment_id}/label-state",
+    "/label-timeline",
+    operation_id="activitiesGetLabelTimeline",
+    response_model=list[LabelTimelineItemResponse],
+    summary="날짜별 라벨 타임라인 조회",
+    description=(
+        "계정 시간대의 날짜별 라벨 타임라인을 반환합니다. date를 생략하면 "
+        "계정 시간대의 오늘을 조회하며, 시간상 연속이고 라벨과 확정 상태가 "
+        "같은 닫힌 상세 활동 구간만 하나의 항목으로 묶습니다."
+    ),
+    response_description="라벨 활동 묶음, 진행 중 활동, 불투명 활동, 수집 공백 배열입니다.",
+    responses=api_error_responses(
+        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        ErrorCode.INVALID_ARGUMENT,
+    ),
+)
+async def get_label_timeline(
+    service: ActivityLabelServiceDep,
+    authenticated_account: AuthenticatedAccountDep,
+    date: Annotated[
+        date | None,
+        Query(
+            description=(
+                "계정 시간대 기준 조회할 달력 날짜(YYYY-MM-DD)입니다. "
+                "생략하면 오늘을 조회합니다."
+            ),
+        ),
+    ] = None,
+) -> list[LabelTimelineItemResponse]:
+    try:
+        return await service.get_timeline(
+            account_id=authenticated_account.account_id,
+            date=date,
+        )
+    except ActivityAccountNotFoundError as exc:
+        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
+
+
+@router.get(
+    "/segments/{segment_id}/label-state",
     operation_id="activitiesGetSegmentLabelState",
     response_model=ActivityLabelStateResponse,
     summary="관찰 구간 라벨 상태 조회",
@@ -59,7 +100,7 @@ async def get_segment_label_state(
 
 
 @router.put(
-    "/{segment_id}/label-confirmation",
+    "/segments/{segment_id}/label-confirmation",
     operation_id="activitiesPutSegmentLabelConfirmation",
     status_code=status.HTTP_200_OK,
     response_model=ConfirmedActivityLabelStateResponse,
