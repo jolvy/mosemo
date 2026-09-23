@@ -89,12 +89,12 @@ class ActivityLabelService:
         session: AsyncSession,
         activity_repository: ActivityRepository,
         label_repository: LabelRepository,
-        clock: Callable[[], datetime] | None = None,
+        clock: Callable[[], datetime],
     ) -> None:
         self._session = session
         self._activity_repository = activity_repository
         self._label_repository = label_repository
-        self._clock = clock or (lambda: datetime.now(UTC))
+        self._clock = clock
 
     async def get_timeline(
         self,
