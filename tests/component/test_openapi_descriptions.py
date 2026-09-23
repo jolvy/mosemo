@@ -414,6 +414,32 @@ def test_public_error_examples_match_status_and_common_schema(
             "confirmed": "#/components/schemas/ConfirmedActivityLabelStateResponse",
         },
     }
+    label_timeline = openapi_document["paths"]["/api/v1/activities/label-timeline"][
+        "get"
+    ]
+    assert label_timeline["operationId"] == "activitiesGetLabelTimeline"
+    assert len(label_timeline["parameters"]) == 1
+    date_parameter = label_timeline["parameters"][0]
+    assert date_parameter["name"] == "date"
+    assert date_parameter["in"] == "query"
+    assert date_parameter["required"] is False
+    assert {option.get("format") for option in date_parameter["schema"]["anyOf"]} >= {
+        "date",
+        None,
+    }
+    label_timeline_schema = label_timeline["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]
+    assert label_timeline_schema["type"] == "array"
+    assert label_timeline_schema["items"]["discriminator"] == {
+        "propertyName": "itemType",
+        "mapping": {
+            "activity_group": "#/components/schemas/ActivityGroupResponse",
+            "in_progress_activity": "#/components/schemas/InProgressActivityResponse",
+            "opaque_activity": "#/components/schemas/OpaqueActivityResponse",
+            "capture_gap": "#/components/schemas/LabelTimelineCaptureGapResponse",
+        },
+    }
     confirmation = openapi_document["paths"][
         "/api/v1/activities/segments/{segment_id}/label-confirmation"
     ]["put"]

@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Annotated, cast
 
 import httpx2
@@ -38,6 +40,13 @@ HttpClientDep = Annotated[
 ]
 ConfigDep = Annotated[Config, Depends(get_config)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+def get_clock() -> Callable[[], datetime]:
+    return lambda: datetime.now(UTC)
+
+
+ClockDep = Annotated[Callable[[], datetime], Depends(get_clock)]
 
 
 def get_account_repository(session: SessionDep) -> AccountRepository:
@@ -139,11 +148,13 @@ def get_activity_label_service(
     session: SessionDep,
     activity_repository: ActivityRepositoryDep,
     label_repository: LabelRepositoryDep,
+    clock: ClockDep,
 ) -> ActivityLabelService:
     return ActivityLabelService(
         session=session,
         activity_repository=activity_repository,
         label_repository=label_repository,
+        clock=clock,
     )
 
 

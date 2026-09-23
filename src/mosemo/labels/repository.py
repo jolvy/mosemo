@@ -49,3 +49,28 @@ class LabelRepository:
             .where(ActivityLabelConfirmation.account_id == account_id)
             .where(ActivityLabelConfirmation.first_event_id == first_event_id)
         )
+
+    async def list_confirmations_with_label_names(
+        self,
+        *,
+        account_id: UUID,
+        first_event_ids: set[UUID],
+    ) -> dict[UUID, tuple[ActivityLabelConfirmation, str | None]]:
+        if not first_event_ids:
+            return {}
+
+        statement = (
+            select(ActivityLabelConfirmation, Label.display_name)
+            .outerjoin(
+                Label,
+                (Label.label_id == ActivityLabelConfirmation.label_id)
+                & (Label.account_id == account_id),
+            )
+            .where(ActivityLabelConfirmation.account_id == account_id)
+            .where(ActivityLabelConfirmation.first_event_id.in_(first_event_ids))
+        )
+        rows = (await self._session.execute(statement)).all()
+        return {
+            confirmation.first_event_id: (confirmation, display_name)
+            for confirmation, display_name in rows
+        }
