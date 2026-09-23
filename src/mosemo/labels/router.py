@@ -69,10 +69,11 @@ async def get_label_timeline(
     response_model=ActivityLabelStateResponse,
     summary="관찰 구간 라벨 상태 조회",
     description=(
-        "인증된 계정의 닫힌 상세 관찰 구간 하나에 저장된 라벨 확정 상태를 "
-        "조회합니다. segmentVersion은 이후 확정 요청의 대상 버전입니다."
+        "인증된 계정의 닫힌 상세 관찰 구간 하나에 저장된 AI 제안과 라벨 확정 "
+        "상태를 구분해 조회합니다. segmentVersion은 이후 확정 요청의 대상 "
+        "버전입니다. 실패하거나 처리 중인 제안도 확정 전에는 검토 대기입니다."
     ),
-    response_description="관찰 구간의 미확정 또는 확정 라벨 상태입니다.",
+    response_description="관찰 구간의 제안 및 사용자 확정 상태입니다.",
     responses=api_error_responses(
         ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
         ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,

@@ -414,6 +414,17 @@ def test_public_error_examples_match_status_and_common_schema(
             "confirmed": "#/components/schemas/ConfirmedActivityLabelStateResponse",
         },
     }
+    assert schemas["PendingActivityLabelStateResponse"]["properties"]["proposal"][
+        "discriminator"
+    ] == {
+        "propertyName": "status",
+        "mapping": {
+            "waiting": "#/components/schemas/WaitingLabelProposalResponse",
+            "processing": "#/components/schemas/ProcessingLabelProposalResponse",
+            "failed": "#/components/schemas/FailedLabelProposalResponse",
+            "ready": "#/components/schemas/ReadyLabelProposalResponse",
+        },
+    }
     label_timeline = openapi_document["paths"]["/api/v1/activities/label-timeline"][
         "get"
     ]

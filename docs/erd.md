@@ -1,7 +1,7 @@
 # 활동 저장 ERD
 
-> 상태: 활동 원본 저장과 관찰 타임라인 projection 구현
-> 범위: 계정 시간대, 활동 원본, 저장형 관찰 타임라인
+> 상태: 활동 원본, 관찰 타임라인 projection, 라벨 확정·제안 저장 구현
+> 범위: 계정 시간대, 활동 원본, 저장형 관찰 타임라인, 라벨 상태
 
 > 계약: ADR 0004와 `docs/PRD_OBSERVATION_TIMELINE.md`를 따른다.
 
@@ -19,6 +19,9 @@ erDiagram
     accounts ||--o{ activity_label_confirmations : owns
     activity_records ||--o{ activity_label_confirmations : anchors
     labels ||--o{ activity_label_confirmations : selects
+    accounts ||--o{ activity_label_proposals : owns
+    activity_records ||--o{ activity_label_proposals : anchors
+    labels ||--o{ activity_label_proposals : suggests
 
     accounts {
         uuid account_id PK
@@ -76,6 +79,29 @@ erDiagram
         varchar segment_version
         uuid label_id FK
         timestamptz confirmed_at
+        timestamptz updated_at
+    }
+
+    activity_label_proposals {
+        uuid proposal_id PK
+        uuid account_id FK
+        uuid first_event_id FK
+        varchar segment_version
+        varchar status
+        uuid suggested_label_id FK
+        integer attempt_count
+        uuid lease_token
+        timestamptz lease_expires_at
+        timestamptz next_attempt_at
+        varchar provider
+        text model
+        varchar prompt_version
+        jsonb retrieved_example_ids
+        integer latency_ms
+        integer input_tokens
+        integer output_tokens
+        timestamptz suggested_at
+        timestamptz created_at
         timestamptz updated_at
     }
 ```
@@ -222,7 +248,7 @@ projection을 수정하도록 deferred `NO ACTION`이다. 종류별 필수·NULL
 - `clock_epoch_id`, `monotonic_ns`
 - `event_hash`
 - 대표 기기, 기기 우선순위, 활동 자동 병합 상태
-- AI 제안과 라벨 타임라인 묶음·집계
+- 라벨 타임라인 묶음·집계와 pgvector 확정 사례 검색
 
 ## `activity_label_confirmations`
 
@@ -244,6 +270,19 @@ projection을 수정하도록 deferred `NO ACTION`이다. 종류별 필수·NULL
 
 같은 계정과 anchor에는 최신 확정 하나만 남긴다. 원본 이벤트가 삭제되면 관련
 확정도 cascade하며, 라벨 삭제는 기존 확정 보존을 위해 허용하지 않는다.
+
+## `activity_label_proposals`
+
+닫힌 상세 구간의 AI 제안과 작업자 처리 상태를 확정값과 별도로 저장한다. 같은
+계정·원본 시작 이벤트·`segment_version`에는 제안 행이 하나이며, 새 확정 이력만으로
+`ready` 제안을 다시 만들지 않는다. 관찰 projection이 바뀌면 이전 행을 보존하고
+현재 version의 제안만 공개한다.
+
+`suggested_label_id`가 NULL인 `ready` 행은 미분류 제안이다. `processing`에는
+임대 토큰과 만료 시각이 있고, 실패 시 재시도 시각과 시도 횟수를 보존한다. 제안
+라벨 FK는 `NO ACTION`이므로 기존 제안이 참조하는 라벨은 물리 삭제할 수 없다.
+계정이나 원본 이벤트가 삭제되면 관련 제안은 cascade한다. 제공자·모델·프롬프트
+버전·참고 확정 사례·지연시간·토큰 수는 제안 생성 근거를 추적하는 내부 정보다.
 
 ## 조회 경계
 
