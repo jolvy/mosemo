@@ -18,13 +18,19 @@ from mosemo.activities.service import (
     acquire_activity_timeline_lock,
     timeline_date_window,
 )
-from mosemo.labels.models import ActivityLabelConfirmation
+from mosemo.labels.models import (
+    ActivityLabelConfirmation,
+    ActivityLabelProposal,
+    ActivityLabelProposalStatus,
+)
 from mosemo.labels.repository import LabelRepository
 from mosemo.labels.schemas import (
     ActivityGroupResponse,
     ActivityLabelConfirmationRequest,
+    ActivityLabelProposalResponse,
     ActivityLabelStateResponse,
     ConfirmedActivityLabelStateResponse,
+    FailedLabelProposalResponse,
     InProgressActivityResponse,
     LabelSelectionResponse,
     LabelTimelineCaptureGapResponse,
@@ -33,7 +39,10 @@ from mosemo.labels.schemas import (
     LabelTimelineSegmentResponse,
     OpaqueActivityResponse,
     PendingActivityLabelStateResponse,
+    ProcessingLabelProposalResponse,
+    ReadyLabelProposalResponse,
     UnclassifiedSelectionResponse,
+    WaitingLabelProposalResponse,
 )
 
 
@@ -288,6 +297,11 @@ class ActivityLabelService:
                 account_id=account_id,
                 first_event_id=segment.first_event_id,
             )
+            proposal = await self._label_repository.find_proposal(
+                account_id=account_id,
+                first_event_id=segment.first_event_id,
+                segment_version=version,
+            )
             return self._state_response(
                 segment_id=segment.segment_id,
                 version=version,
@@ -297,6 +311,8 @@ class ActivityLabelService:
                     and confirmation.segment_version == version
                     else None
                 ),
+                proposal=proposal,
+                now=current_time,
             )
 
     async def confirm(
@@ -357,10 +373,17 @@ class ActivityLabelService:
                 confirmation.updated_at = current_time
 
             await self._session.flush()
+            proposal = await self._label_repository.find_proposal(
+                account_id=account_id,
+                first_event_id=segment.first_event_id,
+                segment_version=version,
+            )
             return self._confirmed_response(
                 segment_id=segment.segment_id,
                 version=version,
                 confirmation=confirmation,
+                proposal=proposal,
+                now=current_time,
             )
 
     async def _find_labelable_segment(
@@ -389,17 +412,51 @@ class ActivityLabelService:
         segment_id: UUID,
         version: str,
         confirmation: ActivityLabelConfirmation | None,
+        proposal: ActivityLabelProposal | None,
+        now: datetime,
     ) -> ActivityLabelStateResponse:
+        proposal_response = ActivityLabelService._proposal_response(proposal, now=now)
         if confirmation is None:
             return PendingActivityLabelStateResponse(
                 segment_id=segment_id,
                 segment_version=version,
                 state="pending",
+                proposal=proposal_response,
             )
         return ActivityLabelService._confirmed_response(
             segment_id=segment_id,
             version=version,
             confirmation=confirmation,
+            proposal=proposal,
+            now=now,
+        )
+
+    @staticmethod
+    def _proposal_response(
+        proposal: ActivityLabelProposal | None, *, now: datetime
+    ) -> ActivityLabelProposalResponse:
+        if (
+            proposal is None
+            or proposal.status is ActivityLabelProposalStatus.SUPERSEDED
+        ):
+            return WaitingLabelProposalResponse(status="waiting")
+        if proposal.status is ActivityLabelProposalStatus.PROCESSING:
+            if proposal.has_expired_lease(now):
+                return FailedLabelProposalResponse(status="failed")
+            return ProcessingLabelProposalResponse(status="processing")
+        if proposal.status is ActivityLabelProposalStatus.FAILED:
+            return FailedLabelProposalResponse(status="failed")
+        assert proposal.status is ActivityLabelProposalStatus.READY
+        assert proposal.suggested_at is not None
+        selection = (
+            UnclassifiedSelectionResponse(kind="unclassified")
+            if proposal.suggested_label_id is None
+            else LabelSelectionResponse(
+                kind="label", label_id=proposal.suggested_label_id
+            )
+        )
+        return ReadyLabelProposalResponse(
+            status="ready", selection=selection, suggested_at=proposal.suggested_at
         )
 
     @staticmethod
@@ -408,6 +465,8 @@ class ActivityLabelService:
         segment_id: UUID,
         version: str,
         confirmation: ActivityLabelConfirmation,
+        proposal: ActivityLabelProposal | None,
+        now: datetime,
     ) -> ConfirmedActivityLabelStateResponse:
         if confirmation.label_id is None:
             selection = UnclassifiedSelectionResponse(kind="unclassified")
@@ -423,4 +482,10 @@ class ActivityLabelService:
             selection=selection,
             confirmed_at=confirmation.confirmed_at,
             updated_at=confirmation.updated_at,
+            proposal=(
+                ActivityLabelService._proposal_response(proposal, now=now)
+                if proposal is not None
+                and proposal.status is ActivityLabelProposalStatus.READY
+                else None
+            ),
         )

@@ -79,6 +79,7 @@ class Config(BaseSettings):
     database: DatabaseConfig = Field(validation_alias="DB")
     kakao: KakaoConfig = Field(validation_alias="KAKAO")
     auth: AuthConfig = Field(validation_alias="AUTH")
+    label_model: str | None = Field(default=None, validation_alias="LABEL_MODEL")
 
     model_config = SettingsConfigDict(
         env_file_encoding="utf-8",

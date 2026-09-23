@@ -49,23 +49,60 @@ class ActivityLabelConfirmationRequest(ApiRequestModel):
 
 
 class LabelSelectionResponse(ApiResponseModel):
-    """응답에 포함되는 라벨 확정 선택입니다."""
+    """응답에 포함되는 라벨 선택입니다."""
 
-    kind: Literal["label"] = Field(description="확정된 라벨 선택입니다.")
-    label_id: UUID = Field(description="확정된 라벨 식별자입니다.")
+    kind: Literal["label"] = Field(description="라벨 선택입니다.")
+    label_id: UUID = Field(description="선택한 라벨 식별자입니다.")
 
 
 class UnclassifiedSelectionResponse(ApiResponseModel):
-    """응답에 포함되는 미분류 확정 선택입니다."""
+    """응답에 포함되는 미분류 선택입니다."""
 
     kind: Literal["unclassified"] = Field(
-        description="활동이 미분류로 확정되었음을 나타냅니다."
+        description="활동을 미분류로 선택했음을 나타냅니다."
     )
 
 
 LabelSelectionResponseUnion = Annotated[
     LabelSelectionResponse | UnclassifiedSelectionResponse,
     Field(discriminator="kind"),
+]
+
+
+class WaitingLabelProposalResponse(ApiResponseModel):
+    """종료된 활동의 AI 제안이 아직 생성되지 않았습니다."""
+
+    status: Literal["waiting"] = Field(description="AI 제안 생성 전 상태입니다.")
+
+
+class ProcessingLabelProposalResponse(ApiResponseModel):
+    """작업자가 AI 제안을 생성하고 있습니다."""
+
+    status: Literal["processing"] = Field(description="AI 제안 생성 중 상태입니다.")
+
+
+class FailedLabelProposalResponse(ApiResponseModel):
+    """AI 제안 생성에 실패했지만 활동은 검토 대기 상태입니다."""
+
+    status: Literal["failed"] = Field(description="AI 제안 생성 실패 상태입니다.")
+
+
+class ReadyLabelProposalResponse(ApiResponseModel):
+    """사용자가 검토할 수 있는 AI 제안입니다."""
+
+    status: Literal["ready"] = Field(description="AI 제안이 준비된 상태입니다.")
+    selection: LabelSelectionResponseUnion = Field(
+        description="AI가 제안한 활성 라벨 또는 미분류입니다."
+    )
+    suggested_at: PublicTimestamp = Field(description="제안 생성 시각입니다.")
+
+
+ActivityLabelProposalResponse = Annotated[
+    WaitingLabelProposalResponse
+    | ProcessingLabelProposalResponse
+    | FailedLabelProposalResponse
+    | ReadyLabelProposalResponse,
+    Field(discriminator="status"),
 ]
 
 
@@ -76,6 +113,9 @@ class PendingActivityLabelStateResponse(ApiResponseModel):
     segment_version: str = Field(description="현재 관찰 구간의 불투명 version입니다.")
     state: Literal["pending"] = Field(
         description="아직 라벨 또는 미분류를 확정하지 않은 상태입니다."
+    )
+    proposal: ActivityLabelProposalResponse = Field(
+        description="AI 제안의 처리 상태와 준비된 선택입니다."
     )
 
 
@@ -92,6 +132,10 @@ class ConfirmedActivityLabelStateResponse(ApiResponseModel):
     )
     confirmed_at: PublicTimestamp = Field(description="최초 확정 시각입니다.")
     updated_at: PublicTimestamp = Field(description="마지막 정정 시각입니다.")
+    proposal: ActivityLabelProposalResponse | None = Field(
+        default=None,
+        description="확정 전에 생성된 AI 제안입니다. 직접 확정했다면 null입니다.",
+    )
 
 
 ActivityLabelStateResponse = Annotated[

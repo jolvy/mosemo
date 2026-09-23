@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mosemo.labels.models import (
     DEFAULT_LABEL_NAMES,
     ActivityLabelConfirmation,
+    ActivityLabelProposal,
     Label,
 )
 
@@ -38,6 +39,15 @@ class LabelRepository:
             .where(Label.archived_at.is_(None))
         )
 
+    async def list_active_owned(self, *, account_id: UUID) -> list[Label]:
+        result = await self._session.scalars(
+            select(Label)
+            .where(Label.account_id == account_id)
+            .where(Label.archived_at.is_(None))
+            .order_by(Label.display_name, Label.label_id)
+        )
+        return list(result.all())
+
     async def find_confirmation(
         self,
         *,
@@ -48,6 +58,20 @@ class LabelRepository:
             select(ActivityLabelConfirmation)
             .where(ActivityLabelConfirmation.account_id == account_id)
             .where(ActivityLabelConfirmation.first_event_id == first_event_id)
+        )
+
+    async def find_proposal(
+        self,
+        *,
+        account_id: UUID,
+        first_event_id: UUID,
+        segment_version: str,
+    ) -> ActivityLabelProposal | None:
+        return await self._session.scalar(
+            select(ActivityLabelProposal)
+            .where(ActivityLabelProposal.account_id == account_id)
+            .where(ActivityLabelProposal.first_event_id == first_event_id)
+            .where(ActivityLabelProposal.segment_version == segment_version)
         )
 
     async def list_confirmations_with_label_names(

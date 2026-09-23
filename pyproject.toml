@@ -14,6 +14,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "sqlalchemy[asyncio]>=2.0.52",
     "uvicorn>=0.52.4",
+    "pydantic-ai-slim[bedrock,google,openai]>=2.48.0",
 ]
 
 [dependency-groups]
@@ -55,6 +56,11 @@ quote-style = "double"
 [tool.poe.tasks.dev]
 cmd = "fastapi dev"
 envfile = [".env", ".env.local"]
+
+[tool.poe.tasks.label-worker]
+cmd = "python -m mosemo.labels.worker"
+envfile = [".env", ".env.local"]
+help = "Run the label proposal worker"
 
 [tool.poe.tasks.test]
 cmd = "pytest -v"

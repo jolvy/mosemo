@@ -12,7 +12,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 LABEL_REVISION = "e5f6a7b8c9d0"
-CONFIRMATION_REVISION = "f6a7b8c9d0e1"
+PROPOSAL_REVISION = "a7b8c9d0e1f2"
 PREVIOUS_REVISION = "d4e6f7a8b9c0"
 LABEL_MIGRATION_PATH = (
     Path(__file__).parents[2]
@@ -107,6 +107,22 @@ def _inspect_schema(connection: Any) -> dict[str, Any]:
                 ),
             }
         )
+    if "activity_label_proposals" in tables:
+        snapshot.update(
+            {
+                "proposal_columns": {
+                    column["name"]: column
+                    for column in inspector.get_columns("activity_label_proposals")
+                },
+                "proposal_checks": inspector.get_check_constraints(
+                    "activity_label_proposals"
+                ),
+                "proposal_fks": inspector.get_foreign_keys("activity_label_proposals"),
+                "proposal_uniques": inspector.get_unique_constraints(
+                    "activity_label_proposals"
+                ),
+            }
+        )
     return snapshot
 
 
@@ -196,7 +212,7 @@ def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == [CONFIRMATION_REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == [PROPOSAL_REVISION]
     account_id = uuid4()
     asyncio.run(insert_account(integration_database_url, account_id))
 
@@ -210,6 +226,7 @@ def test_schema_migration_round_trip_and_label_backfill(
         } <= downgraded["tables"]
         assert "labels" not in downgraded["tables"]
         assert "activity_label_confirmations" not in downgraded["tables"]
+        assert "activity_label_proposals" not in downgraded["tables"]
 
         command.upgrade(config, "head")
         upgraded = asyncio.run(schema_snapshot(integration_database_url))
@@ -220,7 +237,43 @@ def test_schema_migration_round_trip_and_label_backfill(
             "activity_timeline_segments",
             "labels",
             "activity_label_confirmations",
+            "activity_label_proposals",
         } <= upgraded["tables"]
+        assert set(upgraded["proposal_columns"]) == {
+            "proposal_id",
+            "account_id",
+            "first_event_id",
+            "segment_version",
+            "status",
+            "suggested_label_id",
+            "attempt_count",
+            "lease_token",
+            "lease_expires_at",
+            "next_attempt_at",
+            "provider",
+            "model",
+            "prompt_version",
+            "retrieved_example_ids",
+            "latency_ms",
+            "input_tokens",
+            "output_tokens",
+            "suggested_at",
+            "created_at",
+            "updated_at",
+        }
+        assert str(upgraded["proposal_columns"]["status"]["type"]) == "VARCHAR(16)"
+        assert {check["name"] for check in upgraded["proposal_checks"]} == {
+            "activity_label_proposals_attempt_count_check"
+        }
+        assert ["account_id", "first_event_id", "segment_version"] in [
+            constraint["column_names"] for constraint in upgraded["proposal_uniques"]
+        ]
+        assert any(
+            fk["constrained_columns"] == ["suggested_label_id"]
+            and fk["referred_table"] == "labels"
+            and fk["options"].get("ondelete") != "CASCADE"
+            for fk in upgraded["proposal_fks"]
+        )
         assert set(upgraded["label_columns"]) == {
             "label_id",
             "account_id",
