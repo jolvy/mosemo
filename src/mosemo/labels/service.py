@@ -283,13 +283,13 @@ class ActivityLabelService:
             version = segment_version(segment, ended_at=ended_at)
             confirmation_with_name = confirmations.get(segment.first_event_id)
             confirmation = (
-                confirmation_with_name[0]
+                confirmation_with_name.confirmation
                 if confirmation_with_name is not None
-                and confirmation_with_name[0].segment_version == version
+                and confirmation_with_name.confirmation.segment_version == version
                 else None
             )
             display_name = (
-                confirmation_with_name[1]
+                confirmation_with_name.display_name
                 if confirmation is not None and confirmation_with_name is not None
                 else None
             )
