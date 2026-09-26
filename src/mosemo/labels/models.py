@@ -104,6 +104,21 @@ class ActivityLabelConfirmation(Base):
         DateTime(timezone=True),
     )
 
+    def apply_selection(
+        self, *, segment_version: str, label_id: UUID | None, now: datetime
+    ) -> None:
+        if self.segment_version == segment_version and self.label_id == label_id:
+            return
+        changed_at = max(now, self.updated_at + timedelta(microseconds=1))
+        if self.segment_version != segment_version:
+            self.segment_version = segment_version
+            self.label_id = label_id
+            self.confirmed_at = changed_at
+            self.updated_at = changed_at
+            return
+        self.label_id = label_id
+        self.updated_at = changed_at
+
 
 class ActivityLabelProposal(Base):
     __tablename__ = "activity_label_proposals"
