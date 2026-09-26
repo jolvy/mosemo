@@ -10,6 +10,8 @@ from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.labels.schemas import (
     ActivityLabelConfirmationRequest,
     ActivityLabelStateResponse,
+    BatchLabelConfirmationRequest,
+    BatchLabelConfirmationResponse,
     ConfirmedActivityLabelStateResponse,
     LabelTimelineItemResponse,
 )
@@ -19,10 +21,81 @@ from mosemo.labels.service import (
     ActivityLabelSegmentNotFoundError,
     ActivityLabelSegmentNotLabelableError,
     ActivityLabelUnavailableError,
+    BatchLabelConfirmationFailure,
 )
 from mosemo.openapi import api_error_responses
+from mosemo.schemas import ValidationDetail
 
 router = APIRouter(prefix="/activities")
+
+
+def _batch_failure_response(exc: BatchLabelConfirmationFailure) -> ApiException:
+    error_codes: dict[type[Exception], ErrorCode] = {
+        ActivityLabelSegmentNotFoundError: ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
+        ActivityLabelSegmentNotLabelableError: ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
+        ActivityLabelSegmentChangedError: ErrorCode.ACTIVITY_SEGMENT_CHANGED,
+        ActivityLabelUnavailableError: ErrorCode.LABEL_NOT_AVAILABLE,
+    }
+    error_code = error_codes[type(exc.reason)]
+    location: list[str | int] = ["body", "items", exc.item_index]
+    if exc.segment_index is not None:
+        location.extend(["segments", exc.segment_index])
+    elif isinstance(exc.reason, ActivityLabelSegmentChangedError):
+        location.append("segments")
+    return ApiException(
+        error_code,
+        details=[
+            ValidationDetail(
+                loc=location,
+                msg=error_code.message,
+                type=error_code.status.lower(),
+            )
+        ],
+    )
+
+
+@router.post(
+    "/label-confirmations",
+    operation_id="activitiesConfirmLabelGroups",
+    response_model=BatchLabelConfirmationResponse,
+    summary="라벨 묶음 일괄 확정",
+    description=(
+        "라벨 타임라인에서 조회한 하나 이상의 묶음을 각자의 선택으로 "
+        "한 요청에서 확정합니다. 어느 항목이라도 유효하지 않으면 전체 요청을 적용하지 않습니다."
+    ),
+    response_description="요청한 순서대로 반환한 묶음의 최신 확정 상태입니다.",
+    responses=api_error_responses(
+        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
+        ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
+        ErrorCode.ACTIVITY_SEGMENT_CHANGED,
+        ErrorCode.LABEL_NOT_AVAILABLE,
+        ErrorCode.ACTIVITY_TIMELINE_BUSY,
+        ErrorCode.INVALID_ARGUMENT,
+        headers={
+            503: {
+                "Retry-After": {
+                    "description": "확정 요청을 재시도하기 전 대기할 초입니다.",
+                    "schema": {"type": "string", "const": "1"},
+                }
+            }
+        },
+    ),
+)
+async def confirm_label_groups(
+    request: BatchLabelConfirmationRequest,
+    service: ActivityLabelServiceDep,
+    authenticated_account: AuthenticatedAccountDep,
+) -> BatchLabelConfirmationResponse:
+    try:
+        return await service.confirm_batch(
+            account_id=authenticated_account.account_id,
+            request=request,
+        )
+    except BatchLabelConfirmationFailure as exc:
+        raise _batch_failure_response(exc) from exc
+    except ActivityTimelineBusyError as exc:
+        raise ApiException(ErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
 
 
 @router.get(

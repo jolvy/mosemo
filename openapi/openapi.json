@@ -125,6 +125,11 @@
             "title": "Endedat",
             "type": "string"
           },
+          "groupVersion": {
+            "description": "묶음의 구성 또는 확정 상태가 바뀌면 달라지는 불투명 버전입니다.",
+            "title": "Groupversion",
+            "type": "string"
+          },
           "itemType": {
             "const": "activity_group",
             "description": "라벨 활동 묶음입니다.",
@@ -185,6 +190,7 @@
         },
         "required": [
           "itemType",
+          "groupVersion",
           "startedAt",
           "endedAt",
           "state",
@@ -439,6 +445,44 @@
           "name"
         ],
         "title": "AppContext",
+        "type": "object"
+      },
+      "BatchLabelConfirmationRequest": {
+        "additionalProperties": false,
+        "description": "하나 이상의 라벨 묶음을 원자적으로 확정하는 요청입니다.",
+        "properties": {
+          "items": {
+            "description": "한 번에 확정할 묶음과 각 묶음의 선택입니다.",
+            "items": {
+              "$ref": "#/components/schemas/LabelGroupConfirmationRequest"
+            },
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "BatchLabelConfirmationRequest",
+        "type": "object"
+      },
+      "BatchLabelConfirmationResponse": {
+        "description": "요청한 묶음 순서대로 반환한 일괄 확정 결과입니다.",
+        "properties": {
+          "items": {
+            "description": "요청한 순서대로 반환한 묶음 확정 결과입니다.",
+            "items": {
+              "$ref": "#/components/schemas/LabelGroupConfirmationResult"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "BatchLabelConfirmationResponse",
         "type": "object"
       },
       "BrowserWebContext": {
@@ -1027,6 +1071,106 @@
           "context"
         ],
         "title": "InProgressActivityResponse",
+        "type": "object"
+      },
+      "LabelGroupConfirmationRequest": {
+        "additionalProperties": false,
+        "description": "조회한 묶음 전체에 하나의 선택을 적용하는 요청 항목입니다.",
+        "properties": {
+          "date": {
+            "description": "묶음을 조회한 계정 시간대의 날짜입니다.",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "groupVersion": {
+            "description": "조회한 묶음의 구성과 최신 확정 상태를 나타내는 불투명 버전입니다.",
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Groupversion",
+            "type": "string"
+          },
+          "segments": {
+            "description": "조회한 묶음의 모든 구간을 관찰 순서대로 담습니다.",
+            "items": {
+              "$ref": "#/components/schemas/LabelGroupSegmentRequest"
+            },
+            "minItems": 1,
+            "title": "Segments",
+            "type": "array"
+          },
+          "selection": {
+            "description": "묶음 전체에 적용할 라벨 또는 미분류 선택입니다.",
+            "discriminator": {
+              "mapping": {
+                "label": "#/components/schemas/LabelSelectionRequest",
+                "unclassified": "#/components/schemas/UnclassifiedSelectionRequest"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LabelSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/UnclassifiedSelectionRequest"
+              }
+            ],
+            "title": "Selection"
+          }
+        },
+        "required": [
+          "date",
+          "groupVersion",
+          "segments",
+          "selection"
+        ],
+        "title": "LabelGroupConfirmationRequest",
+        "type": "object"
+      },
+      "LabelGroupConfirmationResult": {
+        "description": "확정된 묶음 구성원들의 최신 상태입니다.",
+        "properties": {
+          "segments": {
+            "description": "요청한 순서대로 반환한 묶음 구성원의 최신 확정 상태입니다.",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmedActivityLabelStateResponse"
+            },
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "segments"
+        ],
+        "title": "LabelGroupConfirmationResult",
+        "type": "object"
+      },
+      "LabelGroupSegmentRequest": {
+        "additionalProperties": false,
+        "description": "라벨 타임라인에서 조회한 묶음 구성원 하나입니다.",
+        "properties": {
+          "segmentId": {
+            "description": "조회한 묶음 구성원의 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Segmentid",
+            "type": "string"
+          },
+          "segmentVersion": {
+            "description": "조회한 묶음 구성원의 관찰 버전입니다.",
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Segmentversion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segmentId",
+          "segmentVersion"
+        ],
+        "title": "LabelGroupSegmentRequest",
         "type": "object"
       },
       "LabelSelectionRequest": {
@@ -2082,6 +2226,276 @@
           }
         ],
         "summary": "활동 레코드 생성",
+        "tags": [
+          "activities"
+        ]
+      }
+    },
+    "/api/v1/activities/label-confirmations": {
+      "post": {
+        "description": "라벨 타임라인에서 조회한 하나 이상의 묶음을 각자의 선택으로 한 요청에서 확정합니다. 어느 항목이라도 유효하지 않으면 전체 요청을 적용하지 않습니다.",
+        "operationId": "activitiesConfirmLabelGroups",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchLabelConfirmationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchLabelConfirmationResponse"
+                }
+              }
+            },
+            "description": "요청한 순서대로 반환한 묶음의 최신 확정 상태입니다."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH_INVALID_ACCESS_TOKEN": {
+                    "description": "Bearer 액세스 토큰이 유효하지 않거나 누락되었습니다.",
+                    "summary": "Invalid access token",
+                    "value": {
+                      "error": {
+                        "code": 401,
+                        "details": [],
+                        "message": "Invalid or expired access token",
+                        "status": "AUTH_INVALID_ACCESS_TOKEN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "클라이언트가 사용해야 하는 인증 방식입니다.",
+                "schema": {
+                  "const": "Bearer",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ACTIVITY_SEGMENT_NOT_FOUND": {
+                    "description": "관찰 구간을 찾을 수 없거나 인증된 계정에 속하지 않습니다.",
+                    "summary": "Activity segment not found",
+                    "value": {
+                      "error": {
+                        "code": 404,
+                        "details": [],
+                        "message": "Activity segment not found",
+                        "status": "ACTIVITY_SEGMENT_NOT_FOUND"
+                      }
+                    }
+                  },
+                  "LABEL_NOT_AVAILABLE": {
+                    "description": "라벨을 찾을 수 없거나 현재 선택할 수 없는 상태입니다.",
+                    "summary": "Label not available",
+                    "value": {
+                      "error": {
+                        "code": 404,
+                        "details": [],
+                        "message": "Label not found or inactive",
+                        "status": "LABEL_NOT_AVAILABLE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found",
+            "headers": {}
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_METHOD_NOT_ALLOWED": {
+                    "description": "요청 method가 해당 API route에서 허용되지 않습니다.",
+                    "summary": "Method not allowed",
+                    "value": {
+                      "error": {
+                        "code": 405,
+                        "details": [],
+                        "message": "Method not allowed",
+                        "status": "REQUEST_METHOD_NOT_ALLOWED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "description": "해당 route에서 허용되는 HTTP method 목록입니다.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ACTIVITY_SEGMENT_CHANGED": {
+                    "description": "관찰 구간이 재구성되었으므로 최신 상태를 다시 조회해야 합니다.",
+                    "summary": "Activity segment changed",
+                    "value": {
+                      "error": {
+                        "code": 409,
+                        "details": [],
+                        "message": "Activity segment changed; refresh before confirming",
+                        "status": "ACTIVITY_SEGMENT_CHANGED"
+                      }
+                    }
+                  },
+                  "ACTIVITY_SEGMENT_NOT_LABELABLE": {
+                    "description": "열린 구간·불투명 활동·수집 공백은 라벨 확정 대상이 아닙니다.",
+                    "summary": "Activity segment is not labelable",
+                    "value": {
+                      "error": {
+                        "code": 409,
+                        "details": [],
+                        "message": "Activity segment is not labelable",
+                        "status": "ACTIVITY_SEGMENT_NOT_LABELABLE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict",
+            "headers": {}
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INVALID_ARGUMENT": {
+                    "description": "요청 입력값 검증에 실패했습니다.",
+                    "summary": "Invalid argument",
+                    "value": {
+                      "error": {
+                        "code": 422,
+                        "details": [
+                          {
+                            "loc": [
+                              "body",
+                              "users",
+                              0,
+                              "email"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ],
+                        "message": "Request validation failed.",
+                        "status": "INVALID_ARGUMENT"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content",
+            "headers": {}
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_SERVER_ERROR": {
+                    "description": "예상하지 못한 서버 오류가 발생했습니다.",
+                    "summary": "Internal server error",
+                    "value": {
+                      "error": {
+                        "code": 500,
+                        "details": [],
+                        "message": "Internal server error",
+                        "status": "INTERNAL_SERVER_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error",
+            "headers": {}
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ACTIVITY_TIMELINE_BUSY": {
+                    "description": "계정별 관찰 쓰기 잠금을 3초 안에 얻지 못했습니다.",
+                    "summary": "Activity timeline busy",
+                    "value": {
+                      "error": {
+                        "code": 503,
+                        "details": [],
+                        "message": "Activity timeline is busy",
+                        "status": "ACTIVITY_TIMELINE_BUSY"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "headers": {
+              "Retry-After": {
+                "description": "확정 요청을 재시도하기 전 대기할 초입니다.",
+                "schema": {
+                  "const": "1",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "라벨 묶음 일괄 확정",
         "tags": [
           "activities"
         ]
