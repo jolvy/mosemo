@@ -2,6 +2,7 @@ import asyncio
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -145,6 +146,25 @@ async def upload_closed_detail(
     )
     assert state.status_code == 200
     return UUID(first.json()["eventId"]), segment_id, state.json()["segmentVersion"]
+
+
+def group_confirmation_item(
+    group: dict[str, Any], selection: dict[str, str]
+) -> dict[str, Any]:
+    segments = group["segments"]
+    assert isinstance(segments, list)
+    return {
+        "date": "2026-09-14",
+        "groupVersion": group["groupVersion"],
+        "segments": [
+            {
+                "segmentId": member["segmentId"],
+                "segmentVersion": member["segmentVersion"],
+            }
+            for member in segments
+        ],
+        "selection": selection,
+    }
 
 
 async def create_account_with_labels(
@@ -299,6 +319,814 @@ async def test_label_state_can_be_confirmed_and_corrected_over_http(
             "kind": "label",
             "labelId": str(learning_id),
         }
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_confirming_a_label_group_applies_to_every_member(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, _ = await create_account_with_labels(session)
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        for sequence, observed_at, context in [
+            (1, "2026-09-14T00:00:00Z", detailed_context("Editor")),
+            (2, "2026-09-14T00:00:30Z", detailed_context("Browser")),
+            (3, "2026-09-14T00:01:00Z", {"kind": "opaque"}),
+        ]:
+            response = await client.post(
+                "/api/v1/activities",
+                headers=headers,
+                json=activity_request(
+                    device_id=device.device_id,
+                    sequence=sequence,
+                    observed_at=observed_at,
+                    context=context,
+                ),
+            )
+            assert response.status_code == 201
+
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        assert timeline.status_code == 200
+        group = timeline.json()[0]
+        assert group["itemType"] == "activity_group"
+        assert len(group["segments"]) == 2
+
+        confirmed = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={
+                "items": [
+                    {
+                        "date": "2026-09-14",
+                        "groupVersion": group["groupVersion"],
+                        "segments": [
+                            {
+                                "segmentId": member["segmentId"],
+                                "segmentVersion": member["segmentVersion"],
+                            }
+                            for member in group["segments"]
+                        ],
+                        "selection": {"kind": "label", "labelId": str(coding_id)},
+                    }
+                ]
+            },
+        )
+        assert confirmed.status_code == 200
+        results = confirmed.json()["items"][0]["segments"]
+        assert [result["segmentId"] for result in results] == [
+            member["segmentId"] for member in group["segments"]
+        ]
+        assert all(
+            result["selection"] == {"kind": "label", "labelId": str(coding_id)}
+            for result in results
+        )
+
+        updated = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        assert updated.status_code == 200
+        assert updated.json()[0]["state"] == "confirmed"
+        assert len(updated.json()[0]["segments"]) == 2
+        assert updated.json()[1]["itemType"] == "opaque_activity"
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_confirms_different_choices_and_retries_without_changing_timestamps(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, _ = await create_account_with_labels(session)
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=3,
+            started_at="2026-09-14T00:02:00Z",
+            ended_at="2026-09-14T00:02:30Z",
+            name="Browser",
+        )
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        groups = [
+            item for item in timeline.json() if item["itemType"] == "activity_group"
+        ]
+        assert len(groups) == 2
+        request = {
+            "items": [
+                group_confirmation_item(
+                    groups[0], {"kind": "label", "labelId": str(coding_id)}
+                ),
+                group_confirmation_item(groups[1], {"kind": "unclassified"}),
+            ]
+        }
+
+        confirmed = await client.post(
+            "/api/v1/activities/label-confirmations", headers=headers, json=request
+        )
+        retried = await client.post(
+            "/api/v1/activities/label-confirmations", headers=headers, json=request
+        )
+
+        assert confirmed.status_code == retried.status_code == 200
+        assert retried.json() == confirmed.json()
+        assert confirmed.json()["items"][0]["segments"][0]["selection"] == {
+            "kind": "label",
+            "labelId": str(coding_id),
+        }
+        assert confirmed.json()["items"][1]["segments"][0]["selection"] == {
+            "kind": "unclassified"
+        }
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_delayed_batch_retry_cannot_undo_a_later_correction(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, learning_id = await create_account_with_labels(
+            session
+        )
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        first_request = {
+            "items": [
+                group_confirmation_item(
+                    timeline.json()[0],
+                    {"kind": "label", "labelId": str(coding_id)},
+                )
+            ]
+        }
+        first = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json=first_request,
+        )
+        assert first.status_code == 200
+
+        refreshed = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        correction = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={
+                "items": [
+                    group_confirmation_item(
+                        refreshed.json()[0],
+                        {"kind": "label", "labelId": str(learning_id)},
+                    )
+                ]
+            },
+        )
+        assert correction.status_code == 200
+        assert refreshed.json()[0]["groupVersion"] != timeline.json()[0]["groupVersion"]
+
+        delayed = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json=first_request,
+        )
+        latest = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+
+        assert delayed.status_code == 409
+        assert delayed.json()["error"]["status"] == "ACTIVITY_SEGMENT_CHANGED"
+        assert latest.json()[0]["selection"]["labelId"] == str(learning_id)
+        assert latest.json()[0]["groupVersion"] != refreshed.json()[0]["groupVersion"]
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_with_stale_member_rolls_back_every_group_and_identifies_failure(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, _ = await create_account_with_labels(session)
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=3,
+            started_at="2026-09-14T00:02:00Z",
+            ended_at="2026-09-14T00:02:30Z",
+            name="Browser",
+        )
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        groups = [
+            item for item in timeline.json() if item["itemType"] == "activity_group"
+        ]
+        request = {
+            "items": [
+                group_confirmation_item(
+                    group, {"kind": "label", "labelId": str(coding_id)}
+                )
+                for group in groups
+            ]
+        }
+        late = await client.post(
+            "/api/v1/activities",
+            headers=headers,
+            json=activity_request(
+                device_id=device.device_id,
+                sequence=5,
+                observed_at="2026-09-14T00:02:15Z",
+                context=detailed_context("Late change"),
+            ),
+        )
+        assert late.status_code == 201
+
+        rejected = await client.post(
+            "/api/v1/activities/label-confirmations", headers=headers, json=request
+        )
+        current = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+
+        assert rejected.status_code == 409
+        assert rejected.json()["error"]["status"] == "ACTIVITY_SEGMENT_CHANGED"
+        assert rejected.json()["error"]["details"][0]["loc"] == [
+            "body",
+            "items",
+            1,
+            "segments",
+            0,
+        ]
+        assert all(
+            item["state"] == "pending"
+            for item in current.json()
+            if item["itemType"] == "activity_group"
+        )
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_rejects_a_partial_group_without_confirming_its_members(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, _ = await create_account_with_labels(session)
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        for sequence, observed_at, context in [
+            (1, "2026-09-14T00:00:00Z", detailed_context("Editor")),
+            (2, "2026-09-14T00:00:30Z", detailed_context("Browser")),
+            (3, "2026-09-14T00:01:00Z", {"kind": "opaque"}),
+        ]:
+            response = await client.post(
+                "/api/v1/activities",
+                headers=headers,
+                json=activity_request(
+                    device_id=device.device_id,
+                    sequence=sequence,
+                    observed_at=observed_at,
+                    context=context,
+                ),
+            )
+            assert response.status_code == 201
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        group = timeline.json()[0]
+        assert len(group["segments"]) == 2
+        item = group_confirmation_item(
+            group, {"kind": "label", "labelId": str(coding_id)}
+        )
+        item["segments"] = item["segments"][:1]
+
+        rejected = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={"items": [item]},
+        )
+        current = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+
+        assert rejected.status_code == 409
+        assert rejected.json()["error"]["status"] == "ACTIVITY_SEGMENT_CHANGED"
+        assert rejected.json()["error"]["details"][0]["loc"] == [
+            "body",
+            "items",
+            0,
+            "segments",
+        ]
+        assert current.json()[0]["state"] == "pending"
+        assert len(current.json()[0]["segments"]) == 2
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_rejects_duplicate_member_targets_before_any_write(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, _ = await create_account_with_labels(session)
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        group = timeline.json()[0]
+
+        rejected = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={
+                "items": [
+                    group_confirmation_item(
+                        group, {"kind": "label", "labelId": str(coding_id)}
+                    ),
+                    group_confirmation_item(group, {"kind": "unclassified"}),
+                ]
+            },
+        )
+        current = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+
+        assert rejected.status_code == 422
+        assert rejected.json()["error"]["status"] == "INVALID_ARGUMENT"
+        assert current.json()[0]["state"] == "pending"
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_and_late_observation_never_attach_label_to_changed_activity(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, _ = await create_account_with_labels(session)
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        item = group_confirmation_item(
+            timeline.json()[0], {"kind": "label", "labelId": str(coding_id)}
+        )
+
+        confirmed, late = await asyncio.gather(
+            client.post(
+                "/api/v1/activities/label-confirmations",
+                headers=headers,
+                json={"items": [item]},
+            ),
+            client.post(
+                "/api/v1/activities",
+                headers=headers,
+                json=activity_request(
+                    device_id=device.device_id,
+                    sequence=3,
+                    observed_at="2026-09-14T00:00:15Z",
+                    context=detailed_context("Late change"),
+                ),
+            ),
+        )
+        current = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+
+        assert late.status_code == 201
+        assert confirmed.status_code in {200, 409}
+        assert current.status_code == 200
+        assert all(
+            group["state"] == "pending"
+            for group in current.json()
+            if group["itemType"] == "activity_group"
+        )
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_rejects_foreign_segment_without_confirming_own_group(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, _ = await create_account_with_labels(session)
+        other_id, other_device, _, _ = await create_account_with_labels(session)
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    other_headers = auth_headers(config, other_id)
+    try:
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Owner",
+        )
+        await upload_closed_detail(
+            client,
+            headers=other_headers,
+            device_id=other_device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Other",
+        )
+        owner_timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        other_timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=other_headers,
+        )
+        owner_group = owner_timeline.json()[0]
+        own_item = group_confirmation_item(
+            owner_group, {"kind": "label", "labelId": str(coding_id)}
+        )
+        foreign_item = group_confirmation_item(
+            other_timeline.json()[0], {"kind": "unclassified"}
+        )
+
+        foreign = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={"items": [own_item, foreign_item]},
+        )
+        assert foreign.status_code == 404
+        assert foreign.json()["error"]["status"] == "ACTIVITY_SEGMENT_NOT_FOUND"
+        assert foreign.json()["error"]["details"][0]["loc"] == [
+            "body",
+            "items",
+            1,
+            "segments",
+            0,
+        ]
+
+        current = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        assert current.json()[0]["state"] == "pending"
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id.in_((account_id, other_id)))
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_rejects_archived_label(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, _ = await create_account_with_labels(session)
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        item = group_confirmation_item(
+            timeline.json()[0], {"kind": "label", "labelId": str(coding_id)}
+        )
+        async with session_factory() as session:
+            archived = await session.get(Label, coding_id)
+            assert archived is not None
+            archived.archived_at = datetime.now(UTC)
+            await session.commit()
+
+        unavailable = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={"items": [item]},
+        )
+
+        assert unavailable.status_code == 404
+        assert unavailable.json()["error"]["status"] == "LABEL_NOT_AVAILABLE"
+        assert unavailable.json()["error"]["details"][0]["loc"] == ["body", "items", 0]
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_rejects_opaque_segment(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, _, _ = await create_account_with_labels(session)
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        group, opaque = timeline.json()
+        not_labelable = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={
+                "items": [
+                    {
+                        "date": "2026-09-14",
+                        "groupVersion": group["groupVersion"],
+                        "segments": [
+                            {
+                                "segmentId": opaque["segmentId"],
+                                "segmentVersion": "0" * 64,
+                            }
+                        ],
+                        "selection": {"kind": "unclassified"},
+                    }
+                ]
+            },
+        )
+
+        assert not_labelable.status_code == 409
+        assert not_labelable.json()["error"]["status"] == (
+            "ACTIVITY_SEGMENT_NOT_LABELABLE"
+        )
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_requires_authentication(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+) -> None:
+    client, _, _ = label_api_client
+    unauthenticated = await client.post(
+        "/api/v1/activities/label-confirmations",
+        json={"items": []},
+    )
+    assert unauthenticated.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_batch_uses_user_choices_with_ready_and_waiting_proposals(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, learning_id = await create_account_with_labels(
+            session
+        )
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        first_event_id, _, _ = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=3,
+            started_at="2026-09-14T00:02:00Z",
+            ended_at="2026-09-14T00:02:30Z",
+            name="Browser",
+        )
+        processor = ProposalProcessor(
+            session_factory, suggester=FixedSuggester(coding_id)
+        )
+        assert await processor.process_candidate(account_id, first_event_id)
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        groups = [
+            item for item in timeline.json() if item["itemType"] == "activity_group"
+        ]
+
+        confirmed = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={
+                "items": [
+                    group_confirmation_item(
+                        groups[0],
+                        {"kind": "label", "labelId": str(learning_id)},
+                    ),
+                    group_confirmation_item(groups[1], {"kind": "unclassified"}),
+                ]
+            },
+        )
+
+        assert confirmed.status_code == 200
+        first = confirmed.json()["items"][0]["segments"][0]
+        second = confirmed.json()["items"][1]["segments"][0]
+        assert first["selection"]["labelId"] == str(learning_id)
+        assert first["proposal"]["selection"]["labelId"] == str(coding_id)
+        assert second["selection"] == {"kind": "unclassified"}
+        assert second["proposal"] is None
     finally:
         async with session_factory() as session:
             await session.execute(
@@ -1662,9 +2490,12 @@ async def test_label_timeline_groups_adjacent_segments_with_same_confirmation(
         )
 
         assert response.status_code == 200
+        group_version = response.json()[0]["groupVersion"]
+        assert re.fullmatch(SEGMENT_VERSION_PATTERN, group_version)
         assert response.json() == [
             {
                 "itemType": "activity_group",
+                "groupVersion": group_version,
                 "startedAt": "2026-09-14T00:00:00Z",
                 "endedAt": "2026-09-14T00:01:00Z",
                 "state": "confirmed",
