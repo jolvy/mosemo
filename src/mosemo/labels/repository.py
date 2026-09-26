@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import select
@@ -9,6 +10,12 @@ from mosemo.labels.models import (
     ActivityLabelProposal,
     Label,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ConfirmationWithLabelName:
+    confirmation: ActivityLabelConfirmation
+    display_name: str | None
 
 
 class LabelRepository:
@@ -79,7 +86,7 @@ class LabelRepository:
         *,
         account_id: UUID,
         first_event_ids: set[UUID],
-    ) -> dict[UUID, tuple[ActivityLabelConfirmation, str | None]]:
+    ) -> dict[UUID, ConfirmationWithLabelName]:
         if not first_event_ids:
             return {}
 
@@ -95,6 +102,9 @@ class LabelRepository:
         )
         rows = (await self._session.execute(statement)).all()
         return {
-            confirmation.first_event_id: (confirmation, display_name)
+            confirmation.first_event_id: ConfirmationWithLabelName(
+                confirmation=confirmation,
+                display_name=display_name,
+            )
             for confirmation, display_name in rows
         }
