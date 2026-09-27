@@ -55,6 +55,14 @@ class LabelRepository:
         )
         return list(result.all())
 
+    async def list_owned(self, *, account_id: UUID) -> list[Label]:
+        result = await self._session.scalars(
+            select(Label)
+            .where(Label.account_id == account_id)
+            .order_by(Label.display_name, Label.label_id)
+        )
+        return list(result.all())
+
     async def find_confirmation(
         self,
         *,

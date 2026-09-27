@@ -2,7 +2,7 @@ from datetime import date as CalendarDate
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from mosemo.activities.schemas import (
     DetailedActivityContext,
@@ -12,6 +12,20 @@ from mosemo.activities.schemas import (
 from mosemo.schemas import ApiRequestModel, ApiResponseModel, PublicTimestamp
 
 SEGMENT_VERSION_PATTERN = r"^[0-9a-f]{64}$"
+
+
+class LabelResponse(ApiResponseModel):
+    """계정의 활성 또는 보관 라벨입니다."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    label_id: UUID = Field(description="라벨의 고유 식별자입니다.")
+    display_name: str = Field(description="현재 라벨 표시 이름입니다.")
+    created_at: PublicTimestamp = Field(description="라벨 생성 시각입니다.")
+    updated_at: PublicTimestamp = Field(description="라벨 마지막 갱신 시각입니다.")
+    archived_at: PublicTimestamp | None = Field(
+        description="보관 시각입니다. 사용 중인 라벨이면 null입니다."
+    )
 
 
 class LabelSelectionRequest(ApiRequestModel):
