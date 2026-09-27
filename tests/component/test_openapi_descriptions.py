@@ -511,6 +511,34 @@ def test_openapi_operation_ids_are_unique(openapi_document: dict[str, Any]) -> N
     assert len(set(operation_ids)) == len(operation_ids)
 
 
+def test_label_catalog_openapi_contract(openapi_document: dict[str, Any]) -> None:
+    operation = openapi_document["paths"]["/api/v1/labels"]["get"]
+    assert operation["operationId"] == "labelsList"
+    assert operation["security"] == [{"HTTPBearer": []}]
+    assert operation["responses"]["200"]["content"]["application/json"]["schema"][
+        "items"
+    ] == {"$ref": "#/components/schemas/LabelResponse"}
+    assert set(
+        operation["responses"]["401"]["content"]["application/json"]["examples"]
+    ) == {"AUTH_INVALID_ACCESS_TOKEN"}
+
+    schema = openapi_document["components"]["schemas"]["LabelResponse"]
+    assert set(schema["properties"]) == {
+        "labelId",
+        "displayName",
+        "createdAt",
+        "updatedAt",
+        "archivedAt",
+    }
+    assert set(schema["required"]) == set(schema["properties"])
+    assert {
+        item.get("type") for item in schema["properties"]["archivedAt"]["anyOf"]
+    } == {
+        "string",
+        "null",
+    }
+
+
 def test_exported_openapi_matches_runtime_schema(
     openapi_document: dict[str, Any],
 ) -> None:
