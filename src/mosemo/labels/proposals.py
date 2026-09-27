@@ -24,6 +24,7 @@ from mosemo.labels.models import (
     ProposalCompletion,
 )
 from mosemo.labels.repository import LabelRepository
+from mosemo.labels.service import segment_version
 from mosemo.labels.suggestions import (
     ConfirmedExample,
     LabelCandidate,
@@ -32,7 +33,6 @@ from mosemo.labels.suggestions import (
     SuggestionResult,
     summarize_context,
 )
-from mosemo.labels.versions import segment_version
 
 MAX_EXAMPLES = 8
 SCAN_PAGE_SIZE = 100
