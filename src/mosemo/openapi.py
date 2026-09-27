@@ -60,6 +60,19 @@ ERROR_DOCS: Mapping[ErrorCode, ErrorDocs] = {
         summary="Activity segment changed",
         description="관찰 구간이 재구성되었으므로 최신 상태를 다시 조회해야 합니다.",
     ),
+    ErrorCode.ACTIVITY_LABEL_CONFIRMATION_CONFLICT: ErrorDocs(
+        summary="Activity label confirmation conflict",
+        description=(
+            "같은 관찰 버전에 다른 선택이 이미 확정되어 있으므로 덮어쓸 수 없습니다."
+        ),
+        example_details=(
+            ValidationDetail(
+                loc=["body", "items", 0, "selection"],
+                msg="Activity label confirmation conflicts with an existing selection",
+                type="activity_label_confirmation_conflict",
+            ),
+        ),
+    ),
     ErrorCode.LABEL_NOT_AVAILABLE: ErrorDocs(
         summary="Label not available",
         description="라벨을 찾을 수 없거나 현재 선택할 수 없는 상태입니다.",

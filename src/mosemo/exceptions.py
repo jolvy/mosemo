@@ -52,6 +52,10 @@ class ErrorCode(Enum):
         code=409,
         message="Activity segment changed; refresh before confirming",
     )
+    ACTIVITY_LABEL_CONFIRMATION_CONFLICT = ErrorSpec(
+        code=409,
+        message="Activity label confirmation conflicts with an existing selection",
+    )
     LABEL_NOT_AVAILABLE = ErrorSpec(
         code=404,
         message="Label not found or inactive",

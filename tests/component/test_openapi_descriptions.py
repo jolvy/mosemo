@@ -317,17 +317,10 @@ def test_public_error_examples_match_status_and_common_schema(
                 assert example["description"] == ERROR_DOCS[spec].description
                 assert error["code"] == int(status_code)
                 assert error["status"] == status
-                assert error["details"] == (
-                    [
-                        {
-                            "loc": ["body", "users", 0, "email"],
-                            "msg": "Field required",
-                            "type": "missing",
-                        }
-                    ]
-                    if error["status"] == "INVALID_ARGUMENT"
-                    else []
-                )
+                assert error["details"] == [
+                    detail.model_dump(mode="json", by_alias=True)
+                    for detail in ERROR_DOCS[spec].example_details
+                ]
 
         if path == "/api/v1/accounts/me":
             assert "422" not in responses
@@ -451,6 +444,41 @@ def test_public_error_examples_match_status_and_common_schema(
             "capture_gap": "#/components/schemas/LabelTimelineCaptureGapResponse",
         },
     }
+    batch_confirmation = openapi_document["paths"][
+        "/api/v1/activities/label-confirmations"
+    ]["post"]
+    assert batch_confirmation["operationId"] == "activitiesConfirmSegmentLabels"
+    batch_request_schema = schemas["BatchLabelConfirmationRequest"]
+    item_schema = schemas["SegmentLabelConfirmationItemRequest"]
+    assert set(item_schema["properties"]) == {
+        "segmentId",
+        "segmentVersion",
+        "selection",
+    }
+    assert batch_request_schema["properties"]["items"]["items"]["$ref"] == (
+        "#/components/schemas/SegmentLabelConfirmationItemRequest"
+    )
+    batch_response_schema = batch_confirmation["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]
+    assert batch_response_schema["$ref"] == (
+        "#/components/schemas/BatchLabelConfirmationResponse"
+    )
+    assert schemas["BatchLabelConfirmationResponse"]["properties"]["items"]["items"][
+        "$ref"
+    ] == ("#/components/schemas/ConfirmedActivityLabelStateResponse")
+    assert set(
+        batch_confirmation["responses"]["409"]["content"]["application/json"][
+            "examples"
+        ]
+    ) == {
+        "ACTIVITY_SEGMENT_NOT_LABELABLE",
+        "ACTIVITY_SEGMENT_CHANGED",
+        "ACTIVITY_LABEL_CONFIRMATION_CONFLICT",
+    }
+    assert batch_confirmation["responses"]["503"]["headers"]["Retry-After"][
+        "schema"
+    ] == {"type": "string", "const": "1"}
     confirmation = openapi_document["paths"][
         "/api/v1/activities/segments/{segment_id}/label-confirmation"
     ]["put"]

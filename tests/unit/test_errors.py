@@ -51,13 +51,18 @@ def test_public_error_registry_contains_the_public_specs() -> None:
             409,
             "Activity segment changed; refresh before confirming",
         ),
+        (
+            "ACTIVITY_LABEL_CONFIRMATION_CONFLICT",
+            409,
+            "Activity label confirmation conflicts with an existing selection",
+        ),
         ("LABEL_NOT_AVAILABLE", 404, "Label not found or inactive"),
         ("REQUEST_ROUTE_NOT_FOUND", 404, "API route not found"),
         ("REQUEST_METHOD_NOT_ALLOWED", 405, "Method not allowed"),
         ("INVALID_ARGUMENT", 422, "Request validation failed."),
         ("INTERNAL_SERVER_ERROR", 500, "Internal server error"),
     ]
-    assert len({member.status for member in public_members}) == 15
+    assert len({member.status for member in public_members}) == 16
 
 
 def test_error_spec_is_immutable_and_contains_no_documentation_metadata() -> None:

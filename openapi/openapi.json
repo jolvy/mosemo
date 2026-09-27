@@ -449,12 +449,12 @@
       },
       "BatchLabelConfirmationRequest": {
         "additionalProperties": false,
-        "description": "하나 이상의 라벨 묶음을 원자적으로 확정하는 요청입니다.",
+        "description": "여러 관찰 구간의 라벨 선택을 원자적으로 확정하는 요청입니다.",
         "properties": {
           "items": {
-            "description": "한 번에 확정할 묶음과 각 묶음의 선택입니다.",
+            "description": "한 번에 확정할 관찰 구간과 각 구간의 선택입니다.",
             "items": {
-              "$ref": "#/components/schemas/LabelGroupConfirmationRequest"
+              "$ref": "#/components/schemas/SegmentLabelConfirmationItemRequest"
             },
             "minItems": 1,
             "title": "Items",
@@ -468,12 +468,12 @@
         "type": "object"
       },
       "BatchLabelConfirmationResponse": {
-        "description": "요청한 묶음 순서대로 반환한 일괄 확정 결과입니다.",
+        "description": "요청한 순서대로 반환한 관찰 구간별 확정 결과입니다.",
         "properties": {
           "items": {
-            "description": "요청한 순서대로 반환한 묶음 확정 결과입니다.",
+            "description": "요청한 각 관찰 구간의 최신 확정 상태입니다.",
             "items": {
-              "$ref": "#/components/schemas/LabelGroupConfirmationResult"
+              "$ref": "#/components/schemas/ConfirmedActivityLabelStateResponse"
             },
             "title": "Items",
             "type": "array"
@@ -1073,106 +1073,6 @@
         "title": "InProgressActivityResponse",
         "type": "object"
       },
-      "LabelGroupConfirmationRequest": {
-        "additionalProperties": false,
-        "description": "조회한 묶음 전체에 하나의 선택을 적용하는 요청 항목입니다.",
-        "properties": {
-          "date": {
-            "description": "묶음을 조회한 계정 시간대의 날짜입니다.",
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "groupVersion": {
-            "description": "조회한 묶음의 구성과 최신 확정 상태를 나타내는 불투명 버전입니다.",
-            "maxLength": 64,
-            "minLength": 64,
-            "pattern": "^[0-9a-f]{64}$",
-            "title": "Groupversion",
-            "type": "string"
-          },
-          "segments": {
-            "description": "조회한 묶음의 모든 구간을 관찰 순서대로 담습니다.",
-            "items": {
-              "$ref": "#/components/schemas/LabelGroupSegmentRequest"
-            },
-            "minItems": 1,
-            "title": "Segments",
-            "type": "array"
-          },
-          "selection": {
-            "description": "묶음 전체에 적용할 라벨 또는 미분류 선택입니다.",
-            "discriminator": {
-              "mapping": {
-                "label": "#/components/schemas/LabelSelectionRequest",
-                "unclassified": "#/components/schemas/UnclassifiedSelectionRequest"
-              },
-              "propertyName": "kind"
-            },
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/LabelSelectionRequest"
-              },
-              {
-                "$ref": "#/components/schemas/UnclassifiedSelectionRequest"
-              }
-            ],
-            "title": "Selection"
-          }
-        },
-        "required": [
-          "date",
-          "groupVersion",
-          "segments",
-          "selection"
-        ],
-        "title": "LabelGroupConfirmationRequest",
-        "type": "object"
-      },
-      "LabelGroupConfirmationResult": {
-        "description": "확정된 묶음 구성원들의 최신 상태입니다.",
-        "properties": {
-          "segments": {
-            "description": "요청한 순서대로 반환한 묶음 구성원의 최신 확정 상태입니다.",
-            "items": {
-              "$ref": "#/components/schemas/ConfirmedActivityLabelStateResponse"
-            },
-            "title": "Segments",
-            "type": "array"
-          }
-        },
-        "required": [
-          "segments"
-        ],
-        "title": "LabelGroupConfirmationResult",
-        "type": "object"
-      },
-      "LabelGroupSegmentRequest": {
-        "additionalProperties": false,
-        "description": "라벨 타임라인에서 조회한 묶음 구성원 하나입니다.",
-        "properties": {
-          "segmentId": {
-            "description": "조회한 묶음 구성원의 구간 식별자입니다.",
-            "format": "uuid",
-            "title": "Segmentid",
-            "type": "string"
-          },
-          "segmentVersion": {
-            "description": "조회한 묶음 구성원의 관찰 버전입니다.",
-            "maxLength": 64,
-            "minLength": 64,
-            "pattern": "^[0-9a-f]{64}$",
-            "title": "Segmentversion",
-            "type": "string"
-          }
-        },
-        "required": [
-          "segmentId",
-          "segmentVersion"
-        ],
-        "title": "LabelGroupSegmentRequest",
-        "type": "object"
-      },
       "LabelResponse": {
         "description": "계정의 활성 또는 보관 라벨입니다.",
         "properties": {
@@ -1637,6 +1537,52 @@
           "reason"
         ],
         "title": "RedactedValue",
+        "type": "object"
+      },
+      "SegmentLabelConfirmationItemRequest": {
+        "additionalProperties": false,
+        "description": "관찰 구간 하나에 적용할 라벨 확정 선택입니다.",
+        "properties": {
+          "segmentId": {
+            "description": "확정할 관찰 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Segmentid",
+            "type": "string"
+          },
+          "segmentVersion": {
+            "description": "확정 대상 관찰 구간의 불투명 version입니다.",
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Segmentversion",
+            "type": "string"
+          },
+          "selection": {
+            "description": "이 관찰 구간에 확정할 라벨 또는 미분류 선택입니다.",
+            "discriminator": {
+              "mapping": {
+                "label": "#/components/schemas/LabelSelectionRequest",
+                "unclassified": "#/components/schemas/UnclassifiedSelectionRequest"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LabelSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/UnclassifiedSelectionRequest"
+              }
+            ],
+            "title": "Selection"
+          }
+        },
+        "required": [
+          "segmentId",
+          "segmentVersion",
+          "selection"
+        ],
+        "title": "SegmentLabelConfirmationItemRequest",
         "type": "object"
       },
       "Timezone": {
@@ -2286,8 +2232,8 @@
     },
     "/api/v1/activities/label-confirmations": {
       "post": {
-        "description": "라벨 타임라인에서 조회한 하나 이상의 묶음을 각자의 선택으로 한 요청에서 확정합니다. 어느 항목이라도 유효하지 않으면 전체 요청을 적용하지 않습니다.",
-        "operationId": "activitiesConfirmLabelGroups",
+        "description": "라벨 타임라인 그룹과 관계없이 닫힌 상세 관찰 구간마다 선택을 지정해 한 요청에서 확정합니다. 모든 항목이 유효해야 전체 요청을 적용하며, 같은 관찰 버전에 이미 다른 선택이 확정되어 있으면 충돌을 반환합니다.",
+        "operationId": "activitiesConfirmSegmentLabels",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2307,7 +2253,7 @@
                 }
               }
             },
-            "description": "요청한 순서대로 반환한 묶음의 최신 확정 상태입니다."
+            "description": "요청한 구간 순서대로 반환한 최신 확정 상태입니다."
           },
           "401": {
             "content": {
@@ -2415,6 +2361,29 @@
             "content": {
               "application/json": {
                 "examples": {
+                  "ACTIVITY_LABEL_CONFIRMATION_CONFLICT": {
+                    "description": "같은 관찰 버전에 다른 선택이 이미 확정되어 있으므로 덮어쓸 수 없습니다.",
+                    "summary": "Activity label confirmation conflict",
+                    "value": {
+                      "error": {
+                        "code": 409,
+                        "details": [
+                          {
+                            "loc": [
+                              "body",
+                              "items",
+                              0,
+                              "selection"
+                            ],
+                            "msg": "Activity label confirmation conflicts with an existing selection",
+                            "type": "activity_label_confirmation_conflict"
+                          }
+                        ],
+                        "message": "Activity label confirmation conflicts with an existing selection",
+                        "status": "ACTIVITY_LABEL_CONFIRMATION_CONFLICT"
+                      }
+                    }
+                  },
                   "ACTIVITY_SEGMENT_CHANGED": {
                     "description": "관찰 구간이 재구성되었으므로 최신 상태를 다시 조회해야 합니다.",
                     "summary": "Activity segment changed",
@@ -2548,7 +2517,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "라벨 묶음 일괄 확정",
+        "summary": "관찰 구간 라벨 일괄 확정",
         "tags": [
           "activities"
         ]

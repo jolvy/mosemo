@@ -67,6 +67,7 @@ Mosemo API의 구현, OpenAPI 선언, 계약 테스트는 하나의 공개 계�
 | `ACTIVITY_EVENT_ID_CONFLICT` | 409 | `Activity event ID conflicts with a stored record` |
 | `ACTIVITY_SEQUENCE_CONFLICT` | 409 | `Activity sequence conflicts with a stored record` |
 | `ACTIVITY_TIMELINE_BUSY` | 503 | `Activity timeline is busy` |
+| `ACTIVITY_LABEL_CONFIRMATION_CONFLICT` | 409 | `Activity label confirmation conflicts with an existing selection` |
 | `REQUEST_ROUTE_NOT_FOUND` | 404 | `API route not found` |
 | `REQUEST_METHOD_NOT_ALLOWED` | 405 | `Method not allowed` |
 | `INVALID_ARGUMENT` | 422 | `Request validation failed.` |
