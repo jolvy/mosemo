@@ -35,9 +35,6 @@ from mosemo.labels.schemas import (
     ConfirmedActivityLabelStateResponse,
     FailedLabelProposalResponse,
     InProgressActivityResponse,
-    LabelGroupConfirmationRequest,
-    LabelGroupConfirmationResult,
-    LabelGroupSegmentRequest,
     LabelSelectionResponse,
     LabelTimelineCaptureGapResponse,
     LabelTimelineItemResponse,
@@ -47,6 +44,7 @@ from mosemo.labels.schemas import (
     PendingActivityLabelStateResponse,
     ProcessingLabelProposalResponse,
     ReadyLabelProposalResponse,
+    SegmentLabelConfirmationItemRequest,
     UnclassifiedSelectionResponse,
     WaitingLabelProposalResponse,
 )
@@ -68,17 +66,25 @@ class ActivityLabelUnavailableError(Exception):
     pass
 
 
+class ActivityLabelConfirmationConflictError(Exception):
+    pass
+
+
+class ActivityLabelSegmentDuplicateError(Exception):
+    pass
+
+
 class BatchLabelConfirmationFailure(Exception):
     def __init__(
         self,
         *,
         item_index: int,
         reason: Exception,
-        segment_index: int | None = None,
+        field_name: str | None = None,
     ) -> None:
         super().__init__(str(reason))
         self.item_index = item_index
-        self.segment_index = segment_index
+        self.field_name = field_name
         self.reason = reason
 
 
@@ -87,13 +93,6 @@ class ConfirmationTarget:
     segment: ActivityTimelineSegment
     version: str
     label_id: UUID | None
-
-    def matches(self, confirmation: ActivityLabelConfirmation | None) -> bool:
-        return (
-            confirmation is not None
-            and confirmation.segment_version == self.version
-            and confirmation.label_id == self.label_id
-        )
 
 
 activity_context_adapter = TypeAdapter(ActivityContext)
@@ -435,145 +434,191 @@ class ActivityLabelService:
         request: BatchLabelConfirmationRequest,
         now: datetime | None = None,
     ) -> BatchLabelConfirmationResponse:
+        self._reject_duplicate_segments(request)
         current_time = now or datetime.now(UTC)
         async with self._session.begin():
             await acquire_activity_timeline_lock(self._session, account_id=account_id)
-            groups = await self._validate_batch_groups(
+            targets = await self._validate_batch_items(
                 account_id=account_id, request=request, current_time=current_time
             )
-            results = []
-            for targets in groups:
-                confirmed = [
-                    await self._save_confirmation(
-                        account_id=account_id,
-                        target=target,
-                        current_time=current_time,
-                    )
-                    for target in targets
-                ]
-                results.append(LabelGroupConfirmationResult(segments=confirmed))
-            return BatchLabelConfirmationResponse(items=results)
+            confirmed = [
+                await self._save_confirmation(
+                    account_id=account_id,
+                    target=target,
+                    current_time=current_time,
+                )
+                for target in targets
+            ]
+            return BatchLabelConfirmationResponse(items=confirmed)
 
-    async def _validate_batch_groups(
+    @staticmethod
+    def _reject_duplicate_segments(request: BatchLabelConfirmationRequest) -> None:
+        seen: set[UUID] = set()
+        for item_index, item in enumerate(request.items):
+            if item.segment_id in seen:
+                raise ActivityLabelService._batch_failure(
+                    item_index=item_index,
+                    reason=ActivityLabelSegmentDuplicateError(),
+                    field_name="segmentId",
+                )
+            seen.add(item.segment_id)
+
+    @staticmethod
+    def _batch_failure(
+        *, item_index: int, reason: Exception, field_name: str
+    ) -> BatchLabelConfirmationFailure:
+        return BatchLabelConfirmationFailure(
+            item_index=item_index, reason=reason, field_name=field_name
+        )
+
+    async def _validate_batch_items(
         self,
         *,
         account_id: UUID,
         request: BatchLabelConfirmationRequest,
         current_time: datetime,
-    ) -> list[list[ConfirmationTarget]]:
-        timelines: dict[date, list[LabelTimelineItemResponse]] = {}
-        groups = []
+    ) -> list[ConfirmationTarget]:
+        targets = []
         for item_index, item in enumerate(request.items):
-            targets = await self._validate_group_members(
+            target = await self._validate_batch_item(
                 account_id=account_id,
                 item=item,
                 item_index=item_index,
                 current_time=current_time,
             )
-            if not await self._already_confirmed(account_id, targets):
-                if item.date not in timelines:
-                    timelines[item.date] = await self._timeline_in_transaction(
-                        account_id=account_id,
-                        date=item.date,
-                        current_time=current_time,
-                    )
-                if not self._matches_current_group(item, timelines[item.date]):
-                    raise BatchLabelConfirmationFailure(
-                        item_index=item_index,
-                        reason=ActivityLabelSegmentChangedError(),
-                    )
-            groups.append(targets)
-        return groups
+            targets.append(target)
+        return targets
 
-    async def _validate_group_members(
+    async def _validate_batch_item(
         self,
         *,
         account_id: UUID,
-        item: LabelGroupConfirmationRequest,
+        item: SegmentLabelConfirmationItemRequest,
         item_index: int,
-        current_time: datetime,
-    ) -> list[ConfirmationTarget]:
-        label_id = getattr(item.selection, "label_id", None)
-        if label_id is not None:
-            label = await self._label_repository.find_active_owned(
-                account_id=account_id, label_id=label_id
-            )
-            if label is None:
-                raise BatchLabelConfirmationFailure(
-                    item_index=item_index, reason=ActivityLabelUnavailableError()
-                )
-        return [
-            await self._validate_batch_member(
-                account_id=account_id,
-                member=member,
-                label_id=label_id,
-                item_index=item_index,
-                segment_index=segment_index,
-                current_time=current_time,
-            )
-            for segment_index, member in enumerate(item.segments)
-        ]
-
-    async def _validate_batch_member(
-        self,
-        *,
-        account_id: UUID,
-        member: LabelGroupSegmentRequest,
-        label_id: UUID | None,
-        item_index: int,
-        segment_index: int,
         current_time: datetime,
     ) -> ConfirmationTarget:
+        segment = await self._find_batch_segment(
+            account_id=account_id,
+            item=item,
+            item_index=item_index,
+            current_time=current_time,
+        )
+        version = self._validate_batch_segment_version(
+            item=item,
+            item_index=item_index,
+            segment=segment,
+            current_time=current_time,
+        )
+        label_id = getattr(item.selection, "label_id", None)
+        confirmation = await self._find_batch_confirmation(
+            account_id=account_id, segment=segment
+        )
+        is_idempotent = self._validate_batch_selection(
+            item_index=item_index,
+            label_id=label_id,
+            segment_version=version,
+            confirmation=confirmation,
+        )
+        await self._validate_batch_label_availability(
+            account_id=account_id,
+            item_index=item_index,
+            label_id=label_id,
+            is_idempotent=is_idempotent,
+        )
+        return ConfirmationTarget(segment=segment, version=version, label_id=label_id)
+
+    async def _find_batch_segment(
+        self,
+        *,
+        account_id: UUID,
+        item: SegmentLabelConfirmationItemRequest,
+        item_index: int,
+        current_time: datetime,
+    ) -> ActivityTimelineSegment:
         try:
-            segment = await self._find_labelable_segment(
+            return await self._find_labelable_segment(
                 account_id=account_id,
-                segment_id=member.segment_id,
+                segment_id=item.segment_id,
                 current_time=current_time,
             )
         except (
             ActivityLabelSegmentNotFoundError,
             ActivityLabelSegmentNotLabelableError,
         ) as exc:
-            raise BatchLabelConfirmationFailure(
-                item_index=item_index, segment_index=segment_index, reason=exc
+            raise self._batch_failure(
+                item_index=item_index, reason=exc, field_name="segmentId"
             ) from exc
+
+    @staticmethod
+    def _validate_batch_segment_version(
+        *,
+        item: SegmentLabelConfirmationItemRequest,
+        item_index: int,
+        segment: ActivityTimelineSegment,
+        current_time: datetime,
+    ) -> str:
         ended_at = segment.effective_ended_at(current_time)
         assert ended_at is not None
         version = segment_version(segment, ended_at=ended_at)
-        if member.segment_version != version:
-            raise BatchLabelConfirmationFailure(
+        if item.segment_version != version:
+            raise ActivityLabelService._batch_failure(
                 item_index=item_index,
-                segment_index=segment_index,
                 reason=ActivityLabelSegmentChangedError(),
+                field_name="segmentVersion",
             )
-        return ConfirmationTarget(segment=segment, version=version, label_id=label_id)
+        return version
 
-    async def _already_confirmed(
-        self, account_id: UUID, targets: list[ConfirmationTarget]
-    ) -> bool:
-        for target in targets:
-            confirmation = await self._label_repository.find_confirmation(
-                account_id=account_id, first_event_id=target.segment.first_event_id
-            )
-            if not target.matches(confirmation):
-                return False
-        return True
+    async def _find_batch_confirmation(
+        self, *, account_id: UUID, segment: ActivityTimelineSegment
+    ) -> ActivityLabelConfirmation | None:
+        return await self._label_repository.find_confirmation(
+            account_id=account_id,
+            first_event_id=segment.first_event_id,
+        )
 
     @staticmethod
-    def _matches_current_group(
-        requested: LabelGroupConfirmationRequest,
-        timeline: list[LabelTimelineItemResponse],
+    def _validate_batch_selection(
+        *,
+        item_index: int,
+        label_id: UUID | None,
+        segment_version: str,
+        confirmation: ActivityLabelConfirmation | None,
     ) -> bool:
-        members = [
-            (member.segment_id, member.segment_version) for member in requested.segments
-        ]
-        return any(
-            [(member.segment_id, member.segment_version) for member in item.segments]
-            == members
-            and item.group_version == requested.group_version
-            for item in timeline
-            if isinstance(item, ActivityGroupResponse)
+        if confirmation is None:
+            return False
+        accepts_selection = confirmation.accepts_batch_selection(
+            segment_version=segment_version, label_id=label_id
         )
+        if not accepts_selection:
+            raise ActivityLabelService._batch_failure(
+                item_index=item_index,
+                reason=ActivityLabelConfirmationConflictError(),
+                field_name="selection",
+            )
+        return confirmation.matches_batch_selection(
+            segment_version=segment_version, label_id=label_id
+        )
+
+    async def _validate_batch_label_availability(
+        self,
+        *,
+        account_id: UUID,
+        item_index: int,
+        label_id: UUID | None,
+        is_idempotent: bool,
+    ) -> None:
+        if label_id is None or is_idempotent:
+            return
+        label = await self._label_repository.find_active_owned(
+            account_id=account_id,
+            label_id=label_id,
+        )
+        if label is None:
+            raise self._batch_failure(
+                item_index=item_index,
+                reason=ActivityLabelUnavailableError(),
+                field_name="selection",
+            )
 
     async def _save_confirmation(
         self,

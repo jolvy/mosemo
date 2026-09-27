@@ -1,4 +1,3 @@
-from datetime import date as CalendarDate
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -63,53 +62,28 @@ class ActivityLabelConfirmationRequest(ApiRequestModel):
     )
 
 
-class LabelGroupSegmentRequest(ApiRequestModel):
-    """라벨 타임라인에서 조회한 묶음 구성원 하나입니다."""
+class SegmentLabelConfirmationItemRequest(ApiRequestModel):
+    """관찰 구간 하나에 적용할 라벨 확정 선택입니다."""
 
-    segment_id: UUID = Field(description="조회한 묶음 구성원의 구간 식별자입니다.")
+    segment_id: UUID = Field(description="확정할 관찰 구간 식별자입니다.")
     segment_version: str = Field(
         min_length=64,
         max_length=64,
         pattern=SEGMENT_VERSION_PATTERN,
-        description="조회한 묶음 구성원의 관찰 버전입니다.",
-    )
-
-
-class LabelGroupConfirmationRequest(ApiRequestModel):
-    """조회한 묶음 전체에 하나의 선택을 적용하는 요청 항목입니다."""
-
-    date: CalendarDate = Field(description="묶음을 조회한 계정 시간대의 날짜입니다.")
-    group_version: str = Field(
-        min_length=64,
-        max_length=64,
-        pattern=SEGMENT_VERSION_PATTERN,
-        description="조회한 묶음의 구성과 최신 확정 상태를 나타내는 불투명 버전입니다.",
-    )
-    segments: list[LabelGroupSegmentRequest] = Field(
-        min_length=1,
-        description="조회한 묶음의 모든 구간을 관찰 순서대로 담습니다.",
+        description="확정 대상 관찰 구간의 불투명 version입니다.",
     )
     selection: LabelSelectionRequestUnion = Field(
-        description="묶음 전체에 적용할 라벨 또는 미분류 선택입니다."
+        description="이 관찰 구간에 확정할 라벨 또는 미분류 선택입니다."
     )
 
 
 class BatchLabelConfirmationRequest(ApiRequestModel):
-    """하나 이상의 라벨 묶음을 원자적으로 확정하는 요청입니다."""
+    """여러 관찰 구간의 라벨 선택을 원자적으로 확정하는 요청입니다."""
 
-    items: list[LabelGroupConfirmationRequest] = Field(
+    items: list[SegmentLabelConfirmationItemRequest] = Field(
         min_length=1,
-        description="한 번에 확정할 묶음과 각 묶음의 선택입니다.",
+        description="한 번에 확정할 관찰 구간과 각 구간의 선택입니다.",
     )
-
-    @model_validator(mode="after")
-    def validate_unique_segments(self) -> BatchLabelConfirmationRequest:
-        segment_ids = [
-            member.segment_id for item in self.items for member in item.segments
-        ]
-        if len(segment_ids) != len(set(segment_ids)):
-            raise ValueError("a segment may occur only once in a batch")
-        return self
 
 
 class LabelSelectionResponse(ApiResponseModel):
@@ -202,19 +176,11 @@ class ConfirmedActivityLabelStateResponse(ApiResponseModel):
     )
 
 
-class LabelGroupConfirmationResult(ApiResponseModel):
-    """확정된 묶음 구성원들의 최신 상태입니다."""
-
-    segments: list[ConfirmedActivityLabelStateResponse] = Field(
-        description="요청한 순서대로 반환한 묶음 구성원의 최신 확정 상태입니다."
-    )
-
-
 class BatchLabelConfirmationResponse(ApiResponseModel):
-    """요청한 묶음 순서대로 반환한 일괄 확정 결과입니다."""
+    """요청한 순서대로 반환한 관찰 구간별 확정 결과입니다."""
 
-    items: list[LabelGroupConfirmationResult] = Field(
-        description="요청한 순서대로 반환한 묶음 확정 결과입니다."
+    items: list[ConfirmedActivityLabelStateResponse] = Field(
+        description="요청한 각 관찰 구간의 최신 확정 상태입니다."
     )
 
 

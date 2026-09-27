@@ -17,7 +17,9 @@ from mosemo.labels.schemas import (
 )
 from mosemo.labels.service import (
     ActivityAccountNotFoundError,
+    ActivityLabelConfirmationConflictError,
     ActivityLabelSegmentChangedError,
+    ActivityLabelSegmentDuplicateError,
     ActivityLabelSegmentNotFoundError,
     ActivityLabelSegmentNotLabelableError,
     ActivityLabelUnavailableError,
@@ -34,14 +36,16 @@ def _batch_failure_response(exc: BatchLabelConfirmationFailure) -> ApiException:
         ActivityLabelSegmentNotFoundError: ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
         ActivityLabelSegmentNotLabelableError: ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
         ActivityLabelSegmentChangedError: ErrorCode.ACTIVITY_SEGMENT_CHANGED,
+        ActivityLabelConfirmationConflictError: (
+            ErrorCode.ACTIVITY_LABEL_CONFIRMATION_CONFLICT
+        ),
+        ActivityLabelSegmentDuplicateError: ErrorCode.INVALID_ARGUMENT,
         ActivityLabelUnavailableError: ErrorCode.LABEL_NOT_AVAILABLE,
     }
     error_code = error_codes[type(exc.reason)]
     location: list[str | int] = ["body", "items", exc.item_index]
-    if exc.segment_index is not None:
-        location.extend(["segments", exc.segment_index])
-    elif isinstance(exc.reason, ActivityLabelSegmentChangedError):
-        location.append("segments")
+    if exc.field_name is not None:
+        location.append(exc.field_name)
     return ApiException(
         error_code,
         details=[
@@ -56,19 +60,21 @@ def _batch_failure_response(exc: BatchLabelConfirmationFailure) -> ApiException:
 
 @router.post(
     "/label-confirmations",
-    operation_id="activitiesConfirmLabelGroups",
+    operation_id="activitiesConfirmSegmentLabels",
     response_model=BatchLabelConfirmationResponse,
-    summary="라벨 묶음 일괄 확정",
+    summary="관찰 구간 라벨 일괄 확정",
     description=(
-        "라벨 타임라인에서 조회한 하나 이상의 묶음을 각자의 선택으로 "
-        "한 요청에서 확정합니다. 어느 항목이라도 유효하지 않으면 전체 요청을 적용하지 않습니다."
+        "라벨 타임라인 그룹과 관계없이 닫힌 상세 관찰 구간마다 선택을 "
+        "지정해 한 요청에서 확정합니다. 모든 항목이 유효해야 전체 요청을 적용하며, "
+        "같은 관찰 버전에 이미 다른 선택이 확정되어 있으면 충돌을 반환합니다."
     ),
-    response_description="요청한 순서대로 반환한 묶음의 최신 확정 상태입니다.",
+    response_description="요청한 구간 순서대로 반환한 최신 확정 상태입니다.",
     responses=api_error_responses(
         ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
         ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
         ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
         ErrorCode.ACTIVITY_SEGMENT_CHANGED,
+        ErrorCode.ACTIVITY_LABEL_CONFIRMATION_CONFLICT,
         ErrorCode.LABEL_NOT_AVAILABLE,
         ErrorCode.ACTIVITY_TIMELINE_BUSY,
         ErrorCode.INVALID_ARGUMENT,
@@ -82,7 +88,7 @@ def _batch_failure_response(exc: BatchLabelConfirmationFailure) -> ApiException:
         },
     ),
 )
-async def confirm_label_groups(
+async def confirm_segment_labels(
     request: BatchLabelConfirmationRequest,
     service: ActivityLabelServiceDep,
     authenticated_account: AuthenticatedAccountDep,
