@@ -12,6 +12,7 @@ from mosemo.accounts.repository import AccountRepository
 from mosemo.accounts.service import AccountService
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import ActivityService
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.auth.context import AuthenticatedAccount
 from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.oauth_client import OAuthClient
@@ -144,16 +145,28 @@ LabelRepositoryDep = Annotated[
 ]
 
 
+def get_label_catalog_repository(session: SessionDep) -> LabelCatalogRepository:
+    return LabelCatalogRepository(session)
+
+
+LabelCatalogRepositoryDep = Annotated[
+    LabelCatalogRepository,
+    Depends(get_label_catalog_repository),
+]
+
+
 def get_activity_label_service(
     session: SessionDep,
     activity_repository: ActivityRepositoryDep,
     label_repository: LabelRepositoryDep,
+    label_catalog_repository: LabelCatalogRepositoryDep,
     clock: ClockDep,
 ) -> ActivityLabelService:
     return ActivityLabelService(
         session=session,
         activity_repository=activity_repository,
         label_repository=label_repository,
+        label_catalog_repository=label_catalog_repository,
         clock=clock,
     )
 
@@ -217,7 +230,7 @@ def get_auth_service(
     session: SessionDep,
     account_repository: AccountRepositoryDep,
     native_auth_code_repository: NativeAuthCodeRepositoryDep,
-    label_repository: LabelRepositoryDep,
+    label_catalog_repository: LabelCatalogRepositoryDep,
     get_oauth_client: OAuthClientResolverDep,
     token_service: TokenServiceDep,
     config: ConfigDep,
@@ -227,7 +240,7 @@ def get_auth_service(
         session=session,
         account_repository=account_repository,
         native_auth_code_repository=native_auth_code_repository,
-        label_repository=label_repository,
+        label_catalog_repository=label_catalog_repository,
         token_service=token_service,
         config=config.auth,
     )

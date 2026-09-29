@@ -1,5 +1,7 @@
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from unittest.mock import create_autospec
+from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 import httpx2
@@ -10,13 +12,16 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from mosemo.accounts.models import AccountProvider
 from mosemo.accounts.repository import AccountRepository
+from mosemo.activity_labels.catalog.models import Label
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.api import v1_api_router
+from mosemo.auth.kakao_client import KakaoClient
+from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config, get_config
 from mosemo.database import get_session
+from mosemo.dependencies import get_kakao_client, get_oauth_client_resolver
 from mosemo.exception_handlers import register_exception_handlers
-from mosemo.labels.models import Label
-from mosemo.labels.repository import LabelRepository
 
 
 @pytest_asyncio.fixture
@@ -44,6 +49,15 @@ async def label_catalog_client(
                     yield session
 
             app.dependency_overrides[get_session] = override_session
+            oauth_client = create_autospec(KakaoClient, instance=True)
+            oauth_client.get_user_id.return_value = f"catalog-login-{uuid4()}"
+            oauth_client.create_authorization_url.return_value = (
+                "https://kauth.kakao.com/oauth/authorize"
+            )
+            app.dependency_overrides[get_kakao_client] = lambda: oauth_client
+            app.dependency_overrides[get_oauth_client_resolver] = lambda: (
+                lambda provider: oauth_client
+            )
             try:
                 async with httpx2.AsyncClient(
                     transport=httpx2.ASGITransport(app=app),
@@ -55,6 +69,60 @@ async def label_catalog_client(
                     await transaction.rollback()
     finally:
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_http_login_prepares_defaults_once_and_preserves_catalog(
+    label_catalog_client: tuple[httpx2.AsyncClient, async_sessionmaker[AsyncSession]],
+) -> None:
+    client, _ = label_catalog_client
+    verifier = "A" * 43
+    catalogs = []
+    for _ in range(2):
+        login = await client.get(
+            "/api/v1/auth/kakao/login",
+            params={
+                "code_challenge": create_code_challenge(verifier),
+                "code_challenge_method": "S256",
+            },
+            follow_redirects=False,
+        )
+        assert login.status_code == 302
+        callback = await client.get(
+            "/api/v1/auth/kakao/callback",
+            params={
+                "code": "provider-code",
+                "state": client.cookies.get("kakao_oauth_state"),
+            },
+            follow_redirects=False,
+        )
+        assert callback.status_code == 302
+        code = parse_qs(urlsplit(callback.headers["location"]).query)["code"][0]
+        token = await client.post(
+            "/api/v1/auth/token",
+            json={
+                "grantType": "authorization_code",
+                "code": code,
+                "codeVerifier": verifier,
+            },
+        )
+        assert token.status_code == 200
+        catalog = await client.get(
+            "/api/v1/labels",
+            headers={"Authorization": f"Bearer {token.json()['accessToken']}"},
+        )
+        assert catalog.status_code == 200
+        catalogs.append(catalog.json())
+
+    assert [label["displayName"] for label in catalogs[0]] == [
+        "소통",
+        "쇼핑",
+        "여가",
+        "코딩",
+        "학습",
+    ]
+    assert all(label["archivedAt"] is None for label in catalogs[0])
+    assert catalogs[1] == catalogs[0]
 
 
 @pytest.mark.asyncio
@@ -76,7 +144,9 @@ async def test_label_catalog_returns_owned_active_and_archived_labels(
             provider_subject=f"label-catalog-{uuid4()}",
         )
         await session.flush()
-        defaults = LabelRepository(session).create_defaults(account_id=owner.account_id)
+        defaults = LabelCatalogRepository(session).create_defaults(
+            account_id=owner.account_id
+        )
         defaults[0].created_at = created_at
         defaults[0].updated_at = updated_at
         defaults[0].archived_at = archived_at
