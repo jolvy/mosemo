@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from mosemo.accounts import models as accounts_models  # noqa: F401
 from mosemo.activities import models as activities_models  # noqa: F401
 from mosemo.activity_labels.catalog import models as label_catalog_models  # noqa: F401
+from mosemo.activity_labels.proposals import (
+    models as label_proposal_models,  # noqa: F401
+)
 from mosemo.auth import models as auth_models  # noqa: F401
 from mosemo.config import get_config
 from mosemo.database import Base

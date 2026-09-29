@@ -13,6 +13,7 @@ from mosemo.accounts.service import AccountService
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import ActivityService
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
+from mosemo.activity_labels.proposals.repository import ProposalRepository
 from mosemo.auth.context import AuthenticatedAccount
 from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.oauth_client import OAuthClient
@@ -155,11 +156,22 @@ LabelCatalogRepositoryDep = Annotated[
 ]
 
 
+def get_proposal_repository(session: SessionDep) -> ProposalRepository:
+    return ProposalRepository(session)
+
+
+ProposalRepositoryDep = Annotated[
+    ProposalRepository,
+    Depends(get_proposal_repository),
+]
+
+
 def get_activity_label_service(
     session: SessionDep,
     activity_repository: ActivityRepositoryDep,
     label_repository: LabelRepositoryDep,
     label_catalog_repository: LabelCatalogRepositoryDep,
+    proposal_repository: ProposalRepositoryDep,
     clock: ClockDep,
 ) -> ActivityLabelService:
     return ActivityLabelService(
@@ -167,6 +179,7 @@ def get_activity_label_service(
         activity_repository=activity_repository,
         label_repository=label_repository,
         label_catalog_repository=label_catalog_repository,
+        proposal_repository=proposal_repository,
         clock=clock,
     )
 

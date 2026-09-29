@@ -58,7 +58,7 @@ cmd = "fastapi dev"
 envfile = [".env", ".env.local"]
 
 [tool.poe.tasks.label-worker]
-cmd = "python -m mosemo.labels.worker"
+cmd = "python -m mosemo.activity_labels.proposals.worker"
 envfile = [".env", ".env.local"]
 help = "Run the label proposal worker"
 

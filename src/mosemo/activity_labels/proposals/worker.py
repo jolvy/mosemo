@@ -1,10 +1,13 @@
 import argparse
 import asyncio
 
+from mosemo.activity_labels.proposals.processing import (
+    ProposalProcessor,
+    ProposalScanner,
+)
+from mosemo.activity_labels.proposals.suggestions import PydanticAILabelSuggester
 from mosemo.config import get_config
 from mosemo.database import SessionFactory, engine
-from mosemo.labels.proposals import ProposalProcessor, ProposalScanner
-from mosemo.labels.suggestions import PydanticAILabelSuggester
 
 
 async def run(*, once: bool, poll_seconds: float) -> None:

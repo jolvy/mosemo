@@ -4,7 +4,7 @@ import pytest
 from pydantic_ai import UnexpectedModelBehavior
 from pydantic_ai.models.test import TestModel
 
-from mosemo.labels.suggestions import (
+from mosemo.activity_labels.proposals.suggestions import (
     LabelCandidate,
     PydanticAILabelSuggester,
     SuggestionInput,

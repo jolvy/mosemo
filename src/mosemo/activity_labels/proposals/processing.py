@@ -16,17 +16,16 @@ from mosemo.activities.service import (
     ActivityTimelineBusyError,
     acquire_activity_timeline_lock,
 )
+from mosemo.activities.versions import segment_version
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
-from mosemo.labels.models import (
-    ActivityLabelConfirmation,
+from mosemo.activity_labels.proposals.models import (
     ActivityLabelProposal,
     ActivityLabelProposalStatus,
     ProposalClaimResult,
     ProposalCompletion,
 )
-from mosemo.labels.repository import LabelRepository
-from mosemo.labels.service import segment_version
-from mosemo.labels.suggestions import (
+from mosemo.activity_labels.proposals.repository import ProposalRepository
+from mosemo.activity_labels.proposals.suggestions import (
     ConfirmedExample,
     LabelCandidate,
     LabelSuggester,
@@ -34,6 +33,8 @@ from mosemo.labels.suggestions import (
     SuggestionResult,
     summarize_context,
 )
+from mosemo.labels.models import ActivityLabelConfirmation
+from mosemo.labels.repository import LabelRepository
 
 MAX_EXAMPLES = 8
 SCAN_PAGE_SIZE = 100
@@ -250,7 +251,7 @@ class ProposalProcessor:
             )
             if confirmation is not None and confirmation.segment_version == version:
                 raise NoProposalWorkError
-            proposal = await label_repository.find_proposal(
+            proposal = await ProposalRepository(session).find_proposal(
                 account_id=account_id,
                 first_event_id=first_event_id,
                 segment_version=version,

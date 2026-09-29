@@ -19,12 +19,14 @@ from mosemo.activities.service import (
     acquire_activity_timeline_lock,
     timeline_date_window,
 )
+from mosemo.activities.versions import segment_version
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
-from mosemo.labels.models import (
-    ActivityLabelConfirmation,
+from mosemo.activity_labels.proposals.models import (
     ActivityLabelProposal,
     ActivityLabelProposalStatus,
 )
+from mosemo.activity_labels.proposals.repository import ProposalRepository
+from mosemo.labels.models import ActivityLabelConfirmation
 from mosemo.labels.repository import LabelRepository
 from mosemo.labels.schemas import (
     ActivityGroupResponse,
@@ -99,30 +101,6 @@ class ConfirmationTarget:
 activity_context_adapter = TypeAdapter(ActivityContext)
 
 
-def segment_version(
-    segment: ActivityTimelineSegment,
-    *,
-    ended_at: datetime,
-) -> str:
-    assert segment.last_event_id is not None
-    assert segment.last_observed_at is not None
-    assert segment.context is not None
-    canonical = json.dumps(
-        {
-            "context": segment.context,
-            "endedAt": ended_at.astimezone(UTC).isoformat(),
-            "firstEventId": str(segment.first_event_id),
-            "lastEventId": str(segment.last_event_id),
-            "lastObservedAt": segment.last_observed_at.astimezone(UTC).isoformat(),
-            "startedAt": segment.started_at.astimezone(UTC).isoformat(),
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-    return sha256(canonical.encode("utf-8")).hexdigest()
-
-
 def group_member_version(
     *,
     segment_id: UUID,
@@ -150,12 +128,14 @@ class ActivityLabelService:
         activity_repository: ActivityRepository,
         label_repository: LabelRepository,
         label_catalog_repository: LabelCatalogRepository,
+        proposal_repository: ProposalRepository,
         clock: Callable[[], datetime],
     ) -> None:
         self._session = session
         self._activity_repository = activity_repository
         self._label_repository = label_repository
         self._label_catalog_repository = label_catalog_repository
+        self._proposal_repository = proposal_repository
         self._clock = clock
 
     async def get_timeline(
@@ -370,7 +350,7 @@ class ActivityLabelService:
                 account_id=account_id,
                 first_event_id=segment.first_event_id,
             )
-            proposal = await self._label_repository.find_proposal(
+            proposal = await self._proposal_repository.find_proposal(
                 account_id=account_id,
                 first_event_id=segment.first_event_id,
                 segment_version=version,
@@ -652,7 +632,7 @@ class ActivityLabelService:
             )
 
         await self._session.flush()
-        proposal = await self._label_repository.find_proposal(
+        proposal = await self._proposal_repository.find_proposal(
             account_id=account_id,
             first_event_id=segment.first_event_id,
             segment_version=target.version,
