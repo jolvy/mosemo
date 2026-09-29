@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
+from mosemo.activity_labels.catalog.models import Label
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.models import NativeAuthCode
 from mosemo.auth.pkce import create_code_challenge
@@ -18,8 +20,6 @@ from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.service import AuthService, InvalidAuthorizationCodeError
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config
-from mosemo.labels.models import Label
-from mosemo.labels.repository import LabelRepository
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
@@ -35,7 +35,7 @@ def make_service(
         session=session,
         account_repository=AccountRepository(session),
         native_auth_code_repository=NativeAuthCodeRepository(session),
-        label_repository=LabelRepository(session),
+        label_catalog_repository=LabelCatalogRepository(session),
         token_service=TokenService(config.auth),
         config=config.auth,
     )
@@ -60,7 +60,7 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
         session=integration_session,
         account_repository=account_repository,
         native_auth_code_repository=auth_code_repository,
-        label_repository=LabelRepository(integration_session),
+        label_catalog_repository=LabelCatalogRepository(integration_session),
         token_service=TokenService(config.auth),
         config=config.auth,
     )
@@ -95,7 +95,7 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
         session=integration_session,
         account_repository=AccountRepository(integration_session),
         native_auth_code_repository=NativeAuthCodeRepository(integration_session),
-        label_repository=LabelRepository(integration_session),
+        label_catalog_repository=LabelCatalogRepository(integration_session),
         token_service=TokenService(config.auth),
         config=config.auth,
     )
@@ -178,7 +178,7 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
                 session=session,
                 account_repository=AccountRepository(session),
                 native_auth_code_repository=auth_code_repository,
-                label_repository=LabelRepository(session),
+                label_catalog_repository=LabelCatalogRepository(session),
                 token_service=TokenService(config.auth),
                 config=config.auth,
             )

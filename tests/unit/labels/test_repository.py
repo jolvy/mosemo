@@ -3,13 +3,13 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.labels.models import DEFAULT_LABEL_NAMES
-from mosemo.labels.repository import LabelRepository
+from mosemo.activity_labels.catalog.models import DEFAULT_LABEL_NAMES
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 
 
 def test_create_defaults_adds_the_catalog_for_an_account() -> None:
     session = create_autospec(AsyncSession, instance=True)
-    repository = LabelRepository(session)
+    repository = LabelCatalogRepository(session)
     account_id = uuid4()
 
     labels = repository.create_defaults(account_id=account_id)

@@ -19,6 +19,7 @@ from mosemo.activities.service import (
     acquire_activity_timeline_lock,
     timeline_date_window,
 )
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.labels.models import (
     ActivityLabelConfirmation,
     ActivityLabelProposal,
@@ -148,11 +149,13 @@ class ActivityLabelService:
         session: AsyncSession,
         activity_repository: ActivityRepository,
         label_repository: LabelRepository,
+        label_catalog_repository: LabelCatalogRepository,
         clock: Callable[[], datetime],
     ) -> None:
         self._session = session
         self._activity_repository = activity_repository
         self._label_repository = label_repository
+        self._label_catalog_repository = label_catalog_repository
         self._clock = clock
 
     async def get_timeline(
@@ -412,7 +415,7 @@ class ActivityLabelService:
 
             label_id = getattr(request.selection, "label_id", None)
             if label_id is not None:
-                label = await self._label_repository.find_active_owned(
+                label = await self._label_catalog_repository.find_active_owned(
                     account_id=account_id,
                     label_id=label_id,
                 )
@@ -609,7 +612,7 @@ class ActivityLabelService:
     ) -> None:
         if label_id is None or is_idempotent:
             return
-        label = await self._label_repository.find_active_owned(
+        label = await self._label_catalog_repository.find_active_owned(
             account_id=account_id,
             label_id=label_id,
         )

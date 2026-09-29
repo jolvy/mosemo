@@ -1,13 +1,13 @@
 from fastapi import APIRouter
 
 from mosemo.accounts.service import AccountNotFoundError
+from mosemo.activity_labels.schemas import LabelResponse
 from mosemo.dependencies import (
     AccountServiceDep,
     AuthenticatedAccountDep,
-    LabelRepositoryDep,
+    LabelCatalogRepositoryDep,
 )
 from mosemo.exceptions import ApiException, ErrorCode
-from mosemo.labels.schemas import LabelResponse
 from mosemo.openapi import api_error_responses
 
 router = APIRouter(prefix="/labels")
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/labels")
 async def list_labels(
     authenticated_account: AuthenticatedAccountDep,
     account_service: AccountServiceDep,
-    repository: LabelRepositoryDep,
+    repository: LabelCatalogRepositoryDep,
 ) -> list[LabelResponse]:
     account_id = authenticated_account.account_id
     try:

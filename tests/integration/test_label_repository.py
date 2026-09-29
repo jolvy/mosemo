@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import AccountProvider
 from mosemo.accounts.repository import AccountRepository
-from mosemo.labels.models import Label
-from mosemo.labels.repository import LabelRepository
+from mosemo.activity_labels.catalog.models import Label
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 
 
 @pytest.mark.asyncio
@@ -26,7 +26,7 @@ async def test_label_constraints_are_account_scoped_and_cascade(
     )
     await integration_session.flush()
 
-    label_repository = LabelRepository(integration_session)
+    label_repository = LabelCatalogRepository(integration_session)
     first_labels = label_repository.create_defaults(
         account_id=first_account.account_id,
     )

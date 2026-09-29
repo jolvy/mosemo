@@ -1,1 +1,1 @@
-"""Label catalog domain objects."""
+"""Activity label confirmation and proposal processing."""

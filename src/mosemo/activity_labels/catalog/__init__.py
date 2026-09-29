@@ -1,0 +1,1 @@
+"""Account-owned label catalog."""

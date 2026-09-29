@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.auth.models import NativeAuthCode
 from mosemo.auth.oauth_client import OAuthClient, OAuthClientError
 from mosemo.auth.pkce import create_code_challenge
@@ -20,7 +21,6 @@ from mosemo.auth.service import (
 )
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config
-from mosemo.labels.repository import LabelRepository
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
@@ -34,7 +34,7 @@ def make_service(config: Config):
         NativeAuthCodeRepository,
         instance=True,
     )
-    label_repository = create_autospec(LabelRepository, instance=True)
+    label_catalog_repository = create_autospec(LabelCatalogRepository, instance=True)
     token_service = create_autospec(TokenService, instance=True)
     get_oauth_client = Mock(return_value=oauth_client)
     service = AuthService(
@@ -42,7 +42,7 @@ def make_service(config: Config):
         session=session,
         account_repository=account_repository,
         native_auth_code_repository=auth_code_repository,
-        label_repository=label_repository,
+        label_catalog_repository=label_catalog_repository,
         token_service=token_service,
         config=config.auth,
     )
@@ -52,7 +52,7 @@ def make_service(config: Config):
         session,
         account_repository,
         auth_code_repository,
-        label_repository,
+        label_catalog_repository,
         token_service,
     )
 
@@ -67,7 +67,7 @@ def test_login_updates_existing_account_and_stores_code(
         session,
         account_repository,
         auth_code_repository,
-        label_repository,
+        label_catalog_repository,
         _,
     ) = make_service(config)
     oauth_client = get_oauth_client.return_value
@@ -100,7 +100,7 @@ def test_login_updates_existing_account_and_stores_code(
     )
     assert existing_account.last_authenticated_at >= before
     account_repository.save.assert_not_called()
-    label_repository.create_defaults.assert_not_called()
+    label_catalog_repository.create_defaults.assert_not_called()
     session.begin.assert_called_once_with()
     session.flush.assert_not_awaited()
     session.commit.assert_not_awaited()
@@ -124,7 +124,7 @@ def test_login_flushes_new_account_before_storing_code(
         session,
         account_repository,
         auth_code_repository,
-        label_repository,
+        label_catalog_repository,
         _,
     ) = make_service(config)
     oauth_client = get_oauth_client.return_value
@@ -155,7 +155,7 @@ def test_login_flushes_new_account_before_storing_code(
         provider=AccountProvider.KAKAO,
         provider_subject="123456789",
     )
-    label_repository.create_defaults.assert_called_once_with(
+    label_catalog_repository.create_defaults.assert_called_once_with(
         account_id=account_id,
     )
     session.begin.assert_called_once_with()
