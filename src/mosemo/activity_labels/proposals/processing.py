@@ -18,6 +18,8 @@ from mosemo.activities.service import (
 )
 from mosemo.activities.versions import segment_version
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
+from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
+from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.proposals.models import (
     ActivityLabelProposal,
     ActivityLabelProposalStatus,
@@ -33,8 +35,6 @@ from mosemo.activity_labels.proposals.suggestions import (
     SuggestionResult,
     summarize_context,
 )
-from mosemo.labels.models import ActivityLabelConfirmation
-from mosemo.labels.repository import LabelRepository
 
 MAX_EXAMPLES = 8
 SCAN_PAGE_SIZE = 100
@@ -239,14 +239,14 @@ class ProposalProcessor:
         async with self._session_factory() as session, session.begin():
             await acquire_activity_timeline_lock(session, account_id=account_id)
             activity_repository = ActivityRepository(session)
-            label_repository = LabelRepository(session)
+            confirmation_repository = ConfirmationRepository(session)
             segment = await activity_repository.find_account_segment_by_first_event(
                 account_id=account_id, first_event_id=first_event_id
             )
             version = _current_version(segment, now=now)
             if segment is None or version is None:
                 raise NoProposalWorkError
-            confirmation = await label_repository.find_confirmation(
+            confirmation = await confirmation_repository.find_confirmation(
                 account_id=account_id, first_event_id=first_event_id
             )
             if confirmation is not None and confirmation.segment_version == version:
@@ -297,13 +297,13 @@ class ProposalProcessor:
             proposal = await session.get(ActivityLabelProposal, claim.proposal_id)
             if proposal is None or not proposal.owns_attempt(claim.lease_token):
                 return
-            label_repository = LabelRepository(session)
+            confirmation_repository = ConfirmationRepository(session)
             segment = await ActivityRepository(
                 session
             ).find_account_segment_by_first_event(
                 account_id=account_id, first_event_id=first_event_id
             )
-            confirmation = await label_repository.find_confirmation(
+            confirmation = await confirmation_repository.find_confirmation(
                 account_id=account_id, first_event_id=first_event_id
             )
             if _current_version(segment, now=now) != claim.segment_version or (
