@@ -19,6 +19,7 @@ from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.service import activity_timeline_lock_key
 from mosemo.activity_labels.catalog.models import Label
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
+from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
 from mosemo.activity_labels.proposals.models import (
     ActivityLabelProposal,
     ActivityLabelProposalStatus,
@@ -35,6 +36,7 @@ from mosemo.activity_labels.proposals.suggestions import (
     SuggestionInput,
     SuggestionResult,
 )
+from mosemo.activity_labels.schemas import SEGMENT_VERSION_PATTERN
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config, get_config
@@ -42,8 +44,6 @@ from mosemo.database import get_session
 from mosemo.dependencies import get_clock
 from mosemo.devices.models import Device
 from mosemo.exception_handlers import register_exception_handlers
-from mosemo.labels.models import ActivityLabelConfirmation
-from mosemo.labels.schemas import SEGMENT_VERSION_PATTERN
 
 
 def detailed_context(name: str) -> dict[str, object]:
@@ -1366,6 +1366,23 @@ async def test_batch_lock_contention_returns_retry_after(
                 text("SELECT pg_advisory_xact_lock(:key)"),
                 {"key": activity_timeline_lock_key(account_id)},
             )
+            duplicate_item = {
+                "segmentId": str(uuid4()),
+                "segmentVersion": "0" * 64,
+                "selection": {"kind": "unclassified"},
+            }
+            duplicate = await client.post(
+                "/api/v1/activities/label-confirmations",
+                headers=headers,
+                json={"items": [duplicate_item, duplicate_item]},
+            )
+            assert duplicate.status_code == 422
+            assert duplicate.json()["error"]["details"][0]["loc"] == [
+                "body",
+                "items",
+                1,
+                "segmentId",
+            ]
             response = await client.post(
                 "/api/v1/activities/label-confirmations",
                 headers=headers,
@@ -1619,6 +1636,58 @@ async def test_worker_proposal_is_visible_but_not_confirmed_over_http(
                 delete(Account).where(Account.account_id == account_id)
             )
             await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_user_can_confirm_unclassified_after_proposal_failure(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, _, _ = await create_account_with_labels(session)
+        await session.commit()
+    headers = auth_headers(config, account_id)
+    try:
+        event_id, segment_id, version = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        processor = ProposalProcessor(
+            session_factory,
+            suggester=RecoveringSuggester(),
+            now=lambda: datetime(2026, 9, 14, 1, tzinfo=UTC),
+        )
+        assert await processor.process_candidate(account_id, event_id)
+
+        confirmed = await client.put(
+            f"/api/v1/activities/segments/{segment_id}/label-confirmation",
+            headers=headers,
+            json={
+                "segmentVersion": version,
+                "selection": {"kind": "unclassified"},
+            },
+        )
+        assert confirmed.status_code == 200
+        assert confirmed.json()["state"] == "confirmed"
+        assert confirmed.json()["selection"] == {"kind": "unclassified"}
+        assert confirmed.json()["proposal"] is None
+        state = await client.get(
+            f"/api/v1/activities/segments/{segment_id}/label-state", headers=headers
+        )
+        assert state.json() == confirmed.json()
+    finally:
+        async with session_factory() as session, session.begin():
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
 
 
 @pytest.mark.asyncio

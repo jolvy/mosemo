@@ -13,7 +13,9 @@ from mosemo.accounts.service import AccountService
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import ActivityService
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
+from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.proposals.repository import ProposalRepository
+from mosemo.activity_labels.service import ActivityLabelService
 from mosemo.auth.context import AuthenticatedAccount
 from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.oauth_client import OAuthClient
@@ -25,8 +27,6 @@ from mosemo.database import get_session
 from mosemo.devices.repository import DeviceRepository
 from mosemo.devices.service import DeviceService
 from mosemo.exceptions import ApiException, ErrorCode
-from mosemo.labels.repository import LabelRepository
-from mosemo.labels.service import ActivityLabelService
 
 
 def get_http_client(request: Request) -> httpx2.AsyncClient:
@@ -136,13 +136,13 @@ NativeAuthCodeRepositoryDep = Annotated[
 ]
 
 
-def get_label_repository(session: SessionDep) -> LabelRepository:
-    return LabelRepository(session)
+def get_confirmation_repository(session: SessionDep) -> ConfirmationRepository:
+    return ConfirmationRepository(session)
 
 
-LabelRepositoryDep = Annotated[
-    LabelRepository,
-    Depends(get_label_repository),
+ConfirmationRepositoryDep = Annotated[
+    ConfirmationRepository,
+    Depends(get_confirmation_repository),
 ]
 
 
@@ -169,7 +169,7 @@ ProposalRepositoryDep = Annotated[
 def get_activity_label_service(
     session: SessionDep,
     activity_repository: ActivityRepositoryDep,
-    label_repository: LabelRepositoryDep,
+    confirmation_repository: ConfirmationRepositoryDep,
     label_catalog_repository: LabelCatalogRepositoryDep,
     proposal_repository: ProposalRepositoryDep,
     clock: ClockDep,
@@ -177,7 +177,7 @@ def get_activity_label_service(
     return ActivityLabelService(
         session=session,
         activity_repository=activity_repository,
-        label_repository=label_repository,
+        confirmation_repository=confirmation_repository,
         label_catalog_repository=label_catalog_repository,
         proposal_repository=proposal_repository,
         clock=clock,

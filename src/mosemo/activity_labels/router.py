@@ -4,19 +4,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, status
 
-from mosemo.activities.service import ActivityTimelineBusyError
-from mosemo.dependencies import ActivityLabelServiceDep, AuthenticatedAccountDep
-from mosemo.exceptions import ApiException, ErrorCode
-from mosemo.labels.schemas import (
-    ActivityLabelConfirmationRequest,
-    ActivityLabelStateResponse,
-    BatchLabelConfirmationRequest,
-    BatchLabelConfirmationResponse,
-    ConfirmedActivityLabelStateResponse,
-    LabelTimelineItemResponse,
-)
-from mosemo.labels.service import (
+from mosemo.activities.service import (
     ActivityAccountNotFoundError,
+    ActivityTimelineBusyError,
+)
+from mosemo.activity_labels.confirmations.service import (
     ActivityLabelConfirmationConflictError,
     ActivityLabelSegmentChangedError,
     ActivityLabelSegmentDuplicateError,
@@ -25,6 +17,16 @@ from mosemo.labels.service import (
     ActivityLabelUnavailableError,
     BatchLabelConfirmationFailure,
 )
+from mosemo.activity_labels.schemas import (
+    ActivityLabelConfirmationRequest,
+    ActivityLabelStateResponse,
+    BatchLabelConfirmationRequest,
+    BatchLabelConfirmationResponse,
+    ConfirmedActivityLabelStateResponse,
+    LabelTimelineItemResponse,
+)
+from mosemo.dependencies import ActivityLabelServiceDep, AuthenticatedAccountDep
+from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.openapi import api_error_responses
 from mosemo.schemas import ValidationDetail
 
