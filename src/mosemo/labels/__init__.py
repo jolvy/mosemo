@@ -1,1 +1,1 @@
-"""Activity label confirmation and proposal processing."""
+"""Activity label confirmation and composed reads."""

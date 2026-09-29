@@ -19,6 +19,22 @@ from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.service import activity_timeline_lock_key
 from mosemo.activity_labels.catalog.models import Label
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
+from mosemo.activity_labels.proposals.models import (
+    ActivityLabelProposal,
+    ActivityLabelProposalStatus,
+)
+from mosemo.activity_labels.proposals.processing import (
+    NoProposalWorkError,
+    ProposalProcessor,
+    ProposalScanner,
+    RecentConfirmedExampleRetriever,
+)
+from mosemo.activity_labels.proposals.suggestions import (
+    ConfirmedExample,
+    LabelSuggester,
+    SuggestionInput,
+    SuggestionResult,
+)
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config, get_config
@@ -26,24 +42,8 @@ from mosemo.database import get_session
 from mosemo.dependencies import get_clock
 from mosemo.devices.models import Device
 from mosemo.exception_handlers import register_exception_handlers
-from mosemo.labels.models import (
-    ActivityLabelConfirmation,
-    ActivityLabelProposal,
-    ActivityLabelProposalStatus,
-)
-from mosemo.labels.proposals import (
-    NoProposalWorkError,
-    ProposalProcessor,
-    ProposalScanner,
-    RecentConfirmedExampleRetriever,
-)
+from mosemo.labels.models import ActivityLabelConfirmation
 from mosemo.labels.schemas import SEGMENT_VERSION_PATTERN
-from mosemo.labels.suggestions import (
-    ConfirmedExample,
-    LabelSuggester,
-    SuggestionInput,
-    SuggestionResult,
-)
 
 
 def detailed_context(name: str) -> dict[str, object]:
@@ -219,6 +219,89 @@ async def label_api_client(
     ) as client:
         yield client, session_factory, app
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_known_segment_version_survives_proposal_and_confirmation(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, label_id, _ = await create_account_with_labels(session)
+        await session.commit()
+    headers = auth_headers(config, account_id)
+    # Captured from the pre-relocation implementation for this fixed observation.
+    expected_version = (
+        "2f8b6cd2456ac93d7acb7c1279860b144f49dac1aefad62f374b9169f425409b"
+    )
+    try:
+        observation = activity_request(
+            device_id=device.device_id,
+            sequence=1,
+            observed_at="2026-09-14T00:00:00Z",
+            context=detailed_context("편집기"),
+        )
+        observation["eventId"] = "00000000-0000-4000-8000-000000000047"
+        uploaded = await client.post(
+            "/api/v1/activities", headers=headers, json=observation
+        )
+        assert uploaded.status_code == 201
+        closed = await client.post(
+            "/api/v1/activities",
+            headers=headers,
+            json=state_change_request(
+                device_id=device.device_id,
+                sequence=2,
+                observed_at="2026-09-14T00:00:30Z",
+            ),
+        )
+        assert closed.status_code == 201
+        timeline = await client.get(
+            "/api/v1/activities/timeline?date=2026-09-14", headers=headers
+        )
+        assert timeline.status_code == 200
+        segment_id = next(
+            item["segmentId"]
+            for item in timeline.json()
+            if item.get("context", {}).get("kind") == "detailed"
+        )
+        state_url = f"/api/v1/activities/segments/{segment_id}/label-state"
+        before = await client.get(state_url, headers=headers)
+        assert before.status_code == 200
+        assert before.json()["segmentVersion"] == expected_version
+
+        processor = ProposalProcessor(
+            session_factory, suggester=FixedSuggester(label_id)
+        )
+        scanner = ProposalScanner(session_factory, processor)
+        assert await scanner.run_once() == 1
+        proposed = await client.get(state_url, headers=headers)
+        assert proposed.status_code == 200
+        assert proposed.json()["segmentVersion"] == expected_version
+        assert proposed.json()["state"] == "pending"
+        assert proposed.json()["proposal"]["status"] == "ready"
+
+        confirmed = await client.put(
+            f"/api/v1/activities/segments/{segment_id}/label-confirmation",
+            headers=headers,
+            json={
+                "segmentVersion": expected_version,
+                "selection": {"kind": "label", "labelId": str(label_id)},
+            },
+        )
+        assert confirmed.status_code == 200
+        assert confirmed.json()["segmentVersion"] == expected_version
+        assert confirmed.json()["state"] == "confirmed"
+        assert confirmed.json()["proposal"]["status"] == "ready"
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
 
 
 @pytest.mark.asyncio

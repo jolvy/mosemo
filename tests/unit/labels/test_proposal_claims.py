@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from mosemo.labels.models import (
+from mosemo.activity_labels.proposals.models import (
     ActivityLabelProposal,
     ActivityLabelProposalStatus,
     ProposalClaimResult,
