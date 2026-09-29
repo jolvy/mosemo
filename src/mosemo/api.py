@@ -2,10 +2,10 @@ from fastapi import APIRouter
 
 from mosemo.accounts.router import router as accounts_router
 from mosemo.activities.router import router as activities_router
+from mosemo.activity_labels.catalog.router import router as label_catalog_router
 from mosemo.auth.router import router as auth_router
 from mosemo.devices.router import router as devices_router
 from mosemo.exceptions import ErrorCode
-from mosemo.labels.catalog_router import router as label_catalog_router
 from mosemo.labels.router import router as labels_router
 from mosemo.openapi import api_error_responses
 

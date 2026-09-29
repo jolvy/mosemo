@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.service import activity_timeline_lock_key
+from mosemo.activity_labels.catalog.models import Label
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config, get_config
@@ -28,7 +30,6 @@ from mosemo.labels.models import (
     ActivityLabelConfirmation,
     ActivityLabelProposal,
     ActivityLabelProposalStatus,
-    Label,
 )
 from mosemo.labels.proposals import (
     NoProposalWorkError,
@@ -36,7 +37,6 @@ from mosemo.labels.proposals import (
     ProposalScanner,
     RecentConfirmedExampleRetriever,
 )
-from mosemo.labels.repository import LabelRepository
 from mosemo.labels.schemas import SEGMENT_VERSION_PATTERN
 from mosemo.labels.suggestions import (
     ConfirmedExample,
@@ -186,7 +186,9 @@ async def create_account_with_labels(
     device = Device(account_id=account.account_id, idempotency_key=uuid4())
     session.add(device)
     await session.flush()
-    labels = LabelRepository(session).create_defaults(account_id=account.account_id)
+    labels = LabelCatalogRepository(session).create_defaults(
+        account_id=account.account_id
+    )
     await session.flush()
     return account.account_id, device, labels[0].label_id, labels[1].label_id
 
@@ -3459,3 +3461,235 @@ async def test_projection_version_survives_same_result_recalculation(
                 delete(Account).where(Account.account_id == account_id)
             )
             await session.commit()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("batch", [False, True])
+@pytest.mark.parametrize("unavailable", ["foreign", "archived"])
+async def test_new_label_selection_rejects_foreign_and_archived_catalog_labels(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+    batch: bool,
+    unavailable: str,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, own_label_id, _ = await create_account_with_labels(session)
+        other_id, _, foreign_label_id, _ = await create_account_with_labels(session)
+        if unavailable == "archived":
+            label = await session.get(Label, own_label_id)
+            assert label is not None
+            label.archived_at = datetime.now(UTC)
+        await session.commit()
+    headers = auth_headers(config, account_id)
+    label_id = foreign_label_id if unavailable == "foreign" else own_label_id
+    try:
+        _, segment_id, version = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        selection = {"kind": "label", "labelId": str(label_id)}
+        if batch:
+            response = await client.post(
+                "/api/v1/activities/label-confirmations",
+                headers=headers,
+                json={
+                    "items": [
+                        {
+                            "segmentId": segment_id,
+                            "segmentVersion": version,
+                            "selection": selection,
+                        }
+                    ]
+                },
+            )
+        else:
+            response = await client.put(
+                f"/api/v1/activities/segments/{segment_id}/label-confirmation",
+                headers=headers,
+                json={"segmentVersion": version, "selection": selection},
+            )
+        assert response.status_code == 404
+        assert response.json()["error"]["status"] == "LABEL_NOT_AVAILABLE"
+        state = await client.get(
+            f"/api/v1/activities/segments/{segment_id}/label-state", headers=headers
+        )
+        assert state.status_code == 200
+        assert state.json()["state"] == "pending"
+    finally:
+        async with session_factory() as session, session.begin():
+            await session.execute(
+                delete(Account).where(Account.account_id.in_((account_id, other_id)))
+            )
+
+
+@pytest.mark.asyncio
+async def test_past_confirmation_keeps_archived_label_and_displays_current_name(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, label_id, _ = await create_account_with_labels(session)
+        await session.commit()
+    headers = auth_headers(config, account_id)
+    try:
+        _, segment_id, version = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        selection = {"kind": "label", "labelId": str(label_id)}
+        confirmed = await client.put(
+            f"/api/v1/activities/segments/{segment_id}/label-confirmation",
+            headers=headers,
+            json={"segmentVersion": version, "selection": selection},
+        )
+        assert confirmed.status_code == 200
+        async with session_factory() as session, session.begin():
+            label = await session.get(Label, label_id)
+            assert label is not None
+            label.display_name = "개발 작업"
+            label.archived_at = datetime.now(UTC)
+
+        state = await client.get(
+            f"/api/v1/activities/segments/{segment_id}/label-state", headers=headers
+        )
+        assert state.status_code == 200
+        assert state.json() == confirmed.json()
+        timeline = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14", headers=headers
+        )
+        assert timeline.status_code == 200
+        assert timeline.json()[0]["selection"] == {
+            **selection,
+            "displayName": "개발 작업",
+        }
+        retried = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={
+                "items": [
+                    {
+                        "segmentId": segment_id,
+                        "segmentVersion": version,
+                        "selection": selection,
+                    }
+                ]
+            },
+        )
+        assert retried.status_code == 200
+        assert retried.json()["items"] == [confirmed.json()]
+        catalog = await client.get("/api/v1/labels", headers=headers)
+        assert catalog.status_code == 200
+        archived = next(
+            item for item in catalog.json() if item["labelId"] == str(label_id)
+        )
+        assert archived["displayName"] == "개발 작업"
+        assert archived["archivedAt"] is not None
+    finally:
+        async with session_factory() as session, session.begin():
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "suggestion", ["active", "foreign", "archived", "archived_during_call"]
+)
+async def test_worker_uses_owned_active_catalog_and_revalidates_suggestion(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+    suggestion: str,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, archived_id, active_id = await create_account_with_labels(
+            session
+        )
+        other_id, _, foreign_id, _ = await create_account_with_labels(session)
+        archived_label = await session.get(Label, archived_id)
+        assert archived_label is not None
+        archived_label.archived_at = datetime.now(UTC)
+        await session.commit()
+    headers = auth_headers(config, account_id)
+    try:
+        event_id, segment_id, _ = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        catalog = await client.get("/api/v1/labels", headers=headers)
+        assert catalog.status_code == 200
+        expected_active_ids = {
+            UUID(label["labelId"])
+            for label in catalog.json()
+            if label["archivedAt"] is None
+        }
+        selected_id = {
+            "active": active_id,
+            "foreign": foreign_id,
+            "archived": archived_id,
+            "archived_during_call": active_id,
+        }[suggestion]
+        suggester: FixedSuggester = FixedSuggester(selected_id)
+        if suggestion == "archived_during_call":
+
+            async def archive_selected_label() -> None:
+                async with session_factory() as session, session.begin():
+                    label = await session.get(Label, active_id)
+                    assert label is not None
+                    label.archived_at = datetime.now(UTC)
+
+            suggester = CallbackSuggester(selected_id, archive_selected_label)
+        processor = ProposalProcessor(session_factory, suggester=suggester)
+        assert await processor.process_candidate(account_id, event_id)
+
+        assert {label.label_id for label in suggester.inputs[0].labels} == (
+            expected_active_ids
+        )
+        assert [label.display_name for label in suggester.inputs[0].labels] == [
+            "소통",
+            "쇼핑",
+            "여가",
+            "학습",
+        ]
+        state = await client.get(
+            f"/api/v1/activities/segments/{segment_id}/label-state", headers=headers
+        )
+        assert state.status_code == 200
+        assert state.json()["state"] == "pending"
+        if suggestion == "active":
+            assert state.json()["proposal"]["status"] == "ready"
+            assert state.json()["proposal"]["selection"] == {
+                "kind": "label",
+                "labelId": str(active_id),
+            }
+        else:
+            assert state.json()["proposal"]["status"] == "failed"
+            assert "selection" not in state.json()["proposal"]
+    finally:
+        async with session_factory() as session, session.begin():
+            await session.execute(
+                delete(Account).where(Account.account_id.in_((account_id, other_id)))
+            )

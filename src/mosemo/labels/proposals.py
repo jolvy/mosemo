@@ -16,6 +16,7 @@ from mosemo.activities.service import (
     ActivityTimelineBusyError,
     acquire_activity_timeline_lock,
 )
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.labels.models import (
     ActivityLabelConfirmation,
     ActivityLabelProposal,
@@ -216,8 +217,8 @@ class ProposalProcessor:
     ) -> SuggestionInput:
         now = self._now()
         async with self._session_factory() as session:
-            label_repository = LabelRepository(session)
-            labels = await label_repository.list_active_owned(account_id=account_id)
+            catalog_repository = LabelCatalogRepository(session)
+            labels = await catalog_repository.list_active_owned(account_id=account_id)
             examples = await RecentConfirmedExampleRetriever(session).find(
                 account_id=account_id,
                 exclude_first_event_id=first_event_id,
@@ -316,7 +317,7 @@ class ProposalProcessor:
                     and (
                         result.label_id
                         not in {label.label_id for label in request.labels}
-                        or await label_repository.find_active_owned(
+                        or await LabelCatalogRepository(session).find_active_owned(
                             account_id=account_id, label_id=result.label_id
                         )
                         is None
