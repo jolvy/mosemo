@@ -3760,6 +3760,281 @@ async def test_past_confirmation_keeps_archived_label_and_displays_current_name(
 
 
 @pytest.mark.asyncio
+async def test_batch_retries_archived_confirmation_and_confirms_new_segment(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session, session.begin():
+        account_id, device, coding_id, learning_id = await create_account_with_labels(
+            session
+        )
+    headers = auth_headers(config, account_id)
+    try:
+        first_event_id, first_segment_id, first_version = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        second_event_id, second_segment_id, second_version = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=3,
+            started_at="2026-09-14T00:02:00Z",
+            ended_at="2026-09-14T00:02:30Z",
+            name="Browser",
+        )
+        first_item = {
+            "segmentId": first_segment_id,
+            "segmentVersion": first_version,
+            "selection": {"kind": "label", "labelId": str(coding_id)},
+        }
+        first = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={"items": [first_item]},
+        )
+        assert first.status_code == 200
+        async with session_factory() as session, session.begin():
+            confirmation = await session.scalar(
+                select(ActivityLabelConfirmation).where(
+                    ActivityLabelConfirmation.account_id == account_id,
+                    ActivityLabelConfirmation.first_event_id == first_event_id,
+                )
+            )
+            assert confirmation is not None
+            original_timestamps = (confirmation.confirmed_at, confirmation.updated_at)
+            label = await session.get(Label, coding_id)
+            assert label is not None
+            label.archived_at = datetime.now(UTC)
+
+        second_before = await client.get(
+            f"/api/v1/activities/segments/{second_segment_id}/label-state",
+            headers=headers,
+        )
+        assert second_before.status_code == 200
+        assert second_before.json()["state"] == "pending"
+        requested_at = datetime.now(UTC)
+        confirmed = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={
+                "items": [
+                    first_item,
+                    {
+                        "segmentId": second_segment_id,
+                        "segmentVersion": second_version,
+                        "selection": {"kind": "label", "labelId": str(learning_id)},
+                    },
+                ]
+            },
+        )
+        responded_at = datetime.now(UTC)
+        assert confirmed.status_code == 200
+        items = confirmed.json()["items"]
+        assert len(items) == 2
+        assert items[0] == first.json()["items"][0]
+        assert items[1]["segmentId"] == second_segment_id
+        assert items[1]["segmentVersion"] == second_version
+        assert items[1]["state"] == "confirmed"
+        assert items[1]["selection"] == {
+            "kind": "label",
+            "labelId": str(learning_id),
+        }
+        for segment_id, item in zip(
+            (first_segment_id, second_segment_id), items, strict=True
+        ):
+            state = await client.get(
+                f"/api/v1/activities/segments/{segment_id}/label-state",
+                headers=headers,
+            )
+            assert state.status_code == 200
+            assert state.json() == item
+
+        async with session_factory() as session:
+            confirmations = (
+                await session.scalars(
+                    select(ActivityLabelConfirmation).where(
+                        ActivityLabelConfirmation.account_id == account_id
+                    )
+                )
+            ).all()
+            assert len(confirmations) == 2
+            by_event_id = {row.first_event_id: row for row in confirmations}
+            retried = by_event_id[first_event_id]
+            assert (retried.confirmed_at, retried.updated_at) == original_timestamps
+            created = by_event_id[second_event_id]
+            assert created.confirmed_at == created.updated_at
+            assert requested_at <= created.confirmed_at <= responded_at
+    finally:
+        async with session_factory() as session, session.begin():
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+
+
+@pytest.mark.asyncio
+async def test_batch_rejects_archived_label_reconfirmation_for_new_segment_version(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session, session.begin():
+        account_id, device, coding_id, learning_id = await create_account_with_labels(
+            session
+        )
+    headers = auth_headers(config, account_id)
+    try:
+        first_event_id, first_segment_id, first_version = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        _, second_segment_id, second_version = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.device_id,
+            sequence=3,
+            started_at="2026-09-14T00:02:00Z",
+            ended_at="2026-09-14T00:02:30Z",
+            name="Browser",
+        )
+        selection = {"kind": "label", "labelId": str(coding_id)}
+        first = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={
+                "items": [
+                    {
+                        "segmentId": first_segment_id,
+                        "segmentVersion": first_version,
+                        "selection": selection,
+                    }
+                ]
+            },
+        )
+        assert first.status_code == 200
+        async with session_factory() as session, session.begin():
+            confirmation = await session.scalar(
+                select(ActivityLabelConfirmation).where(
+                    ActivityLabelConfirmation.account_id == account_id,
+                    ActivityLabelConfirmation.first_event_id == first_event_id,
+                )
+            )
+            assert confirmation is not None
+            original_confirmation = (
+                confirmation.confirmation_id,
+                confirmation.segment_version,
+                confirmation.label_id,
+                confirmation.confirmed_at,
+                confirmation.updated_at,
+            )
+            label = await session.get(Label, coding_id)
+            assert label is not None
+            label.archived_at = datetime.now(UTC)
+
+        late = await client.post(
+            "/api/v1/activities",
+            headers=headers,
+            json=activity_request(
+                device_id=device.device_id,
+                sequence=5,
+                observed_at="2026-09-14T00:00:15Z",
+                context=detailed_context("Late different context"),
+            ),
+        )
+        assert late.status_code == 201
+        changed = await client.get(
+            f"/api/v1/activities/segments/{first_segment_id}/label-state",
+            headers=headers,
+        )
+        assert changed.status_code == 200
+        assert changed.json()["state"] == "pending"
+        current_version = changed.json()["segmentVersion"]
+        assert current_version != first_version
+        second_before = await client.get(
+            f"/api/v1/activities/segments/{second_segment_id}/label-state",
+            headers=headers,
+        )
+        assert second_before.status_code == 200
+        assert second_before.json()["state"] == "pending"
+        assert second_before.json()["segmentVersion"] == second_version
+
+        rejected = await client.post(
+            "/api/v1/activities/label-confirmations",
+            headers=headers,
+            json={
+                "items": [
+                    {
+                        "segmentId": second_segment_id,
+                        "segmentVersion": second_version,
+                        "selection": {"kind": "label", "labelId": str(learning_id)},
+                    },
+                    {
+                        "segmentId": first_segment_id,
+                        "segmentVersion": current_version,
+                        "selection": selection,
+                    },
+                ]
+            },
+        )
+        assert rejected.status_code == 404
+        assert rejected.json()["error"]["status"] == "LABEL_NOT_AVAILABLE"
+        assert rejected.json()["error"]["details"][0]["loc"] == [
+            "body",
+            "items",
+            1,
+            "selection",
+        ]
+        for segment_id, previous in (
+            (first_segment_id, changed.json()),
+            (second_segment_id, second_before.json()),
+        ):
+            state = await client.get(
+                f"/api/v1/activities/segments/{segment_id}/label-state",
+                headers=headers,
+            )
+            assert state.status_code == 200
+            assert state.json() == previous
+        async with session_factory() as session:
+            confirmations = (
+                await session.scalars(
+                    select(ActivityLabelConfirmation).where(
+                        ActivityLabelConfirmation.account_id == account_id
+                    )
+                )
+            ).all()
+            assert len(confirmations) == 1
+            retained = confirmations[0]
+            assert retained.first_event_id == first_event_id
+            assert (
+                retained.confirmation_id,
+                retained.segment_version,
+                retained.label_id,
+                retained.confirmed_at,
+                retained.updated_at,
+            ) == original_confirmation
+    finally:
+        async with session_factory() as session, session.begin():
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "suggestion", ["active", "foreign", "archived", "archived_during_call"]
 )
