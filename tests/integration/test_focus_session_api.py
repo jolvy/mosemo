@@ -6,6 +6,7 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from mosemo.accounts.models import Account, AccountProvider
@@ -238,3 +239,67 @@ async def test_foreign_label_invalid_durations_and_activity_link_are_rejected(
     assert (
         await client.post("/api/v1/activities", headers=headers, json=activity)
     ).status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_suspended_collection_record_rejects_focus_link(focus_client):
+    client, factory, headers, _, device_id, _, _ = focus_client
+    request = start_request(device_id)
+    assert (
+        await client.post("/api/v1/focus-sessions", headers=headers, json=request)
+    ).status_code == 201
+    activity = {
+        "deviceId": str(device_id),
+        "eventId": str(uuid4()),
+        "sequence": 0,
+        "recordType": "collection_state_changed",
+        "observedAt": "2026-10-07T00:10:00Z",
+        "timezoneId": "Asia/Seoul",
+        "utcOffsetMinutes": 540,
+        "state": "suspended",
+        "reason": "user_paused",
+        "focusSessionId": request["sessionId"],
+    }
+    response = await client.post("/api/v1/activities", headers=headers, json=activity)
+    assert response.status_code == 422
+    async with factory() as session:
+        assert (
+            await session.scalar(
+                select(ActivityRecord).where(
+                    ActivityRecord.event_id == activity["eventId"]
+                )
+            )
+            is None
+        )
+    activity.pop("focusSessionId")
+    assert (
+        await client.post("/api/v1/activities", headers=headers, json=activity)
+    ).status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_completed_session_blocks_label_deletion_but_allows_account_cascade(
+    focus_client,
+):
+    client, factory, headers, _, device_id, label_id, _ = focus_client
+    request = start_request(device_id)
+    assert (
+        await client.post("/api/v1/focus-sessions", headers=headers, json=request)
+    ).status_code == 201
+    assert (
+        await client.put(
+            "/api/v1/focus-sessions/" + request["sessionId"] + "/completion",
+            headers=headers,
+            json=completion(label_id),
+        )
+    ).status_code == 200
+    async with factory() as session:
+        label = await session.get(Label, label_id)
+        account_id = label.account_id
+        with pytest.raises(IntegrityError):
+            async with session.begin_nested():
+                await session.execute(delete(Label).where(Label.label_id == label_id))
+        await session.execute(delete(Account).where(Account.account_id == account_id))
+        await session.commit()
+        assert await session.get(Label, label_id, populate_existing=True) is None
+        assert await session.get(FocusSession, request["sessionId"]) is None

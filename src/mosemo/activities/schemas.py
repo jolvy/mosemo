@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
 from pydantic import (
@@ -249,6 +249,17 @@ class CollectionStateChanged(ActivityRecordBase):
         min_length=1,
         description="수집 상태가 변경된 이유입니다.",
     )
+
+    @model_validator(mode="after")
+    def reject_suspended_focus_link(self) -> Self:
+        if (
+            self.state == CollectionState.SUSPENDED
+            and self.focus_session_id is not None
+        ):
+            raise ValueError(
+                "Suspended collection records cannot link to a focus session"
+            )
+        return self
 
 
 ActivityRecord = Annotated[
