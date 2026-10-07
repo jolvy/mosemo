@@ -1,9 +1,10 @@
 from datetime import UTC, date, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mosemo.activities.models import ActivityRecord
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import (
     ActivityAccountNotFoundError,
@@ -74,7 +75,12 @@ class FocusSessionService:
                 )
                 if label is None:
                     raise FocusSessionLabelNotAvailableError
-            stored.complete(**request.model_dump())
+            last_observed_at = await self._session.scalar(
+                select(func.max(ActivityRecord.observed_at)).where(
+                    ActivityRecord.focus_session_id == session_id
+                )
+            )
+            stored.complete(**request.model_dump(), last_observed_at=last_observed_at)
             await self._session.flush()
             return FocusSessionResponse.model_validate(stored, from_attributes=True)
 

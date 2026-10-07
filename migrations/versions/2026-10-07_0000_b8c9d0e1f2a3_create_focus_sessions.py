@@ -52,6 +52,16 @@ def upgrade() -> None:
             name="completion_fields",
         ),
     )
+    op.create_check_constraint(
+        "work_within_duration",
+        "focus_sessions",
+        "work_seconds IS NULL OR work_seconds <= EXTRACT(EPOCH FROM (ended_at - started_at))",
+    )
+    op.create_check_constraint(
+        "work_within_target",
+        "focus_sessions",
+        "target_seconds = 0 OR work_seconds IS NULL OR work_seconds <= target_seconds",
+    )
     op.create_index(
         "focus_sessions_account_id_started_at_idx",
         "focus_sessions",

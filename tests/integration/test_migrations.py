@@ -426,3 +426,41 @@ def test_schema_migration_round_trip_and_label_backfill(
     finally:
         command.upgrade(config, "head")
         asyncio.run(delete_account(integration_database_url, account_id))
+
+
+def test_focus_session_migration_preserves_segments_without_session_foreign_key(
+    integration_database_url: str,
+) -> None:
+    config = alembic_config(integration_database_url)
+    command.downgrade(config, PROPOSAL_REVISION)
+    try:
+        previous = asyncio.run(schema_snapshot(integration_database_url))
+        assert "focus_sessions" not in previous["tables"]
+        assert "focus_session_id" not in previous["activity_columns"]
+    finally:
+        command.upgrade(config, "head")
+    upgraded = asyncio.run(schema_snapshot(integration_database_url))
+    assert "focus_sessions" in upgraded["tables"]
+    assert upgraded["activity_columns"]["focus_session_id"]["nullable"]
+    assert any(
+        fk["constrained_columns"] == ["focus_session_id"]
+        and fk["referred_table"] == "focus_sessions"
+        for fk in upgraded["activity_fks"]
+    )
+
+    async def segment_columns():
+        engine = create_async_engine(integration_database_url)
+        try:
+            async with engine.connect() as connection:
+                return await connection.run_sync(
+                    lambda sync: {
+                        column["name"]
+                        for column in inspect(sync).get_columns(
+                            "activity_timeline_segments"
+                        )
+                    }
+                )
+        finally:
+            await engine.dispose()
+
+    assert "focus_session_id" not in asyncio.run(segment_columns())
