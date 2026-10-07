@@ -17,6 +17,10 @@ from mosemo.activities.service import (
 )
 from mosemo.dependencies import ActivityServiceDep, AuthenticatedAccountDep
 from mosemo.exceptions import ApiException, ErrorCode
+from mosemo.focus_sessions.models import (
+    FocusSessionInvalidTimeError,
+    FocusSessionNotFoundError,
+)
 from mosemo.openapi import api_error_responses
 
 router = APIRouter(prefix="/activities")
@@ -37,6 +41,7 @@ router = APIRouter(prefix="/activities")
         ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
         ErrorCode.REQUEST_ROUTE_NOT_FOUND,
         ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
+        ErrorCode.FOCUS_SESSION_NOT_FOUND,
         ErrorCode.ACTIVITY_EVENT_ID_CONFLICT,
         ErrorCode.ACTIVITY_SEQUENCE_CONFLICT,
         ErrorCode.INVALID_ARGUMENT,
@@ -61,6 +66,10 @@ async def create_activity(
             account_id=authenticated_account.account_id,
             record=record,
         )
+    except FocusSessionNotFoundError as exc:
+        raise ApiException(ErrorCode.FOCUS_SESSION_NOT_FOUND) from exc
+    except FocusSessionInvalidTimeError as exc:
+        raise ApiException(ErrorCode.INVALID_ARGUMENT) from exc
     except ActivityDeviceNotFoundError as exc:
         raise ApiException(ErrorCode.ACTIVITY_DEVICE_NOT_FOUND) from exc
     except ActivityEventIdConflictError as exc:

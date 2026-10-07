@@ -350,6 +350,7 @@ def test_public_error_examples_match_status_and_common_schema(
     ) == {
         "REQUEST_ROUTE_NOT_FOUND",
         "ACTIVITY_DEVICE_NOT_FOUND",
+        "FOCUS_SESSION_NOT_FOUND",
     }
     assert set(
         activity_responses["409"]["content"]["application/json"]["examples"]

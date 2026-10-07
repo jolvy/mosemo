@@ -32,6 +32,7 @@ def is_same_activity_record(
     return (
         stored.event_id == requested.event_id
         and stored.device_id == requested.device_id
+        and stored.focus_session_id == requested.focus_session_id
         and stored.sequence == requested.sequence
         and stored.record_type == requested.record_type
         and stored.observed_at == requested.observed_at
@@ -52,6 +53,7 @@ class ActivityRepository:
         statement = (
             insert(StoredActivityRecord)
             .values(
+                focus_session_id=record.focus_session_id,
                 event_id=record.event_id,
                 device_id=record.device_id,
                 sequence=record.sequence,

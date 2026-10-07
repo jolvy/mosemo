@@ -212,7 +212,7 @@ def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == [PROPOSAL_REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == ["b8c9d0e1f2a3"]
     account_id = uuid4()
     asyncio.run(insert_account(integration_database_url, account_id))
 

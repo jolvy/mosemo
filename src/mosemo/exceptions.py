@@ -24,6 +24,10 @@ class ErrorCode(Enum):
         code=401,
         message="Invalid or expired access token",
     )
+    FOCUS_SESSION_NOT_FOUND = ErrorSpec(code=404, message="Focus session not found")
+    FOCUS_SESSION_CONFLICT = ErrorSpec(
+        code=409, message="Focus session conflicts with stored data"
+    )
     ACTIVITY_DEVICE_NOT_FOUND = ErrorSpec(
         code=404,
         message="Activity device not found",
