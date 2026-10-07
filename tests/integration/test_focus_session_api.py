@@ -138,6 +138,15 @@ async def test_start_observe_complete_retry_and_list(focus_client):
         )
         assert str(stored.focus_session_id) == request["sessionId"]
     complete_url = url + "/" + request["sessionId"] + "/completion"
+    # A completion cannot move the session end before an already-linked observation.
+    invalid_end = await client.put(
+        complete_url,
+        headers=headers,
+        json=completion(
+            label_id, endedAt="2026-10-07T00:05:00.123456Z", workSeconds=100
+        ),
+    )
+    assert invalid_end.status_code == 422
     finished = await client.put(
         complete_url, headers=headers, json=completion(label_id)
     )

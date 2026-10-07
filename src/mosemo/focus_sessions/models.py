@@ -33,6 +33,14 @@ class FocusSession(Base):
             "(ended_at IS NULL AND work_seconds IS NULL) OR (ended_at IS NOT NULL AND work_seconds IS NOT NULL AND label_id IS NOT NULL)",
             name="completion_fields",
         ),
+        CheckConstraint(
+            "work_seconds IS NULL OR work_seconds <= EXTRACT(EPOCH FROM (ended_at - started_at))",
+            name="work_within_duration",
+        ),
+        CheckConstraint(
+            "target_seconds = 0 OR work_seconds IS NULL OR work_seconds <= target_seconds",
+            name="work_within_target",
+        ),
         Index("focus_sessions_account_id_started_at_idx", "account_id", "started_at"),
     )
     session_id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -54,7 +62,13 @@ class FocusSession(Base):
     description: Mapped[str] = mapped_column(Text, default="")
 
     def complete(
-        self, *, ended_at: datetime, work_seconds: int, label_id: UUID, description: str
+        self,
+        *,
+        ended_at: datetime,
+        work_seconds: int,
+        label_id: UUID,
+        description: str,
+        last_observed_at: datetime | None = None,
     ) -> None:
         if self.ended_at is not None:
             if (self.ended_at, self.work_seconds, self.label_id, self.description) != (
@@ -66,7 +80,9 @@ class FocusSession(Base):
                 raise FocusSessionConflictError
             return
         if (
-            ended_at < self.started_at
+            work_seconds < 0
+            or ended_at < self.started_at
+            or (last_observed_at is not None and ended_at < last_observed_at)
             or work_seconds > (ended_at - self.started_at).total_seconds()
         ):
             raise FocusSessionInvalidTimeError
