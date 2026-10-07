@@ -36,7 +36,7 @@ def upgrade() -> None:
         sa.Column(
             "label_id",
             sa.Uuid(),
-            sa.ForeignKey("labels.label_id", ondelete="RESTRICT"),
+            sa.ForeignKey("labels.label_id", ondelete="NO ACTION"),
             nullable=True,
         ),
         sa.Column("description", sa.Text(), nullable=False, server_default=""),

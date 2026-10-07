@@ -57,7 +57,7 @@ class FocusSession(Base):
     target_seconds: Mapped[int] = mapped_column(Integer)
     work_seconds: Mapped[int | None] = mapped_column(Integer, default=None)
     label_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("labels.label_id", ondelete="RESTRICT"), default=None
+        ForeignKey("labels.label_id", ondelete="NO ACTION"), default=None
     )
     description: Mapped[str] = mapped_column(Text, default="")
 
