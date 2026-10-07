@@ -7,6 +7,7 @@ from mosemo.activity_labels.router import router as labels_router
 from mosemo.auth.router import router as auth_router
 from mosemo.devices.router import router as devices_router
 from mosemo.exceptions import ErrorCode
+from mosemo.focus_sessions.router import router as focus_sessions_router
 from mosemo.openapi import api_error_responses
 
 v1_api_router = APIRouter(
@@ -24,3 +25,5 @@ v1_api_router.include_router(activities_router, tags=["activities"])
 v1_api_router.include_router(labels_router, tags=["activities"])
 v1_api_router.include_router(label_catalog_router, tags=["labels"])
 v1_api_router.include_router(devices_router, tags=["devices"])
+
+v1_api_router.include_router(focus_sessions_router, tags=["focus-sessions"])

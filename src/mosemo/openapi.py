@@ -30,6 +30,14 @@ ERROR_DOCS: Mapping[ErrorCode, ErrorDocs] = {
         summary="Invalid access token",
         description="Bearer 액세스 토큰이 유효하지 않거나 누락되었습니다.",
     ),
+    ErrorCode.FOCUS_SESSION_NOT_FOUND: ErrorDocs(
+        summary="Focus session not found",
+        description="집중 세션을 찾을 수 없거나 요청 계정 또는 기기에 속하지 않습니다.",
+    ),
+    ErrorCode.FOCUS_SESSION_CONFLICT: ErrorDocs(
+        summary="Focus session conflict",
+        description="동일한 세션 식별자로 저장한 요청 내용과 다릅니다.",
+    ),
     ErrorCode.ACTIVITY_DEVICE_NOT_FOUND: ErrorDocs(
         summary="Activity device not found",
         description=("Device를 찾을 수 없거나 인증된 계정에 속하지 않습니다."),

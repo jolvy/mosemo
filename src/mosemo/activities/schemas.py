@@ -206,6 +206,10 @@ ActivityContext = Annotated[
 class ActivityRecordBase(ActivityRequestModel):
     """Fields shared by every ordered activity collection record."""
 
+    focus_session_id: UUID | None = Field(
+        default=None,
+        description="관찰 당시 진행 중인 집중 세션입니다. 일시중지 중에는 생략합니다.",
+    )
     device_id: UUID = Field(description="서버에 등록된 Device 식별자입니다.")
     event_id: UUID = Field(description="레코드 중복 제거에 사용하는 식별자입니다.")
     sequence: int = Field(

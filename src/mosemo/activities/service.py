@@ -25,6 +25,8 @@ from mosemo.activities.schemas import (
 )
 from mosemo.activities.timeline import project_events
 from mosemo.devices.repository import DeviceRepository
+from mosemo.focus_sessions.models import FocusSessionNotFoundError
+from mosemo.focus_sessions.repository import FocusSessionRepository
 from mosemo.timezones import Timezone
 
 
@@ -164,6 +166,18 @@ class ActivityService:
             )
             if device is None:
                 raise ActivityDeviceNotFoundError
+
+            if record.focus_session_id is not None:
+                focus = await FocusSessionRepository(self._session).find_owned(
+                    account_id, record.focus_session_id
+                )
+                if focus is None:
+                    raise FocusSessionNotFoundError
+                focus.validate_activity(
+                    account_id=account_id,
+                    device_id=record.device_id,
+                    observed_at=record.observed_at,
+                )
 
             stored = await self._repository.insert(record)
             if stored is not None:

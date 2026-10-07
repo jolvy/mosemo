@@ -24,6 +24,8 @@ def test_public_error_registry_contains_the_public_specs() -> None:
             "Invalid or expired OAuth login context",
         ),
         ("AUTH_INVALID_ACCESS_TOKEN", 401, "Invalid or expired access token"),
+        ("FOCUS_SESSION_NOT_FOUND", 404, "Focus session not found"),
+        ("FOCUS_SESSION_CONFLICT", 409, "Focus session conflicts with stored data"),
         (
             "ACTIVITY_DEVICE_NOT_FOUND",
             404,
@@ -62,7 +64,7 @@ def test_public_error_registry_contains_the_public_specs() -> None:
         ("INVALID_ARGUMENT", 422, "Request validation failed."),
         ("INTERNAL_SERVER_ERROR", 500, "Internal server error"),
     ]
-    assert len({member.status for member in public_members}) == 16
+    assert len({member.status for member in public_members}) == 18
 
 
 def test_error_spec_is_immutable_and_contains_no_documentation_metadata() -> None:

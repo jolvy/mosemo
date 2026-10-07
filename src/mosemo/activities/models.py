@@ -42,6 +42,11 @@ class ActivityRecord(Base):
     device_id: Mapped[UUID] = mapped_column(
         ForeignKey("devices.device_id", ondelete="CASCADE")
     )
+    focus_session_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("focus_sessions.session_id", ondelete="RESTRICT"),
+        default=None,
+        index=True,
+    )
     sequence: Mapped[int] = mapped_column(BigInteger)
     record_type: Mapped[RecordType] = mapped_column(
         Enum(
