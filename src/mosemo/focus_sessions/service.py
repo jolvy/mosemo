@@ -97,9 +97,7 @@ class FocusSessionService:
         self, account_id: UUID, day: date
     ) -> list[FocusSessionResponse]:
         async with self._session.begin():
-            timezone = await self._activity_repository.find_account_timezone(
-                account_id
-            )
+            timezone = await self._activity_repository.find_account_timezone(account_id)
             if timezone is None:
                 raise ActivityAccountNotFoundError
             window = timeline_date_window(
