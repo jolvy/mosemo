@@ -4,17 +4,20 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
 
+from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import (
     ActivityAccountNotFoundError,
     ActivityDeviceNotFoundError,
 )
 from mosemo.dependencies import AuthenticatedAccountDep, SessionDep
+from mosemo.devices.repository import DeviceRepository
 from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.focus_sessions.models import (
     FocusSessionConflictError,
     FocusSessionInvalidTimeError,
     FocusSessionNotFoundError,
 )
+from mosemo.focus_sessions.repository import FocusSessionRepository
 from mosemo.focus_sessions.schemas import (
     FocusSessionCompleteRequest,
     FocusSessionCreateRequest,
@@ -30,7 +33,12 @@ router = APIRouter(prefix="/focus-sessions")
 
 
 def get_focus_session_service(session: SessionDep) -> FocusSessionService:
-    return FocusSessionService(session)
+    return FocusSessionService(
+        session=session,
+        repository=FocusSessionRepository(session),
+        activity_repository=ActivityRepository(session),
+        device_repository=DeviceRepository(session),
+    )
 
 
 FocusSessionServiceDep = Annotated[
