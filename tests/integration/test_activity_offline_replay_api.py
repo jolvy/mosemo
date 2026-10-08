@@ -460,14 +460,14 @@ async def test_event_id_orders_equal_observation_and_receive_times_over_http(
     low_event_id, high_event_id = sorted((uuid4(), uuid4()))
     high = activity_observation(
         device_id,
-        sequence=100,
+        sequence=1,
         observed_at="2026-09-14T00:00:00Z",
         context=detailed_context("Editor"),
         event_id=high_event_id,
     )
     low = activity_observation(
         device_id,
-        sequence=1,
+        sequence=100,
         observed_at="2026-09-14T00:00:00Z",
         context=detailed_context("Mail"),
         event_id=low_event_id,
