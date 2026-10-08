@@ -30,15 +30,24 @@ class FocusSessionLabelNotAvailableError(Exception):
 
 
 class FocusSessionService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        *,
+        session: AsyncSession,
+        repository: FocusSessionRepository,
+        activity_repository: ActivityRepository,
+        device_repository: DeviceRepository,
+    ) -> None:
         self._session = session
-        self._repository = FocusSessionRepository(session)
+        self._repository = repository
+        self._activity_repository = activity_repository
+        self._device_repository = device_repository
 
     async def create(
         self, account_id: UUID, request: FocusSessionCreateRequest
     ) -> FocusSessionResponse:
         async with self._session.begin():
-            device = await DeviceRepository(self._session).find_owned_by_id(
+            device = await self._device_repository.find_owned_by_id(
                 account_id=account_id, device_id=request.device_id
             )
             if device is None:
@@ -88,7 +97,7 @@ class FocusSessionService:
         self, account_id: UUID, day: date
     ) -> list[FocusSessionResponse]:
         async with self._session.begin():
-            timezone = await ActivityRepository(self._session).find_account_timezone(
+            timezone = await self._activity_repository.find_account_timezone(
                 account_id
             )
             if timezone is None:
