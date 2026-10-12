@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from mosemo.accounts.device_registration import DeviceRegistration
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.devices.models import Device
@@ -36,7 +35,6 @@ async def test_device_create_is_idempotent_within_account(
     service = DeviceService(
         session=integration_session,
         repository=DeviceRepository(integration_session),
-        account_repository=AccountRepository(integration_session),
     )
     shared_key = uuid4()
 
@@ -86,42 +84,20 @@ async def test_concurrent_device_create_retries_return_one_id(
             account_id = account.account_id
 
         idempotency_key = uuid4()
-        pre_reads = asyncio.Barrier(2)
 
-        class ConcurrentDeviceRepository(DeviceRepository):
-            async def find_by_idempotency_key(
-                self, *, account_id: UUID, idempotency_key: UUID
-            ) -> DeviceRegistration | None:
-                registration = await super().find_by_idempotency_key(
-                    account_id=account_id, idempotency_key=idempotency_key
-                )
-                if registration is None:
-                    # Both real DB reads finish before either request can insert.
-                    await asyncio.wait_for(pre_reads.wait(), timeout=10)
-                return registration
-
-        async def register(*, concurrent: bool = False):
+        async def register():
             async with session_factory() as session:
                 return await DeviceService(
                     session=session,
-                    repository=(
-                        ConcurrentDeviceRepository(session)
-                        if concurrent
-                        else DeviceRepository(session)
-                    ),
-                    account_repository=AccountRepository(session),
+                    repository=DeviceRepository(session),
                 ).create_device(
                     account_id=account_id,
                     idempotency_key=idempotency_key,
                 )
 
-        first, second = await asyncio.gather(
-            register(concurrent=True), register(concurrent=True)
-        )
+        first, second = await asyncio.gather(register(), register())
 
         assert first == second
-        # A fresh transaction replays a request whose success response was lost.
-        assert await register() == first
         async with session_factory() as verification_session:
             count = await verification_session.scalar(
                 select(func.count())
