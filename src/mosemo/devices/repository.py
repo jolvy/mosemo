@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mosemo.accounts.device_registration import DeviceRegistration
 from mosemo.devices.models import Device
 
 
@@ -27,12 +28,15 @@ class DeviceRepository:
     async def insert(
         self,
         *,
-        account_id: UUID,
-        idempotency_key: UUID,
+        registration: DeviceRegistration,
     ) -> Device | None:
         statement = (
             insert(Device)
-            .values(account_id=account_id, idempotency_key=idempotency_key)
+            .values(
+                device_id=registration.device_id,
+                account_id=registration.account_id,
+                idempotency_key=registration.idempotency_key,
+            )
             .on_conflict_do_nothing(
                 index_elements=[Device.account_id, Device.idempotency_key]
             )
@@ -46,10 +50,13 @@ class DeviceRepository:
         *,
         account_id: UUID,
         idempotency_key: UUID,
-    ) -> Device | None:
-        result = await self._session.scalars(
-            select(Device)
+    ) -> DeviceRegistration | None:
+        result = await self._session.execute(
+            select(Device.device_id, Device.account_id, Device.idempotency_key)
             .where(Device.account_id == account_id)
             .where(Device.idempotency_key == idempotency_key)
         )
-        return result.one_or_none()
+        row = result.one_or_none()
+        if row is None:
+            return None
+        return DeviceRegistration(*row)
