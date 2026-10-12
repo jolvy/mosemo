@@ -5,11 +5,6 @@ from uuid import UUID, uuid7
 from sqlalchemy import DateTime, Enum, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mosemo.accounts.device_registration import (
-    DeviceRegistration,
-    DeviceRegistrationDecision,
-    decide_device_registration,
-)
 from mosemo.database import Base
 from mosemo.timezones import Timezone, TimezoneStorage
 
@@ -49,17 +44,3 @@ class Account(Base):
         DateTime(timezone=True),
         server_default=func.now(),
     )
-
-    def register_device(
-        self,
-        *,
-        idempotency_key: UUID,
-        candidate_id: UUID,
-        existing_registration: DeviceRegistration | None,
-    ) -> DeviceRegistrationDecision:
-        return decide_device_registration(
-            account_id=self.account_id,
-            idempotency_key=idempotency_key,
-            candidate_id=candidate_id,
-            existing_registration=existing_registration,
-        )
