@@ -96,13 +96,8 @@ DeviceRepositoryDep = Annotated[
 def get_device_service(
     session: SessionDep,
     repository: DeviceRepositoryDep,
-    account_repository: AccountRepositoryDep,
 ) -> DeviceService:
-    return DeviceService(
-        session=session,
-        repository=repository,
-        account_repository=account_repository,
-    )
+    return DeviceService(session=session, repository=repository)
 
 
 DeviceServiceDep = Annotated[
