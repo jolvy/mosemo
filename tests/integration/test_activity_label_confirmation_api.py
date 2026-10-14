@@ -44,6 +44,7 @@ from mosemo.database import get_session
 from mosemo.dependencies import get_clock
 from mosemo.devices.models import Device
 from mosemo.exception_handlers import register_exception_handlers
+from tests.batch_support import batch_client, post_activity, receipt_for
 
 
 def detailed_context(name: str) -> dict[str, object]:
@@ -58,6 +59,15 @@ def detailed_context(name: str) -> dict[str, object]:
     }
 
 
+def observation_sequence(observed_at: str, token: int) -> int:
+    # Label tests previously used sequence only as a unique token. Preserve all
+    # timestamp/context/ID assertions with valid per-device observation chains.
+    ticks = (
+        datetime.fromisoformat(observed_at) - datetime(2026, 1, 1, tzinfo=UTC)
+    ) // timedelta(microseconds=1)
+    return ticks * 10000 + token
+
+
 def activity_request(
     *,
     device_id: UUID,
@@ -68,7 +78,7 @@ def activity_request(
     return {
         "deviceId": str(device_id),
         "eventId": str(uuid4()),
-        "sequence": sequence,
+        "sequence": observation_sequence(observed_at, sequence),
         "recordType": "activity_observation",
         "observedAt": observed_at,
         "timezoneId": "Asia/Seoul",
@@ -86,7 +96,7 @@ def state_change_request(
     return {
         "deviceId": str(device_id),
         "eventId": str(uuid4()),
-        "sequence": sequence,
+        "sequence": observation_sequence(observed_at, sequence),
         "recordType": "collection_state_changed",
         "observedAt": observed_at,
         "timezoneId": "Asia/Seoul",
@@ -112,8 +122,8 @@ async def upload_closed_detail(
     name: str,
     context: Mapping[str, object] | None = None,
 ) -> tuple[UUID, str, str]:
-    first = await client.post(
-        "/api/v1/activities",
+    first = await post_activity(
+        client,
         headers=headers,
         json=activity_request(
             device_id=device_id,
@@ -122,9 +132,9 @@ async def upload_closed_detail(
             context=context or detailed_context(name),
         ),
     )
-    assert first.status_code == 201
-    closed = await client.post(
-        "/api/v1/activities",
+    assert first.status_code == 202
+    closed = await post_activity(
+        client,
         headers=headers,
         json=activity_request(
             device_id=device_id,
@@ -133,7 +143,7 @@ async def upload_closed_detail(
             context={"kind": "opaque"},
         ),
     )
-    assert closed.status_code == 201
+    assert closed.status_code == 202
     timeline = await client.get(
         f"/api/v1/activities/timeline?date={started_at[:10]}", headers=headers
     )
@@ -146,7 +156,11 @@ async def upload_closed_detail(
         f"/api/v1/activities/segments/{segment_id}/label-state", headers=headers
     )
     assert state.status_code == 200
-    return UUID(first.json()["eventId"]), segment_id, state.json()["segmentVersion"]
+    return (
+        UUID((await receipt_for(client, first)).results[0]["eventId"]),
+        segment_id,
+        state.json()["segmentVersion"],
+    )
 
 
 def segment_confirmation_item(
@@ -213,10 +227,7 @@ async def label_api_client(
             yield session
 
     app.dependency_overrides[get_session] = override_session
-    async with httpx2.AsyncClient(
-        transport=httpx2.ASGITransport(app=app),
-        base_url="http://testserver",
-    ) as client:
+    async with batch_client(app, session_factory) as client:
         yield client, session_factory, app
     await engine.dispose()
 
@@ -245,12 +256,10 @@ async def test_known_segment_version_survives_proposal_and_confirmation(
             context=detailed_context("편집기"),
         )
         observation["eventId"] = "00000000-0000-4000-8000-000000000047"
-        uploaded = await client.post(
-            "/api/v1/activities", headers=headers, json=observation
-        )
-        assert uploaded.status_code == 201
-        closed = await client.post(
-            "/api/v1/activities",
+        uploaded = await post_activity(client, headers=headers, json=observation)
+        assert uploaded.status_code == 202
+        closed = await post_activity(
+            client,
             headers=headers,
             json=state_change_request(
                 device_id=device.device_id,
@@ -258,7 +267,7 @@ async def test_known_segment_version_survives_proposal_and_confirmation(
                 observed_at="2026-09-14T00:00:30Z",
             ),
         )
-        assert closed.status_code == 201
+        assert closed.status_code == 202
         timeline = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14", headers=headers
         )
@@ -321,8 +330,8 @@ async def test_label_state_can_be_confirmed_and_corrected_over_http(
     headers = auth_headers(config, account_id)
 
     try:
-        first = await client.post(
-            "/api/v1/activities",
+        first = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -331,9 +340,9 @@ async def test_label_state_can_be_confirmed_and_corrected_over_http(
                 context=detailed_context("Editor"),
             ),
         )
-        assert first.status_code == 201
-        second = await client.post(
-            "/api/v1/activities",
+        assert first.status_code == 202
+        second = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -342,7 +351,7 @@ async def test_label_state_can_be_confirmed_and_corrected_over_http(
                 context={"kind": "opaque"},
             ),
         )
-        assert second.status_code == 201
+        assert second.status_code == 202
 
         timeline = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14",
@@ -439,8 +448,8 @@ async def test_confirming_a_label_group_applies_to_every_member(
             (2, "2026-09-14T00:00:30Z", detailed_context("Browser")),
             (3, "2026-09-14T00:01:00Z", {"kind": "opaque"}),
         ]:
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -449,7 +458,7 @@ async def test_confirming_a_label_group_applies_to_every_member(
                     context=context,
                 ),
             )
-            assert response.status_code == 201
+            assert response.status_code == 202
 
         timeline = await client.get(
             "/api/v1/activities/label-timeline?date=2026-09-14",
@@ -514,8 +523,8 @@ async def test_batch_confirms_each_segment_in_a_group_with_its_own_selection(
             (2, "2026-09-14T00:00:30Z", detailed_context("Browser")),
             (3, "2026-09-14T00:01:00Z", {"kind": "opaque"}),
         ]:
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -524,7 +533,7 @@ async def test_batch_confirms_each_segment_in_a_group_with_its_own_selection(
                     context=context,
                 ),
             )
-            assert response.status_code == 201
+            assert response.status_code == 202
 
         timeline = await client.get(
             "/api/v1/activities/label-timeline?date=2026-09-14",
@@ -878,8 +887,8 @@ async def test_batch_with_stale_member_rolls_back_every_group_and_identifies_fai
                 for group in groups
             ]
         }
-        late = await client.post(
-            "/api/v1/activities",
+        late = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -888,7 +897,7 @@ async def test_batch_with_stale_member_rolls_back_every_group_and_identifies_fai
                 context=detailed_context("Late change"),
             ),
         )
-        assert late.status_code == 201
+        assert late.status_code == 202
 
         rejected = await client.post(
             "/api/v1/activities/label-confirmations", headers=headers, json=request
@@ -938,8 +947,8 @@ async def test_batch_accepts_one_segment_from_a_timeline_group(
             (2, "2026-09-14T00:00:30Z", detailed_context("Browser")),
             (3, "2026-09-14T00:01:00Z", {"kind": "opaque"}),
         ]:
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -948,7 +957,7 @@ async def test_batch_accepts_one_segment_from_a_timeline_group(
                     context=context,
                 ),
             )
-            assert response.status_code == 201
+            assert response.status_code == 202
         timeline = await client.get(
             "/api/v1/activities/label-timeline?date=2026-09-14",
             headers=headers,
@@ -1093,8 +1102,8 @@ async def test_batch_and_late_observation_never_attach_label_to_changed_activity
                 headers=headers,
                 json={"items": [item]},
             ),
-            client.post(
-                "/api/v1/activities",
+            post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -1109,7 +1118,7 @@ async def test_batch_and_late_observation_never_attach_label_to_changed_activity
             headers=headers,
         )
 
-        assert late.status_code == 201
+        assert late.status_code == 202
         assert confirmed.status_code in {200, 409}
         assert current.status_code == 200
         assert all(
@@ -1898,8 +1907,8 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
             (1, "2026-09-14T00:00:00Z", detailed_context("Explicit")),
             (2, "2026-09-14T00:00:30Z", {"kind": "opaque"}),
         ):
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -1908,9 +1917,9 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
                     context=context,
                 ),
             )
-            assert response.status_code == 201
-        gap = await client.post(
-            "/api/v1/activities",
+            assert response.status_code == 202
+        gap = await post_activity(
+            client,
             headers=headers,
             json=state_change_request(
                 device_id=device.device_id,
@@ -1918,9 +1927,9 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
                 observed_at="2026-09-14T00:01:00Z",
             ),
         )
-        assert gap.status_code == 201
-        silence_record = await client.post(
-            "/api/v1/activities",
+        assert gap.status_code == 202
+        silence_record = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -1929,9 +1938,9 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
                 context=detailed_context("Silence"),
             ),
         )
-        assert silence_record.status_code == 201
-        open_record = await client.post(
-            "/api/v1/activities",
+        assert silence_record.status_code == 202
+        open_record = await post_activity(
+            client,
             headers=open_headers,
             json=activity_request(
                 device_id=open_device.device_id,
@@ -1940,7 +1949,7 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
                 context=detailed_context("Open"),
             ),
         )
-        assert open_record.status_code == 201
+        assert open_record.status_code == 202
 
         suggester = FixedSuggester(label_id)
         processor = ProposalProcessor(
@@ -2016,8 +2025,8 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
             },
         )
         assert confirmation.status_code == 200
-        late_observation = await client.post(
-            "/api/v1/activities",
+        late_observation = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -2026,7 +2035,7 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
                 context=detailed_context("Rebuilt Editor"),
             ),
         )
-        assert late_observation.status_code == 201
+        assert late_observation.status_code == 202
 
         scanner_suggester = FixedSuggester(label_id)
         processor = CountingProposalProcessor(
@@ -2492,8 +2501,8 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
             )
             assert confirmation.status_code == 200
             collected = await asyncio.wait_for(
-                client.post(
-                    "/api/v1/activities",
+                post_activity(
+                    client,
                     headers=headers,
                     json=activity_request(
                         device_id=device.device_id,
@@ -2504,7 +2513,7 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
                 ),
                 timeout=2.5,
             )
-            assert collected.status_code == 201
+            assert collected.status_code == 202
         finally:
             release_lookup.set()
             did_process = await task
@@ -2551,8 +2560,8 @@ async def test_projection_change_during_model_call_discards_stale_result(
         )
 
         async def insert_late_observation() -> None:
-            late = await client.post(
-                "/api/v1/activities",
+            late = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -2561,7 +2570,7 @@ async def test_projection_change_during_model_call_discards_stale_result(
                     context=detailed_context("Different"),
                 ),
             )
-            assert late.status_code == 201
+            assert late.status_code == 202
 
         processor = ProposalProcessor(
             session_factory,
@@ -2693,8 +2702,8 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
         assert response.json()["error"]["status"] == ("ACTIVITY_SEGMENT_NOT_LABELABLE")
 
     try:
-        await client.post(
-            "/api/v1/activities",
+        await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -2703,8 +2712,8 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
                 context=detailed_context("Detailed"),
             ),
         )
-        closed = await client.post(
-            "/api/v1/activities",
+        closed = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -2713,7 +2722,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
                 context={"kind": "opaque"},
             ),
         )
-        assert closed.status_code == 201
+        assert closed.status_code == 202
         timeline = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14",
             headers=headers,
@@ -2754,8 +2763,8 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
         assert archived.json()["error"]["status"] == "LABEL_NOT_AVAILABLE"
 
         now = datetime.now(UTC).replace(microsecond=0)
-        open_segment = await client.post(
-            "/api/v1/activities",
+        open_segment = await post_activity(
+            client,
             headers=other_headers,
             json=activity_request(
                 device_id=other_device.device_id,
@@ -2764,7 +2773,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
                 context=detailed_context("Open"),
             ),
         )
-        assert open_segment.status_code == 201
+        assert open_segment.status_code == 202
         open_timeline = await client.get(
             "/api/v1/activities/timeline?date="
             f"{now.astimezone(ZoneInfo('Asia/Seoul')).date().isoformat()}",
@@ -2781,8 +2790,8 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
         )
         await reject_batch_segment(open_id)
 
-        opaque = await client.post(
-            "/api/v1/activities",
+        opaque = await post_activity(
+            client,
             headers=other_headers,
             json=activity_request(
                 device_id=other_device.device_id,
@@ -2791,7 +2800,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
                 context={"kind": "opaque"},
             ),
         )
-        assert opaque.status_code == 201
+        assert opaque.status_code == 202
         opaque_timeline = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14",
             headers=other_headers,
@@ -2808,8 +2817,8 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
         assert opaque_state.status_code == 409
         await reject_batch_segment(opaque_id)
 
-        gap = await client.post(
-            "/api/v1/activities",
+        gap = await post_activity(
+            client,
             headers=other_headers,
             json=state_change_request(
                 device_id=other_device.device_id,
@@ -2817,7 +2826,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
                 observed_at="2026-09-14T00:01:00Z",
             ),
         )
-        assert gap.status_code == 201
+        assert gap.status_code == 202
         gap_timeline = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14",
             headers=other_headers,
@@ -2863,8 +2872,8 @@ async def test_label_timeline_groups_adjacent_segments_with_same_confirmation(
             (2, "2026-09-14T00:00:30Z", detailed_context("Browser")),
             (3, "2026-09-14T00:01:00Z", {"kind": "opaque"}),
         ]:
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -2873,7 +2882,7 @@ async def test_label_timeline_groups_adjacent_segments_with_same_confirmation(
                     context=context,
                 ),
             )
-            assert response.status_code == 201
+            assert response.status_code == 202
 
         observation_timeline = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14",
@@ -2991,8 +3000,8 @@ async def test_label_timeline_preserves_state_and_label_boundaries(
             "2026-09-14T00:03:31Z",
         ]
         for sequence, name in enumerate(contexts, start=1):
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -3001,9 +3010,9 @@ async def test_label_timeline_preserves_state_and_label_boundaries(
                     context=detailed_context(name),
                 ),
             )
-            assert response.status_code == 201
-        opaque = await client.post(
-            "/api/v1/activities",
+            assert response.status_code == 202
+        opaque = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -3012,7 +3021,7 @@ async def test_label_timeline_preserves_state_and_label_boundaries(
                 context={"kind": "opaque"},
             ),
         )
-        assert opaque.status_code == 201
+        assert opaque.status_code == 202
 
         observations = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14",
@@ -3113,8 +3122,8 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
             (3, "2026-09-14T00:00:30Z", detailed_context("Editor")),
         ]
         for sequence, observed_at, context in observations:
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -3123,9 +3132,9 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
                     context=context,
                 ),
             )
-            assert response.status_code == 201
-        suspended = await client.post(
-            "/api/v1/activities",
+            assert response.status_code == 202
+        suspended = await post_activity(
+            client,
             headers=headers,
             json=state_change_request(
                 device_id=device.device_id,
@@ -3133,9 +3142,9 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
                 observed_at="2026-09-14T00:01:00Z",
             ),
         )
-        assert suspended.status_code == 201
-        resumed = await client.post(
-            "/api/v1/activities",
+        assert suspended.status_code == 202
+        resumed = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -3144,7 +3153,7 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
                 context=detailed_context("Terminal"),
             ),
         )
-        assert resumed.status_code == 201
+        assert resumed.status_code == 202
 
         observed = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14",
@@ -3238,8 +3247,8 @@ async def test_label_timeline_defaults_to_account_local_today(
             (2, "2026-09-14T15:10:00Z", detailed_context("After midnight")),
             (3, "2026-09-14T15:11:00Z", {"kind": "opaque"}),
         ]:
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -3248,7 +3257,7 @@ async def test_label_timeline_defaults_to_account_local_today(
                     context=context,
                 ),
             )
-            assert response.status_code == 201
+            assert response.status_code == 202
 
         today = await client.get(
             "/api/v1/activities/label-timeline",
@@ -3323,8 +3332,8 @@ async def test_label_timeline_returns_open_detailed_activity_separately(
             .isoformat(timespec="microseconds")
             .replace("+00:00", "Z")
         )
-        created = await client.post(
-            "/api/v1/activities",
+        created = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -3333,7 +3342,7 @@ async def test_label_timeline_returns_open_detailed_activity_separately(
                 context=detailed_context("Current editor"),
             ),
         )
-        assert created.status_code == 201
+        assert created.status_code == 202
 
         response = await client.get(
             "/api/v1/activities/label-timeline",
@@ -3371,8 +3380,8 @@ async def test_label_timeline_reopens_confirmation_after_late_observation(
             (2, "2026-09-14T00:00:30Z", detailed_context("Browser")),
             (3, "2026-09-14T00:01:00Z", {"kind": "opaque"}),
         ]:
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -3381,7 +3390,7 @@ async def test_label_timeline_reopens_confirmation_after_late_observation(
                     context=context,
                 ),
             )
-            assert response.status_code == 201
+            assert response.status_code == 202
 
         observed = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14",
@@ -3414,8 +3423,8 @@ async def test_label_timeline_reopens_confirmation_after_late_observation(
         )
         assert label_change.json()[0]["state"] == "confirmed"
 
-        late = await client.post(
-            "/api/v1/activities",
+        late = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -3424,7 +3433,7 @@ async def test_label_timeline_reopens_confirmation_after_late_observation(
                 context=detailed_context("Editor"),
             ),
         )
-        assert late.status_code == 201
+        assert late.status_code == 202
 
         current = await client.get(
             "/api/v1/activities/label-timeline?date=2026-09-14",
@@ -3461,8 +3470,8 @@ async def test_projection_version_invalidates_only_changed_segments(
             (1, "2026-09-14T00:00:00Z", detailed_context("First")),
             (2, "2026-09-14T00:00:30Z", {"kind": "opaque"}),
         ):
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -3471,7 +3480,7 @@ async def test_projection_version_invalidates_only_changed_segments(
                     context=context,
                 ),
             )
-            assert response.status_code == 201
+            assert response.status_code == 202
         timeline = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14",
             headers=headers,
@@ -3497,8 +3506,8 @@ async def test_projection_version_invalidates_only_changed_segments(
         )
         assert confirmed.status_code == 200
 
-        late = await client.post(
-            "/api/v1/activities",
+        late = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -3507,7 +3516,7 @@ async def test_projection_version_invalidates_only_changed_segments(
                 context=detailed_context("Late different context"),
             ),
         )
-        assert late.status_code == 201
+        assert late.status_code == 202
         changed = await client.get(
             f"/api/v1/activities/segments/{segment_id}/label-state",
             headers=headers,
@@ -3553,8 +3562,8 @@ async def test_projection_version_survives_same_result_recalculation(
             (2, "2026-09-14T00:00:30Z", detailed_context("Same")),
             (3, "2026-09-14T00:01:00Z", {"kind": "opaque"}),
         ):
-            response = await client.post(
-                "/api/v1/activities",
+            response = await post_activity(
+                client,
                 headers=headers,
                 json=activity_request(
                     device_id=device.device_id,
@@ -3563,7 +3572,7 @@ async def test_projection_version_survives_same_result_recalculation(
                     context=context,
                 ),
             )
-            assert response.status_code == 201
+            assert response.status_code == 202
         timeline = await client.get(
             "/api/v1/activities/timeline?date=2026-09-14",
             headers=headers,
@@ -3589,8 +3598,8 @@ async def test_projection_version_survives_same_result_recalculation(
         )
         assert confirmed.status_code == 200
 
-        late = await client.post(
-            "/api/v1/activities",
+        late = await post_activity(
+            client,
             headers=headers,
             json=activity_request(
                 device_id=device.device_id,
@@ -3599,7 +3608,7 @@ async def test_projection_version_survives_same_result_recalculation(
                 context=detailed_context("Same"),
             ),
         )
-        assert late.status_code == 201
+        assert late.status_code == 202
         after = await client.get(
             f"/api/v1/activities/segments/{segment_id}/label-state",
             headers=headers,

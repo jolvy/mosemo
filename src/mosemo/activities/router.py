@@ -1,25 +1,24 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Request, status
 
+from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.schemas import (
-    ActivityCreateResponse,
-    ActivityRecord,
+    ActivityBatchRequest,
+    ActivityBatchResponse,
     TimelineSegmentResponse,
 )
-from mosemo.activities.service import (
-    ActivityAccountNotFoundError,
-    ActivityDeviceNotFoundError,
-    ActivityEventIdConflictError,
-    ActivitySequenceConflictError,
-    ActivityTimelineBusyError,
+from mosemo.activities.service import ActivityAccountNotFoundError
+from mosemo.dependencies import (
+    ActivityServiceDep,
+    AuthenticatedAccountDep,
+    DeviceRepositoryDep,
 )
-from mosemo.dependencies import ActivityServiceDep, AuthenticatedAccountDep
 from mosemo.exceptions import ApiException, ErrorCode
-from mosemo.focus_sessions.models import (
-    FocusSessionInvalidTimeError,
-    FocusSessionNotFoundError,
+from mosemo.infra.batch_delivery import (
+    BatchDelivery,
+    DeliveryUnavailable,
 )
 from mosemo.openapi import api_error_responses
 
@@ -27,57 +26,54 @@ router = APIRouter(prefix="/activities")
 
 
 @router.post(
-    "",
-    operation_id="activitiesCreate",
-    status_code=status.HTTP_201_CREATED,
-    response_model=ActivityCreateResponse,
-    summary="활동 레코드 생성",
-    description=(
-        "인증된 계정의 기기에서 관찰한 활동 또는 수집 상태 변경 한 건을 저장합니다. "
-        "같은 eventId와 같은 내용의 재전송은 최초 저장 결과를 반환합니다."
-    ),
-    response_description="저장되었거나 동일한 재전송으로 확인된 활동 레코드입니다.",
+    "/batches",
+    operation_id="activitiesAcceptBatch",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ActivityBatchResponse,
+    summary="활동 배치 전달 수락",
+    description="인증 계정의 Device 원본 1~200건, 비압축 JSON 512 KiB 이하를 개발용 메모리 경로에 수락합니다. DB 저장 완료 또는 내구성 있는 Kafka ACK를 보장하지 않으며 종료 시 미처리 원본이 유실될 수 있습니다.",
+    response_description="메모리 전달 수락 결과입니다. DB 반영은 타임라인 조회로 확인합니다.",
     responses=api_error_responses(
         ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
-        ErrorCode.REQUEST_ROUTE_NOT_FOUND,
         ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
-        ErrorCode.FOCUS_SESSION_NOT_FOUND,
-        ErrorCode.ACTIVITY_EVENT_ID_CONFLICT,
-        ErrorCode.ACTIVITY_SEQUENCE_CONFLICT,
+        ErrorCode.REQUEST_ROUTE_NOT_FOUND,
+        ErrorCode.ACTIVITY_BATCH_TOO_LARGE,
         ErrorCode.INVALID_ARGUMENT,
-        ErrorCode.ACTIVITY_TIMELINE_BUSY,
+        ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
         headers={
             503: {
                 "Retry-After": {
-                    "description": "같은 eventId와 body로 재시도하기 전 대기할 초입니다.",
+                    "description": "같은 batchId와 내용으로 재시도하기 전 대기할 초입니다.",
                     "schema": {"type": "string", "const": "1"},
                 }
             }
         },
     ),
 )
-async def create_activity(
-    record: ActivityRecord,
-    service: ActivityServiceDep,
+async def accept_batch(
+    batch: ActivityBatchRequest,
+    request: Request,
     authenticated_account: AuthenticatedAccountDep,
-) -> ActivityCreateResponse:
+    devices: DeviceRepositoryDep,
+) -> ActivityBatchResponse:
+    account_id = authenticated_account.account_id
+    device = await devices.find_owned_by_id(
+        account_id=account_id, device_id=batch.device_id
+    )
+    if device is None:
+        raise ApiException(ErrorCode.ACTIVITY_DEVICE_NOT_FOUND)
+    delivery: BatchDelivery | None = getattr(request.app.state, "batch_delivery", None)
+    if delivery is None:
+        raise ApiException(ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE)
     try:
-        return await service.create_activity(
-            account_id=authenticated_account.account_id,
-            record=record,
+        delivery.admit(
+            ActivityRegistrationRequested(
+                account_id, batch.device_id, batch.batch_id, await request.body()
+            )
         )
-    except FocusSessionNotFoundError as exc:
-        raise ApiException(ErrorCode.FOCUS_SESSION_NOT_FOUND) from exc
-    except FocusSessionInvalidTimeError as exc:
-        raise ApiException(ErrorCode.INVALID_ARGUMENT) from exc
-    except ActivityDeviceNotFoundError as exc:
-        raise ApiException(ErrorCode.ACTIVITY_DEVICE_NOT_FOUND) from exc
-    except ActivityEventIdConflictError as exc:
-        raise ApiException(ErrorCode.ACTIVITY_EVENT_ID_CONFLICT) from exc
-    except ActivitySequenceConflictError as exc:
-        raise ApiException(ErrorCode.ACTIVITY_SEQUENCE_CONFLICT) from exc
-    except ActivityTimelineBusyError as exc:
-        raise ApiException(ErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
+    except DeliveryUnavailable as exc:
+        raise ApiException(ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE) from exc
+    return ActivityBatchResponse(batch_id=batch.batch_id, status="accepted")
 
 
 @router.get(

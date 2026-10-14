@@ -41,6 +41,8 @@ def test_public_error_registry_contains_the_public_specs() -> None:
             409,
             "Activity sequence conflicts with a stored record",
         ),
+        ("ACTIVITY_BATCH_TOO_LARGE", 413, "Activity batch body is too large"),
+        ("ACTIVITY_DELIVERY_UNAVAILABLE", 503, "Activity delivery is unavailable"),
         ("ACTIVITY_TIMELINE_BUSY", 503, "Activity timeline is busy"),
         ("ACTIVITY_SEGMENT_NOT_FOUND", 404, "Activity segment not found"),
         (
@@ -64,7 +66,7 @@ def test_public_error_registry_contains_the_public_specs() -> None:
         ("INVALID_ARGUMENT", 422, "Request validation failed."),
         ("INTERNAL_SERVER_ERROR", 500, "Internal server error"),
     ]
-    assert len({member.status for member in public_members}) == 18
+    assert len({member.status for member in public_members}) == 20
 
 
 def test_error_spec_is_immutable_and_contains_no_documentation_metadata() -> None:

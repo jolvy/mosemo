@@ -1,0 +1,477 @@
+import asyncio
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
+
+import httpx2
+import pytest
+import pytest_asyncio
+from asgi_lifespan import LifespanManager
+from sqlalchemy import delete, func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from mosemo.accounts.models import Account, AccountProvider
+from mosemo.accounts.repository import AccountRepository
+from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
+from mosemo.activities.repository import ActivityRepository
+from mosemo.activities.timeline import ProjectedActivity, project_events
+from mosemo.auth.tokens import TokenService
+from mosemo.config import Config
+from mosemo.devices.models import Device
+
+
+def record(sequence, seconds, *, context=None, event_id=None):
+    observed = datetime(2026, 9, 14, tzinfo=UTC) + timedelta(seconds=seconds)
+    return {
+        "eventId": str(event_id or uuid4()),
+        "sequence": sequence,
+        "recordType": "activity_observation",
+        "observedAt": observed.isoformat().replace("+00:00", "Z"),
+        "timezoneId": "Asia/Seoul",
+        "utcOffsetMinutes": 540,
+        "context": context or {"kind": "opaque"},
+    }
+
+
+def batch(device, records, *, batch_id=None):
+    return {
+        "batchId": str(batch_id or uuid4()),
+        "deviceId": str(device),
+        "records": records,
+    }
+
+
+@pytest_asyncio.fixture
+async def real_batch_app(
+    integration_database_url, config: Config, monkeypatch
+) -> AsyncIterator:
+    # Exercise the default main entrypoint and both default DI generators. Only
+    # the configured factory bind is replaced with the isolated PostgreSQL DB.
+    from mosemo import database
+    from mosemo.activities import handler
+    from mosemo.main import create_app
+
+    app = create_app()
+
+    engine = create_async_engine(integration_database_url)
+    closed_sessions = []
+
+    class ObservedSession(AsyncSession):
+        async def close(self):
+            closed_sessions.append(self)
+            await super().close()
+
+    factory = async_sessionmaker(engine, class_=ObservedSession, expire_on_commit=False)
+    monkeypatch.setattr(database, "SessionFactory", factory)
+    monkeypatch.setattr(handler, "SessionFactory", factory)
+    # Main token config is the explicit non-secret test environment, overridden
+    # with the fixture config for matching signing claims.
+    from mosemo.config import get_config
+
+    app.dependency_overrides[get_config] = lambda: config
+    accounts = []
+    devices = []
+    async with factory() as session:
+        for _ in range(2):
+            account = AccountRepository(session).save(
+                provider=AccountProvider.KAKAO, provider_subject=f"batches-{uuid4()}"
+            )
+            await session.flush()
+            device = Device(account_id=account.account_id, idempotency_key=uuid4())
+            session.add(device)
+            await session.flush()
+            accounts.append(account.account_id)
+            devices.append(device.device_id)
+        await session.commit()
+    closed_sessions.clear()
+    try:
+        async with (
+            LifespanManager(app) as manager,
+            httpx2.AsyncClient(
+                transport=httpx2.ASGITransport(app=manager.app), base_url="http://test"
+            ) as client,
+        ):
+            headers = [
+                {
+                    "Authorization": "Bearer "
+                    + TokenService(config.auth).issue_access_token(owner)
+                }
+                for owner in accounts
+            ]
+            yield app, client, factory, accounts, devices, headers, closed_sessions
+    finally:
+        app.dependency_overrides.clear()
+        async with factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id.in_(accounts))
+            )
+            await session.commit()
+        await engine.dispose()
+
+
+async def idle(app):
+    await asyncio.wait_for(app.state.batch_runtime.delivery.wait_idle(), 10)
+
+
+async def counts(factory, device):
+    async with factory() as session:
+        return tuple(
+            [
+                await session.scalar(
+                    select(func.count())
+                    .select_from(model)
+                    .where(model.device_id == device)
+                )
+                for model in (ActivityRecord, ActivityBatchReceipt)
+            ]
+        )
+
+
+@pytest.mark.asyncio
+async def test_202_precedes_actual_postgres_write_and_independent_session_commit(
+    real_batch_app, monkeypatch
+):
+    app, client, factory, _accounts, devices, headers, closed = real_batch_app
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = ActivityRepository.insert
+    message_sessions = []
+
+    async def held_insert(self, source):
+        message_sessions.append(self._session)
+        entered.set()
+        await release.wait()
+        return await original(self, source)
+
+    monkeypatch.setattr(ActivityRepository, "insert", held_insert)
+    payload = batch(devices[0], [record(0, 0.123456)])
+    response = await asyncio.wait_for(
+        client.post("/api/v1/activities/batches", headers=headers[0], json=payload), 3
+    )
+    assert response.status_code == 202
+    await asyncio.wait_for(entered.wait(), 3)
+    assert len(closed) == 1
+    assert message_sessions[0] not in closed
+    assert await counts(factory, devices[0]) == (0, 0)
+    # The admission DB session was closed while the message session is active.
+    assert any(session not in message_sessions for session in closed)
+    release.set()
+    await idle(app)
+    assert message_sessions[0] in closed
+    assert await counts(factory, devices[0]) == (1, 1)
+    timeline = await client.get(
+        "/api/v1/activities/timeline?date=2026-09-14", headers=headers[0]
+    )
+    assert timeline.status_code == 200 and len(timeline.json()) == 1
+    assert timeline.json()[0]["startedAt"] == "2026-09-14T00:00:00.123456Z"
+
+
+@pytest.mark.asyncio
+async def test_batch_winners_duplicates_gaps_lower_sequence_and_scoped_receipts(
+    real_batch_app,
+):
+    app, client, factory, accounts, devices, headers, _ = real_batch_app
+    first, later = record(10, 10), record(90, 90)
+    conflicting = record(10, 15)
+    payload = batch(devices[0], [first, first, conflicting, later])
+    response = await client.post(
+        "/api/v1/activities/batches", headers=headers[0], json=payload
+    )
+    assert response.status_code == 202
+    await idle(app)
+    async with factory() as session:
+        receipt = await session.get(
+            ActivityBatchReceipt, (accounts[0], devices[0], UUID(payload["batchId"]))
+        )
+        assert [r["status"] for r in receipt.results] == [
+            "stored",
+            "duplicate",
+            "sequence_rejected",
+            "stored",
+        ]
+        assert receipt.source and b'"records"' in receipt.source
+        assert await session.get(ActivityRecord, UUID(conflicting["eventId"])) is None
+    assert (
+        await client.post(
+            "/api/v1/activities/batches", headers=headers[0], json=payload
+        )
+    ).status_code == 202
+    await idle(app)
+    assert await counts(factory, devices[0]) == (2, 1)
+    lower = batch(devices[0], [record(0, 0), record(30, 30)])
+    assert (
+        await client.post("/api/v1/activities/batches", headers=headers[0], json=lower)
+    ).status_code == 202
+    await idle(app)
+    assert await counts(factory, devices[0]) == (4, 2)
+    foreign = batch(
+        devices[1], [record(0, 0, event_id=UUID(first["eventId"])), record(1, 1)]
+    )
+    assert (
+        await client.post(
+            "/api/v1/activities/batches", headers=headers[1], json=foreign
+        )
+    ).status_code == 202
+    await idle(app)
+    async with factory() as session:
+        receipt = await session.get(
+            ActivityBatchReceipt, (accounts[1], devices[1], UUID(foreign["batchId"]))
+        )
+        assert [r["status"] for r in receipt.results] == ["event_id_rejected", "stored"]
+    changed = payload | {"records": [record(100, 100)]}
+    assert (
+        await client.post(
+            "/api/v1/activities/batches", headers=headers[0], json=changed
+        )
+    ).status_code == 202
+    await idle(app)
+    retained = app.state.batch_runtime.delivery.inspect()
+    assert next(iter(retained.values())).error_code == "batch_content_conflict"
+    assert await counts(factory, devices[0]) == (4, 2)
+
+
+@pytest.mark.asyncio
+async def test_postgres_projection_failure_rolls_back_whole_batch_and_other_account_continues(
+    real_batch_app, monkeypatch
+):
+    app, client, factory, _, devices, headers, _ = real_batch_app
+    original = ActivityRepository.replace_account_segments
+
+    async def fail_after_flush(self, **kwargs):
+        await original(self, **kwargs)
+        if kwargs["account_id"] == real_batch_app[3][0]:
+            await self._session.execute(text("SELECT 1/0"))
+
+    monkeypatch.setattr(
+        ActivityRepository, "replace_account_segments", fail_after_flush
+    )
+    payload = batch(devices[0], [record(0, 0), record(20, 20)])
+    assert (
+        await client.post(
+            "/api/v1/activities/batches", headers=headers[0], json=payload
+        )
+    ).status_code == 202
+    await idle(app)
+    assert await counts(factory, devices[0]) == (0, 0)
+    failed = app.state.batch_runtime.delivery.inspect()
+    assert len(failed) == 1 and next(iter(failed.values())).attempts == 1
+    assert (
+        await client.post(
+            "/api/v1/activities/batches",
+            headers=headers[1],
+            json=batch(devices[1], [record(0, 0)]),
+        )
+    ).status_code == 202
+    await idle(app)
+    assert await counts(factory, devices[1]) == (1, 1)
+
+
+@pytest.mark.asyncio
+async def test_append_and_past_replay_match_full_reference_and_stop_reading_suffix(
+    real_batch_app, monkeypatch
+):
+    app, client, factory, accounts, devices, headers, _ = real_batch_app
+
+    # Many changes exceed one page. Every point has distinct context, making
+    # an unchanged closed segment a safe early convergence boundary.
+    def context(index):
+        return {
+            "kind": "detailed",
+            "app": {
+                "bundleId": {"status": "absent"},
+                "name": {"status": "captured", "value": str(index)},
+            },
+            "window": {"status": "absent"},
+            "web": {"kind": "not_applicable"},
+        }
+
+    for start in range(0, 400, 200):
+        payload = batch(
+            devices[0],
+            [record(i * 10, i, context=context(i)) for i in range(start, start + 200)],
+        )
+        assert (
+            await client.post(
+                "/api/v1/activities/batches", headers=headers[0], json=payload
+            )
+        ).status_code == 202
+        await idle(app)
+    pages = []
+    original = ActivityRepository.record_page
+
+    async def counted(self, *args, **kwargs):
+        page = await original(self, *args, **kwargs)
+        pages.append(len(page))
+        return page
+
+    monkeypatch.setattr(ActivityRepository, "record_page", counted)
+    appended = batch(devices[0], [record(4000, 400, context=context(400))])
+    assert (
+        await client.post(
+            "/api/v1/activities/batches", headers=headers[0], json=appended
+        )
+    ).status_code == 202
+    await idle(app)
+    assert pages == []
+    async with factory() as session:
+        before = await ActivityRepository(session).list_account_segments(accounts[0])
+    late = batch(
+        devices[0],
+        [
+            record(105, 10.5, context=context("late")),
+            record(106, 10.6, context=context("late")),
+        ],
+    )
+    assert (
+        await client.post("/api/v1/activities/batches", headers=headers[0], json=late)
+    ).status_code == 202
+    await idle(app)
+    assert pages == [128]
+    async with factory() as session:
+        repo = ActivityRepository(session)
+        source = await repo.list_account_records(
+            accounts[0], from_observed_at=datetime(2026, 9, 14, tzinfo=UTC)
+        )
+        segments = await repo.list_account_segments(accounts[0])
+    reference = project_events(source, now=datetime.now(UTC))
+    for stored, expected in zip(segments, reference, strict=True):
+        assert (stored.started_at, stored.ended_at, stored.first_event_id) == (
+            expected.started_at,
+            expected.ended_at,
+            expected.first_event_id,
+        )
+        assert isinstance(expected, ProjectedActivity)
+        assert stored.last_observed_at == expected.last_observed_at
+        assert stored.last_event_id == expected.last_event_id
+        assert stored.context == expected.context
+    unchanged = {
+        s.first_event_id: s.segment_id for s in before if s.started_at.second > 15
+    }
+    assert all(
+        s.segment_id == unchanged[s.first_event_id]
+        for s in segments
+        if s.first_event_id in unchanged
+    )
+
+
+@pytest.mark.asyncio
+async def test_regressing_clock_retains_source_and_blocks_following_device_batch(
+    real_batch_app,
+):
+    app, client, factory, _, devices, headers, _ = real_batch_app
+    source = batch(devices[0], [record(10, 10), record(11, 5)])
+    follow = batch(devices[0], [record(12, 12)])
+    assert (
+        await client.post("/api/v1/activities/batches", headers=headers[0], json=source)
+    ).status_code == 202
+    assert (
+        await client.post("/api/v1/activities/batches", headers=headers[0], json=follow)
+    ).status_code == 202
+    await idle(app)
+    values = list(app.state.batch_runtime.delivery.inspect().values())
+    assert [v.state for v in values] == ["failed", "blocked"]
+    assert values[0].error_code == "projection_time_regression"
+    assert await counts(factory, devices[0]) == (0, 0)
+
+
+@pytest.mark.asyncio
+async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
+    real_batch_app, config, monkeypatch
+):
+    from mosemo.config import get_config
+    from mosemo.main import create_app
+
+    app, client, factory, accounts, devices, headers, _ = real_batch_app
+    second = create_app()
+    second.dependency_overrides[get_config] = lambda: config
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    arrivals = 0
+    original = ActivityRepository.insert
+    shared_event = uuid4()
+
+    async def simultaneous(self, source):
+        nonlocal arrivals
+        arrivals += 1
+        if arrivals == 2:
+            entered.set()
+        await release.wait()
+        return await original(self, source)
+
+    monkeypatch.setattr(ActivityRepository, "insert", simultaneous)
+    first_source = batch(devices[0], [record(0, 0, event_id=shared_event)])
+    second_source = batch(devices[1], [record(0, 1, event_id=shared_event)])
+    async with (
+        LifespanManager(second) as manager,
+        httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=manager.app), base_url="http://test"
+        ) as other,
+    ):
+        responses = await asyncio.gather(
+            client.post(
+                "/api/v1/activities/batches", headers=headers[0], json=first_source
+            ),
+            other.post(
+                "/api/v1/activities/batches", headers=headers[1], json=second_source
+            ),
+        )
+        assert [response.status_code for response in responses] == [202, 202]
+        await asyncio.wait_for(entered.wait(), 3)
+        release.set()
+        await asyncio.gather(idle(app), idle(second))
+    async with factory() as session:
+        receipts = [
+            await session.get(
+                ActivityBatchReceipt, (owner, device, UUID(source["batchId"]))
+            )
+            for owner, device, source in zip(
+                accounts, devices, [first_source, second_source], strict=True
+            )
+        ]
+        assert sorted(receipt.results[0]["status"] for receipt in receipts) == [
+            "event_id_rejected",
+            "stored",
+        ]
+        winner = await session.get(ActivityRecord, shared_event)
+        assert winner is not None
+        for receipt in receipts:
+            if receipt.results[0]["status"] == "stored":
+                assert receipt.device_id == winner.device_id
+            else:
+                assert receipt.device_id != winner.device_id
+
+
+@pytest.mark.asyncio
+async def test_first_receipt_detects_legacy_clock_regression_without_rewriting_raw(
+    real_batch_app,
+):
+    from mosemo.activities.enums import RecordType
+    from mosemo.timezones import Timezone
+
+    app, client, factory, _, devices, headers, _ = real_batch_app
+    async with factory() as session:
+        for sequence, second in [(0, 10), (1, 5)]:
+            session.add(
+                ActivityRecord(
+                    event_id=uuid4(),
+                    device_id=devices[0],
+                    sequence=sequence,
+                    record_type=RecordType.ACTIVITY_OBSERVATION,
+                    observed_at=datetime(2026, 9, 14, 0, 0, second, tzinfo=UTC),
+                    timezone_id=Timezone.ASIA_SEOUL,
+                    utc_offset_minutes=540,
+                    payload={"context": {"kind": "opaque"}},
+                )
+            )
+        await session.commit()
+    payload = batch(devices[0], [record(2, 20)])
+    assert (
+        await client.post(
+            "/api/v1/activities/batches", headers=headers[0], json=payload
+        )
+    ).status_code == 202
+    await idle(app)
+    assert await counts(factory, devices[0]) == (2, 0)
+    assert (
+        next(iter(app.state.batch_runtime.delivery.inspect().values())).error_code
+        == "projection_time_regression"
+    )

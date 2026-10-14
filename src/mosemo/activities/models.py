@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Text,
     UniqueConstraint,
     func,
@@ -26,6 +27,13 @@ class ActivityRecord(Base):
     __tablename__ = "activity_records"
     __table_args__ = (
         UniqueConstraint("device_id", "sequence"),
+        Index(
+            "activity_records_merge_order_idx",
+            "observed_at",
+            "device_id",
+            "sequence",
+            "event_id",
+        ),
         CheckConstraint("sequence >= 0", name="sequence_non_negative"),
         CheckConstraint(
             "record_type IN ('activity_observation', 'collection_state_changed')",
@@ -175,3 +183,23 @@ class ActivityTimelineSegment(Base):
         if self.effective_ended_at(now) is None:
             return ActivityTimelineKind.IN_PROGRESS_ACTIVITY
         return ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
+
+
+class ActivityBatchReceipt(Base):
+    """Consumer-only atomic processing evidence, scoped to an account/device."""
+
+    __tablename__ = "activity_batch_receipts"
+
+    account_id: Mapped[UUID] = mapped_column(
+        ForeignKey("accounts.account_id", ondelete="CASCADE"), primary_key=True
+    )
+    device_id: Mapped[UUID] = mapped_column(
+        ForeignKey("devices.device_id", ondelete="CASCADE"), primary_key=True
+    )
+    batch_id: Mapped[UUID] = mapped_column(primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(Text)
+    source: Mapped[bytes] = mapped_column(LargeBinary)
+    results: Mapped[list[dict[str, str]]] = mapped_column(JSONB)
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
