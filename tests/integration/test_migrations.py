@@ -212,7 +212,7 @@ def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == ["b8c9d0e1f2a3"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["c9d0e1f2a3b4"]
     account_id = uuid4()
     asyncio.run(insert_account(integration_database_url, account_id))
 
@@ -227,6 +227,7 @@ def test_schema_migration_round_trip_and_label_backfill(
         assert "labels" not in downgraded["tables"]
         assert "activity_label_confirmations" not in downgraded["tables"]
         assert "activity_label_proposals" not in downgraded["tables"]
+        assert "activity_batch_receipts" not in downgraded["tables"]
 
         command.upgrade(config, "head")
         upgraded = asyncio.run(schema_snapshot(integration_database_url))
@@ -238,6 +239,7 @@ def test_schema_migration_round_trip_and_label_backfill(
             "labels",
             "activity_label_confirmations",
             "activity_label_proposals",
+            "activity_batch_receipts",
         } <= upgraded["tables"]
         assert set(upgraded["proposal_columns"]) == {
             "proposal_id",

@@ -203,14 +203,13 @@ ActivityContext = Annotated[
 ]
 
 
-class ActivityRecordBase(ActivityRequestModel):
+class BatchRecordBase(ActivityRequestModel):
     """Fields shared by every ordered activity collection record."""
 
     focus_session_id: UUID | None = Field(
         default=None,
         description="관찰 당시 진행 중인 집중 세션입니다. 일시중지 중에는 생략합니다.",
     )
-    device_id: UUID = Field(description="서버에 등록된 Device 식별자입니다.")
     event_id: UUID = Field(description="레코드 중복 제거에 사용하는 식별자입니다.")
     sequence: int = Field(
         ge=0,
@@ -227,7 +226,7 @@ class ActivityRecordBase(ActivityRequestModel):
     )
 
 
-class ActivityObservation(ActivityRecordBase):
+class BatchActivityObservation(BatchRecordBase):
     """A complete snapshot of the focused activity at one point in time."""
 
     record_type: Literal[RecordType.ACTIVITY_OBSERVATION] = Field(
@@ -238,7 +237,7 @@ class ActivityObservation(ActivityRecordBase):
     )
 
 
-class CollectionStateChanged(ActivityRecordBase):
+class BatchCollectionStateChanged(BatchRecordBase):
     """A change in whether the client can observe activity."""
 
     record_type: Literal[RecordType.COLLECTION_STATE_CHANGED] = Field(
@@ -260,6 +259,56 @@ class CollectionStateChanged(ActivityRecordBase):
                 "Suspended collection records cannot link to a focus session"
             )
         return self
+
+
+class ActivityObservation(BatchActivityObservation):
+    """An internal observation with its validated envelope device."""
+
+    device_id: UUID = Field(description="서버에 등록된 Device 식별자입니다.")
+
+
+class CollectionStateChanged(BatchCollectionStateChanged):
+    """An internal collection change with its validated envelope device."""
+
+    device_id: UUID = Field(description="서버에 등록된 Device 식별자입니다.")
+
+
+BatchRecord = Annotated[
+    BatchActivityObservation | BatchCollectionStateChanged,
+    Field(discriminator="record_type"),
+]
+
+
+class ActivityBatchRequest(ActivityRequestModel):
+    """같은 Device의 활동 원본을 함께 전달하는 배치입니다."""
+
+    batch_id: UUID = Field(description="같은 내용 재전송에 유지하는 배치 식별자입니다.")
+    device_id: UUID = Field(description="인증 계정에 등록된 Device 식별자입니다.")
+    records: list[BatchRecord] = Field(
+        min_length=1,
+        max_length=200,
+        description="Device 순번을 가진 원본 1~200건입니다.",
+    )
+
+    def activity_records(self) -> list[ActivityRecord]:
+        # Both subclasses share all validators; only the validated UUID is added.
+        return [
+            (
+                ActivityObservation
+                if isinstance(record, BatchActivityObservation)
+                else CollectionStateChanged
+            ).model_construct(**record.__dict__, device_id=self.device_id)
+            for record in self.records
+        ]
+
+
+class ActivityBatchResponse(ApiResponseModel):
+    """개발용 메모리 전달 수락 결과이며 DB 저장 완료를 보장하지 않습니다."""
+
+    batch_id: UUID = Field(description="수락한 배치 식별자입니다.")
+    status: Literal["accepted"] = Field(
+        description="제한된 메모리 전달 경로가 수락했습니다."
+    )
 
 
 ActivityRecord = Annotated[
