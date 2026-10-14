@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid7
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -116,11 +116,160 @@ class ActivityRepository:
             )
             .order_by(
                 StoredActivityRecord.observed_at,
-                StoredActivityRecord.received_at,
+                StoredActivityRecord.device_id,
+                StoredActivityRecord.sequence,
                 StoredActivityRecord.event_id,
             )
         )
         return list(result.all())
+
+    async def latest_account_record(
+        self, account_id: UUID
+    ) -> StoredActivityRecord | None:
+        record = StoredActivityRecord
+        return await self._session.scalar(
+            select(record)
+            .join(Device, record.device_id == Device.device_id)
+            .where(Device.account_id == account_id)
+            .order_by(
+                record.observed_at.desc(),
+                record.device_id.desc(),
+                record.sequence.desc(),
+                record.event_id.desc(),
+            )
+            .limit(1)
+        )
+
+    async def record_page(
+        self,
+        account_id: UUID,
+        *,
+        start: datetime,
+        after: tuple[datetime, UUID, int, UUID] | None,
+        limit: int = 128,
+    ) -> list[StoredActivityRecord]:
+        record = StoredActivityRecord
+        statement = (
+            select(record)
+            .join(Device, record.device_id == Device.device_id)
+            .where(Device.account_id == account_id, record.observed_at >= start)
+        )
+        if after is not None:
+            statement = statement.where(
+                tuple_(
+                    record.observed_at,
+                    record.device_id,
+                    record.sequence,
+                    record.event_id,
+                )
+                > after
+            )
+        return list(
+            (
+                await self._session.scalars(
+                    statement.order_by(
+                        record.observed_at,
+                        record.device_id,
+                        record.sequence,
+                        record.event_id,
+                    ).limit(limit)
+                )
+            ).all()
+        )
+
+    async def account_clock_is_monotone(self, account_id: UUID) -> bool:
+        # One-time validation of legacy source before this account's first receipt.
+        # Subsequent consumer inserts preserve the invariant through neighbor checks.
+        record = StoredActivityRecord
+        ordered = (
+            select(
+                record.observed_at.label("observed_at"),
+                func.lag(record.observed_at)
+                .over(partition_by=record.device_id, order_by=record.sequence)
+                .label("previous_time"),
+            )
+            .join(Device, record.device_id == Device.device_id)
+            .where(Device.account_id == account_id)
+            .subquery()
+        )
+        regression = await self._session.scalar(
+            select(ordered.c.observed_at)
+            .where(ordered.c.observed_at < ordered.c.previous_time)
+            .limit(1)
+        )
+        return regression is None
+
+    async def validate_device_clock(self, record: StoredActivityRecord) -> bool:
+        model = StoredActivityRecord
+        for preceding in (True, False):
+            statement = select(model.observed_at).where(
+                model.device_id == record.device_id
+            )
+            if preceding:
+                statement = statement.where(model.sequence < record.sequence).order_by(
+                    model.sequence.desc()
+                )
+            else:
+                statement = statement.where(model.sequence > record.sequence).order_by(
+                    model.sequence
+                )
+            observed_at = await self._session.scalar(statement.limit(1))
+            if observed_at is not None and (
+                (preceding and observed_at > record.observed_at)
+                or (not preceding and observed_at < record.observed_at)
+            ):
+                return False
+        return True
+
+    async def last_account_segment(
+        self, account_id: UUID
+    ) -> ActivityTimelineSegment | None:
+        record = StoredActivityRecord
+        return await self._session.scalar(
+            _ordered_account_segments(account_id)
+            .order_by(None)
+            .order_by(
+                ActivityTimelineSegment.started_at.desc(),
+                record.device_id.desc(),
+                record.sequence.desc(),
+                record.event_id.desc(),
+            )
+            .limit(1)
+        )
+
+    async def segment_range(
+        self, account_id: UUID, *, start: datetime, through: datetime | None = None
+    ) -> list[ActivityTimelineSegment]:
+        # Page only the calculated prefix, never pre-read the unaffected suffix.
+        segment = ActivityTimelineSegment
+        record = StoredActivityRecord
+        base = (
+            select(segment, record.device_id, record.sequence, record.event_id)
+            .join(record, segment.first_event_id == record.event_id)
+            .where(segment.account_id == account_id, segment.started_at >= start)
+        )
+        if through is not None:
+            base = base.where(segment.started_at <= through)
+        after = None
+        segments: list[ActivityTimelineSegment] = []
+        ordering = (
+            segment.started_at,
+            record.device_id,
+            record.sequence,
+            record.event_id,
+        )
+        while True:
+            statement = base
+            if after is not None:
+                statement = statement.where(tuple_(*ordering) > after)
+            rows = (
+                await self._session.execute(statement.order_by(*ordering).limit(128))
+            ).all()
+            if not rows:
+                return segments
+            segments.extend(row[0] for row in rows)
+            last = rows[-1]
+            after = (last[0].started_at, last[1], last[2], last[3])
 
     async def list_account_segments(
         self, account_id: UUID, *, from_started_at: datetime | None = None
@@ -282,7 +431,8 @@ def _ordered_account_segments(account_id: UUID):
         .where(ActivityTimelineSegment.account_id == account_id)
         .order_by(
             ActivityTimelineSegment.started_at,
-            StoredActivityRecord.received_at,
+            StoredActivityRecord.device_id,
+            StoredActivityRecord.sequence,
             StoredActivityRecord.event_id,
         )
     )

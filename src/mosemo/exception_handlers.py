@@ -43,7 +43,10 @@ async def api_exception_handler(
     headers = None
     if exc.spec is ErrorCode.AUTH_INVALID_ACCESS_TOKEN:
         headers = {"WWW-Authenticate": "Bearer"}
-    elif exc.spec is ErrorCode.ACTIVITY_TIMELINE_BUSY:
+    elif exc.spec in {
+        ErrorCode.ACTIVITY_TIMELINE_BUSY,
+        ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
+    }:
         headers = {"Retry-After": "1"}
     return error_response(exc.spec, details=exc.details, headers=headers)
 

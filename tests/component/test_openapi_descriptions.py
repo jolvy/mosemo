@@ -143,13 +143,13 @@ def test_openapi_metadata_and_public_data_contract_are_stable(
         "#/components/schemas/Timezone"
     )
     assert schemas["CollectionState"]["enum"] == ["active", "suspended"]
-    assert schemas["ActivityObservation"]["properties"]["recordType"]["const"] == (
+    assert schemas["BatchActivityObservation"]["properties"]["recordType"]["const"] == (
         "activity_observation"
     )
-    assert schemas["CollectionStateChanged"]["properties"]["recordType"]["const"] == (
-        "collection_state_changed"
-    )
-    assert schemas["CollectionStateChanged"]["properties"]["state"]["$ref"] == (
+    assert schemas["BatchCollectionStateChanged"]["properties"]["recordType"][
+        "const"
+    ] == ("collection_state_changed")
+    assert schemas["BatchCollectionStateChanged"]["properties"]["state"]["$ref"] == (
         "#/components/schemas/CollectionState"
     )
     assert schemas["ActivitySegmentResponse"]["properties"]["segmentType"]["const"] == (
@@ -158,14 +158,10 @@ def test_openapi_metadata_and_public_data_contract_are_stable(
     assert schemas["CaptureGapResponse"]["properties"]["segmentType"]["const"] == (
         "capture_gap"
     )
-    assert set(schemas["ActivityCreateResponse"]["properties"]) == {
-        "eventId",
-        "status",
-        "receivedAt",
-    }
+    assert set(schemas["ActivityBatchResponse"]["properties"]) == {"batchId", "status"}
     assert set(schemas["DeviceCreateResponse"]["properties"]) == {"deviceId"}
-    for activity_schema in ("ActivityObservation", "CollectionStateChanged"):
-        assert "deviceId" in schemas[activity_schema]["properties"]
+    for activity_schema in ("BatchActivityObservation", "BatchCollectionStateChanged"):
+        assert "deviceId" not in schemas[activity_schema]["properties"]
         assert "deviceRegistrationId" not in schemas[activity_schema]["properties"]
         assert schemas[activity_schema]["properties"]["timezoneId"]["$ref"] == (
             "#/components/schemas/Timezone"
@@ -333,34 +329,28 @@ def test_public_error_examples_match_status_and_common_schema(
         callback_responses["400"]["content"]["application/json"]["examples"]
     ) == {"AUTH_INVALID_OAUTH_CONTEXT"}
 
-    activity_post = openapi_document["paths"]["/api/v1/activities"]["post"]
-    assert activity_post["requestBody"]["content"]["application/json"]["schema"][
-        "discriminator"
-    ] == {
-        "propertyName": "recordType",
-        "mapping": {
-            "activity_observation": "#/components/schemas/ActivityObservation",
-            "collection_state_changed": "#/components/schemas/CollectionStateChanged",
-        },
+    assert "/api/v1/activities" not in openapi_document["paths"]
+    activity_post = openapi_document["paths"]["/api/v1/activities/batches"]["post"]
+    assert activity_post["requestBody"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ActivityBatchRequest"
     }
+    batch_schema = openapi_document["components"]["schemas"]["ActivityBatchRequest"]
+    assert set(batch_schema["properties"]) == {"batchId", "deviceId", "records"}
+    assert batch_schema["properties"]["records"]["minItems"] == 1
+    assert batch_schema["properties"]["records"]["maxItems"] == 200
+    assert (
+        batch_schema["properties"]["records"]["items"]["discriminator"]["propertyName"]
+        == "recordType"
+    )
     activity_responses = activity_post["responses"]
-    assert "201" in activity_responses
+    assert "202" in activity_responses and "201" not in activity_responses
+    assert "409" not in activity_responses and "413" in activity_responses
     assert set(
         activity_responses["404"]["content"]["application/json"]["examples"]
-    ) == {
-        "REQUEST_ROUTE_NOT_FOUND",
-        "ACTIVITY_DEVICE_NOT_FOUND",
-        "FOCUS_SESSION_NOT_FOUND",
-    }
-    assert set(
-        activity_responses["409"]["content"]["application/json"]["examples"]
-    ) == {
-        "ACTIVITY_EVENT_ID_CONFLICT",
-        "ACTIVITY_SEQUENCE_CONFLICT",
-    }
+    ) == {"REQUEST_ROUTE_NOT_FOUND", "ACTIVITY_DEVICE_NOT_FOUND"}
     assert set(
         activity_responses["503"]["content"]["application/json"]["examples"]
-    ) == {"ACTIVITY_TIMELINE_BUSY"}
+    ) == {"ACTIVITY_DELIVERY_UNAVAILABLE"}
     assert activity_responses["503"]["headers"]["Retry-After"]["schema"] == {
         "type": "string",
         "const": "1",

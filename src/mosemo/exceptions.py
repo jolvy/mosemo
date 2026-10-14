@@ -40,6 +40,12 @@ class ErrorCode(Enum):
         code=409,
         message="Activity sequence conflicts with a stored record",
     )
+    ACTIVITY_BATCH_TOO_LARGE = ErrorSpec(
+        code=413, message="Activity batch body is too large"
+    )
+    ACTIVITY_DELIVERY_UNAVAILABLE = ErrorSpec(
+        code=503, message="Activity delivery is unavailable"
+    )
     ACTIVITY_TIMELINE_BUSY = ErrorSpec(
         code=503,
         message="Activity timeline is busy",
