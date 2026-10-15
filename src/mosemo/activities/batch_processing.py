@@ -74,6 +74,7 @@ class ActivityBatchProcessor:
         *,
         now: datetime | None = None,
     ) -> list[dict[str, str]]:
+        current_time = now or datetime.now(UTC)
         async with self.session.begin():
             await acquire_activity_timeline_lock(self.session, account_id=account_id)
             device = await DeviceRepository(self.session).find_owned_by_id(
@@ -115,6 +116,8 @@ class ActivityBatchProcessor:
             ):
                 raise TerminalBatchError("projection_time_regression")
             latest = await self.repository.latest_account_record(account_id)
+            if initialized is None and latest is not None:
+                await self._rebuild_legacy_projection(account_id, latest, current_time)
             adopted = []
             results = []
             for record in batch.activity_records():
@@ -181,14 +184,36 @@ class ActivityBatchProcessor:
                     raise TerminalBatchError("projection_time_regression")
             if adopted:
                 try:
-                    await self._project(
-                        account_id, adopted, latest, now or datetime.now(UTC)
-                    )
+                    await self._project(account_id, adopted, latest, current_time)
                 except ProjectionFailure:
                     raise TerminalBatchError("projection_time_regression") from None
             claimed.results = results
             await self.session.flush()
             return results
+
+    async def _rebuild_legacy_projection(
+        self, account_id: UUID, latest: StoredActivityRecord, now: datetime
+    ) -> None:
+        # The first receipt marks an atomic transition from received_at tie order.
+        # Rebuild even for duplicate-only batches; an unchanged prefix does not
+        # prove that later legacy ties already follow the new ordering.
+        start = datetime.min.replace(tzinfo=UTC)
+        projection = TimelineProjection()
+        after = None
+        while page := await self.repository.record_page(
+            account_id, start=start, after=after
+        ):
+            for record in page:
+                projection.feed(record)
+            after = observation_key(page[-1])
+        existing = await self.repository.segment_range(account_id, start=start)
+        await self.repository.replace_account_segments(
+            account_id=account_id,
+            projected=projection.finish(now),
+            existing=existing,
+            # Keep replacement from converging before every legacy tie is rebuilt.
+            event_observed_at=latest.observed_at,
+        )
 
     async def _project(
         self,

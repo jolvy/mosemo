@@ -79,6 +79,7 @@ class BatchDeliveryConfig(BaseModel):
 
     enabled: bool = True
     capacity: int = Field(default=64, ge=1)
+    topic: str = Field(default="activities.registration-requested", min_length=1)
 
 
 class Config(BaseSettings):
