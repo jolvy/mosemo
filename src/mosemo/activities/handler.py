@@ -14,7 +14,6 @@ from mosemo.activities.batch_processing import ActivityBatchProcessor
 from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.activities.service import ActivityTimelineBusyError
 from mosemo.database import SessionFactory
-from mosemo.infra.batch_delivery import TOPIC
 
 
 class RegistrationSnapshot(BaseModel):
@@ -28,8 +27,8 @@ async def get_batch_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-def register_activity_handler(broker: KafkaBroker):
-    @broker.subscriber(TOPIC)
+def register_activity_handler(broker: KafkaBroker, *, topic: str):
+    @broker.subscriber(topic)
     async def register_requested(
         snapshot: Annotated[RegistrationSnapshot, Body()],
         account_id: Annotated[UUID, Header(alias="x-account-id")],

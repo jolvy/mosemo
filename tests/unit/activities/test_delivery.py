@@ -8,7 +8,10 @@ from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.infra.batch_delivery import (
     BatchDelivery,
     DeliveryUnavailable,
+    RetainedMessageState,
 )
+
+TEST_TOPIC = "test.activities.registration-requested"
 
 
 def message(device=None):
@@ -21,7 +24,7 @@ def message(device=None):
 async def test_active_failure_and_blocked_source_share_capacity_and_recover_in_order():
     broker = AsyncMock()
     broker.publish.side_effect = RuntimeError("sensitive text never retained")
-    delivery = BatchDelivery(broker, capacity=3)
+    delivery = BatchDelivery(broker, topic=TEST_TOPIC, capacity=3)
     first = message()
     second = ActivityRegistrationRequested(
         first.account_id, first.device_id, uuid4(), b'"second"'
@@ -35,9 +38,9 @@ async def test_active_failure_and_blocked_source_share_capacity_and_recover_in_o
         delivery.admit(third)
         await delivery.wait_idle()
         assert [v.state for v in delivery.inspect().values()] == [
-            "failed",
-            "blocked",
-            "blocked",
+            RetainedMessageState.FAILED,
+            RetainedMessageState.BLOCKED,
+            RetainedMessageState.BLOCKED,
         ]
         assert next(iter(delivery.inspect().values())).error_code == "RuntimeError"
         with pytest.raises(DeliveryUnavailable):
@@ -54,6 +57,7 @@ async def test_active_failure_and_blocked_source_share_capacity_and_recover_in_o
             second.body,
             third.body,
         ]
+        assert all(c.args[1] == TEST_TOPIC for c in broker.publish.await_args_list)
     assert delivery.worker is not None and delivery.worker.done()
 
 
@@ -62,7 +66,7 @@ async def test_transient_retry_uses_five_attempts_full_jitter_and_other_device_c
     broker = AsyncMock()
     broker.publish.side_effect = [ConnectionError()] * 5 + [None]
     sleep = AsyncMock()
-    delivery = BatchDelivery(broker, sleep=sleep, jitter=lambda: 0.5)
+    delivery = BatchDelivery(broker, topic=TEST_TOPIC, sleep=sleep, jitter=lambda: 0.5)
     async with delivery.lifespan():
         delivery.admit(message())
         delivery.admit(message())
@@ -87,13 +91,16 @@ async def test_cancellation_retains_active_source_and_stops_admission():
 
     broker = AsyncMock()
     broker.publish.side_effect = publish
-    delivery = BatchDelivery(broker, capacity=1)
+    delivery = BatchDelivery(broker, topic=TEST_TOPIC, capacity=1)
     async with delivery.lifespan():
-        delivery.admit(message())
+        key = delivery.admit(message())
+        assert delivery.inspect()[key].state is RetainedMessageState.QUEUED
         await entered.wait()
+        assert delivery.inspect()[key].state is RetainedMessageState.ACTIVE
         with pytest.raises(DeliveryUnavailable):
             delivery.admit(message())
     assert closed.is_set()
+    assert delivery.inspect()[key].state is RetainedMessageState.FAILED
     assert next(iter(delivery.inspect().values())).error_code == "shutdown_cancelled"
     with pytest.raises(DeliveryUnavailable):
         delivery.admit(message())
@@ -107,7 +114,7 @@ async def test_fatal_worker_is_observed_and_refuses_admission_without_leaked_tas
     async def broken_sleep(delay):
         raise RuntimeError("controlled fatal worker")
 
-    delivery = BatchDelivery(broker, sleep=broken_sleep)
+    delivery = BatchDelivery(broker, topic=TEST_TOPIC, sleep=broken_sleep)
     async with delivery.lifespan():
         delivery.admit(message())
         await asyncio.wait_for(delivery.wait_idle(), 3)
@@ -116,4 +123,4 @@ async def test_fatal_worker_is_observed_and_refuses_admission_without_leaked_tas
         with pytest.raises(DeliveryUnavailable):
             delivery.admit(message())
     assert delivery.worker is not None and delivery.worker.done()
-    assert next(iter(delivery.inspect().values())).state == "failed"
+    assert next(iter(delivery.inspect().values())).state is RetainedMessageState.FAILED

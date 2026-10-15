@@ -24,6 +24,8 @@
 
 ## 실행과 종료
 
+`BATCH_TOPIC`으로 발행·구독 토픽을 함께 설정한다. 기본값은 `activities.registration-requested`이며 빈 값은 허용하지 않는다. 실행 구성에서 읽은 같은 토픽을 발행자와 Handler 등록에 주입한다.
+
 공개 `TestKafkaBroker(connect_only=True)`와 faststream_fastapi lifespan을 사용한다. bounded queue → 고정 Worker 1개 → 실제 broker.publish → 등록 subscriber → 메시지별 SessionFactory/transaction 순서다. HTTP Request/session/model은 전달 메시지에 넣지 않는다. 원본 byte snapshot을 내부 JSON 문자열로 손실 없이 운반하고 인증 계정은 서버가 만든 header로 전달한다. HTTP app DI, 오류 middleware, HTTP client lifespan, 실제 route OpenAPI는 내부 FastAPI에 유지한다. 외부 Kafka 연결은 없다. 시작 후 공개 handler `reset_test()`로 TestBroker 호출 기록을 비활성화해 성공 원본이 Mock/call recorder에 무제한 누적되지 않게 한다. subscriber와 DI 처리는 유지한다.
 
 `BATCH_ENABLED` 기본 true, `BATCH_CAPACITY` 기본 64이며 `MOSEMO_ENV=prod/production`에서는 메모리 전달을 끈다. 이 숫자는 측정한 최적값이 아니다. 대기·active·failed·blocked를 합쳐 64개까지 보관하므로 원본 최대 32 MiB이며 객체/내부 publish JSON/요청 처리 중 버퍼는 별도다. 동시에 들어오는 HTTP 요청 전체에 대한 process-wide memory cap은 아니다. 실패 원본은 자동 eviction하지 않는다. 용량 한도, 미시작/중단/fatal Worker에서는 새 수락을 503으로 거절한다.
@@ -45,6 +47,8 @@ receipt는 64 hex 문자 fingerprint, 원본 bytes 최대 512 KiB, 원본별 ID/
 ## 순서와 재구성
 
 Device 내 순서는 sequence이고 contiguous 조건은 없다. 미사용 낮은 sequence도 저장한다. Device별 nondecreasing observedAt chain을 `(observedAt, deviceId, sequence, eventId)`로 merge한다. 다른 Device의 sequence를 서로 비교하지 않는다. Device tie에 UUID를 사용해 수신 순서 변화에 영향을 받지 않는 결정성을 택했다. 구간은 기존 계정 전체 문맥으로 계산하고 응답에서 출처 Device를 추가하지 않는다.
+
+기존 원본이 있는 계정은 첫 consumer receipt를 저장하는 트랜잭션에서 타임라인 전체를 새 정렬 기준으로 한 번 재구축한다. 중복 원본만 들어온 첫 배치도 이 전환을 수행한다. 원본은 128행 keyset page로 읽으며, 앞부분이 기존 구간과 같아도 뒤의 동일 시각 기록까지 모두 계산한다. 원본을 다시 쓰지 않고 기존 구간 ID anchoring과 라벨 적용성 계산을 유지한다. 재구축·배치 처리가 실패하면 receipt와 타임라인 변경을 함께 rollback하여 다음 처리에서 전환을 다시 시도한다. 이후 배치는 아래의 증분·부분 재구성을 사용한다. 초기 전환 비용은 계정의 전체 기존 이력에 비례한다.
 
 정상 append는 마지막 구간 상태 + 신규 채택 원본만 계산한다. 과거 변경은 배치 전체를 묶어 predecessor 시작 경계에서 128행 keyset page로 읽고, 모든 신규 원본을 지난 뒤 기존 closed segment 전체 상태와 일치하는 안전한 convergence에서 멈춘다. 이후 suffix 원본을 미리 읽지 않는다. 첫/병합된 구간의 기존 ID anchoring과 content-version 계산은 유지한다. 변경 prefix 구간/계산 상태 메모리는 실제 영향범위에 비례한다. 성능은 측정하지 않았다.
 

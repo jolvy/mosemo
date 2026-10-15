@@ -1,7 +1,23 @@
 import pytest
 from pydantic import ValidationError
 
-from mosemo.config import AuthConfig
+from mosemo.config import AuthConfig, BatchDeliveryConfig, Config
+
+
+def test_batch_topic_is_loaded_from_environment(config: Config, monkeypatch) -> None:
+    monkeypatch.setenv("BATCH_TOPIC", "test.custom.activities")
+    configured = Config(
+        app_env=config.app_env,
+        database=config.database,
+        kakao=config.kakao,
+        auth=config.auth,
+    )
+    assert configured.batch_delivery.topic == "test.custom.activities"
+
+
+def test_batch_topic_rejects_empty_value() -> None:
+    with pytest.raises(ValidationError):
+        BatchDeliveryConfig(topic="")
 
 
 def test_auth_config_rejects_short_jwt_secret() -> None:
