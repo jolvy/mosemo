@@ -5,6 +5,8 @@ date: 2026-09-15
 
 # Device 식별자는 devices 경계가 소유한다
 
+## 맥락
+
 Mosemo에서 `Device`는 물리 하드웨어가 아니라 계정에 귀속되어 서버에 등록된 하나의
 앱 설치다. `devices`가 Device 식별자, 생성 멱등성, 계정 소유권 조회를 소유하고,
 `accounts`는 계정만 소유하며 `activities`는 `deviceId`로 Device를 참조한다. 앱
@@ -31,8 +33,19 @@ Mosemo에서 `Device`는 물리 하드웨어가 아니라 계정에 귀속되어
 - 패키지만 `devices`로 부르고 저장 모델을 `DeviceRegistration`으로 유지하면 계층마다
   용어 변환과 두 개의 공개 식별자 이름이 남는다.
 
-## 결과
+## 결과와 트레이드오프
 
 - 의존 방향은 `accounts ← devices ← activities`가 된다.
 - 기존 `deviceRegistrationId` 공개 필드는 호환 alias 없이 `deviceId`로 교체된다.
 - macOS 클라이언트 변경은 이 결정의 서버 구현 범위에 포함하지 않는다.
+
+## 대체한 ADR
+
+없음. 이 ADR이 다른 ADR을 대체한다는 기록은 원문에 없다.
+
+## 연관 PRD·ADR
+
+- [Device 등록 PRD](../prd/device-registration.md)
+- [관찰 타임라인 PRD](../prd/observation-timeline.md)
+
+2026-10-14에는 문서 형식과 링크만 정비했다. 원래 결정·대안·결과와 결정 날짜를 보존하며, 과거의 개발 단계 예외를 새로 승인하지 않는다.

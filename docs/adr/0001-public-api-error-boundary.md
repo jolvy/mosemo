@@ -5,6 +5,8 @@ date: 2026-09-12
 
 # 공개 API 오류 경계는 명시적으로 닫고 자동 검증한다
 
+## 맥락
+
 Mosemo 공개 API는 의도한 오류를 `ErrorCode`와 `ApiException`으로 명시하고,
 모든 공개 JSON 오류를 하나의 `ErrorResponse` 구조로 반환한다. 런타임 오류
 의미와 OpenAPI 표현을 분리하며, 문서화되지 않은 HTTP 오류의 detail과 header는
@@ -55,7 +57,7 @@ Mosemo 공개 API는 의도한 오류를 `ErrorCode`와 `ApiException`으로 명
 - Swagger UI 수동 검수를 완료 조건으로 두는 방식은 반복 가능하지 않으므로
   선택하지 않았다.
 
-## 결과
+## 결과와 트레이드오프
 
 - 공통 schema만으로 `status`, `code`, `message` 조합을 정적으로 제한하지는
   못한다. canonical 값과 OpenAPI 문서의 일치는 계약 테스트가 보장한다.
@@ -69,3 +71,14 @@ Mosemo 공개 API는 의도한 오류를 `ErrorCode`와 `ApiException`으로 명
   비밀값이나 내부 구현 정보를 넣지 않아야 한다.
 - 서버 오류 계약과 생성 클라이언트는 별도 작업으로 갱신할 수 있지만, 배포할
   때는 서로 호환되는 버전을 함께 조정해야 한다.
+
+## 대체한 ADR
+
+없음. 이 ADR이 다른 ADR을 대체한다는 기록은 원문에 없다.
+
+## 연관 PRD·ADR
+
+- [Device 등록 PRD](../prd/device-registration.md)
+- [관찰 타임라인 PRD](../prd/observation-timeline.md)
+
+2026-10-14에는 문서 형식과 링크만 정비했다. 원래 결정·대안·결과와 결정 날짜를 보존하며, 과거의 개발 단계 예외를 새로 승인하지 않는다.
