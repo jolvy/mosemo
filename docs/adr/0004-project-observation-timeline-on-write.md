@@ -5,6 +5,8 @@ date: 2026-09-16
 
 # 활동 원본은 유지하고 관찰 타임라인은 쓰기 시 projection한다
 
+## 맥락
+
 Mosemo는 `activity_records`를 유일한 활동 원본으로 유지하면서, 반복되는 날짜별
 관찰 타임라인 grouping을 `activity_timeline_segments` 읽기 모델에 저장한다. 활동
 POST가 원본과 projection을 같은 트랜잭션에서 갱신하고 GET은 projection을 읽는다.
@@ -50,7 +52,7 @@ POST가 원본과 projection을 같은 트랜잭션에서 갱신하고 GET은 pr
   않았다. GET은 현재 시각에 따라 응답에서 논리적으로 닫고 다음 쓰기가 이를
   projection에 반영한다.
 
-## 결과
+## 결과와 트레이드오프
 
 - 날짜별 GET은 저장된 읽기 모델을 조회하지만, 쓰기 경로는 grouping과 동시성
   제어를 함께 책임지므로 복잡해진다.
@@ -60,3 +62,14 @@ POST가 원본과 projection을 같은 트랜잭션에서 갱신하고 GET은 pr
   과정에서는 바뀔 수 있으므로 영구 도메인 식별자로 사용할 수 없다.
 - 현재는 한 계정에 하나의 활성 기록 Device만 있다는 제품 전제를 사용한다. 인증
   계층에서 이 전제를 강제하는 작업은 이 결정의 범위 밖이다.
+
+## 대체한 ADR
+
+[ADR 0002](0002-activity-record-storage-and-read-time-timeline.md)의 조회 시 계산 결정을 대체한다.
+
+## 연관 PRD·ADR
+
+- [이전 결정 ADR 0002](0002-activity-record-storage-and-read-time-timeline.md)
+- [관찰 타임라인 PRD](../prd/observation-timeline.md)
+
+2026-10-14에는 문서 형식과 링크만 정비했다. 원래 결정·대안·결과와 결정 날짜를 보존하며, 과거의 개발 단계 예외를 새로 승인하지 않는다.

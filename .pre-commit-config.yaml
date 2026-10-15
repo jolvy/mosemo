@@ -10,6 +10,27 @@ repos:
 
   - repo: local
     hooks:
+      - id: harness-docs
+        name: harness document contracts
+        entry: uv run --locked python .codex/skills/verification/scripts/validate_docs.py
+        language: system
+        stages: [pre-commit, pre-push]
+        pass_filenames: false
+        always_run: true
+      - id: harness-architecture
+        name: harness architecture boundaries
+        entry: uv run --locked python .codex/skills/verification/scripts/validate_architecture.py
+        language: system
+        stages: [pre-commit, pre-push]
+        pass_filenames: false
+        always_run: true
+      - id: harness-tests
+        name: harness regression tests
+        entry: uv run --locked python -m pytest -q tests/unit/harness
+        language: system
+        stages: [pre-commit, pre-push]
+        pass_filenames: false
+        always_run: true
       - id: ruff-check
         name: ruff check
         entry: uv run --locked ruff check --fix

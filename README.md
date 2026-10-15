@@ -1,5 +1,7 @@
 # Mosemo
 
+Project layout and module responsibilities: [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Development
 
 Install the project and development tools:

@@ -1,0 +1,16 @@
+default_permissions = "mosemo"
+approval_policy = "on-request"
+
+[permissions.mosemo]
+extends = ":workspace"
+
+[permissions.mosemo.filesystem.":workspace_roots"]
+"." = "write"
+".git" = "write"
+"**/.env" = "deny"
+"**/.env.local" = "deny"
+"**/.env.test" = "deny"
+"**/.env.prod" = "deny"
+
+[permissions.mosemo.network]
+enabled = true

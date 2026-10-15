@@ -34,6 +34,12 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
+      - name: Validate documents
+        run: uv run --locked python .codex/skills/verification/scripts/validate_docs.py
+
+      - name: Validate architecture
+        run: uv run --locked python .codex/skills/verification/scripts/validate_architecture.py
+
       - name: Lint
         run: uv run --locked ruff check --output-format=github .
 
