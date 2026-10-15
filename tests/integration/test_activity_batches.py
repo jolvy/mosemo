@@ -14,10 +14,12 @@ from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
 from mosemo.activities.repository import ActivityRepository
+from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.activities.timeline import ProjectedActivity, project_events
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config
 from mosemo.devices.models import Device
+from mosemo.infra.batch_delivery import RetainedMessageState
 
 
 def record(sequence, seconds, *, context=None, event_id=None):
@@ -368,7 +370,10 @@ async def test_regressing_clock_retains_source_and_blocks_following_device_batch
     ).status_code == 202
     await idle(app)
     values = list(app.state.batch_runtime.delivery.inspect().values())
-    assert [v.state for v in values] == ["failed", "blocked"]
+    assert [v.state for v in values] == [
+        RetainedMessageState.FAILED,
+        RetainedMessageState.BLOCKED,
+    ]
     assert values[0].error_code == "projection_time_regression"
     assert await counts(factory, devices[0]) == (0, 0)
 
@@ -438,6 +443,146 @@ async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
                 assert receipt.device_id == winner.device_id
             else:
                 assert receipt.device_id != winner.device_id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first_batch", ["append", "late", "duplicate", "rollback"])
+async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_processing(
+    real_batch_app, monkeypatch, first_batch
+):
+    app, client, factory, accounts, devices, headers, _ = real_batch_app
+
+    def context(name):
+        return {
+            "kind": "detailed",
+            "app": {
+                "bundleId": {"status": "absent"},
+                "name": {"status": "captured", "value": name},
+            },
+            "window": {"status": "absent"},
+            "web": {"kind": "not_applicable"},
+        }
+
+    legacy = ActivityBatchRequest.model_validate(
+        batch(
+            devices[0],
+            [
+                record(10, 0, context=context("B")),
+                record(0, 0, context=context("A")),
+                record(20, 10, context=context("A")),
+                record(30, 100, context=context("C")),
+                record(50, 200, context=context("F")),
+                record(40, 200, context=context("E")),
+                record(60, 210, context=context("E")),
+            ],
+        )
+    )
+    async with factory() as session:
+        repo = ActivityRepository(session)
+        stored: list[ActivityRecord] = []
+        for source in legacy.activity_records():
+            inserted = await repo.insert(source)
+            assert inserted is not None
+            stored.append(inserted)
+        # Legacy ties followed received_at: B before A, and F before E.
+        await repo.replace_account_segments(
+            account_id=accounts[0],
+            projected=project_events(stored, now=datetime.now(UTC)),
+            existing=[],
+            event_observed_at=stored[-1].observed_at,
+        )
+        await session.commit()
+        original = await repo.list_account_segments(accounts[0])
+        unchanged_id = next(s.segment_id for s in original if s.context == context("C"))
+
+    def shape(segment):
+        return (
+            segment.started_at,
+            segment.ended_at,
+            segment.first_event_id,
+            segment.last_event_id,
+            segment.last_observed_at,
+            segment.context,
+        )
+
+    async def assert_matches_full_replay():
+        async with factory() as session:
+            repo = ActivityRepository(session)
+            source = await repo.list_account_records(
+                accounts[0], from_observed_at=stored[0].observed_at
+            )
+            segments = await repo.list_account_segments(accounts[0])
+        reference = project_events(source, now=datetime.now(UTC))
+        assert [shape(s) for s in segments] == [shape(s) for s in reference]
+        assert (
+            next(s.segment_id for s in segments if s.context == context("C"))
+            == unchanged_id
+        )
+
+    first = {
+        "append": record(70, 220, context=context("E")),
+        "late": record(15, 5, context=context("A")),
+        "duplicate": legacy.records[0].model_dump(mode="json", by_alias=True),
+        "rollback": record(70, 220, context=context("E")),
+    }[first_batch]
+    payload = batch(devices[0], [first])
+    original_insert = ActivityRepository.insert
+    if first_batch == "rollback":
+
+        async def fail_insert(self, source):
+            raise RuntimeError("controlled failure after legacy rebuild")
+
+        monkeypatch.setattr(ActivityRepository, "insert", fail_insert)
+    assert (
+        await client.post(
+            "/api/v1/activities/batches", headers=headers[0], json=payload
+        )
+    ).status_code == 202
+    await idle(app)
+    if first_batch == "rollback":
+        assert await counts(factory, devices[0]) == (len(stored), 0)
+        async with factory() as session:
+            rolled_back = await ActivityRepository(session).list_account_segments(
+                accounts[0]
+            )
+        assert [(s.segment_id, shape(s)) for s in rolled_back] == [
+            (s.segment_id, shape(s)) for s in original
+        ]
+        retained = app.state.batch_runtime.delivery.inspect()
+        assert len(retained) == 1
+        identifier, failed = next(iter(retained.items()))
+        assert failed.state is RetainedMessageState.FAILED and failed.attempts == 1
+        monkeypatch.setattr(ActivityRepository, "insert", original_insert)
+        app.state.batch_runtime.delivery.reprocess(identifier)
+        await idle(app)
+    assert app.state.batch_runtime.delivery.inspect() == {}
+    assert await counts(factory, devices[0]) == (
+        len(stored) + (first_batch != "duplicate"),
+        1,
+    )
+    await assert_matches_full_replay()
+
+    pages = []
+    original_page = ActivityRepository.record_page
+
+    async def counted(self, *args, **kwargs):
+        pages.append(kwargs)
+        return await original_page(self, *args, **kwargs)
+
+    monkeypatch.setattr(ActivityRepository, "record_page", counted)
+    for following in [
+        payload,
+        batch(devices[0], [record(80, 230, context=context("E"))]),
+    ]:
+        assert (
+            await client.post(
+                "/api/v1/activities/batches", headers=headers[0], json=following
+            )
+        ).status_code == 202
+        await idle(app)
+        assert app.state.batch_runtime.delivery.inspect() == {}
+    assert pages == []
+    await assert_matches_full_replay()
 
 
 @pytest.mark.asyncio

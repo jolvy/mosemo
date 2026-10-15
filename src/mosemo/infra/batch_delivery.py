@@ -5,7 +5,7 @@ import random
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Literal
+from enum import StrEnum
 from uuid import UUID, uuid4
 
 from faststream.kafka import KafkaBroker
@@ -13,17 +13,22 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 
 from mosemo.activities.messages import ActivityRegistrationRequested, TerminalBatchError
 
-TOPIC = "activities.registration-requested"
-
 
 class DeliveryUnavailable(Exception):
     pass
 
 
+class RetainedMessageState(StrEnum):
+    QUEUED = "queued"
+    ACTIVE = "active"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+
+
 @dataclass(slots=True)
 class RetainedMessage:
     message: ActivityRegistrationRequested
-    state: Literal["queued", "active", "failed", "blocked"] = "queued"
+    state: RetainedMessageState = RetainedMessageState.QUEUED
     attempts: int = 0
     error_code: str | None = None
 
@@ -33,6 +38,7 @@ class BatchDelivery:
         self,
         broker: KafkaBroker,
         *,
+        topic: str,
         capacity: int = 64,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         jitter: Callable[[], float] = random.random,
@@ -40,6 +46,7 @@ class BatchDelivery:
         if capacity < 1:
             raise ValueError("capacity must be positive")
         self.broker = broker
+        self.topic = topic
         self.capacity = capacity
         self._sleep = sleep
         self._jitter = jitter
@@ -74,14 +81,14 @@ class BatchDelivery:
     def reprocess(self, identifier: UUID) -> None:
         value = self._retained[identifier]
         if (
-            value.state != "failed"
+            value.state is not RetainedMessageState.FAILED
             or not self.accepting
             or self.worker is None
             or self.worker.done()
         ):
             raise DeliveryUnavailable
         # Worker processes this failed head before its blocked successors.
-        value.state = "queued"
+        value.state = RetainedMessageState.QUEUED
         value.attempts = 0
         value.error_code = None
         self._queue.put_nowait(identifier)
@@ -120,7 +127,7 @@ class BatchDelivery:
             try:
                 await self.broker.publish(
                     {"source": value.message.body.decode("utf-8")},
-                    TOPIC,
+                    self.topic,
                     headers={
                         "content-type": "application/json",
                         "x-account-id": str(value.message.account_id),
@@ -142,7 +149,7 @@ class BatchDelivery:
                 if transient and attempt < 4:
                     await self._sleep((2**attempt) * self._jitter())
                     continue
-                value.state = "failed"
+                value.state = RetainedMessageState.FAILED
                 value.error_code = (
                     error.args[0]
                     if isinstance(error, TerminalBatchError)
@@ -164,11 +171,11 @@ class BatchDelivery:
                         predecessor.message.account_id,
                         predecessor.message.device_id,
                     ) == device:
-                        value.state = "blocked"
+                        value.state = RetainedMessageState.BLOCKED
                         break
-                if value.state == "blocked":
+                if value.state is RetainedMessageState.BLOCKED:
                     continue
-                value.state = "active"
+                value.state = RetainedMessageState.ACTIVE
                 if await self._publish(value):
                     del self._retained[identifier]
                     # Release successors in original admission order, without new tasks.
@@ -176,16 +183,16 @@ class BatchDelivery:
                         if (
                             successor.message.account_id,
                             successor.message.device_id,
-                        ) == device and successor.state == "blocked":
-                            successor.state = "queued"
+                        ) == device and successor.state is RetainedMessageState.BLOCKED:
+                            successor.state = RetainedMessageState.QUEUED
                             self._queue.put_nowait(key)
                             break
             except asyncio.CancelledError:
-                value.state = "failed"
+                value.state = RetainedMessageState.FAILED
                 value.error_code = "shutdown_cancelled"
                 raise
             except Exception as error:
-                value.state = "failed"
+                value.state = RetainedMessageState.FAILED
                 value.error_code = type(error).__name__
                 raise
             finally:

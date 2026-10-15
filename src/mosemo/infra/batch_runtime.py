@@ -21,8 +21,10 @@ class DevelopmentBatchRuntime:
         self.api = api
         self.config = config
         self.broker = KafkaBroker(logger=None)
-        self.handler = register_activity_handler(self.broker)
-        self.delivery = BatchDelivery(self.broker, capacity=config.capacity)
+        self.handler = register_activity_handler(self.broker, topic=config.topic)
+        self.delivery = BatchDelivery(
+            self.broker, topic=config.topic, capacity=config.capacity
+        )
         api.state.batch_delivery = self.delivery
         api.add_middleware(BatchBodyLimitMiddleware)
         self.plugin = FastStreamAPI(self.broker, application=api, safe_connection=True)

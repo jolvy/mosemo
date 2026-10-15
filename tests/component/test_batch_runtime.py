@@ -44,7 +44,8 @@ def make_app(config: Config, *, capacity=64):
     api.dependency_overrides[get_config] = lambda: config
     devices = AsyncMock()
     api.dependency_overrides[get_device_repository] = lambda: devices
-    app = compose_development_app(api, BatchDeliveryConfig(capacity=capacity))
+    batch_config = config.batch_delivery.model_copy(update={"capacity": capacity})
+    app = compose_development_app(api, batch_config)
     account_id = uuid4()
     headers = {
         "Authorization": "Bearer "
@@ -54,9 +55,13 @@ def make_app(config: Config, *, capacity=64):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "topic", ["activities.registration-requested", "test.custom.activities"]
+)
 async def test_real_subscriber_di_returns_http_202_before_held_operation_and_closes_message_session(
-    config, monkeypatch
+    config, monkeypatch, topic
 ):
+    config.batch_delivery.topic = topic
     app, _devices, account_id, headers = make_app(config, capacity=1)
     entered, release, closed = asyncio.Event(), asyncio.Event(), asyncio.Event()
     session = object()
