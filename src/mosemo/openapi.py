@@ -52,6 +52,14 @@ ERROR_DOCS: Mapping[ErrorCode, ErrorDocs] = {
             "같은 Device와 sequence로 저장된 이벤트가 요청 eventId와 다릅니다."
         ),
     ),
+    ErrorCode.ACTIVITY_BATCH_TOO_LARGE: ErrorDocs(
+        summary="Activity batch too large",
+        description="비압축 UTF-8 JSON 본문은 512 KiB 이하입니다.",
+    ),
+    ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE: ErrorDocs(
+        summary="Activity delivery unavailable",
+        description="개발용 메모리 전달 경로가 수락할 수 없습니다.",
+    ),
     ErrorCode.ACTIVITY_TIMELINE_BUSY: ErrorDocs(
         summary="Activity timeline busy",
         description="계정별 관찰 쓰기 잠금을 3초 안에 얻지 못했습니다.",

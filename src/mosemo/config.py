@@ -74,8 +74,19 @@ class AuthConfig(BaseModel):
         return value
 
 
+class BatchDeliveryConfig(BaseModel):
+    """Dev-only memory; accepted uncommitted source can be lost on shutdown."""
+
+    enabled: bool = True
+    capacity: int = Field(default=64, ge=1)
+    topic: str = Field(default="activities.registration-requested", min_length=1)
+
+
 class Config(BaseSettings):
     app_env: str = Field(validation_alias="MOSEMO_ENV")
+    batch_delivery: BatchDeliveryConfig = Field(
+        default_factory=BatchDeliveryConfig, validation_alias="BATCH"
+    )
     database: DatabaseConfig = Field(validation_alias="DB")
     kakao: KakaoConfig = Field(validation_alias="KAKAO")
     auth: AuthConfig = Field(validation_alias="AUTH")
