@@ -42,12 +42,20 @@ class BatchBodyLimitMiddleware:
         if (
             scope["type"] != "http"
             or scope["method"] != "POST"
-            or scope["path"] != "/api/v1/activities/batches"
+            or scope["path"]
+            not in {
+                "/api/v1/activities/batches",
+                "/api/v1/activities/batches/legacy",
+            }
         ):
             await self._app(scope, receive, send)
             return
         from mosemo.exceptions import ErrorCode
         from mosemo.responses import error_response
+
+        if scope["path"] == "/api/v1/activities/batches/legacy":
+            await self._bounded_request(scope, receive, send)
+            return
 
         response_started = False
 
@@ -75,19 +83,26 @@ class BatchBodyLimitMiddleware:
         from mosemo.responses import error_response
 
         body = bytearray()
-        while True:
-            message = await receive()
-            if message["type"] == "http.disconnect":
-                return
-            chunk = message.get("body", b"")
-            if len(body) + len(chunk) > self._limit:
-                await error_response(ErrorCode.ACTIVITY_BATCH_TOO_LARGE)(
-                    scope, receive, send
-                )
-                return
-            body.extend(chunk)
-            if not message.get("more_body", False):
-                break
+        try:
+            async with asyncio.timeout(self._admission_timeout):
+                while True:
+                    message = await receive()
+                    if message["type"] == "http.disconnect":
+                        return
+                    chunk = message.get("body", b"")
+                    if len(body) + len(chunk) > self._limit:
+                        await error_response(ErrorCode.ACTIVITY_BATCH_TOO_LARGE)(
+                            scope, receive, send
+                        )
+                        return
+                    body.extend(chunk)
+                    if not message.get("more_body", False):
+                        break
+        except TimeoutError:
+            await error_response(
+                ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE, headers={"Retry-After": "1"}
+            )(scope, receive, send)
+            return
         consumed = False
 
         async def bounded_receive() -> Message:

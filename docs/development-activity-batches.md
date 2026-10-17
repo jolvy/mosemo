@@ -22,6 +22,14 @@
 
 202 응답은 `{"batchId":"...","status":"accepted"}`뿐이다. DB 저장 완료, 내구성 있는 Kafka ACK, Kafka offset commit을 뜻하지 않는다. 클라이언트는 같은 batchId/내용으로 미확인 응답을 재전송하고, 수락 뒤 DB 타임라인을 polling한다. 서버 consumer 거절은 즉시 HTTP 409로 반환하지 않는다. 클라이언트 변경은 별도 작업이다.
 
+## 성능 비교용 직접 처리
+
+`POST /api/v1/activities/batches/legacy`는 같은 요청 모델로 이벤트 publish 없이 `ActivityBatchProcessor.process()`를 직접 호출한다. 원본·구간·배치 처리 결과가 하나의 트랜잭션에서 커밋된 뒤 `200 {"batchId":"...","status":"processed","results":[{"eventId":"...","status":"stored"}]}`를 반환한다. 건별 결과는 `stored`, `duplicate`, `event_id_rejected`, `sequence_rejected`다. 마지막 두 상태는 해당 원본이 채택되지 않았다는 뜻이며 배치 전체의 실패는 아니다.
+
+인증·Device 귀속·본문 크기·요청 검증은 동일하다. 본문 수신은 10초로 제한하지만 DB 처리에는 메모리 전달 경로의 10초 admission 제한을 적용하지 않는다. 메모리 전달 비활성화 및 production 환경에서도 직접 처리 경로를 사용할 수 있다. 같은 batchId/내용의 재시도는 기존 결과를 반환하고, 내용 변경은 409, 구간 잠금 경합은 503과 `Retry-After: 1`, 관찰 시각 역행은 422를 반환한다. 집중 세션 귀속 오류는 404, 시간 오류는 409이며 배치 전체를 롤백한다.
+
+비교 측정에는 각 경로별로 동등한 별도 데이터를 사용한다. 같은 배치·이벤트를 재사용하면 중복 처리 비용을 측정하게 된다. publish 경로의 응답 시간과 실제 처리 완료 시간은 별도 지표다.
+
 ## 실행과 종료
 
 `BATCH_TOPIC`으로 발행·구독 토픽을 함께 설정한다. 기본값은 `activities.registration-requested`이며 빈 값은 허용하지 않는다. 실행 구성에서 읽은 같은 토픽을 발행자와 Handler 등록에 주입한다.

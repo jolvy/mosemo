@@ -40,6 +40,9 @@ class ErrorCode(Enum):
         code=409,
         message="Activity sequence conflicts with a stored record",
     )
+    ACTIVITY_BATCH_CONFLICT = ErrorSpec(
+        code=409, message="Activity batch ID conflicts with stored content"
+    )
     ACTIVITY_BATCH_TOO_LARGE = ErrorSpec(
         code=413, message="Activity batch body is too large"
     )

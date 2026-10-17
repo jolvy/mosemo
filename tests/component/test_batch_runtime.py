@@ -301,3 +301,122 @@ async def test_shutdown_resource_error_still_stops_and_awaits_worker():
             assert app.state.batch_runtime.delivery.accepting
     assert not app.state.batch_runtime.delivery.accepting
     assert app.state.batch_runtime.delivery.worker.done()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("delivery_enabled", [True, False])
+async def test_legacy_waits_for_processing_without_admission_or_publish(
+    config, monkeypatch, delivery_enabled
+):
+    from mosemo.database import get_session
+
+    config.batch_delivery.enabled = delivery_enabled
+    app, _, owner, headers = make_app(config)
+    session = object()
+    app.dependency_overrides[get_session] = lambda: session
+    entered, release = asyncio.Event(), asyncio.Event()
+    source = payload()
+
+    async def held_process(self, account_id, batch, body):
+        assert self.session is session
+        assert account_id == owner
+        assert str(batch.batch_id) == source["batchId"]
+        assert body == httpx2.Request("POST", "http://test", json=source).content
+        entered.set()
+        await release.wait()
+        return [{"eventId": source["records"][0]["eventId"], "status": "stored"}]
+
+    monkeypatch.setattr(ActivityBatchProcessor, "process", held_process)
+    admit = AsyncMock(side_effect=AssertionError("must not admit"))
+    monkeypatch.setattr(app.state.batch_runtime.delivery, "admit", admit)
+    publish = AsyncMock(side_effect=AssertionError("must not publish"))
+    monkeypatch.setattr(app.state.batch_runtime.broker, "publish", publish)
+    async with (
+        LifespanManager(app) as manager,
+        httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=manager.app), base_url="http://test"
+        ) as client,
+    ):
+        pending = asyncio.create_task(
+            client.post(
+                "/api/v1/activities/batches/legacy", headers=headers, json=source
+            )
+        )
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            assert not pending.done()
+        finally:
+            release.set()
+        response = await asyncio.wait_for(pending, 3)
+        assert response.status_code == 200
+        assert response.json() == {
+            "batchId": source["batchId"],
+            "status": "processed",
+            "results": [
+                {"eventId": source["records"][0]["eventId"], "status": "stored"}
+            ],
+        }
+        admit.assert_not_called()
+        publish.assert_not_called()
+    responses = app.openapi()["paths"]["/api/v1/activities/batches/legacy"]["post"][
+        "responses"
+    ]
+    assert responses["503"]["headers"]["Retry-After"]["schema"]["const"] == "1"
+
+
+@pytest.mark.asyncio
+async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
+    from mosemo.database import get_session
+
+    app, _, _, headers = make_app(config)
+    app.dependency_overrides[get_session] = object
+    process = AsyncMock()
+    monkeypatch.setattr(ActivityBatchProcessor, "process", process)
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        path = "/api/v1/activities/batches/legacy"
+        assert (await client.post(path, json=payload())).status_code == 401
+        assert (
+            await client.post(path, headers=headers, json=payload() | {"records": []})
+        ).status_code == 422
+        assert (
+            await client.post(path, headers=headers, content=b" " * (512 * 1024 + 1))
+        ).status_code == 413
+    process.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error,expected",
+    [
+        ("device_not_owned", 404),
+        ("batch_content_conflict", 409),
+        ("projection_time_regression", 422),
+        ("FocusSessionNotFoundError", 404),
+        ("FocusSessionInvalidTimeError", 409),
+        ("busy", 503),
+    ],
+)
+async def test_legacy_processing_errors(config, monkeypatch, error, expected):
+    from mosemo.activities.messages import TerminalBatchError
+    from mosemo.activities.service import ActivityTimelineBusyError
+    from mosemo.database import get_session
+
+    app, _, _, headers = make_app(config)
+    app.dependency_overrides[get_session] = object
+    failure = (
+        ActivityTimelineBusyError() if error == "busy" else TerminalBatchError(error)
+    )
+    monkeypatch.setattr(
+        ActivityBatchProcessor, "process", AsyncMock(side_effect=failure)
+    )
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/api/v1/activities/batches/legacy", headers=headers, json=payload()
+        )
+    assert response.status_code == expected
+    if error == "busy":
+        assert response.headers["retry-after"] == "1"

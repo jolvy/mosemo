@@ -620,3 +620,38 @@ async def test_first_receipt_detects_legacy_clock_regression_without_rewriting_r
         next(iter(app.state.batch_runtime.delivery.inspect().values())).error_code
         == "projection_time_regression"
     )
+
+
+@pytest.mark.asyncio
+async def test_legacy_commits_projection_retries_and_rolls_back_invalid_batch(
+    real_batch_app,
+):
+    app, client, factory, accounts, devices, headers, _ = real_batch_app
+    path = "/api/v1/activities/batches/legacy"
+    source = batch(devices[0], [record(0, 0), record(1, 10)])
+    response = await client.post(path, headers=headers[0], json=source)
+    assert response.status_code == 200
+    assert [item["status"] for item in response.json()["results"]] == [
+        "stored",
+        "stored",
+    ]
+    assert await counts(factory, devices[0]) == (2, 1)
+    async with factory() as session:
+        segments = await ActivityRepository(session).segment_range(
+            accounts[0], start=datetime.min.replace(tzinfo=UTC)
+        )
+        assert segments
+    assert app.state.batch_runtime.delivery.inspect() == {}
+    retry = await client.post(path, headers=headers[0], json=source)
+    assert retry.json() == response.json()
+    assert await counts(factory, devices[0]) == (2, 1)
+    changed = source | {"records": [record(2, 20)]}
+    assert (
+        await client.post(path, headers=headers[0], json=changed)
+    ).status_code == 409
+    assert (await client.post(path, headers=headers[1], json=source)).status_code == 404
+    invalid = batch(devices[0], [record(2, 20), record(3, 15)])
+    assert (
+        await client.post(path, headers=headers[0], json=invalid)
+    ).status_code == 422
+    assert await counts(factory, devices[0]) == (2, 1)
