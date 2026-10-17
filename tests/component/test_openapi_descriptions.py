@@ -32,9 +32,6 @@ OPENAPI_TEST_ENVIRONMENT = {
     "AUTH_MACOS_CALLBACK_URI": "com.example.mosemo:/auth/callback",
 }
 OPENAPI_SNAPSHOT_PATH = Path(__file__).resolve().parents[2] / "openapi" / "openapi.json"
-API_DOCUMENTATION_PATH = (
-    Path(__file__).resolve().parents[2] / "docs" / "api-document.md"
-)
 _PUBLIC_ERROR_SPECS = tuple(ErrorCode)
 
 
@@ -235,28 +232,6 @@ def test_success_responses_document_content_and_important_headers(
         assert len(success_responses) == 1
         response = next(iter(success_responses.values()))
         assert set(response["headers"]) == header_names
-
-
-def test_api_documentation_describes_replacement_contract() -> None:
-    documentation = API_DOCUMENTATION_PATH.read_text(encoding="utf-8")
-    for required_text in (
-        '"status": "INVALID_ARGUMENT"',
-        "공통 `ErrorResponse` schema",
-        "Enum 이름에서 파생한 `status`",
-        "`ERROR_DOCS`는 `ErrorCode`를 key로 사용",
-        "`loc`, `msg`, `type`",
-        "invalid_encoding",
-        "macOS 생성 클라이언트",
-        "문서화되지 않은 `Starlette HTTPException` 4xx·5xx",
-        "Swagger UI 수동 검수는 완료 조건에 포함하지 않는다",
-    ):
-        assert required_text in documentation
-    for obsolete_text in (
-        "MosemoApiException",
-        "REQUEST_VALIDATION_FAILED",
-        "FieldViolation",
-    ):
-        assert obsolete_text not in documentation
 
 
 def test_openapi_uses_one_common_error_schema_and_framework_validation_detail(

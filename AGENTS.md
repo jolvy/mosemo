@@ -3,6 +3,7 @@
 ## 프로젝트 구조
 
 - 디렉터리와 모듈 책임의 탐색 시작점: [ARCHITECTURE.md](ARCHITECTURE.md)
+- 문서 탐색 시작점: [docs/index.md](docs/index.md)
 
 - 애플리케이션 코드: `src/mosemo/` (FastAPI, Pydantic, SQLAlchemy)
 - 테스트: `tests/unit/`, `tests/component/`, `tests/integration/` (pytest)
