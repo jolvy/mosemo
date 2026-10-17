@@ -311,6 +311,29 @@ class ActivityBatchResponse(ApiResponseModel):
     )
 
 
+class ActivityBatchRecordResult(ApiResponseModel):
+    """배치 안의 개별 원본 채택 결과입니다."""
+
+    event_id: UUID = Field(description="처리한 원본 이벤트 식별자입니다.")
+    status: Literal["stored", "duplicate", "event_id_rejected", "sequence_rejected"] = (
+        Field(
+            description="stored는 저장, duplicate는 이미 처리됨, event_id_rejected와 sequence_rejected는 이벤트 식별자 또는 Device 순번 충돌로 미채택됨을 뜻합니다."
+        )
+    )
+
+
+class ActivityBatchProcessedResponse(ApiResponseModel):
+    """원본 저장과 타임라인 구간 반영이 커밋된 배치 결과입니다."""
+
+    batch_id: UUID = Field(description="처리한 배치 식별자입니다.")
+    status: Literal["processed"] = Field(
+        description="원본과 구간 반영이 커밋되었습니다."
+    )
+    results: list[ActivityBatchRecordResult] = Field(
+        description="요청 순서의 건별 처리 결과입니다."
+    )
+
+
 ActivityRecord = Annotated[
     ActivityObservation | CollectionStateChanged,
     Field(discriminator="record_type"),

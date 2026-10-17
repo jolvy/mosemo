@@ -52,6 +52,10 @@ ERROR_DOCS: Mapping[ErrorCode, ErrorDocs] = {
             "같은 Device와 sequence로 저장된 이벤트가 요청 eventId와 다릅니다."
         ),
     ),
+    ErrorCode.ACTIVITY_BATCH_CONFLICT: ErrorDocs(
+        summary="Activity batch conflict",
+        description="같은 계정·Device·batchId로 처리한 배치의 내용과 다릅니다.",
+    ),
     ErrorCode.ACTIVITY_BATCH_TOO_LARGE: ErrorDocs(
         summary="Activity batch too large",
         description="비압축 UTF-8 JSON 본문은 512 KiB 이하입니다.",

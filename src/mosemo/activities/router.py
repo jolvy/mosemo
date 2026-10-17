@@ -3,17 +3,24 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, status
 
-from mosemo.activities.messages import ActivityRegistrationRequested
+from mosemo.activities.batch_processing import ActivityBatchProcessor
+from mosemo.activities.messages import ActivityRegistrationRequested, TerminalBatchError
 from mosemo.activities.schemas import (
+    ActivityBatchProcessedResponse,
+    ActivityBatchRecordResult,
     ActivityBatchRequest,
     ActivityBatchResponse,
     TimelineSegmentResponse,
 )
-from mosemo.activities.service import ActivityAccountNotFoundError
+from mosemo.activities.service import (
+    ActivityAccountNotFoundError,
+    ActivityTimelineBusyError,
+)
 from mosemo.dependencies import (
     ActivityServiceDep,
     AuthenticatedAccountDep,
     DeviceRepositoryDep,
+    SessionDep,
 )
 from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.infra.batch_delivery import (
@@ -74,6 +81,64 @@ async def accept_batch(
     except DeliveryUnavailable as exc:
         raise ApiException(ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE) from exc
     return ActivityBatchResponse(batch_id=batch.batch_id, status="accepted")
+
+
+@router.post(
+    "/batches/legacy",
+    operation_id="activitiesProcessBatchLegacy",
+    response_model=ActivityBatchProcessedResponse,
+    summary="활동 배치 직접 처리",
+    description="이벤트를 발행하지 않고 활동 배치를 직접 처리합니다. 원본 저장과 타임라인 구간 반영이 완료된 뒤 응답합니다.",
+    responses=api_error_responses(
+        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
+        ErrorCode.ACTIVITY_BATCH_CONFLICT,
+        ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
+        ErrorCode.ACTIVITY_BATCH_TOO_LARGE,
+        ErrorCode.INVALID_ARGUMENT,
+        ErrorCode.ACTIVITY_TIMELINE_BUSY,
+        ErrorCode.FOCUS_SESSION_NOT_FOUND,
+        ErrorCode.FOCUS_SESSION_CONFLICT,
+        headers={
+            503: {
+                "Retry-After": {
+                    "description": "같은 batchId와 내용으로 재시도하기 전 대기할 초입니다.",
+                    "schema": {"type": "string", "const": "1"},
+                }
+            }
+        },
+    ),
+)
+async def process_batch_legacy(
+    batch: ActivityBatchRequest,
+    request: Request,
+    authenticated_account: AuthenticatedAccountDep,
+    session: SessionDep,
+) -> ActivityBatchProcessedResponse:
+    try:
+        results = await ActivityBatchProcessor(session).process(
+            authenticated_account.account_id, batch, await request.body()
+        )
+    except ActivityTimelineBusyError as exc:
+        raise ApiException(ErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
+    except TerminalBatchError as exc:
+        error = {
+            "device_not_owned": ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
+            "batch_content_conflict": ErrorCode.ACTIVITY_BATCH_CONFLICT,
+            "projection_time_regression": ErrorCode.INVALID_ARGUMENT,
+            "FocusSessionNotFoundError": ErrorCode.FOCUS_SESSION_NOT_FOUND,
+            "FocusSessionInvalidTimeError": ErrorCode.FOCUS_SESSION_CONFLICT,
+        }.get(str(exc))
+        if error is None:
+            raise
+        raise ApiException(error) from exc
+    return ActivityBatchProcessedResponse(
+        batch_id=batch.batch_id,
+        status="processed",
+        results=[
+            ActivityBatchRecordResult.model_validate(result) for result in results
+        ],
+    )
 
 
 @router.get(

@@ -57,3 +57,40 @@ async def test_batch_admission_deadline_cancels_stalled_work_and_returns_retryab
     body = json.loads(messages[-1]["body"])
     assert body["error"]["status"] == "ACTIVITY_DELIVERY_UNAVAILABLE"
     assert sum(m["type"] == "http.response.start" for m in messages) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stall", ["body", "application"])
+async def test_legacy_limits_body_receive_but_allows_longer_processing(stall):
+    messages = []
+
+    async def receive():
+        if stall == "body":
+            await asyncio.Event().wait()
+        return {"type": "http.request", "body": b"{}", "more_body": False}
+
+    async def application(scope, receive, send):
+        await receive()
+        await asyncio.sleep(0.04)
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"{}"})
+
+    async def send(message):
+        messages.append(message)
+
+    middleware = BatchBodyLimitMiddleware(application, admission_timeout=0.02)
+    await asyncio.wait_for(
+        middleware(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/v1/activities/batches/legacy",
+            },
+            receive,
+            send,
+        ),
+        timeout=1,
+    )
+    assert messages[0]["status"] == (503 if stall == "body" else 200)
+    if stall == "body":
+        assert (b"retry-after", b"1") in messages[0]["headers"]
