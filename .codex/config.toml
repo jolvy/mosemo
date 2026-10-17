@@ -4,9 +4,10 @@ approval_policy = "on-request"
 [permissions.mosemo]
 extends = ":workspace"
 
+[permissions.project-edit.filesystem]
+":workspace_roots" = "write"
+
 [permissions.mosemo.filesystem.":workspace_roots"]
-"." = "write"
-".git" = "write"
 "**/.env" = "deny"
 "**/.env.local" = "deny"
 "**/.env.test" = "deny"

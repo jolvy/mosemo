@@ -28,6 +28,7 @@
 ## 정책·제약·엣지케이스
 
 진행 중 세션은 완료 목록에서 제외한다. 앱 종료 후 타이머 재개 및 진행 중 세션 복구는 이 계약의 범위에 포함하지 않는다. 활동 업로드를 시작하기 전에 세션 생성 응답을 받아 외래키 선행 조건을 보장한다. 세션 시작과 완료의 네트워크 오류는 입력을 보존하고 동일 요청으로 재시도한다.
+활동 배치의 연결 오류에 따른 전체 롤백과 실패 보관은 [활동 배치 PRD](activity-batches.md)를 따른다.
 
 ## 비기능 요구사항
 
@@ -58,6 +59,7 @@
 
 ## 관련 요구사항과 ADR
 
+- [활동 배치 PRD](activity-batches.md)
 - [Device 등록 계약](device-registration.md)
 - [관찰 타임라인 계약](observation-timeline.md)
 - [공개 API 오류 경계](../adr/0001-public-api-error-boundary.md)
