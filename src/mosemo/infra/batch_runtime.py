@@ -1,65 +1,50 @@
-"""Public TestBroker/plugin ASGI lifespan composition for development only."""
+"""API messaging lifecycle. Consumer processing runs in a separate process."""
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, cast
 
-from asgi_lifespan import LifespanManager
+from aiokafka import AIOKafkaProducer
 from fastapi import FastAPI
-from faststream.kafka import KafkaBroker, TestKafkaBroker
-from faststream_fastapi import FastStreamAPI
-from starlette.types import Receive, Scope, Send
 
-from mosemo.activities.handler import register_activity_handler
 from mosemo.config import BatchDeliveryConfig
-from mosemo.infra.batch_delivery import BatchDelivery
+from mosemo.infra.batch_delivery import ActivityBatchPublisher
 from mosemo.middleware import BatchBodyLimitMiddleware
 
 
-class DevelopmentBatchRuntime:
+class MessagingRuntime:
     def __init__(self, api: FastAPI, config: BatchDeliveryConfig):
         self.api = api
         self.config = config
-        self.broker = KafkaBroker(logger=None)
-        self.handler = register_activity_handler(self.broker, topic=config.topic)
-        self.delivery = BatchDelivery(
-            self.broker, topic=config.topic, capacity=config.capacity
-        )
-        api.state.batch_delivery = self.delivery
-        api.add_middleware(BatchBodyLimitMiddleware)
-        self.plugin = FastStreamAPI(self.broker, application=api, safe_connection=True)
-        self.running_app = None
+        self._api_lifespan = api.router.lifespan_context
 
     @asynccontextmanager
     async def lifespan(self, app: FastAPI) -> AsyncIterator[dict]:
-        if not self.config.enabled:
-            async with self.api.router.lifespan_context(self.api) as state:
+        app.state.batch_publisher = None
+        async with self._api_lifespan(app) as state:
+            if not self.config.enabled:
                 yield dict(state or {})
-            return
-        async with (
-            TestKafkaBroker(self.broker, connect_only=True),
-            LifespanManager(self.plugin, shutdown_timeout=None) as manager,
-        ):
-            # TestBroker's call recorder otherwise retains every successful body.
-            # Public endpoint test lifecycle method; subscriber/DI remain registered.
-            self.handler.reset_test()
-            self.running_app = manager.app
+                return
+            producer = AIOKafkaProducer(
+                bootstrap_servers=self.config.bootstrap_servers,
+                acks="all",
+                enable_idempotence=True,
+            )
             try:
-                async with self.delivery.lifespan():
-                    yield {}
+                await producer.start()
+                app.state.batch_publisher = ActivityBatchPublisher(
+                    producer,
+                    topic=self.config.topic,
+                )
+                yield dict(state or {})
             finally:
-                self.running_app = None
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        await (self.running_app or self.plugin)(scope, receive, send)
+                app.state.batch_publisher = None
+                await producer.stop()
 
 
-def compose_development_app(api: FastAPI, config: BatchDeliveryConfig) -> FastAPI:
-    runtime = DevelopmentBatchRuntime(api, config)
-    app = FastAPI(lifespan=runtime.lifespan)
-    app.mount("/", runtime)
-    # HTTP is served by the inner app; export that same route schema and overrides.
-    app.openapi = cast(Any, api.openapi)
-    app.dependency_overrides = api.dependency_overrides
-    app.state.batch_runtime = runtime
-    return app
+def compose_messaging_app(api: FastAPI, config: BatchDeliveryConfig) -> FastAPI:
+    runtime = MessagingRuntime(api, config)
+    api.router.lifespan_context = runtime.lifespan
+    api.state.batch_runtime = runtime
+    api.state.batch_publisher = None
+    api.add_middleware(BatchBodyLimitMiddleware)
+    return api

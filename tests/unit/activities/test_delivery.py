@@ -1,126 +1,106 @@
 import asyncio
+import json
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from aiokafka.errors import KafkaConnectionError, MessageSizeTooLargeError
+from pydantic import ValidationError
 
 from mosemo.activities.messages import ActivityRegistrationRequested
-from mosemo.infra.batch_delivery import (
-    BatchDelivery,
-    DeliveryUnavailable,
-    RetainedMessageState,
+from mosemo.activities.schemas import ActivityBatchRequest
+from mosemo.infra.batch_delivery import ActivityBatchPublisher, DeliveryUnavailable
+from tests.component.test_activities_api import activity_request
+
+
+def test_message_roundtrip_preserves_record_order_precision_and_validation():
+    payload = activity_request()
+    payload["records"][0]["observedAt"] = "2026-09-14T00:00:00.123456Z"
+    payload["records"].append(
+        payload["records"][0] | {"eventId": str(uuid4()), "sequence": 4}
+    )
+    batch = ActivityBatchRequest.model_validate(payload)
+    owner = uuid4()
+    message = ActivityRegistrationRequested.from_batch(owner, batch)
+    encoded = message.model_dump_json(by_alias=True)
+    assert set(json.loads(encoded)) == {"accountId", "batchId", "deviceId", "records"}
+    assert json.loads(encoded)["records"][0]["observedAt"].endswith(".123456Z")
+    assert ActivityRegistrationRequested.model_validate_json(encoded) == message
+    assert [r.sequence for r in message.records] == [3, 4]
+    invalid = json.loads(encoded)
+    invalid["records"][0]["timezoneId"] = "Europe/Paris"
+    with pytest.raises(ValidationError):
+        ActivityRegistrationRequested.model_validate(invalid)
+
+
+@pytest.mark.asyncio
+async def test_publisher_waits_for_ack_with_account_key_and_no_headers():
+    entered, release = asyncio.Event(), asyncio.Event()
+    producer = AsyncMock()
+
+    async def held(*args, **kwargs):
+        entered.set()
+        await release.wait()
+
+    producer.send_and_wait.side_effect = held
+    publisher = ActivityBatchPublisher(producer, topic="test.activities")
+    assert publisher.acknowledgment_timeout == 5.0
+    owner = uuid4()
+    batch = ActivityBatchRequest.model_validate(activity_request())
+    pending = asyncio.create_task(publisher.publish(owner, batch))
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        assert not pending.done()
+    finally:
+        release.set()
+        await asyncio.wait_for(pending, 1)
+    call = producer.send_and_wait.call_args
+    assert call.args[0] == "test.activities"
+    assert call.kwargs == {"key": str(owner).encode()}
+    assert (
+        ActivityRegistrationRequested.model_validate_json(call.args[1]).account_id
+        == owner
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure", [KafkaConnectionError(), MessageSizeTooLargeError(), ConnectionError()]
 )
-
-TEST_TOPIC = "test.activities.registration-requested"
-
-
-def message(device=None):
-    return ActivityRegistrationRequested(
-        uuid4(), device or uuid4(), uuid4(), b'{"original":true}'
-    )
-
-
-@pytest.mark.asyncio
-async def test_active_failure_and_blocked_source_share_capacity_and_recover_in_order():
-    broker = AsyncMock()
-    broker.publish.side_effect = RuntimeError("sensitive text never retained")
-    delivery = BatchDelivery(broker, topic=TEST_TOPIC, capacity=3)
-    first = message()
-    second = ActivityRegistrationRequested(
-        first.account_id, first.device_id, uuid4(), b'"second"'
-    )
-    third = ActivityRegistrationRequested(
-        first.account_id, first.device_id, uuid4(), b'"third"'
-    )
-    async with delivery.lifespan():
-        key = delivery.admit(first)
-        delivery.admit(second)
-        delivery.admit(third)
-        await delivery.wait_idle()
-        assert [v.state for v in delivery.inspect().values()] == [
-            RetainedMessageState.FAILED,
-            RetainedMessageState.BLOCKED,
-            RetainedMessageState.BLOCKED,
-        ]
-        assert next(iter(delivery.inspect().values())).error_code == "RuntimeError"
-        with pytest.raises(DeliveryUnavailable):
-            delivery.admit(message())
-        broker.publish.side_effect = None
-        delivery.reprocess(key)
-        await delivery.wait_idle()
-        assert delivery.inspect() == {}
-        assert [
-            c.args[0]["source"].encode() for c in broker.publish.await_args_list
-        ] == [
-            first.body,
-            first.body,
-            second.body,
-            third.body,
-        ]
-        assert all(c.args[1] == TEST_TOPIC for c in broker.publish.await_args_list)
-    assert delivery.worker is not None and delivery.worker.done()
+async def test_publisher_translates_transport_failures(failure):
+    producer = AsyncMock()
+    producer.send_and_wait.side_effect = failure
+    with pytest.raises(DeliveryUnavailable):
+        await ActivityBatchPublisher(producer, topic="test").publish(
+            uuid4(), ActivityBatchRequest.model_validate(activity_request())
+        )
 
 
 @pytest.mark.asyncio
-async def test_transient_retry_uses_five_attempts_full_jitter_and_other_device_continues():
-    broker = AsyncMock()
-    broker.publish.side_effect = [ConnectionError()] * 5 + [None]
-    sleep = AsyncMock()
-    delivery = BatchDelivery(broker, topic=TEST_TOPIC, sleep=sleep, jitter=lambda: 0.5)
-    async with delivery.lifespan():
-        delivery.admit(message())
-        delivery.admit(message())
-        await delivery.wait_idle()
-        assert [c.args[0] for c in sleep.await_args_list] == [0.5, 1, 2, 4]
-        assert broker.publish.await_count == 6
-        assert len(delivery.inspect()) == 1
-        assert next(iter(delivery.inspect().values())).attempts == 5
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_ack_deadline_and_external_cancellation_clean_up_waiter(cancel):
+    entered, cleaned = asyncio.Event(), asyncio.Event()
+    producer = AsyncMock()
 
-
-@pytest.mark.asyncio
-async def test_cancellation_retains_active_source_and_stops_admission():
-    entered = asyncio.Event()
-    closed = asyncio.Event()
-
-    async def publish(*args, **kwargs):
+    async def held(*args, **kwargs):
         entered.set()
         try:
             await asyncio.Event().wait()
         finally:
-            closed.set()
+            cleaned.set()
 
-    broker = AsyncMock()
-    broker.publish.side_effect = publish
-    delivery = BatchDelivery(broker, topic=TEST_TOPIC, capacity=1)
-    async with delivery.lifespan():
-        key = delivery.admit(message())
-        assert delivery.inspect()[key].state is RetainedMessageState.QUEUED
-        await entered.wait()
-        assert delivery.inspect()[key].state is RetainedMessageState.ACTIVE
-        with pytest.raises(DeliveryUnavailable):
-            delivery.admit(message())
-    assert closed.is_set()
-    assert delivery.inspect()[key].state is RetainedMessageState.FAILED
-    assert next(iter(delivery.inspect().values())).error_code == "shutdown_cancelled"
-    with pytest.raises(DeliveryUnavailable):
-        delivery.admit(message())
-
-
-@pytest.mark.asyncio
-async def test_fatal_worker_is_observed_and_refuses_admission_without_leaked_task():
-    broker = AsyncMock()
-    broker.publish.side_effect = ConnectionError()
-
-    async def broken_sleep(delay):
-        raise RuntimeError("controlled fatal worker")
-
-    delivery = BatchDelivery(broker, topic=TEST_TOPIC, sleep=broken_sleep)
-    async with delivery.lifespan():
-        delivery.admit(message())
-        await asyncio.wait_for(delivery.wait_idle(), 3)
-        await asyncio.sleep(0)  # Run the completion observer.
-        assert delivery.fatal_error_code == "RuntimeError"
-        with pytest.raises(DeliveryUnavailable):
-            delivery.admit(message())
-    assert delivery.worker is not None and delivery.worker.done()
-    assert next(iter(delivery.inspect().values())).state is RetainedMessageState.FAILED
+    producer.send_and_wait.side_effect = held
+    publisher = ActivityBatchPublisher(
+        producer, topic="test", acknowledgment_timeout=0.02 if not cancel else 5
+    )
+    pending = asyncio.create_task(
+        publisher.publish(
+            uuid4(), ActivityBatchRequest.model_validate(activity_request())
+        )
+    )
+    await asyncio.wait_for(entered.wait(), 1)
+    if cancel:
+        pending.cancel()
+    with pytest.raises(asyncio.CancelledError if cancel else DeliveryUnavailable):
+        await asyncio.wait_for(pending, 1)
+    assert cleaned.is_set()

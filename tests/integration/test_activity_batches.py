@@ -21,7 +21,6 @@ from mosemo.activities.timeline import ProjectedActivity, project_events
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config
 from mosemo.devices.models import Device
-from mosemo.infra.batch_delivery import RetainedMessageState
 
 
 def record(sequence, seconds, *, context=None, event_id=None):
@@ -49,13 +48,15 @@ def batch(device, records, *, batch_id=None):
 async def real_batch_app(
     integration_database_url, config: Config, monkeypatch
 ) -> AsyncIterator:
-    # Exercise the default main entrypoint and both default DI generators. Only
-    # the configured factory bind is replaced with the isolated PostgreSQL DB.
+    # Exercise the direct-processing route against isolated PostgreSQL. Kafka
+    # publication is tested independently; Consumer execution belongs to #65.
     from mosemo import database
-    from mosemo.activities import handler
     from mosemo.main import create_app
 
     app = create_app()
+    app.state.batch_runtime.config = app.state.batch_runtime.config.model_copy(
+        update={"enabled": False}
+    )
 
     engine = create_async_engine(integration_database_url)
     closed_sessions = []
@@ -67,7 +68,6 @@ async def real_batch_app(
 
     factory = async_sessionmaker(engine, class_=ObservedSession, expire_on_commit=False)
     monkeypatch.setattr(database, "SessionFactory", factory)
-    monkeypatch.setattr(handler, "SessionFactory", factory)
     # Main token config is the explicit non-secret test environment, overridden
     # with the fixture config for matching signing claims.
     from mosemo.config import get_config
@@ -92,7 +92,10 @@ async def real_batch_app(
         async with (
             LifespanManager(app) as manager,
             httpx2.AsyncClient(
-                transport=httpx2.ASGITransport(app=manager.app), base_url="http://test"
+                transport=httpx2.ASGITransport(
+                    app=manager.app, raise_app_exceptions=False
+                ),
+                base_url="http://test",
             ) as client,
         ):
             headers = [
@@ -113,10 +116,6 @@ async def real_batch_app(
         await engine.dispose()
 
 
-async def idle(app):
-    await asyncio.wait_for(app.state.batch_runtime.delivery.wait_idle(), 10)
-
-
 async def counts(factory, device):
     async with factory() as session:
         return tuple(
@@ -132,56 +131,17 @@ async def counts(factory, device):
 
 
 @pytest.mark.asyncio
-async def test_202_precedes_actual_postgres_write_and_independent_session_commit(
-    real_batch_app, monkeypatch
-):
-    app, client, factory, _accounts, devices, headers, closed = real_batch_app
-    entered, release = asyncio.Event(), asyncio.Event()
-    original = ActivityRepository.insert
-    message_sessions = []
-
-    async def held_insert(self, source):
-        message_sessions.append(self._session)
-        entered.set()
-        await release.wait()
-        return await original(self, source)
-
-    monkeypatch.setattr(ActivityRepository, "insert", held_insert)
-    payload = batch(devices[0], [record(0, 0.123456)])
-    response = await asyncio.wait_for(
-        client.post("/api/v1/activities/batches", headers=headers[0], json=payload), 3
-    )
-    assert response.status_code == 202
-    await asyncio.wait_for(entered.wait(), 3)
-    assert len(closed) == 1
-    assert message_sessions[0] not in closed
-    assert await counts(factory, devices[0]) == (0, 0)
-    # The admission DB session was closed while the message session is active.
-    assert any(session not in message_sessions for session in closed)
-    release.set()
-    await idle(app)
-    assert message_sessions[0] in closed
-    assert await counts(factory, devices[0]) == (1, 1)
-    timeline = await client.get(
-        "/api/v1/activities/timeline?date=2026-09-14", headers=headers[0]
-    )
-    assert timeline.status_code == 200 and len(timeline.json()) == 1
-    assert timeline.json()[0]["startedAt"] == "2026-09-14T00:00:00.123456Z"
-
-
-@pytest.mark.asyncio
 async def test_batch_winners_duplicates_gaps_lower_sequence_and_scoped_receipts(
     real_batch_app,
 ):
-    app, client, factory, accounts, devices, headers, _ = real_batch_app
+    _app, client, factory, accounts, devices, headers, _ = real_batch_app
     first, later = record(10, 10), record(90, 90)
     conflicting = record(10, 15)
     payload = batch(devices[0], [first, first, conflicting, later])
     response = await client.post(
-        "/api/v1/activities/batches", headers=headers[0], json=payload
+        "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
     )
-    assert response.status_code == 202
-    await idle(app)
+    assert response.status_code == 200
     async with factory() as session:
         receipt = await session.get(
             ActivityBatchReceipt, (accounts[0], devices[0], UUID(payload["batchId"]))
@@ -199,26 +159,25 @@ async def test_batch_winners_duplicates_gaps_lower_sequence_and_scoped_receipts(
         assert await session.get(ActivityRecord, UUID(conflicting["eventId"])) is None
     assert (
         await client.post(
-            "/api/v1/activities/batches", headers=headers[0], json=payload
+            "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
         )
-    ).status_code == 202
-    await idle(app)
+    ).status_code == 200
     assert await counts(factory, devices[0]) == (2, 1)
     lower = batch(devices[0], [record(0, 0), record(30, 30)])
     assert (
-        await client.post("/api/v1/activities/batches", headers=headers[0], json=lower)
-    ).status_code == 202
-    await idle(app)
+        await client.post(
+            "/api/v1/activities/batches/legacy", headers=headers[0], json=lower
+        )
+    ).status_code == 200
     assert await counts(factory, devices[0]) == (4, 2)
     foreign = batch(
         devices[1], [record(0, 0, event_id=UUID(first["eventId"])), record(1, 1)]
     )
     assert (
         await client.post(
-            "/api/v1/activities/batches", headers=headers[1], json=foreign
+            "/api/v1/activities/batches/legacy", headers=headers[1], json=foreign
         )
-    ).status_code == 202
-    await idle(app)
+    ).status_code == 200
     async with factory() as session:
         receipt = await session.get(
             ActivityBatchReceipt, (accounts[1], devices[1], UUID(foreign["batchId"]))
@@ -227,12 +186,9 @@ async def test_batch_winners_duplicates_gaps_lower_sequence_and_scoped_receipts(
     changed = payload | {"records": [record(100, 100)]}
     assert (
         await client.post(
-            "/api/v1/activities/batches", headers=headers[0], json=changed
+            "/api/v1/activities/batches/legacy", headers=headers[0], json=changed
         )
-    ).status_code == 202
-    await idle(app)
-    retained = app.state.batch_runtime.delivery.inspect()
-    assert next(iter(retained.values())).error_code == "batch_content_conflict"
+    ).status_code == 409
     assert await counts(factory, devices[0]) == (4, 2)
 
 
@@ -240,7 +196,7 @@ async def test_batch_winners_duplicates_gaps_lower_sequence_and_scoped_receipts(
 async def test_postgres_projection_failure_rolls_back_whole_batch_and_other_account_continues(
     real_batch_app, monkeypatch
 ):
-    app, client, factory, _, devices, headers, _ = real_batch_app
+    _app, client, factory, _, devices, headers, _ = real_batch_app
     original = ActivityRepository.replace_account_segments
 
     async def fail_after_flush(self, **kwargs):
@@ -254,10 +210,9 @@ async def test_postgres_projection_failure_rolls_back_whole_batch_and_other_acco
     payload = batch(devices[0], [record(0, 0), record(20, 20)])
     assert (
         await client.post(
-            "/api/v1/activities/batches", headers=headers[0], json=payload
+            "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
         )
-    ).status_code == 202
-    await idle(app)
+    ).status_code == 500
     assert await counts(factory, devices[0]) == (0, 0)
     async with factory() as session:
         assert (
@@ -266,16 +221,13 @@ async def test_postgres_projection_failure_rolls_back_whole_batch_and_other_acco
             )
             == []
         )
-    failed = app.state.batch_runtime.delivery.inspect()
-    assert len(failed) == 1 and next(iter(failed.values())).attempts == 1
     assert (
         await client.post(
-            "/api/v1/activities/batches",
+            "/api/v1/activities/batches/legacy",
             headers=headers[1],
             json=batch(devices[1], [record(0, 0)]),
         )
-    ).status_code == 202
-    await idle(app)
+    ).status_code == 200
     assert await counts(factory, devices[1]) == (1, 1)
 
 
@@ -283,7 +235,7 @@ async def test_postgres_projection_failure_rolls_back_whole_batch_and_other_acco
 async def test_append_and_past_replay_match_full_reference_and_stop_reading_suffix(
     real_batch_app, monkeypatch
 ):
-    app, client, factory, accounts, devices, headers, _ = real_batch_app
+    _app, client, factory, accounts, devices, headers, _ = real_batch_app
 
     # Many changes exceed one page. Every point has distinct context, making
     # an unchanged closed segment a safe early convergence boundary.
@@ -305,10 +257,9 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
         )
         assert (
             await client.post(
-                "/api/v1/activities/batches", headers=headers[0], json=payload
+                "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
             )
-        ).status_code == 202
-        await idle(app)
+        ).status_code == 200
     pages = []
     original = ActivityRepository.record_page
 
@@ -321,10 +272,9 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
     appended = batch(devices[0], [record(4000, 400, context=context(400))])
     assert (
         await client.post(
-            "/api/v1/activities/batches", headers=headers[0], json=appended
+            "/api/v1/activities/batches/legacy", headers=headers[0], json=appended
         )
-    ).status_code == 202
-    await idle(app)
+    ).status_code == 200
     assert pages == []
     async with factory() as session:
         before = await ActivityRepository(session).list_account_segments(accounts[0])
@@ -336,9 +286,10 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
         ],
     )
     assert (
-        await client.post("/api/v1/activities/batches", headers=headers[0], json=late)
-    ).status_code == 202
-    await idle(app)
+        await client.post(
+            "/api/v1/activities/batches/legacy", headers=headers[0], json=late
+        )
+    ).status_code == 200
     assert pages == [128]
     async with factory() as session:
         repo = ActivityRepository(session)
@@ -368,25 +319,13 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
 
 
 @pytest.mark.asyncio
-async def test_regressing_clock_retains_source_and_blocks_following_device_batch(
-    real_batch_app,
-):
-    app, client, factory, _, devices, headers, _ = real_batch_app
+async def test_regressing_clock_rolls_back_batch(real_batch_app):
+    _, client, factory, _, devices, headers, _ = real_batch_app
     source = batch(devices[0], [record(10, 10), record(11, 5)])
-    follow = batch(devices[0], [record(12, 12)])
-    assert (
-        await client.post("/api/v1/activities/batches", headers=headers[0], json=source)
-    ).status_code == 202
-    assert (
-        await client.post("/api/v1/activities/batches", headers=headers[0], json=follow)
-    ).status_code == 202
-    await idle(app)
-    values = list(app.state.batch_runtime.delivery.inspect().values())
-    assert [v.state for v in values] == [
-        RetainedMessageState.FAILED,
-        RetainedMessageState.BLOCKED,
-    ]
-    assert values[0].error_code == "projection_time_regression"
+    response = await client.post(
+        "/api/v1/activities/batches/legacy", headers=headers[0], json=source
+    )
+    assert response.status_code == 422
     assert await counts(factory, devices[0]) == (0, 0)
 
 
@@ -397,8 +336,11 @@ async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
     from mosemo.config import get_config
     from mosemo.main import create_app
 
-    app, client, factory, accounts, devices, headers, _ = real_batch_app
+    _app, client, factory, accounts, devices, headers, _ = real_batch_app
     second = create_app()
+    second.state.batch_runtime.config = second.state.batch_runtime.config.model_copy(
+        update={"enabled": False}
+    )
     second.dependency_overrides[get_config] = lambda: config
     entered = asyncio.Event()
     release = asyncio.Event()
@@ -420,21 +362,26 @@ async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
     async with (
         LifespanManager(second) as manager,
         httpx2.AsyncClient(
-            transport=httpx2.ASGITransport(app=manager.app), base_url="http://test"
+            transport=httpx2.ASGITransport(app=manager.app, raise_app_exceptions=False),
+            base_url="http://test",
         ) as other,
     ):
-        responses = await asyncio.gather(
+        requests = asyncio.gather(
             client.post(
-                "/api/v1/activities/batches", headers=headers[0], json=first_source
+                "/api/v1/activities/batches/legacy",
+                headers=headers[0],
+                json=first_source,
             ),
             other.post(
-                "/api/v1/activities/batches", headers=headers[1], json=second_source
+                "/api/v1/activities/batches/legacy",
+                headers=headers[1],
+                json=second_source,
             ),
         )
-        assert [response.status_code for response in responses] == [202, 202]
         await asyncio.wait_for(entered.wait(), 3)
         release.set()
-        await asyncio.gather(idle(app), idle(second))
+        responses = await asyncio.wait_for(requests, 5)
+        assert [response.status_code for response in responses] == [200, 200]
     async with factory() as session:
         receipts = [
             await session.get(
@@ -462,7 +409,7 @@ async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
 async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_processing(
     real_batch_app, monkeypatch, first_batch
 ):
-    app, client, factory, accounts, devices, headers, _ = real_batch_app
+    _app, client, factory, accounts, devices, headers, _ = real_batch_app
 
     def context(name):
         return {
@@ -547,10 +494,9 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
         monkeypatch.setattr(ActivityRepository, "insert", fail_insert)
     assert (
         await client.post(
-            "/api/v1/activities/batches", headers=headers[0], json=payload
+            "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
         )
-    ).status_code == 202
-    await idle(app)
+    ).status_code == (500 if first_batch == "rollback" else 200)
     if first_batch == "rollback":
         assert await counts(factory, devices[0]) == (len(stored), 0)
         async with factory() as session:
@@ -560,14 +506,11 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
         assert [(s.segment_id, shape(s)) for s in rolled_back] == [
             (s.segment_id, shape(s)) for s in original
         ]
-        retained = app.state.batch_runtime.delivery.inspect()
-        assert len(retained) == 1
-        identifier, failed = next(iter(retained.items()))
-        assert failed.state is RetainedMessageState.FAILED and failed.attempts == 1
         monkeypatch.setattr(ActivityRepository, "insert", original_insert)
-        app.state.batch_runtime.delivery.reprocess(identifier)
-        await idle(app)
-    assert app.state.batch_runtime.delivery.inspect() == {}
+        response = await client.post(
+            "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
+        )
+        assert response.status_code == 200
     assert await counts(factory, devices[0]) == (
         len(stored) + (first_batch != "duplicate"),
         1,
@@ -588,12 +531,10 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
     ]:
         assert (
             await client.post(
-                "/api/v1/activities/batches", headers=headers[0], json=following
+                "/api/v1/activities/batches/legacy", headers=headers[0], json=following
             )
-        ).status_code == 202
-        await idle(app)
-        assert app.state.batch_runtime.delivery.inspect() == {}
-    assert pages == []
+        ).status_code == 200
+        assert pages == []
     await assert_matches_full_replay()
 
 
@@ -604,7 +545,7 @@ async def test_first_receipt_detects_legacy_clock_regression_without_rewriting_r
     from mosemo.activities.enums import RecordType
     from mosemo.timezones import Timezone
 
-    app, client, factory, _, devices, headers, _ = real_batch_app
+    _app, client, factory, _, devices, headers, _ = real_batch_app
     async with factory() as session:
         for sequence, second in [(0, 10), (1, 5)]:
             session.add(
@@ -623,22 +564,17 @@ async def test_first_receipt_detects_legacy_clock_regression_without_rewriting_r
     payload = batch(devices[0], [record(2, 20)])
     assert (
         await client.post(
-            "/api/v1/activities/batches", headers=headers[0], json=payload
+            "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
         )
-    ).status_code == 202
-    await idle(app)
+    ).status_code == 422
     assert await counts(factory, devices[0]) == (2, 0)
-    assert (
-        next(iter(app.state.batch_runtime.delivery.inspect().values())).error_code
-        == "projection_time_regression"
-    )
 
 
 @pytest.mark.asyncio
 async def test_legacy_commits_projection_retries_and_rolls_back_invalid_batch(
     real_batch_app,
 ):
-    app, client, factory, accounts, devices, headers, _ = real_batch_app
+    _app, client, factory, accounts, devices, headers, _ = real_batch_app
     path = "/api/v1/activities/batches/legacy"
     source = batch(devices[0], [record(0, 0), record(1, 10)])
     response = await client.post(path, headers=headers[0], json=source)
@@ -653,7 +589,6 @@ async def test_legacy_commits_projection_retries_and_rolls_back_invalid_batch(
             accounts[0], start=datetime.min.replace(tzinfo=UTC)
         )
         assert segments
-    assert app.state.batch_runtime.delivery.inspect() == {}
     retry = await client.post(path, headers=headers[0], json=source)
     assert retry.json() == response.json()
     assert await counts(factory, devices[0]) == (2, 1)

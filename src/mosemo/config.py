@@ -75,10 +75,9 @@ class AuthConfig(BaseModel):
 
 
 class BatchDeliveryConfig(BaseModel):
-    """Dev-only memory; accepted uncommitted source can be lost on shutdown."""
+    """Shared Kafka configuration for API publication and batch consumption."""
 
     enabled: bool = True
-    capacity: int = Field(default=64, ge=1)
     topic: str = Field(default="activities.registration-requested", min_length=1)
     bootstrap_servers: str = Field(default="localhost:9092", min_length=1)
     group_id: str = Field(default="mosemo.activity-batches", min_length=1)

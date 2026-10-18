@@ -1,4 +1,4 @@
-"""Verify the Swift client against an isolated API and disposable PostgreSQL.
+"""Verify the Swift client against an isolated API, PostgreSQL, and Kafka.
 
 Run with uv run python scripts/verify_focus_session_client.py --client-root PATH.
 Never uses the configured application database or user credentials.
@@ -18,7 +18,62 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
+from aiokafka import AIOKafkaConsumer
+from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from aiokafka.structs import TopicPartition
+from testcontainers.community.kafka import KafkaContainer
 from testcontainers.community.postgres import PostgresContainer
+
+
+async def prepare_topic(bootstrap_servers: str, topic: str) -> None:
+    admin = AIOKafkaAdminClient(bootstrap_servers=bootstrap_servers)
+    try:
+        await admin.start()
+        await admin.create_topics(
+            [NewTopic(topic, num_partitions=2, replication_factor=1)]
+        )
+    finally:
+        await admin.close()
+
+
+async def process_published_batches(url: str, bootstrap_servers: str, topic: str):
+    """Process this finished test's publications, without a production worker."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from mosemo.activities.batch_processing import ActivityBatchProcessor
+    from mosemo.activities.messages import ActivityRegistrationRequested
+    from mosemo.activities.schemas import ActivityBatchRequest
+
+    engine = create_async_engine(url)
+    consumer = AIOKafkaConsumer(
+        bootstrap_servers=bootstrap_servers, group_id=None, enable_auto_commit=False
+    )
+    try:
+        async with asyncio.timeout(30):
+            await consumer.start()
+            partitions = [TopicPartition(topic, index) for index in range(2)]
+            consumer.assign(partitions)
+            await consumer.seek_to_beginning()
+            ends = await consumer.end_offsets(partitions)
+            for partition, end in ends.items():
+                while await consumer.position(partition) < end:
+                    record = await consumer.getone(partition)
+                    assert record.value is not None
+                    message = ActivityRegistrationRequested.model_validate_json(
+                        record.value
+                    )
+                    assert record.key == str(message.account_id).encode("utf-8")
+                    batch = ActivityBatchRequest.model_validate_json(
+                        message.model_dump_json(by_alias=True, exclude={"account_id"})
+                    )
+                    async with async_sessionmaker(engine)() as session:
+                        await ActivityBatchProcessor(session).process(
+                            message.account_id, batch
+                        )
+    finally:
+        await consumer.stop()
+        await engine.dispose()
+
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--client-root", type=Path, required=True)
@@ -31,7 +86,12 @@ with socket.socket() as port_socket:
     api_port = port_socket.getsockname()[1]
 api_url = f"http://127.0.0.1:{api_port}"
 os.environ.update(runpy.run_path("scripts/export_openapi.py")["EXPORT_ENVIRONMENT"])
-with PostgresContainer("postgres:18", driver="asyncpg") as database:
+with (
+    PostgresContainer("postgres:18", driver="asyncpg") as database,
+    KafkaContainer("confluentinc/cp-kafka:7.8.0")
+    .with_kraft()
+    .with_env("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false") as kafka,
+):
     url = database.get_connection_url()
     parsed = urlparse(url)
     assert parsed.username and parsed.password and parsed.hostname and parsed.port
@@ -41,6 +101,12 @@ with PostgresContainer("postgres:18", driver="asyncpg") as database:
         DB_HOST=parsed.hostname,
         DB_PORT=str(parsed.port),
         DB_DATABASE=parsed.path.lstrip("/"),
+        BATCH_ENABLED="true",
+        BATCH_BOOTSTRAP_SERVERS=kafka.get_bootstrap_server(),
+        BATCH_TOPIC="test.focus-session-client",
+    )
+    asyncio.run(
+        prepare_topic(os.environ["BATCH_BOOTSTRAP_SERVERS"], os.environ["BATCH_TOPIC"])
     )
     from alembic import command
     from alembic.config import Config as AlembicConfig
@@ -134,6 +200,14 @@ with PostgresContainer("postgres:18", driver="asyncpg") as database:
                 )
                 if result.returncode:
                     raise RuntimeError("Swift live API test failed")
+
+                asyncio.run(
+                    process_published_batches(
+                        url,
+                        os.environ["BATCH_BOOTSTRAP_SERVERS"],
+                        os.environ["BATCH_TOPIC"],
+                    )
+                )
 
                 async def verify():
                     engine = create_async_engine(url)
