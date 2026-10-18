@@ -9,7 +9,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    LargeBinary,
     Text,
     UniqueConstraint,
     func,
@@ -198,7 +197,6 @@ class ActivityBatchReceipt(Base):
     )
     batch_id: Mapped[UUID] = mapped_column(primary_key=True)
     fingerprint: Mapped[str] = mapped_column(Text)
-    source: Mapped[bytes] = mapped_column(LargeBinary)
     results: Mapped[list[dict[str, str]]] = mapped_column(JSONB)
     processed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

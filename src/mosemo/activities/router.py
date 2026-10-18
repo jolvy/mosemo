@@ -111,13 +111,12 @@ async def accept_batch(
 )
 async def process_batch_legacy(
     batch: ActivityBatchRequest,
-    request: Request,
     authenticated_account: AuthenticatedAccountDep,
     session: SessionDep,
 ) -> ActivityBatchProcessedResponse:
     try:
         results = await ActivityBatchProcessor(session).process(
-            authenticated_account.account_id, batch, await request.body()
+            authenticated_account.account_id, batch
         )
     except ActivityTimelineBusyError as exc:
         raise ApiException(ErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
