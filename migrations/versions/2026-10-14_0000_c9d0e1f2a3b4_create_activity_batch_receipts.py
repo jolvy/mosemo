@@ -27,7 +27,6 @@ def upgrade() -> None:
         ),
         sa.Column("batch_id", sa.Uuid(), primary_key=True),
         sa.Column("fingerprint", sa.Text(), nullable=False),
-        sa.Column("source", sa.LargeBinary(), nullable=False),
         sa.Column("results", postgresql.JSONB(), nullable=False),
         sa.Column(
             "processed_at",

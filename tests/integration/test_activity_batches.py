@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
+from mosemo.activities.batch_processing import batch_fingerprint
 from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityBatchRequest
@@ -190,7 +192,10 @@ async def test_batch_winners_duplicates_gaps_lower_sequence_and_scoped_receipts(
             "sequence_rejected",
             "stored",
         ]
-        assert receipt.source and b'"records"' in receipt.source
+        assert receipt.fingerprint == batch_fingerprint(
+            ActivityBatchRequest.model_validate(payload)
+        )
+        assert receipt.processed_at is not None
         assert await session.get(ActivityRecord, UUID(conflicting["eventId"])) is None
     assert (
         await client.post(
@@ -254,6 +259,13 @@ async def test_postgres_projection_failure_rolls_back_whole_batch_and_other_acco
     ).status_code == 202
     await idle(app)
     assert await counts(factory, devices[0]) == (0, 0)
+    async with factory() as session:
+        assert (
+            await ActivityRepository(session).list_account_segments(
+                real_batch_app[3][0]
+            )
+            == []
+        )
     failed = app.state.batch_runtime.delivery.inspect()
     assert len(failed) == 1 and next(iter(failed.values())).attempts == 1
     assert (
@@ -654,4 +666,55 @@ async def test_legacy_commits_projection_retries_and_rolls_back_invalid_batch(
     assert (
         await client.post(path, headers=headers[0], json=invalid)
     ).status_code == 422
+    assert await counts(factory, devices[0]) == (2, 1)
+
+
+@pytest.mark.asyncio
+async def test_normalized_retry_and_conflict_preserve_receipt_and_timeline(
+    real_batch_app,
+):
+    _, client, factory, accounts, devices, headers, _ = real_batch_app
+    path = "/api/v1/activities/batches/legacy"
+    payload = batch(devices[0], [record(0, 0), record(1, 10)])
+
+    async def snapshot():
+        async with factory() as session:
+            receipt = await session.get(
+                ActivityBatchReceipt,
+                (accounts[0], devices[0], UUID(payload["batchId"])),
+            )
+            segments = await ActivityRepository(session).list_account_segments(
+                accounts[0]
+            )
+            return (
+                receipt.fingerprint,
+                receipt.results,
+                receipt.processed_at,
+                [(s.segment_id, s.started_at, s.ended_at) for s in segments],
+            )
+
+    first = await client.post(path, headers=headers[0], json=payload)
+    assert first.status_code == 200
+    original = await snapshot()
+    # Different wire bytes and equivalent validated timestamps have the same hash.
+    normalized = payload | {
+        "records": [
+            item | {"observedAt": item["observedAt"].replace("Z", ".000000Z")}
+            for item in payload["records"]
+        ]
+    }
+    retry = await client.post(
+        path,
+        headers=headers[0] | {"Content-Type": "application/json"},
+        content=json.dumps(normalized, indent=2, sort_keys=True),
+    )
+    assert retry.json() == first.json()
+    assert await snapshot() == original
+    for changed in [
+        payload | {"records": list(reversed(payload["records"]))},
+        payload | {"records": [record(2, 20)]},
+    ]:
+        conflict = await client.post(path, headers=headers[0], json=changed)
+        assert conflict.status_code == 409
+        assert await snapshot() == original
     assert await counts(factory, devices[0]) == (2, 1)

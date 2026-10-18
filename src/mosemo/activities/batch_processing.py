@@ -5,14 +5,13 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.enums import SegmentType
 from mosemo.activities.messages import TerminalBatchError
-from mosemo.activities.models import ActivityBatchReceipt, ActivityTimelineSegment
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
+from mosemo.activities.models import ActivityTimelineSegment
+from mosemo.activities.receipt_repository import BatchReceiptRepository
 from mosemo.activities.repository import ActivityRepository, converged_old_index
 from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.activities.service import acquire_activity_timeline_lock
@@ -65,12 +64,12 @@ class ActivityBatchProcessor:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repository = ActivityRepository(session)
+        self.receipts = BatchReceiptRepository(session)
 
     async def process(
         self,
         account_id: UUID,
         batch: ActivityBatchRequest,
-        source: bytes,
         *,
         now: datetime | None = None,
     ) -> list[dict[str, str]]:
@@ -82,41 +81,31 @@ class ActivityBatchProcessor:
             )
             if device is None:
                 raise TerminalBatchError("device_not_owned")
-            initialized = await self.session.scalar(
-                select(ActivityBatchReceipt.batch_id)
-                .where(ActivityBatchReceipt.account_id == account_id)
-                .limit(1)
-            )
+            initialized = await self.receipts.has_for_account(account_id)
             fingerprint = batch_fingerprint(batch)
-            claimed = await self.session.scalar(
-                insert(ActivityBatchReceipt)
-                .values(
+            claimed = await self.receipts.claim(
+                account_id=account_id,
+                device_id=batch.device_id,
+                batch_id=batch.batch_id,
+                fingerprint=fingerprint,
+            )
+            if claimed is None:
+                winner = await self.receipts.find(
                     account_id=account_id,
                     device_id=batch.device_id,
                     batch_id=batch.batch_id,
-                    fingerprint=fingerprint,
-                    source=source,
-                    results=[],
-                )
-                .on_conflict_do_nothing()
-                .returning(ActivityBatchReceipt)
-            )
-            if claimed is None:
-                winner = await self.session.get(
-                    ActivityBatchReceipt, (account_id, batch.device_id, batch.batch_id)
                 )
                 if winner is None:
                     raise RuntimeError("receipt winner missing")
                 if winner.fingerprint != fingerprint:
                     raise TerminalBatchError("batch_content_conflict")
                 return winner.results
-            if (
-                initialized is None
-                and not await self.repository.account_clock_is_monotone(account_id)
+            if not initialized and not await self.repository.account_clock_is_monotone(
+                account_id
             ):
                 raise TerminalBatchError("projection_time_regression")
             latest = await self.repository.latest_account_record(account_id)
-            if initialized is None and latest is not None:
+            if not initialized and latest is not None:
                 await self._rebuild_legacy_projection(account_id, latest, current_time)
             adopted = []
             results = []
