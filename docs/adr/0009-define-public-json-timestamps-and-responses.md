@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-17
 ---
 # 공개 JSON·시각 표현과 성공·오류 응답 계약을 통일한다
@@ -116,3 +116,5 @@ date: 2026-10-17
 - [관찰 타임라인 PRD](../prd/observation-timeline.md)
 - [공통 공개 스키마](../../src/mosemo/schemas.py)
 - [OpenAPI 스냅샷](../../openapi/openapi.json)
+
+2026-10-18 사용자가 ADR 0006~0009 모두를 명시적으로 승인하여 accepted로 전환했다. 구현·검증 완료를 뜻하지 않는다.

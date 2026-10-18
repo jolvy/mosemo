@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-17
 ---
 # Device별 관찰 순번으로 타임라인을 구성하고 기존 이력을 전환한다
@@ -25,7 +25,7 @@ ADR 0004는 원본을 `(observedAt, receivedAt, eventId)` 순으로 해석했다
 - 같은 Device 내 관찰 순서는 `sequence ASC`다. 연속된 숫자를 요구하지 않으며
   미사용 낮은 sequence가 늦게 도착해도 수용한다. 순번 누락만으로 공백을 만들지 않는다.
 - 같은 Device에서 sequence가 증가할 때 observedAt은 같거나 증가해야 한다.
-  역행하면 해당 배치의 DB 변경 전체를 롤백하고 실패 원본을 보관한다.
+  역행하면 해당 배치의 DB 변경 전체를 롤백한다. 실패 원본 보관·복구는 후속 범위다.
   원본 시각을 보정하거나 음수 간격을 정상 병합하거나 거짓 경계를 만들지 않는다.
 - 여러 Device의 원본은 `(observedAt, deviceId, sequence, eventId)` 오름차순으로
   병합한다. receivedAt은 원본 순서 결정에 사용하지 않는다.
@@ -82,7 +82,7 @@ ADR 0004는 원본을 `(observedAt, receivedAt, eventId)` 순으로 해석했다
 ## 결과와 트레이드오프
 
 - 같은 Device의 시계가 뒤로 움직이면 유효한 나머지 원본도 해당 배치에서는
-  반영되지 않는다. 실패 원본 보관·후속 보류·재처리는 배치 처리 계약을 따른다.
+  반영되지 않는다. 실패 원본 보관·후속 보류·재처리는 배치 처리 계약의 후속 요구로 유지하며 이번 완료 조건에서 제외한다.
 - Device 식별자 동률 규칙은 실제 동시 관찰의 선후를 알아냈다는 의미가 아니라,
   같은 원본 집합에 대해 결정적인 결과를 만드는 규칙이다.
 - 초기 전환에서는 서로 떨어진 여러 시각의 동률 순서가 바뀔 수 있다. 앞부분
@@ -116,3 +116,5 @@ ADR 0004는 원본을 `(observedAt, receivedAt, eventId)` 순으로 해석했다
 - [도메인 용어집](../ubiquitous-language.md)
 - [배치 receipt·트랜잭션 ADR](0007-store-batch-receipts-with-activity-transactions.md)
 - [쓰기 시 관찰 projection ADR](0004-project-observation-timeline-on-write.md)
+
+2026-10-18 사용자가 ADR 0006~0009 모두를 명시적으로 승인하여 accepted로 전환했다. 구현·검증 완료를 뜻하지 않는다.
