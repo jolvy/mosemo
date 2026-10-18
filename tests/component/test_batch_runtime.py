@@ -73,8 +73,8 @@ async def test_real_subscriber_di_returns_http_202_before_held_operation_and_clo
         finally:
             closed.set()
 
-    async def held_process(self, owner, batch, source):
-        observed.append((self.session, owner, batch, source))
+    async def held_process(self, owner, batch):
+        observed.append((self.session, owner, batch))
         entered.set()
         await release.wait()
 
@@ -96,7 +96,7 @@ async def test_real_subscriber_di_returns_http_202_before_held_operation_and_clo
         assert not release.is_set() and not closed.is_set()
         assert observed[0][0] is session and observed[0][1] == account_id
         assert observed[0][2].device_id == UUID(request["deviceId"])
-        assert b'"records"' in observed[0][3]
+        assert str(observed[0][2].batch_id) == request["batchId"]
         full = await client.post(
             "/api/v1/activities/batches", headers=headers, json=payload()
         )
@@ -170,7 +170,7 @@ async def test_main_entrypoint_lifespan_preserves_http_state_and_does_not_accumu
     app.dependency_overrides[get_batch_session] = independent_session
     processed = []
 
-    async def process(self, owner, batch, source):
+    async def process(self, owner, batch):
         processed.append(batch.batch_id)
 
     monkeypatch.setattr(ActivityBatchProcessor, "process", process)
@@ -238,7 +238,7 @@ async def test_subscriber_cancellation_runs_di_finally_before_http_resource_shut
 
     api.dependency_overrides[get_batch_session] = session
 
-    async def held(self, owner, batch, source):
+    async def held(self, owner, batch):
         entered.set()
         await asyncio.Event().wait()
 
@@ -317,11 +317,10 @@ async def test_legacy_waits_for_processing_without_admission_or_publish(
     entered, release = asyncio.Event(), asyncio.Event()
     source = payload()
 
-    async def held_process(self, account_id, batch, body):
+    async def held_process(self, account_id, batch):
         assert self.session is session
         assert account_id == owner
         assert str(batch.batch_id) == source["batchId"]
-        assert body == httpx2.Request("POST", "http://test", json=source).content
         entered.set()
         await release.wait()
         return [{"eventId": source["records"][0]["eventId"], "status": "stored"}]

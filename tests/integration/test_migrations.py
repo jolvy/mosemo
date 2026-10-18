@@ -126,6 +126,32 @@ def _inspect_schema(connection: Any) -> dict[str, Any]:
     return snapshot
 
 
+def test_fresh_receipt_schema_has_no_source(integration_database_url: str) -> None:
+    async def receipt_schema():
+        engine = create_async_engine(integration_database_url)
+        try:
+            async with engine.connect() as connection:
+                return await connection.run_sync(
+                    lambda sync: (
+                        inspect(sync).get_columns("activity_batch_receipts"),
+                        inspect(sync).get_pk_constraint("activity_batch_receipts"),
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    columns, primary_key = asyncio.run(receipt_schema())
+    assert {column["name"] for column in columns} == {
+        "account_id",
+        "device_id",
+        "batch_id",
+        "fingerprint",
+        "results",
+        "processed_at",
+    }
+    assert primary_key["constrained_columns"] == ["account_id", "device_id", "batch_id"]
+
+
 async def insert_account(database_url: str, account_id: UUID) -> None:
     engine = create_async_engine(database_url)
     try:

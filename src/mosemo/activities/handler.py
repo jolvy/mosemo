@@ -34,10 +34,9 @@ def register_activity_handler(broker: KafkaBroker, *, topic: str):
         account_id: Annotated[UUID, Header(alias="x-account-id")],
         session: Annotated[AsyncSession, Depends(get_batch_session)],
     ) -> None:
-        source = snapshot.source.encode("utf-8")
-        batch = ActivityBatchRequest.model_validate(json.loads(source))
+        batch = ActivityBatchRequest.model_validate(json.loads(snapshot.source))
         try:
-            await ActivityBatchProcessor(session).process(account_id, batch, source)
+            await ActivityBatchProcessor(session).process(account_id, batch)
         except ActivityTimelineBusyError:
             raise ConnectionError("activity_timeline_lock_busy") from None
 
