@@ -1,43 +1,34 @@
-"""Explicit FastStream boundary; each message owns a fresh DB session."""
+"""The registered FastStream subscriber is the activity consumption boundary."""
 
-import json
-from collections.abc import AsyncIterator
-from typing import Annotated
-from uuid import UUID
+from collections.abc import Awaitable, Callable
 
-from fastapi import Body, Depends, Header
+from aiokafka import ConsumerRebalanceListener
+from faststream import AckPolicy
 from faststream.kafka import KafkaBroker
-from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from mosemo.activities.batch_processing import ActivityBatchProcessor
-from mosemo.activities.schemas import ActivityBatchRequest
-from mosemo.activities.service import ActivityTimelineBusyError
-from mosemo.database import SessionFactory
+from faststream.kafka.annotations import KafkaMessage
 
 
-class RegistrationSnapshot(BaseModel):
-    """Internal UTF-8 byte snapshot transported losslessly as a JSON string."""
+def register_activity_handler(
+    broker: KafkaBroker,
+    handle: Callable[..., Awaitable[None]],
+    *,
+    topic: str,
+    group_id: str,
+    listener: ConsumerRebalanceListener,
+):
+    subscriber = broker.subscriber(
+        topic,
+        group_id=group_id,
+        auto_offset_reset="earliest",
+        ack_policy=AckPolicy.MANUAL,
+        max_workers=2,
+        listener=listener,
+        decoder=lambda message: message.body,
+        no_reply=True,
+    )
 
-    source: str
+    @subscriber
+    async def register_requested(message: KafkaMessage) -> None:
+        await handle(message)
 
-
-async def get_batch_session() -> AsyncIterator[AsyncSession]:
-    async with SessionFactory() as session:
-        yield session
-
-
-def register_activity_handler(broker: KafkaBroker, *, topic: str):
-    @broker.subscriber(topic)
-    async def register_requested(
-        snapshot: Annotated[RegistrationSnapshot, Body()],
-        account_id: Annotated[UUID, Header(alias="x-account-id")],
-        session: Annotated[AsyncSession, Depends(get_batch_session)],
-    ) -> None:
-        batch = ActivityBatchRequest.model_validate(json.loads(snapshot.source))
-        try:
-            await ActivityBatchProcessor(session).process(account_id, batch)
-        except ActivityTimelineBusyError:
-            raise ConnectionError("activity_timeline_lock_busy") from None
-
-    return register_requested
+    return subscriber
