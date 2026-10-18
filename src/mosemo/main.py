@@ -10,7 +10,7 @@ from mosemo.api import v1_api_router
 from mosemo.config import get_config
 from mosemo.database import engine
 from mosemo.exception_handlers import register_exception_handlers
-from mosemo.infra.batch_runtime import compose_development_app
+from mosemo.infra.batch_runtime import compose_messaging_app
 from mosemo.logging import configure_logging
 from mosemo.middleware import RedactSensitiveQueryStringMiddleware
 from mosemo.openapi import public_openapi
@@ -78,9 +78,7 @@ def create_app() -> FastAPI:
     app.openapi = cast(Any, partial(public_openapi, app))
 
     batch_config = get_config().batch_delivery
-    if get_config().app_env in {"prod", "production"}:
-        batch_config = batch_config.model_copy(update={"enabled": False})
-    return compose_development_app(app, batch_config)
+    return compose_messaging_app(app, batch_config)
 
 
 app = create_app()

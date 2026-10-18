@@ -82,7 +82,22 @@ Replication factor is 1 for the local broker and its internal topics. This does
 not provide replicated durability. Broker retention and production deployment
 remain infrastructure concerns. Environment settings change addresses and names;
 the approved message contract remains the same in local and production environments.
-Application publisher/consumer wiring is tracked separately in #64 and #65.
+The API publishes using `acks=all` and an idempotent producer. It returns 202
+after Kafka confirms publication, with a five second publication deadline and
+the existing ten second overall HTTP admission deadline. A 503 with
+`Retry-After: 1` means retry the same batch ID and content; a timeout can still
+leave a published message. The HTTP body limit remains 512 KiB.
+
+The API opens and closes its producer through the FastAPI lifespan in every
+environment. `BATCH_ENABLED=false` explicitly disables publication (503);
+there is no in-memory fallback. The Kafka value contains `accountId`, `batchId`,
+`deviceId`, and `records`; the key is the authenticated account UUID encoded as
+UTF-8. No account header or original HTTP byte wrapper is used.
+
+The API does not process published batches. The separate Consumer entrypoint
+and DB processing are tracked in #65. Until that work is available, published
+batches wait in Kafka; the `/activities/batches/legacy` route still processes
+directly and returns 200 after DB commit.
 
 Stop Kafka while retaining data:
 
@@ -103,7 +118,7 @@ docker volume rm <project>_kafka-data
 
 ```sh
 uv sync --locked
-uv run --locked pytest -q tests/unit/test_config.py tests/integration/test_kafka.py
+uv run --locked pytest -q tests/unit/test_config.py tests/integration/test_kafka.py tests/integration/test_batch_publication.py
 ```
 
 Docker must be running. Testcontainers starts the same pinned Kafka image with

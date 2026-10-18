@@ -206,21 +206,21 @@ async def test_delayed_offline_replays_converge_with_chronological_http_timeline
 
     for record in ordered:
         response = await post_activity(client, headers=ordered_headers, json=record)
-        assert response.status_code == 202
+        assert response.status_code == 200
         assert (await receipt_for(client, response)).results[0]["eventId"] == record[
             "eventId"
         ]
-        assert response.json()["status"] == "accepted"
+        assert response.json()["status"] == "processed"
     first_responses: dict[int, dict[str, object]] = {}
     for index in (3, 1, 0, 2):
         response = await post_activity(
             client, headers=delayed_headers, json=delayed[index]
         )
-        assert response.status_code == 202
+        assert response.status_code == 200
         assert (await receipt_for(client, response)).results[0]["eventId"] == delayed[
             index
         ]["eventId"]
-        assert response.json()["status"] == "accepted"
+        assert response.json()["status"] == "processed"
         first_responses[index] = response.json()
 
     before_retry = await client.get(TIMELINE_URL, headers=delayed_headers)
@@ -232,9 +232,9 @@ async def test_delayed_offline_replays_converge_with_chronological_http_timeline
             json=delayed[index],
             batch_id=UUID(str(first_responses[index]["batchId"])),
         )
-        assert response.status_code == 202
+        assert response.status_code == 200
         assert response.json() == first_responses[index]
-        assert response.json()["status"] == "accepted"
+        assert response.json()["status"] == "processed"
 
     ordered_timeline = await client.get(TIMELINE_URL, headers=ordered_headers)
     delayed_timeline = await client.get(TIMELINE_URL, headers=delayed_headers)
@@ -306,7 +306,7 @@ async def test_rejected_activity_preserves_original_and_http_timeline(
         context={"kind": "opaque"},
     )
     accepted = await post_activity(client, headers=headers, json=original)
-    assert accepted.status_code == 202
+    assert accepted.status_code == 200
     before = await client.get(TIMELINE_URL, headers=headers)
     assert before.status_code == 200
     async with session_factory() as session:
@@ -340,11 +340,11 @@ async def test_rejected_activity_preserves_original_and_http_timeline(
         "unregistered_device": {"eventId": new_event_id, "deviceId": str(uuid4())},
     }
     expected_errors = {
-        "event_sequence_changed": (202, "duplicate"),
-        "event_body_changed": (202, "duplicate"),
-        "event_observed_at_changed": (202, "duplicate"),
-        "event_device_changed": (202, "event_id_rejected"),
-        "device_sequence_reused": (202, "sequence_rejected"),
+        "event_sequence_changed": (200, "duplicate"),
+        "event_body_changed": (200, "duplicate"),
+        "event_observed_at_changed": (200, "duplicate"),
+        "event_device_changed": (200, "event_id_rejected"),
+        "device_sequence_reused": (200, "sequence_rejected"),
         "negative_sequence": (422, "INVALID_ARGUMENT"),
         "invalid_context": (422, "INVALID_ARGUMENT"),
         "missing_auth": (401, "AUTH_INVALID_ACCESS_TOKEN"),
@@ -362,10 +362,10 @@ async def test_rejected_activity_preserves_original_and_http_timeline(
         client,
         headers=request_headers,
         json=original | changes[scenario],
-        expected_result=error_status if status_code == 202 else None,
+        expected_result=error_status if status_code == 200 else None,
     )
     assert response.status_code == status_code
-    if status_code == 202:
+    if status_code == 200:
         assert (await receipt_for(client, response)).results[0][
             "status"
         ] == error_status
@@ -433,7 +433,7 @@ async def test_cross_device_chains_merge_by_observation_and_device_identity(
     )
     for record in (later_observation, earlier_received, later_received):
         response = await post_activity(client, headers=headers, json=record)
-        assert response.status_code == 202
+        assert response.status_code == 200
 
     async with session_factory() as session:
         first_stored = await session.get(ActivityRecord, high_event_id)
@@ -487,7 +487,7 @@ async def test_sequence_orders_equal_observation_and_receive_times_over_http(
     )
     for record in (high, low):
         response = await post_activity(client, headers=headers, json=record)
-        assert response.status_code == 202
+        assert response.status_code == 200
 
     async with session_factory() as session:
         await session.execute(
@@ -504,7 +504,7 @@ async def test_sequence_orders_equal_observation_and_receive_times_over_http(
         context={"kind": "opaque"},
     )
     response = await post_activity(client, headers=headers, json=replay_trigger)
-    assert response.status_code == 202
+    assert response.status_code == 200
     timeline = await client.get(TIMELINE_URL, headers=headers)
     assert timeline.status_code == 200
     assert [segment["context"] for segment in timeline.json()] == [
