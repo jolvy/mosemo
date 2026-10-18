@@ -54,6 +54,7 @@ async def test_batch_admission_deadline_cancels_stalled_work_and_returns_retryab
     assert entered.is_set() and cleaned.is_set()
     assert messages[0]["type"] == "http.response.start"
     assert messages[0]["status"] == 503
+    assert (b"retry-after", b"1") in messages[0]["headers"]
     body = json.loads(messages[-1]["body"])
     assert body["error"]["status"] == "ACTIVITY_DELIVERY_UNAVAILABLE"
     assert sum(m["type"] == "http.response.start" for m in messages) == 1

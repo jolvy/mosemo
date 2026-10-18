@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime
-from unittest.mock import AsyncMock, Mock, create_autospec
+from unittest.mock import AsyncMock, create_autospec
 from uuid import UUID, uuid4
 
 import pytest
@@ -44,7 +44,7 @@ def make_app(*, config: Config, account_id: UUID, service: ActivityService):
     app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_activity_service] = lambda: service
     app.state.devices = AsyncMock()
-    app.state.batch_delivery = Mock()
+    app.state.batch_publisher = AsyncMock()
     app.dependency_overrides[get_device_repository] = lambda: app.state.devices
     token = TokenService(config.auth).issue_access_token(account_id)
     return app, token
@@ -66,10 +66,10 @@ def test_batch_response_preserves_camel_case_and_server_account(config):
         )
     assert response.status_code == 202
     assert response.json() == {"batchId": payload["batchId"], "status": "accepted"}
-    message = app.state.batch_delivery.admit.call_args.args[0]
-    assert message.account_id == account_id
+    owner, message = app.state.batch_publisher.publish.call_args.args
+    assert owner == account_id
     assert message.device_id == UUID(payload["deviceId"])
-    assert b'"records"' in message.body
+    assert len(message.records) == 1
 
 
 def test_batch_admission_hides_missing_and_foreign_devices(config):
@@ -87,7 +87,7 @@ def test_batch_admission_hides_missing_and_foreign_devices(config):
         )
     assert response.status_code == 404
     assert response.json()["error"]["status"] == "ACTIVITY_DEVICE_NOT_FOUND"
-    app.state.batch_delivery.admit.assert_not_called()
+    app.state.batch_publisher.publish.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -125,7 +125,7 @@ def test_batch_rejects_invalid_record_before_admission(config, invalid):
         )
     assert response.status_code == 422
     assert response.json()["error"]["status"] == "INVALID_ARGUMENT"
-    app.state.batch_delivery.admit.assert_not_called()
+    app.state.batch_publisher.publish.assert_not_called()
 
 
 def test_batch_admission_returns_common_retryable_delivery_error(config):
@@ -134,7 +134,7 @@ def test_batch_admission_returns_common_retryable_delivery_error(config):
         account_id=uuid4(),
         service=create_autospec(ActivityService, instance=True),
     )
-    app.state.batch_delivery.admit.side_effect = DeliveryUnavailable()
+    app.state.batch_publisher.publish.side_effect = DeliveryUnavailable()
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/activities/batches",
@@ -248,5 +248,5 @@ def test_batch_body_limit_counts_complete_utf8_envelope_including_whitespace(con
             ).status_code
             == 413
         )
-    app.state.batch_delivery.admit.assert_called_once()
-    assert len(app.state.batch_delivery.admit.call_args.args[0].body) == 512 * 1024
+    app.state.batch_publisher.publish.assert_awaited_once()
+    assert len(app.state.batch_publisher.publish.call_args.args[1].records) == 1

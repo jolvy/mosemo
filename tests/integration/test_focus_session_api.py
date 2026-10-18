@@ -130,7 +130,7 @@ async def test_start_observe_complete_retry_and_list(focus_client):
     }
     assert (
         await post_activity(client, headers=headers, json=activity)
-    ).status_code == 202
+    ).status_code == 200
     async with factory() as session:
         stored = await session.scalar(
             select(ActivityRecord).where(ActivityRecord.event_id == activity["eventId"])
@@ -173,14 +173,14 @@ async def test_start_observe_complete_retry_and_list(focus_client):
     # Delayed replay remains valid after completion and preserves idempotency.
     assert (
         await post_activity(client, headers=headers, json=activity)
-    ).status_code == 202
+    ).status_code == 200
     assert (
         await post_activity(
             client,
             headers=headers,
             json={**activity, "focusSessionId": None},
         )
-    ).status_code == 202
+    ).status_code == 200
     assert (await client.get(url + "?date=2026-10-07")).status_code == 401
 
 
@@ -226,7 +226,7 @@ async def test_foreign_label_invalid_durations_and_activity_link_are_rejected(
     del activity["focusSessionId"]
     assert (
         await post_activity(client, headers=headers, json=activity)
-    ).status_code == 202
+    ).status_code == 200
 
 
 @pytest.mark.asyncio
@@ -262,7 +262,7 @@ async def test_suspended_collection_record_rejects_focus_link(focus_client):
     activity.pop("focusSessionId")
     assert (
         await post_activity(client, headers=headers, json=activity)
-    ).status_code == 202
+    ).status_code == 200
 
 
 @pytest.mark.asyncio
@@ -324,6 +324,6 @@ async def test_invalid_activity_focus_link_rolls_back_and_retains_original(
         if invalid_link == "time"
         else "FocusSessionNotFoundError",
     )
-    assert response.status_code == 202
+    assert response.status_code == (409 if invalid_link == "time" else 404)
     async with factory() as session:
         assert await session.get(ActivityRecord, activity["eventId"]) is None

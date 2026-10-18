@@ -303,11 +303,11 @@ class ActivityBatchRequest(ActivityRequestModel):
 
 
 class ActivityBatchResponse(ApiResponseModel):
-    """개발용 메모리 전달 수락 결과이며 DB 저장 완료를 보장하지 않습니다."""
+    """Kafka 발행 확인 결과이며 DB 처리 완료를 보장하지 않습니다."""
 
     batch_id: UUID = Field(description="수락한 배치 식별자입니다.")
     status: Literal["accepted"] = Field(
-        description="제한된 메모리 전달 경로가 수락했습니다."
+        description="Kafka에서 배치 발행을 확인했습니다."
     )
 
 

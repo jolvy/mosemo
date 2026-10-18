@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Request, status
 
 from mosemo.activities.batch_processing import ActivityBatchProcessor
-from mosemo.activities.messages import ActivityRegistrationRequested, TerminalBatchError
+from mosemo.activities.messages import TerminalBatchError
 from mosemo.activities.schemas import (
     ActivityBatchProcessedResponse,
     ActivityBatchRecordResult,
@@ -24,7 +24,7 @@ from mosemo.dependencies import (
 )
 from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.infra.batch_delivery import (
-    BatchDelivery,
+    ActivityBatchPublisher,
     DeliveryUnavailable,
 )
 from mosemo.openapi import api_error_responses
@@ -38,8 +38,8 @@ router = APIRouter(prefix="/activities")
     status_code=status.HTTP_202_ACCEPTED,
     response_model=ActivityBatchResponse,
     summary="활동 배치 전달 수락",
-    description="인증 계정의 Device 원본 1~200건, 비압축 JSON 512 KiB 이하를 개발용 메모리 경로에 수락합니다. DB 저장 완료 또는 내구성 있는 Kafka ACK를 보장하지 않으며 종료 시 미처리 원본이 유실될 수 있습니다.",
-    response_description="메모리 전달 수락 결과입니다. DB 반영은 타임라인 조회로 확인합니다.",
+    description="인증 계정의 Device 원본 1~200건, 비압축 JSON 512 KiB 이하를 Kafka에 발행하고 발행 확인 후 수락합니다. 발행 확인은 최대 5초 대기하며 DB 처리 완료를 기다리지 않습니다. 확인 timeout은 미발행을 뜻하지 않으므로 같은 batchId와 내용으로 재시도합니다.",
+    response_description="Kafka 발행 확인 결과입니다. DB 반영은 타임라인 조회로 확인합니다.",
     responses=api_error_responses(
         ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
         ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
@@ -69,15 +69,13 @@ async def accept_batch(
     )
     if device is None:
         raise ApiException(ErrorCode.ACTIVITY_DEVICE_NOT_FOUND)
-    delivery: BatchDelivery | None = getattr(request.app.state, "batch_delivery", None)
-    if delivery is None:
+    publisher: ActivityBatchPublisher | None = getattr(
+        request.app.state, "batch_publisher", None
+    )
+    if publisher is None:
         raise ApiException(ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE)
     try:
-        delivery.admit(
-            ActivityRegistrationRequested(
-                account_id, batch.device_id, batch.batch_id, await request.body()
-            )
-        )
+        await publisher.publish(account_id, batch)
     except DeliveryUnavailable as exc:
         raise ApiException(ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE) from exc
     return ActivityBatchResponse(batch_id=batch.batch_id, status="accepted")

@@ -62,7 +62,7 @@ ERROR_DOCS: Mapping[ErrorCode, ErrorDocs] = {
     ),
     ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE: ErrorDocs(
         summary="Activity delivery unavailable",
-        description="개발용 메모리 전달 경로가 수락할 수 없습니다.",
+        description="활동 배치를 수락할 수 없습니다. 같은 batchId와 내용으로 재시도합니다.",
     ),
     ErrorCode.ACTIVITY_TIMELINE_BUSY: ErrorDocs(
         summary="Activity timeline busy",
