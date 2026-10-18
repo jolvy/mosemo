@@ -1,17 +1,35 @@
-"""API messaging lifecycle. Consumer processing runs in a separate process."""
+"""Compose messaging resources for the separate API and Consumer processes."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from aiokafka import AIOKafkaProducer
 from fastapi import FastAPI
+from faststream.kafka import KafkaBroker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from mosemo.activities.executor import BatchProcessingExecutor
 from mosemo.config import BatchDeliveryConfig
+from mosemo.infra.batch_consumer import ActivityBatchConsumer
 from mosemo.infra.batch_delivery import ActivityBatchPublisher
 from mosemo.middleware import BatchBodyLimitMiddleware
 
 
 class MessagingRuntime:
+    @staticmethod
+    async def run_consumer(
+        config: BatchDeliveryConfig,
+        sessions: async_sessionmaker[AsyncSession],
+        stop: asyncio.Event,
+    ) -> None:
+        if not config.enabled:
+            raise ValueError("Activity Consumer requires BATCH_ENABLED=true")
+        broker = KafkaBroker(config.bootstrap_servers, logger=None, graceful_timeout=0)
+        await ActivityBatchConsumer(broker, BatchProcessingExecutor(sessions)).run(
+            config.topic, stop, group_id=config.group_id
+        )
+
     def __init__(self, api: FastAPI, config: BatchDeliveryConfig):
         self.api = api
         self.config = config
