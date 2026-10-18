@@ -52,6 +52,11 @@ Kafka 발행 ACK와 consumer offset commit의 경계는 ADR 0006에서 다룬다
 DB commit 후 재전달에도 receipt로 중복 반영을 막지만, DB와 Kafka를 하나의
 원자적 트랜잭션으로 처리한다고 주장하지 않는다.
 
+정상 경로와 commit 사이 종료·재전달의 재현 테스트는
+[README](../../README.md#real-broker-tests)에 연결하며, 실제 실행 증거는
+[검증 Issue #66](https://github.com/jolvy/mosemo/issues/66)에서 관리한다.
+실패·복구 경로는 미구현이며 이 receipt 결정의 검증을 운영 준비 완료로 해석하지 않는다.
+
 ## 고려한 대안
 
 | 대안 | 장점 | 비용·제약 | 선택 |

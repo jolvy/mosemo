@@ -29,6 +29,14 @@ DB에 반영된 관찰 타임라인을 주기적으로 조회한다.
   Consumer 중단·partition 차단 등 대체 실패 정책도 이번에 확정하지 않는다.
 - 아래 기존 실패 보관·보류·재처리 요구는 삭제하지 않고 후속 요구로 보존한다.
 
+현재 서버의 공개 수락 경로는 Kafka Publisher만 실행하며 Consumer는 별도
+프로세스로 실행한다. 직접 DB 처리용 `/activities/batches/legacy`는 별도 계약이다.
+정상 전달 경로의 재현 명령과 TC-1~9 테스트 대응은
+[README](../../README.md#real-broker-tests), 실행 결과와 검증한 revision·diff는
+[검증 Issue #66](https://github.com/jolvy/mosemo/issues/66)에서 관리한다.
+이는 위 후속 요구나 macOS 인수 조건의 완료를 뜻하지 않으며,
+실패·복구가 미구현인 현재 서버를 운영 준비 완료로 보지 않는다.
+
 ## 기능 요구사항
 
 ### Kafka 메시지·실행·receipt 계약
