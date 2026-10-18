@@ -38,8 +38,8 @@ router = APIRouter(prefix="/activities")
     status_code=status.HTTP_202_ACCEPTED,
     response_model=ActivityBatchResponse,
     summary="활동 배치 전달 수락",
-    description="인증 계정의 Device 원본 1~200건, 비압축 JSON 512 KiB 이하를 Kafka에 발행하고 발행 확인 후 수락합니다. 발행 확인은 최대 5초 대기하며 DB 처리 완료를 기다리지 않습니다. 확인 timeout은 미발행을 뜻하지 않으므로 같은 batchId와 내용으로 재시도합니다.",
-    response_description="Kafka 발행 확인 결과입니다. DB 반영은 타임라인 조회로 확인합니다.",
+    description="인증 계정의 Device 원본 1~200건, 비압축 JSON 512 KiB 이하를 Kafka에 발행하고 발행 확인 후 수락합니다. 발행 확인은 최대 5초 대기하며 HTTP 전체 수락 제한은 10초입니다. 별도 Consumer의 DB 처리나 offset commit 완료를 기다리지 않습니다. 503 응답에는 Retry-After: 1을 반환합니다. 확인 timeout은 미발행을 뜻하지 않으므로 같은 batchId와 내용으로 재시도합니다.",
+    response_description="Kafka 발행 ACK를 확인한 결과이며 원본별 처리 성공·DB commit·Consumer offset commit을 뜻하지 않습니다. DB 반영은 타임라인 조회로 확인합니다.",
     responses=api_error_responses(
         ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
         ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,

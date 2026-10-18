@@ -7,7 +7,7 @@ date: 2026-10-17
 ## 맥락
 
 활동 배치 HTTP 요청은 원본 저장과 타임라인 계산이 끝나기 전에 수락 여부를
-반환한다. 현재 구현은 제한된 메모리 큐와 Worker, TestKafkaBroker를 통해
+반환한다. 전환 전 구현은 제한된 메모리 큐와 Worker, TestKafkaBroker를 통해
 FastStream Handler를 실행한다. 따라서 202 이후에도 API 프로세스가 종료되면
 처리되지 않은 원본이 사라질 수 있고 실제 Kafka의 발행 실패·재전달·offset을
 검증할 수 없다.
