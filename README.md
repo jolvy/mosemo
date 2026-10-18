@@ -94,10 +94,39 @@ there is no in-memory fallback. The Kafka value contains `accountId`, `batchId`,
 `deviceId`, and `records`; the key is the authenticated account UUID encoded as
 UTF-8. No account header or original HTTP byte wrapper is used.
 
-The API does not process published batches. The separate Consumer entrypoint
-and DB processing are tracked in #65. Until that work is available, published
-batches wait in Kafka; the `/activities/batches/legacy` route still processes
-directly and returns 200 after DB commit.
+Run the API and activity Consumer in separate terminals/processes with the same
+DB, topic and group settings:
+
+```sh
+uv run --locked poe dev
+uv run --locked poe batch-consumer
+```
+
+The Consumer uses a registered FastStream KafkaBroker subscriber with two native
+manual-ACK workers; no application-owned Kafka consumer or polling loop is used.
+It validates the message and matching account key, creates a fresh DB
+session per attempt, and uses the existing Processor transaction and receipt.
+Each native worker waits for the registered handler, DB transaction and FastStream
+message ACK before reading its next message. The two initial partitions run
+concurrently; no unprocessed position is committed.
+A stable group resumes valid committed offsets; otherwise it starts at the
+earliest retained record. DB commit and offset commit are separate: receipt
+idempotency protects a replay after a crash between them.
+
+SIGINT/SIGTERM stops new batch execution and allows only in-flight batches up to
+30 seconds for DB and offset commit, then cancels them and closes resources.
+It does not drain the backlog. Reassignment cancels and cleans up old partition
+executions before ownership transfers; unfinished offsets remain replayable.
+The 30-second Consumer deadline is independent of Uvicorn's API shutdown.
+
+Failure handling and recovery are unimplemented object boundaries. An unhandled
+validation, processing or commit error is surfaced to the process boundary with
+a nonzero exit and a payload-free diagnostic; it never reports processing success
+or commits the failed record. This is exception propagation, not an approved
+failure storage, blocking, retry or recovery policy. Those remain follow-up work;
+this Consumer is not a claim of production readiness for failure handling.
+The `/activities/batches/legacy` route continues to return 200 after direct DB
+processing.
 
 Stop Kafka while retaining data:
 
@@ -118,7 +147,7 @@ docker volume rm <project>_kafka-data
 
 ```sh
 uv sync --locked
-uv run --locked pytest -q tests/unit/test_config.py tests/integration/test_kafka.py tests/integration/test_batch_publication.py
+uv run --locked pytest -q tests/unit/test_config.py tests/integration/test_kafka.py tests/integration/test_batch_publication.py tests/integration/test_batch_consumption.py
 ```
 
 Docker must be running. Testcontainers starts the same pinned Kafka image with
@@ -131,6 +160,7 @@ fail the tests rather than switching to an in-memory broker.
 
 The smoke test confirms ACKed byte/key delivery on both partitions and committed
 group offsets. A second test reruns the actual initializer with partition count 3
-and verifies that the existing topic still has 2. These establish the broker test
-foundation; application ordering, parallel processing, separate processes, and
-shutdown behavior belong to the subsequent implementation issues.
+and verifies that the existing topic still has 2. The Consumer tests additionally
+verify partition sequencing and parallelism,
+valid-offset resume and new-group earliest, two-member reassignment, shutdown,
+and separate API/Consumer processes including a crash in the DB/offset gap.
