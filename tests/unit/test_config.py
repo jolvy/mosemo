@@ -20,6 +20,25 @@ def test_batch_topic_rejects_empty_value() -> None:
         BatchDeliveryConfig(topic="")
 
 
+def test_batch_broker_and_group_are_loaded_from_environment(config, monkeypatch):
+    monkeypatch.setenv("BATCH_BOOTSTRAP_SERVERS", "broker-a:9092,broker-b:9092")
+    monkeypatch.setenv("BATCH_GROUP_ID", "test.activity-batches")
+    configured = Config(
+        app_env=config.app_env,
+        database=config.database,
+        kakao=config.kakao,
+        auth=config.auth,
+    )
+    assert configured.batch_delivery.bootstrap_servers == "broker-a:9092,broker-b:9092"
+    assert configured.batch_delivery.group_id == "test.activity-batches"
+
+
+@pytest.mark.parametrize("field", ["bootstrap_servers", "group_id"])
+def test_batch_connection_settings_reject_empty_values(field):
+    with pytest.raises(ValidationError):
+        BatchDeliveryConfig(**{field: ""})
+
+
 def test_auth_config_rejects_short_jwt_secret() -> None:
     with pytest.raises(ValidationError):
         AuthConfig(
