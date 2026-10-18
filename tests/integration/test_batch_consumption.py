@@ -394,15 +394,6 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                         return False
 
                 await eventually(api_ready)
-                crash = await asyncio.create_subprocess_exec(
-                    sys.executable,
-                    "-m",
-                    "tests.batch_consumer_process",
-                    env=env,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=output,
-                )
-                processes.append(crash)
                 headers = {
                     "Authorization": "Bearer "
                     + TokenService(config.auth).issue_access_token(owners[0])
@@ -412,6 +403,30 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                     "/api/v1/activities/batches", json=body, headers=headers
                 )
                 assert response.status_code == 202
+                assert response.json() == {
+                    "batchId": body["batchId"],
+                    "status": "accepted",
+                }
+                # No Consumer exists yet: HTTP acceptance depends only on Kafka.
+                assert await receipt_count(sessions, owners[0]) == 0
+                async with sessions() as session:
+                    assert (
+                        await session.scalar(
+                            select(func.count())
+                            .select_from(ActivityRecord)
+                            .where(ActivityRecord.device_id == devices[0])
+                        )
+                        == 0
+                    )
+                crash = await asyncio.create_subprocess_exec(
+                    sys.executable,
+                    "-m",
+                    "tests.batch_consumer_process",
+                    env=env,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=output,
+                )
+                processes.append(crash)
                 assert crash.stdout is not None
                 line = await asyncio.wait_for(crash.stdout.readline(), 20)
                 assert line == b"DB_COMMITTED_BEFORE_OFFSET\n"
@@ -419,6 +434,16 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 assert await observer.committed(tp) is None
                 assert await receipt_count(sessions, owners[0]) == 1
                 async with sessions() as session:
+                    receipt_query = select(
+                        ActivityBatchReceipt.fingerprint,
+                        ActivityBatchReceipt.results,
+                        ActivityBatchReceipt.processed_at,
+                    ).where(
+                        ActivityBatchReceipt.account_id == owners[0],
+                        ActivityBatchReceipt.device_id == devices[0],
+                        ActivityBatchReceipt.batch_id == body["batchId"],
+                    )
+                    receipt_before = (await session.execute(receipt_query)).one()
                     before = list(
                         (
                             await session.scalars(
@@ -448,6 +473,9 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 await eventually(replayed)
                 assert await receipt_count(sessions, owners[0]) == 1
                 async with sessions() as session:
+                    assert (
+                        await session.execute(receipt_query)
+                    ).one() == receipt_before
                     after = list(
                         (
                             await session.scalars(

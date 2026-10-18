@@ -164,3 +164,39 @@ and verifies that the existing topic still has 2. The Consumer tests additionall
 verify partition sequencing and parallelism,
 valid-offset resume and new-group earliest, two-member reassignment, shutdown,
 and separate API/Consumer processes including a crash in the DB/offset gap.
+
+The process test first publishes while no Consumer is running and checks that
+202 leaves both receipts and raw records absent. It then starts a Consumer,
+kills it after DB commit but before offset commit, and starts the production
+Consumer entrypoint with the same group. The replay preserves the receipt,
+raw record count and timeline segment IDs; a subsequent HTTP batch advances
+the offset and SIGTERM exits cleanly.
+
+The approved verification scope in [Plan #61](https://github.com/jolvy/mosemo/issues/61)
+maps to the following tests. Execution results and the tested revision/diff are
+recorded in [#66](https://github.com/jolvy/mosemo/issues/66), not inferred from this list.
+
+| Scenario | Test location and boundary |
+| --- | --- |
+| TC-1 Message contract | `tests/unit/activities/test_delivery.py`, `tests/component/test_batch_consumer.py`, `tests/integration/test_batch_publication.py`: authenticated account key/value, schema and order |
+| TC-2 HTTP acceptance | `tests/integration/test_batch_publication.py`, `tests/component/test_batch_runtime.py`, `tests/component/test_batch_admission_timeout.py`: real ACK, 503 and admission deadlines |
+| TC-3 Atomic persistence | `tests/integration/test_activity_batches.py`: PostgreSQL receipt, raw records and timeline commit/rollback |
+| TC-4 Duplicate/conflict | `tests/integration/test_activity_batches.py`: normalized retry and changed content preserve existing results |
+| TC-5 Ordering/concurrency | `tests/integration/test_batch_consumption.py`: real partition assignment, DB/offset sequencing and parallel execution |
+| TC-6 Separate processes | `tests/integration/test_batch_consumption.py`: HTTP API and Consumer OS processes with real Kafka/PostgreSQL |
+| TC-7 Resume/shutdown | `tests/integration/test_batch_consumption.py`, `tests/component/test_batch_consumer.py`: committed offsets, earliest and bounded in-flight drain |
+| TC-8 Initial schema | `tests/integration/test_migrations.py::test_fresh_receipt_schema_has_no_source`: empty PostgreSQL migration and receipt columns |
+| TC-9 Commit gap replay | `tests/integration/test_batch_consumption.py`: process kill between DB and offset commits, replay and subsequent progress |
+
+Run all nine scopes and the existing business regressions with the repository
+quality gate (Docker must be running):
+
+```sh
+bash .codex/skills/verification/scripts/validate.sh
+```
+
+DB feature regressions in `tests/batch_support.py` use the direct `/batches/legacy`
+route; they verify processing rules, not Kafka delivery. The real broker tests
+above exercise the delivery path. Failure storage, blocking, retry exhaustion
+and manual recovery remain outside this verification scope and unimplemented;
+passing this gate does not establish production readiness.
