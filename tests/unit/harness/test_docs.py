@@ -182,6 +182,7 @@ def test_plan_template_is_loaded_from_reference(
     "relative",
     [
         "engineering-planning/references/plan-issue.md",
+        "engineering-planning/references/plan-review.md",
         "engineering-planning/references/propose-tests.md",
         "implementation/references/object-design.md",
         "implementation/references/testing.md",
@@ -197,10 +198,17 @@ def test_missing_skill_reference_is_reported_without_crashing(
     )
 
 
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "engineering-planning/SKILL.md",
+        "engineering-planning/references/plan-review.md",
+    ],
+)
 def test_broken_skill_reference_is_rejected(
-    docs_validator: ModuleType, document_root: Path
+    docs_validator: ModuleType, document_root: Path, relative: str
 ) -> None:
-    path = document_root / ".codex/skills/engineering-planning/SKILL.md"
+    path = document_root / ".codex/skills" / relative
     path.write_text(path.read_text() + "\n[추가 절차](references/missing.md)\n")
     assert any(
         "깨진 로컬 링크" in error for error in docs_validator.validate(document_root)

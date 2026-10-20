@@ -19,6 +19,7 @@ SKILL_REFERENCES = (
     "engineering-planning/references/domain-modeling.md",
     "engineering-planning/references/persistence-modeling.md",
     "engineering-planning/references/plan-issue.md",
+    "engineering-planning/references/plan-review.md",
     "engineering-planning/references/propose-tests.md",
     "implementation/references/architecture.md",
     "implementation/references/clean-code.md",
