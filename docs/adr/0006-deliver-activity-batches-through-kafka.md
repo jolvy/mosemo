@@ -44,7 +44,10 @@ FastStream Handler를 실행한다. 따라서 202 이후에도 API 프로세스�
 - partition 내부에서는 배치의 DB commit과 해당 처리 위치의 offset commit을
   마친 뒤 다음 배치를 처리한다. partition 간은 병렬로 최대 두 배치를 처리한다.
   다른 partition의 미처리 위치를 넘어 commit하지 않는다. 보장하는 순서는 Kafka
-  기록 순서이며 동시 HTTP 요청 시작 순서가 아니다. 계정 advisory lock도 유지한다.
+  기록 순서이며 동시 HTTP 요청 시작 순서가 아니다. Kafka는 계정 advisory lock을
+  사용하지 않는다. 같은 Topic·Consumer Group·계정 Key 매핑을 유지하고 같은 계정의
+  legacy 동시 사용을 금지한다. 경로 전환 전 기존 처리를 종료한다. 트랜잭션과
+  legacy 전용 Lock의 책임은 ADR 0007과 Plan #74의 승인된 변경을 따른다.
 - API와 Consumer는 같은 저장소·업무 코드를 공유하되 별도 진입점·프로세스로 실행한다.
 - 유효한 committed offset이 있으면 이어서 처리하고, 없는 경우에만
   `auto_offset_reset=earliest`로 현재 보관된 가장 오래된 위치부터 처리한다.

@@ -178,15 +178,20 @@ Mosemo 사용자는 한 날짜에 실제로 관찰된 활동의 순서, 문맥 �
   아니다. 단순 연장 또는 종료는 기존 ID를 유지한다. 병합은 가장 이른 기존
   구간의 ID, 분할은 원래 시작·문맥을 가진 선행 구간의 기존 ID를 유지하고
   나머지는 새 ID를 발급한다. 전체 rebuild 시 모든 ID가 바뀔 수 있다.
-- 배치 Handler의 원본·projection 쓰기는 계정별 transaction-level
-  `pg_advisory_xact_lock(bigint)`을 원본·projection 상태 조회 전에 얻는다.
-  키는 `activity_timeline:{account_id}` 문자열의 안정적인 BLAKE2b 64비트
-  digest를 signed bigint로 변환한다. `SET LOCAL lock_timeout = '3s'`를
+- 원본·projection 배치 쓰기의 계정별 직렬화는 경로별로 조율한다.
+  legacy의 `LegacyBatchExecutor`는 `pg_advisory_xact_lock(bigint)`을
+  원본·projection 상태 조회 전에 얻는다. Kafka의 `BatchProcessingExecutor`는
+  계정 Lock 없이 같은 Topic·Consumer Group·계정 Key 매핑과 Partition별 순차
+  실행으로 직렬화한다. 두 Executor가 각각 트랜잭션을 소유하며 공통 Processor는
+  열린 트랜잭션에서 처리한다. 같은 계정의 두 경로 동시 사용은 금지하고 전환 전
+  기존 처리를 종료한다(2026-10-20 Plan #74 승인).
+  legacy 잠금 키는 `activity_timeline:{account_id}` 문자열의 안정적인 BLAKE2b 64비트
+  digest를 signed bigint로 변환한다. legacy는 `SET LOCAL lock_timeout = '3s'`를
   사용한다. 서로 다른 계정은 DB 잠금으로 서로를 막지 않지만 같은 Kafka
   partition이면 순차 처리된다. 잠금 해시 충돌은 무관한 계정의 일시적 직렬화만 야기한다.
-- 락 안에서 Device 계정 소유권과 원본별 채택·거절을 판정한다. 이미 저장된
+- 각 Executor의 트랜잭션 안에서 Device 계정 소유권과 원본별 채택·거절을 판정한다. 이미 저장된
   원본을 덮어쓰거나 중복 반영하지 않는다. 채택 집합과 projection 변경을 같은
-  트랜잭션으로 반영하며 잠금 timeout이면 함께 롤백한다. 배치 수락 HTTP 응답은
+  트랜잭션으로 반영하며 실패 시 함께 롤백한다. legacy 잠금 timeout은 HTTP 503으로 반환한다. 배치 수락 HTTP 응답은
   DB 처리를 기다리지 않으므로 Handler의 잠금 경합을 뒤늦게 HTTP 오류로 바꾸지
   않는다. Handler 재시도·실패·복구는 활동 배치 PRD의 후속 범위이며 이번 완료 조건이 아니다.
 - 전송이 늦거나 순서가 뒤바뀌어도 Device 내 관찰 시각 역행이 없는 이벤트는 저장하고, 새 이벤트 직전 상태를 포함하는
@@ -229,7 +234,7 @@ Mosemo 사용자는 한 날짜에 실제로 관찰된 활동의 순서, 문맥 �
 - AC-5008: 오래된 열린 활동은 GET에서 마지막 관찰 시각에 논리적으로 닫고 다음 쓰기에서 반영한다. scheduler나 GET의 원본 재생·자동 복구는 추가하지 않는다.
 - AC-5009: activity와 capture_gap 응답의 필드·context·reason 및 timestamp 경계 표현을 유지하고 원본 이벤트·Device·sequence·수신 시각은 노출하지 않는다.
 - AC-5010: 이미 저장된 eventId는 덮어쓰거나 projection에 중복 반영하지 않는다. Device별 sequence 충돌은 기존 원본을 보존한다. 관찰 시각 역행이 없는 지연·역순 관찰은 반영한다. 원본별 거절과 배치 실패는 활동 배치 PRD를 따른다.
-- AC-5011: 같은 계정의 채택 원본·projection 쓰기는 한 트랜잭션과 advisory lock에서 처리한다. 3초 잠금 timeout이면 해당 변경 전체를 롤백한다. Handler 재시도 정책은 활동 배치 PRD의 후속 범위다.
+- AC-5011: 채택 원본·projection 쓰기는 경로별 Executor가 소유한 한 트랜잭션에서 처리한다. legacy는 계정 advisory lock으로 직렬화하고 3초 잠금 timeout이면 전체 롤백한다. Kafka는 계정 Lock 없이 같은 Topic·Consumer Group·계정 Key 매핑과 Partition별 순차 실행으로 직렬화한다. 같은 계정의 경로 혼용을 금지하고 전환 전 기존 처리를 종료한다. Handler 재시도 정책은 활동 배치 PRD의 후속 범위다.
 - AC-5012: 늦은 이벤트는 영향받는 기존 구간부터 원본을 재생하고 다음 결과가 수렴할 때까지 확장한다. 전송 순서가 달라도 projection ID를 제외한 관찰 의미는 같아야 한다.
 - AC-5013: 단순 연장·종료와 병합·분할은 원문 ID 보존 규칙을 따르고 전체 rebuild에서는 ID가 바뀔 수 있다. 구간 ID를 영구 도메인 ID로 취급하지 않는다.
 - AC-5014: projection의 구간 종류별 필수·NULL·시간 CHECK, 원본 이벤트의 deferred FK, 계정 삭제 cascade 및 0초 허용이 유지된다. 향후 grouping 변경은 새 마이그레이션에서 원본으로 재생성한다.

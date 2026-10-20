@@ -54,7 +54,8 @@ async def test_executor_owns_fresh_session_for_each_attempt(monkeypatch, failure
 
     @asynccontextmanager
     async def sessions():
-        session = object()
+        session = Mock()
+        session.begin.return_value = AsyncMock()
         opened.append(session)
         try:
             yield session
@@ -379,3 +380,55 @@ def test_cli_initialization_errors_never_expose_credentials():
     )
     assert "private-db-marker" not in result.stderr
     assert "private-jwt-marker" not in result.stderr
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("commit_fails", [False, True])
+async def test_consumer_waits_for_executor_commit_and_never_acks_failed_commit(
+    monkeypatch, commit_fails
+):
+    committing, release, acked = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    transaction = AsyncMock()
+
+    async def finish(*args):
+        committing.set()
+        await release.wait()
+        if commit_fails:
+            raise RuntimeError("commit failed")
+
+    transaction.__aexit__.side_effect = finish
+    session = Mock()
+    session.begin.return_value = transaction
+
+    @asynccontextmanager
+    async def sessions():
+        yield session
+
+    monkeypatch.setattr(
+        "mosemo.activities.executor.ActivityBatchProcessor.process", AsyncMock()
+    )
+    broker = Broker()
+    broker.commit.side_effect = lambda: acked.set()
+    worker = ActivityBatchConsumer(
+        cast(KafkaBroker, broker), BatchProcessingExecutor(sessions)
+    )
+    stop = asyncio.Event()
+    pending = asyncio.create_task(worker.run("test", stop, group_id="group"))
+    broker.put(next(iter(broker.queues)), 0)
+    try:
+        await asyncio.wait_for(committing.wait(), 1)
+        broker.commit.assert_not_called()
+        release.set()
+        if commit_fails:
+            with pytest.raises(RuntimeError, match="commit failed"):
+                await asyncio.wait_for(pending, 1)
+            broker.commit.assert_not_called()
+        else:
+            await asyncio.wait_for(acked.wait(), 1)
+            stop.set()
+            await asyncio.wait_for(pending, 1)
+            broker.commit.assert_awaited_once()
+    finally:
+        release.set()
+        stop.set()
+        await asyncio.gather(pending, return_exceptions=True)

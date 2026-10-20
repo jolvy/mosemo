@@ -8,7 +8,7 @@ import pytest
 from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
 
-from mosemo.activities.batch_processing import ActivityBatchProcessor
+from mosemo.activities.executor import LegacyBatchExecutor
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
 from mosemo.config import BatchDeliveryConfig, Config, get_config
@@ -146,7 +146,7 @@ async def test_legacy_waits_for_processing_without_admission_or_publish(
         await release.wait()
         return [{"eventId": source["records"][0]["eventId"], "status": "stored"}]
 
-    monkeypatch.setattr(ActivityBatchProcessor, "process", held_process)
+    monkeypatch.setattr(LegacyBatchExecutor, "execute", held_process)
     publish = AsyncMock(side_effect=AssertionError("must not publish"))
     monkeypatch.setattr(app.state, "batch_publisher", AsyncMock(publish=publish))
     async with (
@@ -187,7 +187,7 @@ async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
     app, _, _, headers = make_app(config)
     app.dependency_overrides[get_session] = object
     process = AsyncMock()
-    monkeypatch.setattr(ActivityBatchProcessor, "process", process)
+    monkeypatch.setattr(LegacyBatchExecutor, "execute", process)
     async with httpx2.AsyncClient(
         transport=httpx2.ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -224,9 +224,7 @@ async def test_legacy_processing_errors(config, monkeypatch, error, expected):
     failure = (
         ActivityTimelineBusyError() if error == "busy" else TerminalBatchError(error)
     )
-    monkeypatch.setattr(
-        ActivityBatchProcessor, "process", AsyncMock(side_effect=failure)
-    )
+    monkeypatch.setattr(LegacyBatchExecutor, "execute", AsyncMock(side_effect=failure))
     async with httpx2.AsyncClient(
         transport=httpx2.ASGITransport(app=app), base_url="http://test"
     ) as client:

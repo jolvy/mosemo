@@ -569,3 +569,28 @@ async def test_registered_faststream_handler_rejects_invalid_message_without_pro
         if not pending.done():
             pending.cancel()
         await asyncio.gather(pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_kafka_commits_and_acks_while_account_advisory_lock_is_held(
+    integration_kafka, consumption_db
+):
+    from mosemo.activities.service import acquire_activity_timeline_lock
+
+    config = integration_kafka.config
+    sessions, owners, devices = consumption_db
+    # This is an independent lock holder, not concurrent legacy processing.
+    async with sessions() as holder, holder.begin():
+        await acquire_activity_timeline_lock(holder, account_id=owners[0])
+        await publish(config, owners[:1], devices[:1], 1)
+        async with running(config, BatchProcessingExecutor(sessions)) as (
+            consumer,
+            _,
+            _,
+        ):
+
+            async def committed():
+                return await consumer.committed(TopicPartition(config.topic, 0)) == 1
+
+            await eventually(committed)
+            assert await receipt_count(sessions, owners[0]) == 1

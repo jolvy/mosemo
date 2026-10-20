@@ -653,3 +653,148 @@ async def test_normalized_retry_and_conflict_preserve_receipt_and_timeline(
         assert conflict.status_code == 409
         assert await snapshot() == original
     assert await counts(factory, devices[0]) == (2, 1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fail_first", [False, True])
+async def test_legacy_serializes_until_commit_or_rollback(
+    real_batch_app, monkeypatch, fail_first
+):
+    from mosemo.activities.batch_processing import ActivityBatchProcessor
+    from mosemo.activities.service import activity_timeline_lock_key
+
+    _, client, factory, accounts, devices, headers, _ = real_batch_app
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = ActivityBatchProcessor.process
+    calls = []
+
+    async def held(self, owner, payload):
+        calls.append(payload.batch_id)
+        result = await original(self, owner, payload)
+        if len(calls) == 1:
+            entered.set()
+            await release.wait()
+            if fail_first:
+                raise RuntimeError("rollback first request")
+        return result
+
+    monkeypatch.setattr(ActivityBatchProcessor, "process", held)
+    path = "/api/v1/activities/batches/legacy"
+    first = asyncio.create_task(
+        client.post(path, headers=headers[0], json=batch(devices[0], [record(0, 0)]))
+    )
+    second = None
+    try:
+        await asyncio.wait_for(entered.wait(), 3)
+        second = asyncio.create_task(
+            client.post(
+                path, headers=headers[0], json=batch(devices[0], [record(1, 10)])
+            )
+        )
+        key = activity_timeline_lock_key(accounts[0])
+        # Wait for PostgreSQL itself to confirm the second request is blocked.
+        async with asyncio.timeout(2), factory() as observer:
+            while not await observer.scalar(
+                text(
+                    "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' "
+                    "AND classid::bigint = :high AND objid::bigint = :low "
+                    "AND NOT granted)"
+                ),
+                {"high": (key >> 32) & 0xFFFFFFFF, "low": key & 0xFFFFFFFF},
+            ):
+                await asyncio.sleep(0.01)
+        assert len(calls) == 1
+        assert not second.done()
+        assert await counts(factory, devices[0]) == (0, 0)
+        release.set()
+        assert (await first).status_code == (500 if fail_first else 200)
+        assert (await second).status_code == 200
+        assert len(calls) == 2
+        assert await counts(factory, devices[0]) == ((1, 1) if fail_first else (2, 2))
+    finally:
+        release.set()
+        await asyncio.gather(first, *([second] if second else []))
+
+
+@pytest.mark.asyncio
+async def test_legacy_lock_timeout_keeps_http_contract_and_releases_transaction(
+    real_batch_app,
+):
+    from mosemo.activities.service import acquire_activity_timeline_lock
+
+    _, client, factory, accounts, devices, headers, _ = real_batch_app
+    payload = batch(devices[0], [record(0, 0)])
+    async with factory() as holder, holder.begin():
+        await acquire_activity_timeline_lock(holder, account_id=accounts[0])
+        response = await asyncio.wait_for(
+            client.post(
+                "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
+            ),
+            5,
+        )
+        assert response.status_code == 503
+        assert response.headers["retry-after"] == "1"
+        assert await counts(factory, devices[0]) == (0, 0)
+    assert (
+        await client.post(
+            "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
+        )
+    ).status_code == 200
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["legacy", "kafka"])
+@pytest.mark.parametrize("failure", ["projection", "commit"])
+async def test_executors_rollback_raw_projection_and_receipt(
+    real_batch_app, monkeypatch, path, failure
+):
+    from sqlalchemy import event
+
+    from mosemo.activities.batch_processing import ActivityBatchProcessor
+    from mosemo.activities.executor import BatchProcessingExecutor
+    from mosemo.activities.messages import ActivityRegistrationRequested
+    from mosemo.activities.models import ActivityTimelineSegment
+
+    _, client, factory, accounts, devices, headers, _ = real_batch_app
+    payload = ActivityBatchRequest.model_validate(batch(devices[0], [record(0, 0)]))
+    original = ActivityBatchProcessor._project
+
+    async def fail_projection(self, *args):
+        await original(self, *args)
+        raise RuntimeError("injected projection failure")
+
+    def fail_commit(session):
+        raise RuntimeError("injected commit failure")
+
+    if failure == "projection":
+        monkeypatch.setattr(ActivityBatchProcessor, "_project", fail_projection)
+    else:
+        event.listen(factory.class_.sync_session_class, "before_commit", fail_commit)
+    try:
+        if path == "legacy":
+            response = await client.post(
+                "/api/v1/activities/batches/legacy",
+                headers=headers[0],
+                json=payload.model_dump(mode="json", by_alias=True),
+            )
+            assert response.status_code == 500
+        else:
+            with pytest.raises(RuntimeError, match=f"injected {failure} failure"):
+                await BatchProcessingExecutor(factory).execute(
+                    ActivityRegistrationRequested.from_batch(accounts[0], payload)
+                )
+        assert await counts(factory, devices[0]) == (0, 0)
+        async with factory() as session:
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(ActivityTimelineSegment)
+                    .where(ActivityTimelineSegment.account_id == accounts[0])
+                )
+                == 0
+            )
+    finally:
+        if failure == "commit":
+            event.remove(
+                factory.class_.sync_session_class, "before_commit", fail_commit
+            )

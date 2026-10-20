@@ -1,4 +1,4 @@
-"""Batch transaction orchestration; framework-free business processing."""
+"""Batch processing within a transaction owned by the calling Executor."""
 
 import json
 from datetime import UTC, datetime
@@ -14,7 +14,6 @@ from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.receipt_repository import BatchReceiptRepository
 from mosemo.activities.repository import ActivityRepository, converged_old_index
 from mosemo.activities.schemas import ActivityBatchRequest
-from mosemo.activities.service import acquire_activity_timeline_lock
 from mosemo.activities.timeline import (
     ProjectedActivity,
     ProjectedGap,
@@ -74,111 +73,109 @@ class ActivityBatchProcessor:
         now: datetime | None = None,
     ) -> list[dict[str, str]]:
         current_time = now or datetime.now(UTC)
-        async with self.session.begin():
-            await acquire_activity_timeline_lock(self.session, account_id=account_id)
-            device = await DeviceRepository(self.session).find_owned_by_id(
-                account_id=account_id, device_id=batch.device_id
-            )
-            if device is None:
-                raise TerminalBatchError("device_not_owned")
-            initialized = await self.receipts.has_for_account(account_id)
-            fingerprint = batch_fingerprint(batch)
-            claimed = await self.receipts.claim(
+        device = await DeviceRepository(self.session).find_owned_by_id(
+            account_id=account_id, device_id=batch.device_id
+        )
+        if device is None:
+            raise TerminalBatchError("device_not_owned")
+        initialized = await self.receipts.has_for_account(account_id)
+        fingerprint = batch_fingerprint(batch)
+        claimed = await self.receipts.claim(
+            account_id=account_id,
+            device_id=batch.device_id,
+            batch_id=batch.batch_id,
+            fingerprint=fingerprint,
+        )
+        if claimed is None:
+            winner = await self.receipts.find(
                 account_id=account_id,
                 device_id=batch.device_id,
                 batch_id=batch.batch_id,
-                fingerprint=fingerprint,
             )
-            if claimed is None:
-                winner = await self.receipts.find(
-                    account_id=account_id,
-                    device_id=batch.device_id,
-                    batch_id=batch.batch_id,
+            if winner is None:
+                raise RuntimeError("receipt winner missing")
+            if winner.fingerprint != fingerprint:
+                raise TerminalBatchError("batch_content_conflict")
+            return winner.results
+        if not initialized and not await self.repository.account_clock_is_monotone(
+            account_id
+        ):
+            raise TerminalBatchError("projection_time_regression")
+        latest = await self.repository.latest_account_record(account_id)
+        if not initialized and latest is not None:
+            await self._rebuild_legacy_projection(account_id, latest, current_time)
+        adopted = []
+        results = []
+        for record in batch.activity_records():
+            # Processed IDs are immutable. Pre-reads do not replace INSERT's
+            # unique constraints: concurrent winners are still reread below.
+            event = await self.repository.find_by_event_id(record.event_id)
+            if event is not None:
+                results.append(
+                    {
+                        "eventId": str(record.event_id),
+                        "status": "duplicate"
+                        if event.device_id == batch.device_id
+                        else "event_id_rejected",
+                    }
                 )
-                if winner is None:
-                    raise RuntimeError("receipt winner missing")
-                if winner.fingerprint != fingerprint:
-                    raise TerminalBatchError("batch_content_conflict")
-                return winner.results
-            if not initialized and not await self.repository.account_clock_is_monotone(
-                account_id
-            ):
-                raise TerminalBatchError("projection_time_regression")
-            latest = await self.repository.latest_account_record(account_id)
-            if not initialized and latest is not None:
-                await self._rebuild_legacy_projection(account_id, latest, current_time)
-            adopted = []
-            results = []
-            for record in batch.activity_records():
-                # Processed IDs are immutable. Pre-reads do not replace INSERT's
-                # unique constraints: concurrent winners are still reread below.
+                continue
+            sequence = await self.repository.find_by_device_sequence(
+                device_id=batch.device_id, sequence=record.sequence
+            )
+            if sequence is not None:
+                results.append(
+                    {"eventId": str(record.event_id), "status": "sequence_rejected"}
+                )
+                continue
+            if record.focus_session_id is not None:
+                focus = await FocusSessionRepository(self.session).find_owned(
+                    account_id, record.focus_session_id
+                )
+                try:
+                    if focus is None:
+                        raise FocusSessionNotFoundError
+                    focus.validate_activity(
+                        account_id=account_id,
+                        device_id=batch.device_id,
+                        observed_at=record.observed_at,
+                    )
+                except (
+                    FocusSessionNotFoundError,
+                    FocusSessionInvalidTimeError,
+                ) as error:
+                    raise TerminalBatchError(type(error).__name__) from None
+            stored = await self.repository.insert(record)
+            if stored is None:
                 event = await self.repository.find_by_event_id(record.event_id)
                 if event is not None:
-                    results.append(
-                        {
-                            "eventId": str(record.event_id),
-                            "status": "duplicate"
-                            if event.device_id == batch.device_id
-                            else "event_id_rejected",
-                        }
+                    status = (
+                        "duplicate"
+                        if event.device_id == batch.device_id
+                        else "event_id_rejected"
                     )
-                    continue
-                sequence = await self.repository.find_by_device_sequence(
-                    device_id=batch.device_id, sequence=record.sequence
-                )
-                if sequence is not None:
-                    results.append(
-                        {"eventId": str(record.event_id), "status": "sequence_rejected"}
-                    )
-                    continue
-                if record.focus_session_id is not None:
-                    focus = await FocusSessionRepository(self.session).find_owned(
-                        account_id, record.focus_session_id
-                    )
-                    try:
-                        if focus is None:
-                            raise FocusSessionNotFoundError
-                        focus.validate_activity(
-                            account_id=account_id,
-                            device_id=batch.device_id,
-                            observed_at=record.observed_at,
-                        )
-                    except (
-                        FocusSessionNotFoundError,
-                        FocusSessionInvalidTimeError,
-                    ) as error:
-                        raise TerminalBatchError(type(error).__name__) from None
-                stored = await self.repository.insert(record)
-                if stored is None:
-                    event = await self.repository.find_by_event_id(record.event_id)
-                    if event is not None:
-                        status = (
-                            "duplicate"
-                            if event.device_id == batch.device_id
-                            else "event_id_rejected"
-                        )
-                    else:
-                        sequence = await self.repository.find_by_device_sequence(
-                            device_id=batch.device_id, sequence=record.sequence
-                        )
-                        if sequence is None:
-                            raise RuntimeError("record winner missing")
-                        status = "sequence_rejected"
                 else:
-                    adopted.append(stored)
-                    status = "stored"
-                results.append({"eventId": str(record.event_id), "status": status})
-            for record in adopted:
-                if not await self.repository.validate_device_clock(record):
-                    raise TerminalBatchError("projection_time_regression")
-            if adopted:
-                try:
-                    await self._project(account_id, adopted, latest, current_time)
-                except ProjectionFailure:
-                    raise TerminalBatchError("projection_time_regression") from None
-            claimed.results = results
-            await self.session.flush()
-            return results
+                    sequence = await self.repository.find_by_device_sequence(
+                        device_id=batch.device_id, sequence=record.sequence
+                    )
+                    if sequence is None:
+                        raise RuntimeError("record winner missing")
+                    status = "sequence_rejected"
+            else:
+                adopted.append(stored)
+                status = "stored"
+            results.append({"eventId": str(record.event_id), "status": status})
+        for record in adopted:
+            if not await self.repository.validate_device_clock(record):
+                raise TerminalBatchError("projection_time_regression")
+        if adopted:
+            try:
+                await self._project(account_id, adopted, latest, current_time)
+            except ProjectionFailure:
+                raise TerminalBatchError("projection_time_regression") from None
+        claimed.results = results
+        await self.session.flush()
+        return results
 
     async def _rebuild_legacy_projection(
         self, account_id: UUID, latest: StoredActivityRecord, now: datetime
