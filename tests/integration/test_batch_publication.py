@@ -4,13 +4,13 @@ from unittest.mock import AsyncMock
 
 import httpx2
 import pytest
-from aiokafka import AIOKafkaConsumer
 from asgi_lifespan import LifespanManager
 
 from mosemo.activities.batch_processing import ActivityBatchProcessor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from tests.component.test_activities_api import activity_request
 from tests.component.test_batch_runtime import make_app
+from tests.kafka_support import capture_records
 
 
 @pytest.mark.asyncio
@@ -40,23 +40,15 @@ async def test_http_waits_for_real_publication_ack_without_running_db_processing
         assert len(body) == 512 * 1024
     headers |= {"Content-Type": "application/json"}
     entered, release, acknowledged = asyncio.Event(), asyncio.Event(), asyncio.Event()
-    consumer = AIOKafkaConsumer(
-        config.batch_delivery.topic,
-        bootstrap_servers=config.batch_delivery.bootstrap_servers,
-        group_id=config.batch_delivery.group_id,
-        auto_offset_reset="earliest",
-        enable_auto_commit=False,
-    )
-    try:
-        await consumer.start()
+    async with capture_records(config.batch_delivery) as consumer:
         async with (
             LifespanManager(app) as manager,
             httpx2.AsyncClient(
                 transport=httpx2.ASGITransport(app=manager.app), base_url="http://test"
             ) as client,
         ):
-            producer = app.state.batch_publisher.producer
-            real_send = producer.send_and_wait
+            producer = app.state.batch_publisher.broker
+            real_send = producer.publish
 
             async def held_send(*args, **kwargs):
                 entered.set()
@@ -65,7 +57,7 @@ async def test_http_waits_for_real_publication_ack_without_running_db_processing
                 acknowledged.set()
                 return metadata
 
-            monkeypatch.setattr(producer, "send_and_wait", held_send)
+            monkeypatch.setattr(producer, "publish", held_send)
             pending = asyncio.create_task(
                 client.post("/api/v1/activities/batches", headers=headers, content=body)
             )
@@ -82,7 +74,7 @@ async def test_http_waits_for_real_publication_ack_without_running_db_processing
                 "batchId": payload["batchId"],
                 "status": "accepted",
             }
-            record = await asyncio.wait_for(consumer.getone(), 10)
+            record = await asyncio.wait_for(consumer.get(), 10)
             assert record.value is not None
             message = ActivityRegistrationRequested.model_validate_json(record.value)
             assert message.account_id == owner
@@ -100,5 +92,3 @@ async def test_http_waits_for_real_publication_ack_without_running_db_processing
             assert message.records[0].observed_at.microsecond == 123456
             process.assert_not_called()
         assert app.state.batch_publisher is None
-    finally:
-        await consumer.stop()

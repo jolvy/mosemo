@@ -18,6 +18,7 @@ dependencies = [
     "faststream[kafka]==0.7.7",
     "faststream-fastapi==1.4.0",
     "asgi-lifespan==2.1.0",
+    "aiokafka==0.14.0",
 ]
 
 [dependency-groups]

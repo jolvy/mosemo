@@ -1,13 +1,12 @@
 import asyncio
 import json
-from contextlib import AsyncExitStack
 from uuid import uuid4
 
 import pytest
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from aiokafka.structs import TopicPartition
+from faststream.kafka import KafkaBroker
 
-from tests.kafka_support import KafkaResources, wait_for_partitions
+from mosemo.infra.kafka_compat import BatchPartition
+from tests.kafka_support import KafkaResources, capture_records
 
 
 @pytest.mark.asyncio
@@ -16,53 +15,55 @@ async def test_real_broker_publishes_and_consumes_both_partitions(
 ):
     config = integration_kafka.config
     account_id = str(uuid4())
-    payload = json.dumps(
-        {
-            "accountId": account_id,
-            "batchId": str(uuid4()),
-            "deviceId": str(uuid4()),
-            "records": [],
-        }
-    ).encode()
-    async with AsyncExitStack() as stack:
-        producer = AIOKafkaProducer(
-            bootstrap_servers=config.bootstrap_servers,
-            acks="all",
-            enable_idempotence=True,
-        )
-        stack.push_async_callback(producer.stop)
-        await producer.start()
-        consumer = AIOKafkaConsumer(
-            config.topic,
-            bootstrap_servers=config.bootstrap_servers,
-            group_id=config.group_id,
-            auto_offset_reset="earliest",
-            enable_auto_commit=False,
-        )
-        stack.push_async_callback(consumer.stop)
-        await consumer.start()
-        async with asyncio.timeout(30):
+    payload = json.dumps({"accountId": account_id, "records": []}).encode()
+    broker = KafkaBroker(
+        config.bootstrap_servers, acks="all", enable_idempotence=True, logger=None
+    )
+    try:
+        await broker.start()
+        assert await integration_kafka.admin.offsets(config.group_id) == {}
+        assert set(
+            (await integration_kafka.admin.end_offsets(config.topic)).values()
+        ) == {0}
+        async with capture_records(config) as records, asyncio.timeout(30):
             for partition in (0, 1):
-                metadata = await producer.send_and_wait(
-                    config.topic, payload, key=account_id.encode(), partition=partition
+                metadata = await broker.publish(
+                    payload,
+                    topic=config.topic,
+                    key=account_id.encode(),
+                    partition=partition,
+                    no_confirm=False,
                 )
                 assert metadata.partition == partition
-            received = [await consumer.getone(), await consumer.getone()]
+            received = [await records.get(), await records.get()]
             assert {record.partition for record in received} == {0, 1}
             assert all(record.key == account_id.encode() for record in received)
             assert all(record.value == payload for record in received)
-            await consumer.commit()
-            for record in received:
-                position = TopicPartition(config.topic, record.partition)
-                assert await consumer.committed(position) == record.offset + 1
+            assert await integration_kafka.admin.offsets(config.group_id) == {
+                BatchPartition(config.topic, p): 1 for p in (0, 1)
+            }
+            assignments = await integration_kafka.admin.assignments(config.group_id)
+            assert set.union(*assignments) == {
+                BatchPartition(config.topic, p) for p in (0, 1)
+            }
+        assert set(
+            (await integration_kafka.admin.end_offsets(config.topic)).values()
+        ) == {1}
+        await integration_kafka.admin.delete_group(config.group_id)
+        assert config.group_id not in await integration_kafka.admin.groups()
+        await integration_kafka.admin.delete_topic(config.topic)
+        assert config.topic not in await integration_kafka.admin.topics()
+    finally:
+        await broker.stop()
 
 
 @pytest.mark.asyncio
-async def test_topic_reinitialization_does_not_resize_existing_partitions(
+async def test_admin_reinitialization_and_local_cli_preserve_existing_partitions(
     integration_kafka: KafkaResources,
     integration_kafka_broker,
 ):
     config = integration_kafka.config
+    assert await integration_kafka.admin.prepare_topic(config.topic, 3) == 2
     result = integration_kafka_broker.exec(
         [
             "env",
@@ -74,4 +75,4 @@ async def test_topic_reinitialization_does_not_resize_existing_partitions(
         ]
     )
     assert result.exit_code == 0, result.output.decode()
-    await wait_for_partitions(integration_kafka.admin, config.topic, 2)
+    assert await integration_kafka.admin.prepare_topic(config.topic) == 2

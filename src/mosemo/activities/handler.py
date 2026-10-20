@@ -2,10 +2,11 @@
 
 from collections.abc import Awaitable, Callable
 
-from aiokafka import ConsumerRebalanceListener
 from faststream import AckPolicy
 from faststream.kafka import KafkaBroker
 from faststream.kafka.annotations import KafkaMessage
+
+from mosemo.infra.kafka_compat import BatchRebalanceAdapter
 
 
 def register_activity_handler(
@@ -14,7 +15,7 @@ def register_activity_handler(
     *,
     topic: str,
     group_id: str,
-    listener: ConsumerRebalanceListener,
+    listener: BatchRebalanceAdapter,
 ):
     subscriber = broker.subscriber(
         topic,

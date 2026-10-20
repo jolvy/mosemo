@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
-from aiokafka import TopicPartition
 from faststream import AckPolicy
 from faststream.kafka import KafkaBroker
 
@@ -19,6 +18,7 @@ from mosemo.infra.batch_consumer import (
     decode_batch,
 )
 from mosemo.infra.batch_runtime import MessagingRuntime
+from mosemo.infra.kafka_compat import BatchPartition
 from tests.component.test_activities_api import activity_request
 
 
@@ -89,7 +89,7 @@ class Broker:
     """Lifecycle double; real subscriber execution is covered with Kafka below."""
 
     def __init__(self):
-        self.queues = {TopicPartition("test", p): asyncio.Queue() for p in range(2)}
+        self.queues = {BatchPartition("test", p): asyncio.Queue() for p in range(2)}
         self.commit = AsyncMock()
         self.stop = AsyncMock(side_effect=self.close)
         self.tasks = []
@@ -208,7 +208,7 @@ async def test_revoke_cancels_session_and_does_not_commit_unprocessed_offset():
     try:
         broker.put(tp, 0)
         await asyncio.wait_for(entered.wait(), 1)
-        await worker.on_partitions_revoked([tp])
+        await broker.listener.on_partitions_revoked([tp])
         assert cleaned.is_set()
         broker.commit.assert_not_called()
     finally:
@@ -259,6 +259,7 @@ async def test_runtime_configures_manual_offsets_and_earliest(config, monkeypatc
         config.batch_delivery.bootstrap_servers,
         logger=None,
         graceful_timeout=0,
+        consumer_only=True,
     )
     broker.stop.assert_awaited_once()
     assert broker.options["group_id"] == config.batch_delivery.group_id
@@ -376,7 +377,7 @@ def test_cli_initialization_errors_never_expose_credentials():
     assert result.stdout == ""
     assert (
         result.stderr
-        == "Activity Consumer failed; failure/recovery policy is not implemented\n"
+        == "Activity Consumer failed; exiting without an in-process retry\n"
     )
     assert "private-db-marker" not in result.stderr
     assert "private-jwt-marker" not in result.stderr
@@ -432,3 +433,60 @@ async def test_consumer_waits_for_executor_commit_and_never_acks_failed_commit(
         release.set()
         stop.set()
         await asyncio.gather(pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_revocation_waits_for_target_cleanup_and_leaves_other_partition_running():
+    broker = Broker()
+    entered = asyncio.Queue()
+    cleaning, release_cleanup, release_other = (
+        asyncio.Event(),
+        asyncio.Event(),
+        asyncio.Event(),
+    )
+    attempts = 0
+
+    async def execute(msg):
+        nonlocal attempts
+        attempt = attempts
+        attempts += 1
+        await entered.put(attempt)
+        if attempt == 0:
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cleaning.set()
+                await release_cleanup.wait()
+        else:
+            await release_other.wait()
+
+    worker = ActivityBatchConsumer(
+        cast(KafkaBroker, broker), AsyncMock(execute=execute)
+    )
+    stop = asyncio.Event()
+    pending = asyncio.create_task(worker.run("test", stop, group_id="group"))
+    partitions = list(broker.queues)
+    revoked = None
+    try:
+        broker.put(partitions[0], 0)
+        assert await asyncio.wait_for(entered.get(), 1) == 0
+        broker.put(partitions[1], 0)
+        assert await asyncio.wait_for(entered.get(), 1) == 1
+        revoked = asyncio.create_task(
+            broker.listener.on_partitions_revoked(partitions[:1])
+        )
+        await asyncio.wait_for(cleaning.wait(), 1)
+        assert not revoked.done()
+        assert not worker._executions[partitions[1]].done()
+        broker.commit.assert_not_called()
+        release_cleanup.set()
+        await asyncio.wait_for(revoked, 1)
+        assert not worker._executions[partitions[1]].done()
+    finally:
+        release_cleanup.set()
+        release_other.set()
+        stop.set()
+        if revoked is not None:
+            await asyncio.gather(revoked, return_exceptions=True)
+        await asyncio.wait_for(pending, 2)
+    broker.commit.assert_awaited_once()

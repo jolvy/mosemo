@@ -3,13 +3,13 @@
 import asyncio
 from collections.abc import Iterable
 
-from aiokafka import ConsumerRebalanceListener, TopicPartition
 from faststream import BaseMiddleware
 from faststream.kafka import KafkaBroker, KafkaMessage
 
 from mosemo.activities.executor import BatchProcessingExecutor
 from mosemo.activities.handler import register_activity_handler
 from mosemo.activities.messages import ActivityRegistrationRequested
+from mosemo.infra.kafka_compat import BatchPartition, BatchRebalanceAdapter
 
 
 class InvalidBatchMessage(ValueError):
@@ -28,7 +28,7 @@ def decode_batch(
     return message
 
 
-class ActivityBatchConsumer(ConsumerRebalanceListener):
+class ActivityBatchConsumer:
     def __init__(
         self,
         broker: KafkaBroker,
@@ -41,7 +41,7 @@ class ActivityBatchConsumer(ConsumerRebalanceListener):
         self.shutdown_timeout = shutdown_timeout
         self._closing = False
         self._stop: asyncio.Event | None = None
-        self._executions: dict[TopicPartition, asyncio.Task[None]] = {}
+        self._executions: dict[BatchPartition, asyncio.Task[None]] = {}
         self._revoked: set[asyncio.Task[None]] = set()
         self._failure: asyncio.Future[None] | None = None
 
@@ -64,7 +64,11 @@ class ActivityBatchConsumer(ConsumerRebalanceListener):
 
         self.broker.add_middleware(ObserveErrors)
         register_activity_handler(
-            self.broker, self.handle, topic=topic, group_id=group_id, listener=self
+            self.broker,
+            self.handle,
+            topic=topic,
+            group_id=group_id,
+            listener=BatchRebalanceAdapter(self),
         )
         stopped = asyncio.create_task(stop.wait())
         startup = asyncio.create_task(self.broker.start())
@@ -103,7 +107,7 @@ class ActivityBatchConsumer(ConsumerRebalanceListener):
             return
         raw = message.raw_message
         assert not isinstance(raw, tuple)
-        partition = TopicPartition(raw.topic, raw.partition)
+        partition = BatchPartition(raw.topic, raw.partition)
         # A revocation cancels this attempt without killing FastStream's
         # subscription loop, which must continue after reassignment.
         task = asyncio.create_task(self._execute(message))
@@ -132,10 +136,7 @@ class ActivityBatchConsumer(ConsumerRebalanceListener):
         # handles one message at a time and ACKs before reading its next one.
         await message.ack()
 
-    async def on_partitions_assigned(self, assigned: Iterable[TopicPartition]) -> None:
-        pass
-
-    async def on_partitions_revoked(self, revoked: Iterable[TopicPartition]) -> None:
+    async def revoke(self, revoked: Iterable[BatchPartition]) -> None:
         tasks = [self._executions[tp] for tp in revoked if tp in self._executions]
         self._revoked.update(tasks)
         for task in tasks:

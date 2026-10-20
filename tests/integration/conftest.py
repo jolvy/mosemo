@@ -1,11 +1,9 @@
-import asyncio
 from collections.abc import AsyncIterator
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from aiokafka.admin import AIOKafkaAdminClient
 from alembic import command
 from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -13,7 +11,7 @@ from testcontainers.community.kafka import KafkaContainer
 from testcontainers.community.postgres import PostgresContainer
 
 from mosemo.config import BatchDeliveryConfig
-from tests.kafka_support import KAFKA_IMAGE, KafkaResources, wait_for_partitions
+from tests.kafka_support import KAFKA_IMAGE, KafkaResources, KafkaTestAdmin
 
 
 @pytest.fixture(scope="session")
@@ -37,46 +35,15 @@ async def integration_kafka(integration_kafka_broker) -> AsyncIterator[KafkaReso
         topic=f"test.activities.{suffix}",
         group_id=f"test.activity-batches.{suffix}",
     )
-    admin = AIOKafkaAdminClient(
-        bootstrap_servers=config.bootstrap_servers, request_timeout_ms=10000
-    )
-    try:
-        await admin.start()
-        result = broker.exec(
-            [
-                "env",
-                f"BATCH_TOPIC={config.topic}",
-                "sh",
-                "/init-kafka-topic.sh",
-                "localhost:9092",
-            ]
-        )
-        assert result.exit_code == 0, result.output.decode()
-        await wait_for_partitions(admin, config.topic, 2)
-        yield KafkaResources(config=config, admin=admin)
-    finally:
+    async with KafkaTestAdmin(config.bootstrap_servers) as admin:
         try:
-            groups = await admin.list_consumer_groups()
-            if any(group_id == config.group_id for group_id, _ in groups):
-                result = broker.exec(
-                    [
-                        "kafka-consumer-groups",
-                        "--bootstrap-server",
-                        "localhost:9092",
-                        "--delete",
-                        "--group",
-                        config.group_id,
-                    ]
-                )
-                assert result.exit_code == 0, result.output.decode()
-                assert config.group_id not in dict(await admin.list_consumer_groups())
-            if config.topic in await admin.list_topics():
-                await admin.delete_topics([config.topic])
-                async with asyncio.timeout(30):
-                    while config.topic in await admin.list_topics():
-                        await asyncio.sleep(0.1)
+            assert await admin.prepare_topic(config.topic) == 2
+            yield KafkaResources(config=config, admin=admin)
         finally:
-            await admin.close()
+            try:
+                await admin.delete_group(config.group_id)
+            finally:
+                await admin.delete_topic(config.topic)
 
 
 @pytest.fixture(scope="session")
