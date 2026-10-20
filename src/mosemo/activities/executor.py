@@ -1,13 +1,15 @@
-"""One processing attempt owns one session; the Processor owns its transaction."""
+"""Path-specific Executors own batch transactions; only legacy takes a DB lock."""
 
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.batch_processing import ActivityBatchProcessor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.schemas import ActivityBatchRequest
+from mosemo.activities.service import acquire_activity_timeline_lock
 
 
 class BatchProcessingExecutor:
@@ -24,8 +26,20 @@ class BatchProcessingExecutor:
                 "records": message.records,
             }
         )
-        async with self.sessions() as session:
+        async with self.sessions() as session, session.begin():
             await ActivityBatchProcessor(session).process(message.account_id, batch)
+
+
+class LegacyBatchExecutor:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def execute(
+        self, account_id: UUID, batch: ActivityBatchRequest
+    ) -> list[dict[str, str]]:
+        async with self.session.begin():
+            await acquire_activity_timeline_lock(self.session, account_id=account_id)
+            return await ActivityBatchProcessor(self.session).process(account_id, batch)
 
 
 class BatchFailureHandler:

@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, status
 
-from mosemo.activities.batch_processing import ActivityBatchProcessor
+from mosemo.activities.executor import LegacyBatchExecutor
 from mosemo.activities.messages import TerminalBatchError
 from mosemo.activities.schemas import (
     ActivityBatchProcessedResponse,
@@ -113,7 +113,7 @@ async def process_batch_legacy(
     session: SessionDep,
 ) -> ActivityBatchProcessedResponse:
     try:
-        results = await ActivityBatchProcessor(session).process(
+        results = await LegacyBatchExecutor(session).execute(
             authenticated_account.account_id, batch
         )
     except ActivityTimelineBusyError as exc:

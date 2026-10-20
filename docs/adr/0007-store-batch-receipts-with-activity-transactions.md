@@ -30,8 +30,15 @@ date: 2026-10-17
   JSON 공백·object key 순서 차이만 있는 재전송과 검증된 내용 변경을 구분한다.
   대상은 batchId·deviceId·records이며 accountId는 식별 범위다. Kafka key·header는
   해시 대상이 아니다. 해시는 64자리 16진수 문자열이다.
-- HTTP 수락 경로에서 receipt를 조회·저장하지 않는다. Handler는 독립된 DB
-  세션에서 계정 advisory lock을 획득하고 Device 귀속을 다시 확인한다.
+- HTTP 수락 경로에서 receipt를 조회·저장하지 않는다. Kafka의
+  `BatchProcessingExecutor`는 시도별 독립 Session과 트랜잭션을 소유한다.
+  legacy 직접 처리의 `LegacyBatchExecutor`는 요청 Session에서 트랜잭션을 열고
+  계정 advisory lock을 획득한다. 공통 `ActivityBatchProcessor`는 열린 트랜잭션에서
+  Device 귀속 확인과 원본·타임라인·receipt 처리를 수행하며 Lock·commit·rollback·ACK를 소유하지 않는다.
+- Kafka는 DB 계정 advisory lock 없이 같은 Topic·Consumer Group·계정 Key 매핑과
+  Partition별 순차 실행으로 직렬화한다. 같은 계정의 Kafka·legacy 동시 사용은 금지하며
+  경로 전환 전에 기존 경로의 해당 계정 처리를 종료한다. DB 커밋 이후에만
+  Kafka ACK 또는 legacy 성공 응답을 반환한다.
 - receipt claim, 원본별 채택·거절, 채택 원본 저장, 타임라인 갱신과 처리 결과
   저장을 하나의 DB 트랜잭션에서 수행한다. DB 장애·집중 세션 연결 오류·관찰
   시각 역행으로 배치가 실패하면 receipt를 포함한 변경 전체를 롤백한다.
@@ -42,7 +49,7 @@ date: 2026-10-17
 - eventId와 `(deviceId, sequence)`의 기존 UNIQUE 제약을 유지한다. 원본 INSERT의
   충돌은 DB에서 결정된 기존 원본을 다시 읽어 판정한다. receipt는 원본별
   중복·충돌 검사와 계정 격리를 대신하지 않는다.
-- Handler의 잠금 경합은 해당 트랜잭션을 롤백한다. 재시도·실패·복구 정책의
+- legacy의 3초 잠금 경합은 해당 트랜잭션을 롤백하고 기존 HTTP 503 계약을 유지한다. 재시도·실패·복구 정책의
   논의는 후속으로 넘기며 이미 완료된 HTTP 수락 응답을 DB 처리 오류로 바꾸지 않는다.
 - 2026-10-18 사용자 승인에 따라 source 모델·저장·Processor bytes 인자를 제거한다.
   운영·보존 데이터가 없다는 전제로 기존 receipt 생성 migration에서 컬럼을 직접
@@ -68,7 +75,7 @@ DB commit 후 재전달에도 receipt로 중복 반영을 막지만, DB와 Kafka
 ## 결과와 트레이드오프
 
 - HTTP 수락 경로에는 receipt DB 왕복을 추가하지 않지만 Handler에는 receipt
-  claim·조회·결과 저장 비용이 생긴다. 계정별 잠금에 따른 대기 비용도 유지한다.
+  claim·조회·결과 저장 비용이 생긴다. 계정별 잠금 대기 비용은 legacy에만 남는다.
 - 요청 본문 전체를 보존하지 않으므로 receipt에서 거절 원본의 전체 내용을 복원할 수
   없다. 대신 fingerprint로 내용 변경을 감지하고 원본별 stored·duplicate·거절 결과를
   입력 순서로 보존한다. 실패 보관소를 대신하는 용도로 receipt를 확장하지 않는다.
@@ -86,9 +93,10 @@ DB commit 후 재전달에도 receipt로 중복 반영을 막지만, DB와 Kafka
 ## 대체한 ADR
 
 [ADR 0004](0004-project-observation-timeline-on-write.md)의 쓰기 경계를 일부
-대체한다(supersedes in part). 원본·projection 원자성과 계정 advisory lock은
-유지하되, DB 쓰기는 HTTP 요청이 아닌 Handler에서 receipt와 함께 수행하며
-잠금 경합을 수락 응답 이후의 HTTP 503으로 전달하지 않는다.
+대체한다(supersedes in part). 원본·projection 원자성을 유지하며 Kafka DB 쓰기는
+Handler에서 receipt와 함께 수행한다. 2026-10-20 승인된 Executor 분리에 따라
+계정 advisory lock은 legacy에만 적용한다. Kafka의 처리 오류는 이미 완료된
+수락 응답을 변경하지 않는다.
 
 원본 정렬·기존 이력 전환의 변경 범위는 ADR 0008에서 다룬다. 읽기 모델 구조,
 날짜 경계와 Device 출처 비노출 등 ADR 0004의 나머지 결정은 유지한다.
@@ -106,3 +114,6 @@ DB commit 후 재전달에도 receipt로 중복 반영을 막지만, DB와 Kafka
 실패·복구 정책은 후속이며 본 ADR의 receipt 결정은 승인됐다.
 
 2026-10-18 사용자가 ADR 0006~0009 모두를 명시적으로 승인하여 accepted로 전환했다. 구현·검증 완료를 뜻하지 않는다.
+
+2026-10-20 [Plan #74](https://github.com/jolvy/mosemo/issues/74)의 사용자 승인에 따라
+Executor의 트랜잭션 소유와 legacy 전용 Lock, 동일 계정 경로 혼용 금지를 반영했다.

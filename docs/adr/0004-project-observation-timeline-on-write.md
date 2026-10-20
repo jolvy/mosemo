@@ -73,3 +73,8 @@ POST가 원본과 projection을 같은 트랜잭션에서 갱신하고 GET은 pr
 - [관찰 타임라인 PRD](../prd/observation-timeline.md)
 
 2026-10-14에는 문서 형식과 링크만 정비했다. 원래 결정·대안·결과와 결정 날짜를 보존하며, 과거의 개발 단계 예외를 새로 승인하지 않는다.
+
+2026-10-20 Plan #74 승인에 따라 배치 처리의 트랜잭션 소유와 계정 Lock 적용 범위는
+[ADR 0007](0007-store-batch-receipts-with-activity-transactions.md)이 대체한다.
+Kafka는 Partition별 순차 실행으로 직렬화하고 legacy에만 계정 advisory lock을 적용한다.
+동일 계정의 두 경로를 혼용하지 않고 경로 전환 전 기존 처리를 종료한다.

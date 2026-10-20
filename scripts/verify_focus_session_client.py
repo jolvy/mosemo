@@ -40,11 +40,11 @@ async def process_published_batches(url: str, bootstrap_servers: str, topic: str
     """Process this finished test's publications, without a production worker."""
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    from mosemo.activities.batch_processing import ActivityBatchProcessor
+    from mosemo.activities.executor import BatchProcessingExecutor
     from mosemo.activities.messages import ActivityRegistrationRequested
-    from mosemo.activities.schemas import ActivityBatchRequest
 
     engine = create_async_engine(url)
+    executor = BatchProcessingExecutor(async_sessionmaker(engine))
     consumer = AIOKafkaConsumer(
         bootstrap_servers=bootstrap_servers, group_id=None, enable_auto_commit=False
     )
@@ -63,13 +63,7 @@ async def process_published_batches(url: str, bootstrap_servers: str, topic: str
                         record.value
                     )
                     assert record.key == str(message.account_id).encode("utf-8")
-                    batch = ActivityBatchRequest.model_validate_json(
-                        message.model_dump_json(by_alias=True, exclude={"account_id"})
-                    )
-                    async with async_sessionmaker(engine)() as session:
-                        await ActivityBatchProcessor(session).process(
-                            message.account_id, batch
-                        )
+                    await executor.execute(message)
     finally:
         await consumer.stop()
         await engine.dispose()

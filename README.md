@@ -105,13 +105,23 @@ uv run --locked poe batch-consumer
 The Consumer uses a registered FastStream KafkaBroker subscriber with two native
 manual-ACK workers; no application-owned Kafka consumer or polling loop is used.
 It validates the message and matching account key, creates a fresh DB
-session per attempt, and uses the existing Processor transaction and receipt.
+session per attempt. BatchProcessingExecutor owns its transaction; the shared
+ActivityBatchProcessor writes raw records, timeline and receipt within it.
+Kafka processing takes no account advisory lock: serialization requires the same
+topic, consumer group and account-key mapping, with sequential partition execution.
 Each native worker waits for the registered handler, DB transaction and FastStream
 message ACK before reading its next message. The two initial partitions run
 concurrently; no unprocessed position is committed.
 A stable group resumes valid committed offsets; otherwise it starts at the
 earliest retained record. DB commit and offset commit are separate: receipt
 idempotency protects a replay after a crash between them.
+
+The direct `/api/v1/activities/batches/legacy` route uses LegacyBatchExecutor,
+which owns a transaction and the account advisory lock (3-second timeout).
+It returns success only after commit. Never use Kafka and legacy concurrently
+for the same account; finish that account's work on the old path before switching.
+Changing consumer groups, key mapping or partition count requires revisiting
+account serialization. Deploy or roll back Processor and Executors together.
 
 SIGINT/SIGTERM stops new batch execution and allows only in-flight batches up to
 30 seconds for DB and offset commit, then cancels them and closes resources.
