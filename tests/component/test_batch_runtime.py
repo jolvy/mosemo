@@ -55,7 +55,7 @@ async def test_api_lifecycle_closes_producer_and_preserves_inner_state(
     if failure == "startup":
         producer.start.side_effect = RuntimeError("startup")
     constructor = Mock(return_value=producer)
-    monkeypatch.setattr("mosemo.infra.batch_runtime.AIOKafkaProducer", constructor)
+    monkeypatch.setattr("mosemo.infra.batch_runtime.KafkaBroker", constructor)
     config = BatchDeliveryConfig(bootstrap_servers="test:9092", topic="custom")
     app = compose_messaging_app(FastAPI(lifespan=inner), config)
     try:
@@ -72,7 +72,7 @@ async def test_api_lifecycle_closes_producer_and_preserves_inner_state(
     assert app.state.batch_publisher is None
     producer.stop.assert_awaited_once()
     constructor.assert_called_once_with(
-        bootstrap_servers="test:9092", acks="all", enable_idempotence=True
+        "test:9092", logger=None, acks="all", enable_idempotence=True
     )
     assert events == ["inner-start", "inner-stop"]
 
@@ -88,7 +88,7 @@ async def test_cancel_during_producer_start_closes_connection(monkeypatch):
 
     producer.start.side_effect = held
     monkeypatch.setattr(
-        "mosemo.infra.batch_runtime.AIOKafkaProducer", Mock(return_value=producer)
+        "mosemo.infra.batch_runtime.KafkaBroker", Mock(return_value=producer)
     )
     app = compose_messaging_app(FastAPI(), BatchDeliveryConfig())
 
@@ -110,7 +110,7 @@ async def test_disabled_publication_still_runs_api_lifecycle(config, monkeypatch
     config.batch_delivery.enabled = False
     app, _, _, headers = make_app(config)
     constructor = Mock(side_effect=AssertionError("must not connect"))
-    monkeypatch.setattr("mosemo.infra.batch_runtime.AIOKafkaProducer", constructor)
+    monkeypatch.setattr("mosemo.infra.batch_runtime.KafkaBroker", constructor)
     async with (
         LifespanManager(app) as manager,
         httpx2.AsyncClient(
@@ -253,7 +253,7 @@ async def test_http_maps_publisher_failure_to_retryable_503(config, failure):
         finally:
             cleaned.set()
 
-    producer.send_and_wait.side_effect = (
+    producer.publish.side_effect = (
         KafkaConnectionError() if failure == "connection" else stalled
     )
     app.state.batch_publisher = ActivityBatchPublisher(

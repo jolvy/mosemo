@@ -82,17 +82,19 @@ Replication factor is 1 for the local broker and its internal topics. This does
 not provide replicated durability. Broker retention and production deployment
 remain infrastructure concerns. Environment settings change addresses and names;
 the approved message contract remains the same in local and production environments.
-The API publishes using `acks=all` and an idempotent producer. It returns 202
+The API publishes through FastStream KafkaBroker with `acks=all` and
+idempotence enabled. It returns 202
 after Kafka confirms publication, with a five second publication deadline and
 the existing ten second overall HTTP admission deadline. A 503 with
 `Retry-After: 1` means retry the same batch ID and content; a timeout can still
 leave a published message. The HTTP body limit remains 512 KiB.
 
-The API opens and closes its producer through the FastAPI lifespan in every
+The API starts and stops its FastStream broker through the FastAPI lifespan in every
 environment. `BATCH_ENABLED=false` explicitly disables publication (503);
 there is no in-memory fallback. The Kafka value contains `accountId`, `batchId`,
 `deviceId`, and `records`; the key is the authenticated account UUID encoded as
-UTF-8. No account header or original HTTP byte wrapper is used.
+UTF-8. FastStream metadata headers do not carry account identity; account validation
+uses the key and value. The value is a single JSON object encoded as bytes.
 
 Run the API and activity Consumer in separate terminals/processes with the same
 DB, topic and group settings:
@@ -104,6 +106,10 @@ uv run --locked poe batch-consumer
 
 The Consumer uses a registered FastStream KafkaBroker subscriber with two native
 manual-ACK workers; no application-owned Kafka consumer or polling loop is used.
+`BatchRebalanceAdapter` in `infra/kafka_compat.py` translates revoked partitions
+and awaits Consumer-owned cancellation and session cleanup. This compatibility
+module also exports the Kafka publication error class propagated by FastStream;
+no raw producer/consumer or FastStream private state is accessed.
 It validates the message and matching account key, creates a fresh DB
 session per attempt. BatchProcessingExecutor owns its transaction; the shared
 ActivityBatchProcessor writes raw records, timeline and receipt within it.
@@ -129,11 +135,26 @@ It does not drain the backlog. Reassignment cancels and cleans up old partition
 executions before ownership transfers; unfinished offsets remain replayable.
 The 30-second Consumer deadline is independent of Uvicorn's API shutdown.
 
-Failure handling and recovery are unimplemented object boundaries. An unhandled
+Kafka startup failures terminate the single API worker or Consumer process with
+an unsuccessful exit status. Startup task cancellation also propagates to that
+process boundary; the application does not retry startup in the same process.
+An external supervisor owns restarting the process. No supervisor deployment or
+restart configuration is installed by this repository change. Use the single
+worker API entrypoint `uv run --locked uvicorn mosemo.main:app --lifespan on`;
+a development reloader is a separate parent process, outside this exit contract.
+The Consumer uses FastStream's public `consumer_only=True` option because it
+only consumes and ACKs; it creates no unused Producer/Admin client. A requested
+Consumer SIGINT/SIGTERM during startup cancels startup and exits normally.
+This process boundary does not guarantee FastStream's internal cleanup of
+partially started resources. It does not change normal shutdown's 30-second
+Consumer drain or the DB-commit-before-offset-ACK contract.
+
+Message processing failure handling and recovery remain unimplemented object
+boundaries. An unhandled
 validation, processing or commit error is surfaced to the process boundary with
 a nonzero exit and a payload-free diagnostic; it never reports processing success
-or commits the failed record. This is exception propagation, not an approved
-failure storage, blocking, retry or recovery policy. Those remain follow-up work;
+or commits the failed record. This processing-error propagation does not implement
+failure storage, blocking, message retry or recovery policies. Those remain follow-up work;
 this Consumer is not a claim of production readiness for failure handling.
 The `/activities/batches/legacy` route continues to return 200 after direct DB
 processing.
@@ -165,8 +186,13 @@ a random host port, waits for broker startup, and removes the container at sessi
 end. The async `integration_kafka` fixture creates a unique topic and group per
 test, checks both partition leaders, and deletes the group and topic on teardown.
 Clients must stop before fixture teardown; the smoke test demonstrates this with
-`AsyncExitStack`. No local development topic/group is reused and Docker failures
+FastStream broker lifespans. No local development topic/group is reused and Docker failures
 fail the tests rather than switching to an in-memory broker.
+`KafkaTestAdmin` in `tests/kafka_support.py` owns topic/group preparation and
+cleanup, leader readiness, offsets, assignments and key partition selection.
+Its aiokafka Admin protocol calls never publish or consume messages. Tests and
+the isolated client verifier publish and receive through FastStream. The local
+initializer, healthcheck and manual Kafka CLI remain available.
 
 The smoke test confirms ACKed byte/key delivery on both partitions and committed
 group offsets. A second test reruns the actual initializer with partition count 3

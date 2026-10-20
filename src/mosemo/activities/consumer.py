@@ -29,10 +29,10 @@ async def run() -> None:
 def main() -> None:
     try:
         asyncio.run(run())
-    except Exception:  # noqa: BLE001 - process boundary suppresses sensitive exception data
+    except Exception, asyncio.CancelledError:  # noqa: BLE001 - safe process boundary
         # Do not print payloads, Pydantic input values, SQL parameters or secrets.
         raise SystemExit(
-            "Activity Consumer failed; failure/recovery policy is not implemented"
+            "Activity Consumer failed; exiting without an in-process retry"
         ) from None
 
 

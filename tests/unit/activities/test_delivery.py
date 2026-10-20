@@ -34,7 +34,7 @@ def test_message_roundtrip_preserves_record_order_precision_and_validation():
 
 
 @pytest.mark.asyncio
-async def test_publisher_waits_for_ack_with_account_key_and_no_headers():
+async def test_publisher_waits_for_ack_with_account_key():
     entered, release = asyncio.Event(), asyncio.Event()
     producer = AsyncMock()
 
@@ -42,7 +42,7 @@ async def test_publisher_waits_for_ack_with_account_key_and_no_headers():
         entered.set()
         await release.wait()
 
-    producer.send_and_wait.side_effect = held
+    producer.publish.side_effect = held
     publisher = ActivityBatchPublisher(producer, topic="test.activities")
     assert publisher.acknowledgment_timeout == 5.0
     owner = uuid4()
@@ -54,11 +54,15 @@ async def test_publisher_waits_for_ack_with_account_key_and_no_headers():
     finally:
         release.set()
         await asyncio.wait_for(pending, 1)
-    call = producer.send_and_wait.call_args
-    assert call.args[0] == "test.activities"
-    assert call.kwargs == {"key": str(owner).encode()}
+    call = producer.publish.call_args
+    assert call.kwargs["topic"] == "test.activities"
+    assert call.kwargs == {
+        "topic": "test.activities",
+        "key": str(owner).encode(),
+        "no_confirm": False,
+    }
     assert (
-        ActivityRegistrationRequested.model_validate_json(call.args[1]).account_id
+        ActivityRegistrationRequested.model_validate_json(call.args[0]).account_id
         == owner
     )
 
@@ -69,7 +73,7 @@ async def test_publisher_waits_for_ack_with_account_key_and_no_headers():
 )
 async def test_publisher_translates_transport_failures(failure):
     producer = AsyncMock()
-    producer.send_and_wait.side_effect = failure
+    producer.publish.side_effect = failure
     with pytest.raises(DeliveryUnavailable):
         await ActivityBatchPublisher(producer, topic="test").publish(
             uuid4(), ActivityBatchRequest.model_validate(activity_request())
@@ -89,7 +93,7 @@ async def test_ack_deadline_and_external_cancellation_clean_up_waiter(cancel):
         finally:
             cleaned.set()
 
-    producer.send_and_wait.side_effect = held
+    producer.publish.side_effect = held
     publisher = ActivityBatchPublisher(
         producer, topic="test", acknowledgment_timeout=0.02 if not cancel else 5
     )
@@ -104,3 +108,31 @@ async def test_ack_deadline_and_external_cancellation_clean_up_waiter(cancel):
     with pytest.raises(asyncio.CancelledError if cancel else DeliveryUnavailable):
         await asyncio.wait_for(pending, 1)
     assert cleaned.is_set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure", [ValueError("invalid configuration"), TypeError("bug")]
+)
+async def test_publisher_does_not_hide_programming_or_configuration_errors(failure):
+    broker = AsyncMock()
+    broker.publish.side_effect = failure
+    with pytest.raises(type(failure), match=str(failure)):
+        await ActivityBatchPublisher(broker, topic="test").publish(
+            uuid4(), ActivityBatchRequest.model_validate(activity_request())
+        )
+
+
+@pytest.mark.asyncio
+async def test_publisher_validates_message_before_transport(monkeypatch):
+    broker = AsyncMock()
+    monkeypatch.setattr(
+        ActivityRegistrationRequested,
+        "from_batch",
+        lambda *args: (_ for _ in ()).throw(ValueError("invalid message")),
+    )
+    with pytest.raises(ValueError, match="invalid message"):
+        await ActivityBatchPublisher(broker, topic="test").publish(
+            uuid4(), ActivityBatchRequest.model_validate(activity_request())
+        )
+    broker.publish.assert_not_called()

@@ -4,10 +4,6 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from aiokafka import AIOKafkaProducer, TopicPartition
-from aiokafka.admin import AIOKafkaAdminClient
-from aiokafka.coordinator.protocol import ConsumerProtocolMemberAssignment
-from aiokafka.partitioner import DefaultPartitioner
 from faststream.kafka import KafkaBroker
 from faststream.kafka.message import KafkaAckableMessage
 from sqlalchemy import delete, func, select, text
@@ -20,7 +16,9 @@ from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
 from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.devices.models import Device
 from mosemo.infra.batch_consumer import ActivityBatchConsumer
+from mosemo.infra.kafka_compat import BatchPartition
 from tests.integration.test_activity_batches import batch, record
+from tests.kafka_support import GroupOffsets, KafkaTestAdmin
 
 
 async def eventually(check, *, timeout=20):
@@ -37,9 +35,7 @@ async def consumption_db(integration_database_url):
     async with sessions() as session:
         for partition in range(2):
             owner = uuid4()
-            while (
-                DefaultPartitioner()(str(owner).encode(), [0, 1], [0, 1]) != partition
-            ):
+            while KafkaTestAdmin.partition_for(str(owner).encode()) != partition:
                 owner = uuid4()
             session.add(
                 Account(
@@ -64,42 +60,17 @@ async def consumption_db(integration_database_url):
         await engine.dispose()
 
 
-class GroupOffsets:
-    """Broker admin metadata only; never constructs or polls a Consumer."""
-
-    def __init__(self, admin, group_id):
-        self.admin, self.group_id = admin, group_id
-
-    async def committed(self, tp):
-        offsets = await self.admin.list_consumer_group_offsets(self.group_id)
-        value = offsets.get(tp)
-        return value.offset if value is not None and value.offset >= 0 else None
-
-    async def assignments(self):
-        response = (await self.admin.describe_consumer_groups([self.group_id]))[0]
-        group = response.get_item("groups")[0]
-        assert group[0] == 0 and group[1] == self.group_id
-        return [
-            {
-                TopicPartition(topic, p)
-                for topic, partitions in ConsumerProtocolMemberAssignment.decode(
-                    member[-1]
-                ).assignment
-                for p in partitions
-            }
-            for member in group[5]
-        ]
-
-
 @asynccontextmanager
 async def running(config, executor):
-    broker = KafkaBroker(config.bootstrap_servers, logger=None, graceful_timeout=0)
+    broker = KafkaBroker(
+        config.bootstrap_servers, logger=None, graceful_timeout=0, consumer_only=True
+    )
     worker = ActivityBatchConsumer(broker, executor)
     stop = asyncio.Event()
     task = asyncio.create_task(worker.run(config.topic, stop, group_id=config.group_id))
-    admin = AIOKafkaAdminClient(bootstrap_servers=config.bootstrap_servers)
+    admin = KafkaTestAdmin(config.bootstrap_servers)
     try:
-        await admin.start()
+        await admin.__aenter__()
 
         async def started():
             if task.done():
@@ -110,12 +81,14 @@ async def running(config, executor):
         yield GroupOffsets(admin, config.group_id), stop, task
     finally:
         stop.set()
-        await asyncio.wait_for(task, 35)
-        await admin.close()
+        try:
+            await asyncio.wait_for(task, 35)
+        finally:
+            await admin.__aexit__()
 
 
 async def publish(config, owners, devices, count):
-    producer = AIOKafkaProducer(bootstrap_servers=config.bootstrap_servers, acks="all")
+    producer = KafkaBroker(config.bootstrap_servers, acks="all", logger=None)
     try:
         await producer.start()
         for partition, (owner, device) in enumerate(zip(owners, devices, strict=True)):
@@ -126,10 +99,10 @@ async def publish(config, owners, devices, count):
                         batch(device, [record(sequence, sequence * 10)])
                     ),
                 )
-                metadata = await producer.send_and_wait(
-                    config.topic,
+                metadata = await producer.publish(
+                    topic=config.topic,
                     key=str(owner).encode(),
-                    value=msg.model_dump_json(by_alias=True).encode(),
+                    message=msg.model_dump_json(by_alias=True).encode(),
                 )
                 assert metadata.partition == partition
     finally:
@@ -177,7 +150,7 @@ async def test_real_partitions_parallel_but_next_batch_waits_for_db_and_offset_a
         assignments = await consumer.assignments()
         assert len(assignments) == 2
         assert set.union(*assignments) == {
-            TopicPartition(config.topic, p) for p in range(2)
+            BatchPartition(config.topic, p) for p in range(2)
         }
         first = {await asyncio.wait_for(entered.get(), 10) for _ in range(2)}
         assert first == {(owner, 0) for owner in owners}
@@ -186,7 +159,7 @@ async def test_real_partitions_parallel_but_next_batch_waits_for_db_and_offset_a
         assert await receipt_count(sessions, owners[0]) == 1
         assert await receipt_count(sessions, owners[1]) == 0
         assert entered.empty()  # DB committed, but offset not yet confirmed.
-        assert await consumer.committed(TopicPartition(config.topic, 0)) is None
+        assert await consumer.committed(BatchPartition(config.topic, 0)) is None
         allow_commit.set()
         assert await asyncio.wait_for(entered.get(), 10) == (owners[0], 1)
         # Stop while partition 1's first batch is still in flight. Partition 0
@@ -195,12 +168,12 @@ async def test_real_partitions_parallel_but_next_batch_waits_for_db_and_offset_a
         release[owners[1]].set()
         await asyncio.wait_for(task, 10)
         assert await receipt_count(sessions, owners[1]) == 1
-        assert await consumer.committed(TopicPartition(config.topic, 1)) == 1
+        assert await consumer.committed(BatchPartition(config.topic, 1)) == 1
 
 
 @pytest.mark.asyncio
 async def test_valid_offsets_resume_and_new_group_uses_earliest(
-    integration_kafka, integration_kafka_broker, consumption_db
+    integration_kafka, consumption_db
 ):
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
@@ -216,17 +189,17 @@ async def test_valid_offsets_resume_and_new_group_uses_earliest(
     async with running(config, Executor()) as (consumer, _, _):
 
         async def committed():
-            return await consumer.committed(TopicPartition(config.topic, 0)) == 1
+            return await consumer.committed(BatchPartition(config.topic, 0)) == 1
 
         await eventually(committed)
     assert len(seen) == 1
     async with running(config, Executor()) as (consumer, _, _):
         # FastStream resumes this stable group's committed position.
-        assert await consumer.committed(TopicPartition(config.topic, 0)) == 1
+        assert await consumer.committed(BatchPartition(config.topic, 0)) == 1
         await publish(config, owners[:1], devices[:1], 1)
 
         async def committed_again():
-            return await consumer.committed(TopicPartition(config.topic, 0)) == 2
+            return await consumer.committed(BatchPartition(config.topic, 0)) == 2
 
         await eventually(committed_again)
     assert len(seen) == 2 and len(set(seen)) == 2
@@ -235,24 +208,14 @@ async def test_valid_offsets_resume_and_new_group_uses_earliest(
         async with running(fresh, Executor()) as (consumer, _, _):
 
             async def replayed():
-                return await consumer.committed(TopicPartition(config.topic, 0)) == 2
+                return await consumer.committed(BatchPartition(config.topic, 0)) == 2
 
             await eventually(replayed)
         assert len(seen) == 4
         assert seen[2:] == seen[:2]
         assert await receipt_count(sessions, owners[0]) == 2
     finally:
-        result = integration_kafka_broker.exec(
-            [
-                "kafka-consumer-groups",
-                "--bootstrap-server",
-                "localhost:9092",
-                "--delete",
-                "--group",
-                fresh.group_id,
-            ]
-        )
-        assert result.exit_code == 0, result.output.decode()
+        await integration_kafka.admin.delete_group(fresh.group_id)
 
 
 @pytest.mark.asyncio
@@ -297,13 +260,13 @@ async def test_rebalance_between_group_members_cancels_old_session_before_replay
             assert len(assignments) == 4  # two native FastStream workers per runtime
             assert sum(map(len, assignments)) == 2
             assert set.union(*assignments) == {
-                TopicPartition(config.topic, p) for p in range(2)
+                BatchPartition(config.topic, p) for p in range(2)
             }
 
             async def complete():
                 return all(
                     [
-                        await one.committed(TopicPartition(config.topic, p)) == 2
+                        await one.committed(BatchPartition(config.topic, p)) == 2
                         for p in range(2)
                     ]
                 )
@@ -362,14 +325,14 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
     processes = []
-    admin = AIOKafkaAdminClient(bootstrap_servers=delivery.bootstrap_servers)
+    admin = KafkaTestAdmin(delivery.bootstrap_servers)
     observer = GroupOffsets(admin, delivery.group_id)
     async with httpx2.AsyncClient(
         base_url=f"http://127.0.0.1:{port}", timeout=3
     ) as client:
         with (tmp_path / "process.log").open("w") as output:
             try:
-                await admin.start()
+                await admin.__aenter__()
                 api = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "-m",
@@ -430,7 +393,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 assert crash.stdout is not None
                 line = await asyncio.wait_for(crash.stdout.readline(), 20)
                 assert line == b"DB_COMMITTED_BEFORE_OFFSET\n"
-                tp = TopicPartition(delivery.topic, 0)
+                tp = BatchPartition(delivery.topic, 0)
                 assert await observer.committed(tp) is None
                 assert await receipt_count(sessions, owners[0]) == 1
                 async with sessions() as session:
@@ -517,7 +480,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                         except TimeoutError:
                             process.kill()
                             await process.wait()
-                await admin.close()
+                await admin.__aexit__()
 
 
 @pytest.mark.asyncio
@@ -561,9 +524,7 @@ async def test_registered_faststream_handler_rejects_invalid_message_without_pro
             await asyncio.wait_for(pending, 10)
         executor.execute.assert_not_called()
         assert not broker.running
-        offsets = await integration_kafka.admin.list_consumer_group_offsets(
-            config.group_id
-        )
+        offsets = await integration_kafka.admin.offsets(config.group_id)
         assert not offsets
     finally:
         if not pending.done():
@@ -590,7 +551,55 @@ async def test_kafka_commits_and_acks_while_account_advisory_lock_is_held(
         ):
 
             async def committed():
-                return await consumer.committed(TopicPartition(config.topic, 0)) == 1
+                return await consumer.committed(BatchPartition(config.topic, 0)) == 1
 
             await eventually(committed)
             assert await receipt_count(sessions, owners[0]) == 1
+
+
+@pytest.mark.asyncio
+async def test_real_kafka_commit_failure_rolls_back_every_write_without_ack(
+    integration_kafka,
+    consumption_db,
+):
+    from sqlalchemy import event
+
+    from mosemo.activities.models import ActivityTimelineSegment
+
+    config = integration_kafka.config
+    sessions, owners, devices = consumption_db
+    await publish(config, owners[:1], devices[:1], 1)
+    broker = KafkaBroker(config.bootstrap_servers, logger=None, graceful_timeout=0)
+    worker = ActivityBatchConsumer(broker, BatchProcessingExecutor(sessions))
+
+    def fail_commit(session):
+        raise RuntimeError("injected Kafka DB commit failure")
+
+    event.listen(sessions.class_.sync_session_class, "before_commit", fail_commit)
+    try:
+        with pytest.raises(RuntimeError, match="injected Kafka DB commit failure"):
+            await asyncio.wait_for(
+                worker.run(config.topic, asyncio.Event(), group_id=config.group_id), 20
+            )
+        assert not broker.running
+        assert await integration_kafka.admin.offsets(config.group_id) == {}
+        async with sessions() as session:
+            assert await receipt_count(sessions, owners[0]) == 0
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(ActivityRecord)
+                    .where(ActivityRecord.device_id == devices[0])
+                )
+                == 0
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(ActivityTimelineSegment)
+                    .where(ActivityTimelineSegment.account_id == owners[0])
+                )
+                == 0
+            )
+    finally:
+        event.remove(sessions.class_.sync_session_class, "before_commit", fail_commit)

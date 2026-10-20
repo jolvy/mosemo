@@ -4,7 +4,6 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from aiokafka import AIOKafkaProducer
 from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -25,7 +24,13 @@ class MessagingRuntime:
     ) -> None:
         if not config.enabled:
             raise ValueError("Activity Consumer requires BATCH_ENABLED=true")
-        broker = KafkaBroker(config.bootstrap_servers, logger=None, graceful_timeout=0)
+        # This process only consumes and ACKs; it needs no Producer/Admin client.
+        broker = KafkaBroker(
+            config.bootstrap_servers,
+            logger=None,
+            graceful_timeout=0,
+            consumer_only=True,
+        )
         await ActivityBatchConsumer(broker, BatchProcessingExecutor(sessions)).run(
             config.topic, stop, group_id=config.group_id
         )
@@ -42,21 +47,22 @@ class MessagingRuntime:
             if not self.config.enabled:
                 yield dict(state or {})
                 return
-            producer = AIOKafkaProducer(
-                bootstrap_servers=self.config.bootstrap_servers,
+            broker = KafkaBroker(
+                self.config.bootstrap_servers,
+                logger=None,
                 acks="all",
                 enable_idempotence=True,
             )
             try:
-                await producer.start()
+                await broker.start()
                 app.state.batch_publisher = ActivityBatchPublisher(
-                    producer,
+                    broker,
                     topic=self.config.topic,
                 )
                 yield dict(state or {})
             finally:
                 app.state.batch_publisher = None
-                await producer.stop()
+                await broker.stop()
 
 
 def compose_messaging_app(api: FastAPI, config: BatchDeliveryConfig) -> FastAPI:

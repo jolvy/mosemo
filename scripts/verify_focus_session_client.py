@@ -11,6 +11,7 @@ import os
 import runpy
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -18,54 +19,64 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
-from aiokafka import AIOKafkaConsumer
-from aiokafka.admin import AIOKafkaAdminClient, NewTopic
-from aiokafka.structs import TopicPartition
 from testcontainers.community.kafka import KafkaContainer
 from testcontainers.community.postgres import PostgresContainer
 
+# This is a repository verification tool; share the test-only Admin boundary.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tests.kafka_support import KafkaTestAdmin
+
 
 async def prepare_topic(bootstrap_servers: str, topic: str) -> None:
-    admin = AIOKafkaAdminClient(bootstrap_servers=bootstrap_servers)
-    try:
-        await admin.start()
-        await admin.create_topics(
-            [NewTopic(topic, num_partitions=2, replication_factor=1)]
-        )
-    finally:
-        await admin.close()
+    async with KafkaTestAdmin(bootstrap_servers) as admin:
+        await admin.prepare_topic(topic)
 
 
 async def process_published_batches(url: str, bootstrap_servers: str, topic: str):
-    """Process this finished test's publications, without a production worker."""
+    """Drain a finite snapshot through the registered FastStream Consumer."""
+    from uuid import uuid4
+
+    from faststream.kafka import KafkaBroker
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
     from mosemo.activities.executor import BatchProcessingExecutor
-    from mosemo.activities.messages import ActivityRegistrationRequested
+    from mosemo.infra.batch_consumer import ActivityBatchConsumer
 
     engine = create_async_engine(url)
-    executor = BatchProcessingExecutor(async_sessionmaker(engine))
-    consumer = AIOKafkaConsumer(
-        bootstrap_servers=bootstrap_servers, group_id=None, enable_auto_commit=False
-    )
+    group = "test.focus-verifier." + uuid4().hex
+    stop = asyncio.Event()
+    task = None
     try:
-        async with asyncio.timeout(30):
-            await consumer.start()
-            partitions = [TopicPartition(topic, index) for index in range(2)]
-            consumer.assign(partitions)
-            await consumer.seek_to_beginning()
-            ends = await consumer.end_offsets(partitions)
-            for partition, end in ends.items():
-                while await consumer.position(partition) < end:
-                    record = await consumer.getone(partition)
-                    assert record.value is not None
-                    message = ActivityRegistrationRequested.model_validate_json(
-                        record.value
-                    )
-                    assert record.key == str(message.account_id).encode("utf-8")
-                    await executor.execute(message)
+        async with KafkaTestAdmin(bootstrap_servers) as admin:
+            try:
+                ends = await admin.end_offsets(topic)
+                broker = KafkaBroker(
+                    bootstrap_servers,
+                    logger=None,
+                    graceful_timeout=0,
+                    consumer_only=True,
+                )
+                worker = ActivityBatchConsumer(
+                    broker, BatchProcessingExecutor(async_sessionmaker(engine))
+                )
+                task = asyncio.create_task(worker.run(topic, stop, group_id=group))
+                async with asyncio.timeout(30):
+                    while True:
+                        if task.done():
+                            task.result()
+                            raise RuntimeError("verifier Consumer stopped before drain")
+                        offsets = await admin.offsets(group)
+                        if all(offsets.get(tp, 0) >= end for tp, end in ends.items()):
+                            break
+                        await asyncio.sleep(0.05)
+            finally:
+                stop.set()
+                try:
+                    if task is not None:
+                        await asyncio.wait_for(task, 35)
+                finally:
+                    await admin.delete_group(group)
     finally:
-        await consumer.stop()
         await engine.dispose()
 
 
