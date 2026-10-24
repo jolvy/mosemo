@@ -19,6 +19,7 @@ dependencies = [
     "faststream-fastapi==1.4.0",
     "asgi-lifespan==2.1.0",
     "aiokafka==0.14.0",
+    "apscheduler==3.11.3",
 ]
 
 [dependency-groups]
@@ -32,6 +33,10 @@ dev = [
     "testcontainers[postgres]>=4.15.0",
     "ty>=0.0.75",
 ]
+
+[tool.uv]
+# APScheduler dependency: tzlocal 5.4.5 has no PyPI provenance; keep 5.4.4.
+constraint-dependencies = ["tzlocal==5.4.4"]
 
 [build-system]
 requires = ["uv_build>=0.11.21,<0.12.0"]
@@ -71,10 +76,10 @@ quote-style = "double"
 cmd = "fastapi dev"
 envfile = [".env", ".env.local"]
 
-[tool.poe.tasks.label-worker]
-cmd = "python -m mosemo.activity_labels.proposals.worker"
+[tool.poe.tasks.batch-jobs]
+cmd = "python -m mosemo.batch_jobs"
 envfile = [".env", ".env.local"]
-help = "Run the label proposal worker"
+help = "Run batch jobs: serve, or run JOB_NAME once"
 
 [tool.poe.tasks.batch-consumer]
 cmd = "python -m mosemo.activities.consumer"

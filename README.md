@@ -104,6 +104,15 @@ uv run --locked poe dev
 uv run --locked poe batch-consumer
 ```
 
+Label proposals run in a separate batch jobs process (ADR 0010). Run one
+long-lived server, which runs `label-proposals` on start and then every five
+minutes; run a job once for recovery or reprocessing:
+
+```sh
+uv run --locked poe batch-jobs serve
+uv run --locked poe batch-jobs run label-proposals
+```
+
 The Consumer uses a registered FastStream KafkaBroker subscriber with two native
 manual-ACK workers; no application-owned Kafka consumer or polling loop is used.
 `BatchRebalanceAdapter` in `infra/kafka_compat.py` translates revoked partitions
