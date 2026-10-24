@@ -75,6 +75,14 @@ def test_api_error_responses_rejects_invalid_inputs_and_duplicates() -> None:
         api_error_responses(ErrorCode.INVALID_ARGUMENT, ErrorCode.INVALID_ARGUMENT)
 
 
+def test_api_error_responses_rejects_headers_that_replace_documented_ones() -> None:
+    with pytest.raises(ValueError, match="conflicts with documented header: allow"):
+        api_error_responses(
+            ErrorCode.REQUEST_METHOD_NOT_ALLOWED,
+            headers={405: {"allow": {"schema": {"type": "string"}}}},
+        )
+
+
 def test_api_error_responses_documents_fixed_and_dynamic_headers() -> None:
     auth_response = api_error_responses(ErrorCode.AUTH_INVALID_ACCESS_TOKEN)[401]
     assert auth_response["headers"]["WWW-Authenticate"]["schema"] == {

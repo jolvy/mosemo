@@ -56,7 +56,6 @@ branch = true
 patch = ["subprocess"]
 
 [tool.coverage.report]
-fail_under = 90
 show_missing = true
 skip_covered = true
 
@@ -91,7 +90,10 @@ cmd = "pytest -v"
 envfile = [".env", ".env.test"]
 
 [tool.poe.tasks.coverage]
-cmd = "pytest -v --cov"
+sequence = [
+    { cmd = "pytest -v --cov" },
+    { cmd = "python scripts/check_coverage.py" },
+]
 envfile = [".env", ".env.test"]
 
 [tool.poe.tasks.prod]
