@@ -2087,6 +2087,78 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
 
 
 @pytest.mark.asyncio
+async def test_scanner_sweep_processes_every_page_until_complete(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, label_id, _ = await create_account_with_labels(session)
+        await session.commit()
+    headers = auth_headers(config, account_id)
+    now = datetime.now(UTC)
+    event_ids: list[UUID] = []
+    try:
+        for index in range(5):
+            event_id, _, _ = await upload_closed_detail(
+                client,
+                headers=headers,
+                device_id=device.device_id,
+                sequence=index * 2 + 1,
+                started_at=f"2026-09-14T00:{index:02d}:00Z",
+                ended_at=f"2026-09-14T00:{index:02d}:30Z",
+                name=f"Editor {index}",
+            )
+            event_ids.append(event_id)
+        completed_processor = ProposalProcessor(
+            session_factory, suggester=FixedSuggester(label_id), now=lambda: now
+        )
+        assert await completed_processor.process_candidate(account_id, event_ids[0])
+
+        suggester = FixedSuggester(label_id)
+        processor = CountingProposalProcessor(
+            session_factory, suggester=suggester, now=lambda: now
+        )
+        scanner = ProposalScanner(session_factory, processor, now=lambda: now)
+
+        processed = await scanner.run_sweep(max_scanned=2)
+
+        assert processed == len(processor.candidates)
+        assert {
+            first_event_id
+            for candidate_account_id, first_event_id in processor.candidates
+            if candidate_account_id == account_id
+        } == set(event_ids[1:])
+        async with session_factory() as session:
+            proposals = list(
+                (
+                    await session.scalars(
+                        select(ActivityLabelProposal).where(
+                            ActivityLabelProposal.account_id == account_id
+                        )
+                    )
+                ).all()
+            )
+        assert {proposal.first_event_id for proposal in proposals} == set(event_ids)
+        assert all(
+            proposal.status is ActivityLabelProposalStatus.READY
+            for proposal in proposals
+        )
+
+        prior_calls = len(suggester.inputs)
+        assert await scanner.run_sweep(max_scanned=2) == 0
+        assert len(suggester.inputs) == prior_calls
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
 async def test_next_proposal_uses_only_owners_latest_confirmation_and_stays_stable(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
