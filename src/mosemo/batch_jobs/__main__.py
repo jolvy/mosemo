@@ -53,11 +53,19 @@ async def run(args: argparse.Namespace) -> int:
 
 def main() -> None:
     args = parse_args()
+    loop = asyncio.new_event_loop()
     try:
-        exit_code = asyncio.run(run(args))
+        exit_code = loop.run_until_complete(run(args))
     except Exception, asyncio.CancelledError:  # noqa: BLE001 - safe process boundary
         # Do not print configuration input values, SQL parameters or secrets.
         raise SystemExit("Batch job process failed") from None
+    finally:
+        # Unlike asyncio.run, do not cancel and await leftover tasks: a job that
+        # ignores cancellation must not keep the process past the shutdown deadline.
+        # Such jobs were already logged; silence their pending-task reports, which
+        # would otherwise fire while the interpreter tears down logging.
+        loop.set_exception_handler(lambda loop, context: None)
+        loop.close()
     raise SystemExit(exit_code)
 
 
