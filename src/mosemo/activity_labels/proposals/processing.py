@@ -372,6 +372,18 @@ class ProposalScanner:
                 break
         return processed
 
+    async def run_sweep(
+        self, *, max_scanned: int = MAX_SCAN_CANDIDATES_PER_BATCH
+    ) -> int:
+        # The segment cursor only moves forward, so the sweep completes unless new
+        # closed segments keep arriving faster than they are processed.
+        processed = 0
+        while True:
+            batch = await self.run_batch(max_scanned=max_scanned)
+            processed += batch.processed
+            if batch.sweep_complete:
+                return processed
+
     async def run_batch(
         self,
         *,
