@@ -145,6 +145,46 @@ def test_run_lists_available_jobs_for_an_unknown_name():
     assert_no_leak(result)
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("arguments", "exit_code"), [(["serve"], 0), (["run", "stubborn"], 1)]
+)
+async def test_job_ignoring_cancellation_does_not_outlive_the_shutdown_deadline(
+    arguments, exit_code
+):
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "tests.batch_jobs_process",
+        *arguments,
+        cwd=ROOT,
+        env=process_environment("openai:fake-model"),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout = process.stdout
+        assert stdout is not None
+        while (line := await asyncio.wait_for(stdout.readline(), 15)) != (
+            b"STUBBORN_STARTED\n"
+        ):
+            assert line, "process exited before the job started"
+
+        process.send_signal(signal.SIGTERM)
+        output, errors = await asyncio.wait_for(process.communicate(), 10)
+        assert process.returncode == exit_code, output + errors
+        assert errors == b""
+        assert any(
+            payload["level"] == "WARNING"
+            and "did not stop before the shutdown timeout" in str(payload["event"])
+            for payload in json_lines(output.decode())
+        )
+    finally:
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
+
+
 @pytest.mark.parametrize("label_model", [None, "test"])
 def test_missing_or_malformed_label_model_fails_with_a_fixed_message(label_model):
     result = run_process("mosemo.batch_jobs", "serve", label_model=label_model)

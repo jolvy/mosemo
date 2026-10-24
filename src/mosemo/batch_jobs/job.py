@@ -66,5 +66,10 @@ async def run_job_once(
     if task.done():
         return not task.cancelled() and task.result()
     task.cancel()
-    await asyncio.wait({task}, timeout=shutdown_timeout)
+    _, pending = await asyncio.wait({task}, timeout=shutdown_timeout)
+    if pending:
+        logger.warning(
+            "batch job did not stop before the shutdown timeout",
+            extra={"operation": job.name},
+        )
     return False
