@@ -2,6 +2,8 @@ import json
 import logging
 import sys
 
+import pytest
+
 from mosemo.logging import JsonFormatter, SensitiveDataFilter, configure_logging
 
 
@@ -67,6 +69,50 @@ def test_json_formatter_excludes_exception_message() -> None:
         "function": "test_json_formatter_excludes_exception_message",
         "line": exception_line,
     }
+
+
+def test_json_formatter_drops_non_finite_numbers() -> None:
+    record = logging.LogRecord(
+        name="mosemo.test",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="request_completed",
+        args=(),
+        exc_info=None,
+    )
+    record.duration_ms = float("nan")
+
+    payload = json.loads(JsonFormatter().format(record))
+
+    assert "duration_ms" not in payload
+
+
+@pytest.mark.parametrize(
+    ("exc_info", "expected"),
+    [
+        ((None, None, None), None),
+        ((ValueError, ValueError("secret"), None), {"type": "ValueError"}),
+    ],
+)
+def test_json_formatter_handles_exception_info_without_traceback(
+    exc_info: tuple[type[BaseException], BaseException, None] | tuple[None, None, None],
+    expected: dict[str, str] | None,
+) -> None:
+    record = logging.LogRecord(
+        name="mosemo.test",
+        level=logging.ERROR,
+        pathname=__file__,
+        lineno=1,
+        msg="operation_failed",
+        args=(),
+        exc_info=exc_info,
+    )
+
+    output = JsonFormatter().format(record)
+
+    assert "secret" not in output
+    assert json.loads(output).get("exception") == expected
 
 
 def test_sensitive_data_filter_redacts_copy_including_message_args() -> None:

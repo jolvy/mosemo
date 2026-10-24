@@ -3,6 +3,7 @@ from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
+from pydantic_core import PydanticSerializationError
 
 from mosemo.auth.schemas import TokenRequest
 from mosemo.schemas import (
@@ -234,6 +235,15 @@ def test_public_timestamp_normalizes_python_value_and_truncates_json_value() -> 
 def test_public_timestamp_rejects_naive_datetime() -> None:
     with pytest.raises(ValidationError, match="timezone-aware"):
         PublicResponse(occurred_at=datetime.fromisoformat("2026-09-05T01:02:03"))
+
+
+def test_public_timestamp_refuses_to_serialize_unvalidated_naive_datetime() -> None:
+    value = PublicResponse.model_construct(
+        occurred_at=datetime.fromisoformat("2026-09-05T01:02:03")
+    )
+
+    with pytest.raises(PydanticSerializationError, match="timezone-aware"):
+        value.model_dump(mode="json")
 
 
 def test_public_timestamp_serialization_schema_is_whole_second_utc() -> None:

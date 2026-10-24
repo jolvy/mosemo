@@ -110,6 +110,11 @@ async def test_ack_deadline_and_external_cancellation_clean_up_waiter(cancel):
     assert cleaned.is_set()
 
 
+def test_publisher_requires_positive_acknowledgment_timeout():
+    with pytest.raises(ValueError, match="acknowledgment timeout must be positive"):
+        ActivityBatchPublisher(AsyncMock(), topic="test", acknowledgment_timeout=0)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "failure", [ValueError("invalid configuration"), TypeError("bug")]

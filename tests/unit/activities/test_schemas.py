@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
@@ -11,6 +11,7 @@ from mosemo.activities.schemas import (
     CollectionStateChanged,
     DetailedActivityContext,
     OpaqueActivityContext,
+    TimelineTimestamp,
 )
 from mosemo.timezones import Timezone
 
@@ -218,6 +219,28 @@ def test_captured_text_requires_original_value_to_be_longer_than_prefix() -> Non
                 "truncated": True,
                 "originalByteLength": 6,
             }
+        )
+
+
+def test_captured_text_rejects_byte_length_when_not_truncated() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="original_byte_length is only allowed when truncated is true",
+    ):
+        CapturedText.model_validate(
+            {
+                "status": "captured",
+                "value": "Mosemo",
+                "truncated": False,
+                "originalByteLength": 12,
+            }
+        )
+
+
+def test_timeline_timestamp_rejects_naive_datetime() -> None:
+    with pytest.raises(ValidationError, match="timezone-aware"):
+        TypeAdapter(TimelineTimestamp).validate_python(
+            datetime.fromisoformat("2026-09-07T10:15:30")
         )
 
 

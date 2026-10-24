@@ -40,7 +40,8 @@ git diff --check
 git diff --cached --check
 ```
 
-- `poe coverage`와 CI는 라인+브랜치 합산 커버리지가 90%(`pyproject.toml`의 `fail_under`) 미만이면 실패한다.
+- `poe coverage`와 CI는 테스트 후 `scripts/check_coverage.py`로 라인 95%, 브랜치 90% 기준을 각각 반올림 없는 정확한 비율로 판정하고, 하나라도 미달이면 실패한다. 기준값은 이 스크립트에만 둔다.
+- `scripts/check_coverage.py`를 단독 실행하면 직전 `--cov` 실행의 `.coverage` 데이터를 읽는다. 데이터나 브랜치 측정이 없으면 실패한다.
 - 테스트 일부만 실행할 때는 커버리지 기준이 적용되지 않는 `poe test` 또는 `pytest`를 쓴다.
 - Ruff 오류는 `uv run --locked ruff check --fix <path>`로 제한된 범위에서 수정한다.
 - 포맷이 필요하면 `uv run --locked ruff format <path>`를 실행한다.
