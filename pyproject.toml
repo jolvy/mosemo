@@ -45,6 +45,16 @@ asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
 
+[tool.coverage.run]
+source_pkgs = ["mosemo"]
+branch = true
+patch = ["subprocess"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+
 [tool.ruff]
 line-length = 88
 target-version = "py314"
@@ -76,7 +86,7 @@ cmd = "pytest -v"
 envfile = [".env", ".env.test"]
 
 [tool.poe.tasks.coverage]
-cmd = "pytest -v --cov=mosemo --cov-report=term-missing"
+cmd = "pytest -v --cov"
 envfile = [".env", ".env.test"]
 
 [tool.poe.tasks.prod]

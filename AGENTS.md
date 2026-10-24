@@ -35,11 +35,13 @@ uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked ty check
 uv build
-uv run --locked poe test
+uv run --locked poe coverage
 git diff --check
 git diff --cached --check
 ```
 
+- `poe coverage`와 CI는 라인+브랜치 합산 커버리지가 90%(`pyproject.toml`의 `fail_under`) 미만이면 실패한다.
+- 테스트 일부만 실행할 때는 커버리지 기준이 적용되지 않는 `poe test` 또는 `pytest`를 쓴다.
 - Ruff 오류는 `uv run --locked ruff check --fix <path>`로 제한된 범위에서 수정한다.
 - 포맷이 필요하면 `uv run --locked ruff format <path>`를 실행한다.
 - 통합 테스트는 Docker에서 PostgreSQL 컨테이너를 실행하므로 Docker가 동작 중이어야 한다.

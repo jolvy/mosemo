@@ -8,6 +8,6 @@ uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked ty check
 uv build
-uv run --locked poe test
+uv run --locked poe coverage
 git diff --check
 git diff --cached --check
