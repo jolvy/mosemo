@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosemo-consumer
+  namespace: mosemo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mosemo-consumer
+  template:
+    metadata:
+      labels:
+        app: mosemo-consumer
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: consumer
+        image: mosemo-server:REPLACE_WITH_RELEASE
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: mosemo-config
+        - secretRef:
+            name: mosemo-secrets
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 224Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        volumeMounts:
+        - name: rds-ca
+          mountPath: /etc/rds-ca
+          readOnly: true
+        command:
+        - python
+        - -m
+        - mosemo.activities.consumer
+      volumes:
+      - name: rds-ca
+        configMap:
+          name: mosemo-rds-ca
+      terminationGracePeriodSeconds: 45
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1

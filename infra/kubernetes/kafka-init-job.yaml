@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mosemo-kafka-init
+  namespace: mosemo
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: init
+          image: confluentinc/cp-kafka:7.8.0
+          envFrom:
+            - configMapRef:
+                name: mosemo-config
+          env:
+            - name: KAFKA_HEAP_OPTS
+              value: -Xms32m -Xmx64m
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              kafka-topics --bootstrap-server "$BATCH_BOOTSTRAP_SERVERS" \
+                --create --if-not-exists --topic "$BATCH_TOPIC" \
+                --partitions 2 --replication-factor 1
+              kafka-topics --bootstrap-server "$BATCH_BOOTSTRAP_SERVERS" \
+                --describe --topic "$BATCH_TOPIC"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi

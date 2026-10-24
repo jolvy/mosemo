@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosemo-server
+  namespace: mosemo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mosemo-server
+  template:
+    metadata:
+      labels:
+        app: mosemo-server
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: server
+        image: mosemo-server:REPLACE_WITH_RELEASE
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: mosemo-config
+        - secretRef:
+            name: mosemo-secrets
+        startupProbe:
+          httpGet:
+            path: /openapi.json
+            port: http
+          periodSeconds: 2
+          failureThreshold: 30
+        readinessProbe:
+          httpGet:
+            path: /openapi.json
+            port: http
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /openapi.json
+            port: http
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 224Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        volumeMounts:
+        - name: rds-ca
+          mountPath: /etc/rds-ca
+          readOnly: true
+      volumes:
+      - name: rds-ca
+        configMap:
+          name: mosemo-rds-ca
+      terminationGracePeriodSeconds: 45
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
