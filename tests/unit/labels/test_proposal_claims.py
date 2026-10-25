@@ -214,6 +214,25 @@ def test_stale_attempt_cannot_finish_after_a_new_lease_was_claimed() -> None:
     assert proposal.suggested_at is None
 
 
+def test_stale_attempt_cannot_fail_or_supersede_the_current_lease() -> None:
+    lease_expires_at = NOW + timedelta(minutes=2)
+    proposal = make_proposal(
+        status=ActivityLabelProposalStatus.PROCESSING,
+        attempt_count=2,
+        lease_expires_at=lease_expires_at,
+    )
+    current_token = uuid4()
+    proposal.lease_token = current_token
+
+    assert not proposal.fail_attempt(token=uuid4(), now=NOW)
+    assert not proposal.supersede_attempt(token=uuid4())
+
+    assert proposal.status is ActivityLabelProposalStatus.PROCESSING
+    assert proposal.lease_token == current_token
+    assert proposal.lease_expires_at == lease_expires_at
+    assert proposal.next_attempt_at is None
+
+
 @pytest.mark.parametrize(
     ("status", "attempt_count", "lease_expires_at", "next_attempt_at", "expected"),
     [

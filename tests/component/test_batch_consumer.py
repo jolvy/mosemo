@@ -248,6 +248,19 @@ async def test_unexpected_execution_cancellation_cannot_skip_to_a_later_ack():
 
 
 @pytest.mark.asyncio
+async def test_runtime_refuses_to_consume_when_delivery_is_disabled(
+    config, monkeypatch
+):
+    config.batch_delivery.enabled = False
+    constructor = Mock(side_effect=AssertionError("must not connect"))
+    monkeypatch.setattr("mosemo.infra.batch_runtime.KafkaBroker", constructor)
+    with pytest.raises(ValueError, match="requires BATCH_ENABLED=true"):
+        await MessagingRuntime.run_consumer(
+            config.batch_delivery, AsyncMock(), asyncio.Event()
+        )
+
+
+@pytest.mark.asyncio
 async def test_runtime_configures_manual_offsets_and_earliest(config, monkeypatch):
     broker = Broker()
     constructor = Mock(return_value=broker)

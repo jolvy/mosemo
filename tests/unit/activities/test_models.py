@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import pytest
+
 from mosemo.activities.constants import MAX_OBSERVATION_GAP
 from mosemo.activities.enums import ActivityTimelineKind, SegmentType
 from mosemo.activities.models import ActivityTimelineSegment
@@ -78,6 +80,14 @@ def test_timeline_kind_distinguishes_gap_opaque_open_and_closed() -> None:
     )
     assert opaque.timeline_kind_at(now) is ActivityTimelineKind.OPAQUE_ACTIVITY
     assert gap.timeline_kind_at(now) is ActivityTimelineKind.CAPTURE_GAP
+
+
+def test_timeline_kind_rejects_unknown_context_kind() -> None:
+    observed_at = datetime(2026, 9, 14, tzinfo=UTC)
+    segment = activity_segment(started_at=observed_at, context_kind="unknown")
+
+    with pytest.raises(ValueError, match="unsupported activity context kind"):
+        segment.timeline_kind_at(observed_at)
 
 
 def test_overlaps_window_handles_boundaries_and_zero_duration() -> None:

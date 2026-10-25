@@ -177,6 +177,22 @@ def test_framework_method_not_allowed_handler_preserves_allow_header() -> None:
     assert response.headers["allow"] == "GET"
 
 
+def test_method_not_allowed_raised_without_headers_omits_allow_header() -> None:
+    app = FastAPI()
+    register_exception_handlers(app)
+
+    @app.get("/explicit-405")
+    def explicit_method_not_allowed() -> None:
+        raise StarletteHTTPException(status_code=405)
+
+    with TestClient(app) as client:
+        response = client.get("/explicit-405")
+
+    assert response.status_code == 405
+    assert response.json()["error"]["status"] == "REQUEST_METHOD_NOT_ALLOWED"
+    assert "allow" not in response.headers
+
+
 @pytest.mark.parametrize("status_code", [400, 401, 418, 503, 599])
 def test_unregistered_http_error_becomes_internal_server_error_and_is_logged(
     status_code: int,
