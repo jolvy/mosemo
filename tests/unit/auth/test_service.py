@@ -82,6 +82,7 @@ def test_login_updates_existing_account_and_stores_code(
         provider_subject="123456789",
     )
     oauth_client.get_user_id.return_value = "123456789"
+    account_repository.add_if_absent.return_value = None
     account_repository.find.return_value = existing_account
     monkeypatch.setattr(
         "mosemo.auth.service.secrets.token_urlsafe",
@@ -99,6 +100,10 @@ def test_login_updates_existing_account_and_stores_code(
 
     assert result == "one-time-authorization-code"
     get_oauth_client.assert_called_once_with(AccountProvider.KAKAO)
+    account_repository.add_if_absent.assert_awaited_once_with(
+        provider=AccountProvider.KAKAO,
+        provider_subject="123456789",
+    )
     account_repository.find.assert_awaited_once_with(
         provider=AccountProvider.KAKAO,
         provider_subject="123456789",
@@ -118,7 +123,7 @@ def test_login_updates_existing_account_and_stores_code(
     assert stored_code.code_challenge == CODE_CHALLENGE
 
 
-def test_login_flushes_new_account_before_storing_code(
+def test_login_creates_default_labels_and_stores_code_for_new_account(
     config: Config,
 ) -> None:
     fake_clock = FakeClock(NOW)
@@ -133,14 +138,12 @@ def test_login_flushes_new_account_before_storing_code(
     ) = make_service(config, fake_clock)
     oauth_client = get_oauth_client.return_value
     account_id = uuid4()
-
-    async def assign_account_id() -> None:
-        (added_account,) = account_repository.add.call_args.args
-        added_account.account_id = account_id
-
     oauth_client.get_user_id.return_value = "123456789"
-    account_repository.find.return_value = None
-    session.flush.side_effect = assign_account_id
+    account_repository.add_if_absent.return_value = Account(
+        account_id=account_id,
+        provider=AccountProvider.KAKAO,
+        provider_subject="123456789",
+    )
 
     result = asyncio.run(
         service.login(
@@ -151,10 +154,12 @@ def test_login_flushes_new_account_before_storing_code(
     )
 
     assert result
-    account_repository.add.assert_called_once()
-    (new_account,) = account_repository.add.call_args.args
-    assert new_account.provider is AccountProvider.KAKAO
-    assert new_account.provider_subject == "123456789"
+    account_repository.add_if_absent.assert_awaited_once_with(
+        provider=AccountProvider.KAKAO,
+        provider_subject="123456789",
+    )
+    account_repository.find.assert_not_awaited()
+    account_repository.add.assert_not_called()
     label_catalog_repository.add_all.assert_called_once()
     (labels,) = label_catalog_repository.add_all.call_args.args
     assert [label.account_id for label in labels] == [account_id] * len(
@@ -162,9 +167,41 @@ def test_login_flushes_new_account_before_storing_code(
     )
     assert [label.display_name for label in labels] == list(DEFAULT_LABEL_NAMES)
     session.begin.assert_called_once_with()
-    session.flush.assert_awaited_once_with()
+    session.flush.assert_not_awaited()
     (stored_code,) = auth_code_repository.add.call_args.args
     assert stored_code.account_id == account_id
+
+
+def test_login_fails_when_account_conflict_cannot_be_resolved(
+    config: Config,
+) -> None:
+    fake_clock = FakeClock(NOW)
+    (
+        service,
+        get_oauth_client,
+        _,
+        account_repository,
+        auth_code_repository,
+        label_catalog_repository,
+        _,
+    ) = make_service(config, fake_clock)
+    oauth_client = get_oauth_client.return_value
+    oauth_client.get_user_id.return_value = "123456789"
+    account_repository.add_if_absent.return_value = None
+    account_repository.find.return_value = None
+
+    with pytest.raises(RuntimeError, match="account conflict could not be resolved"):
+        asyncio.run(
+            service.login(
+                provider=AccountProvider.KAKAO,
+                code="authorization-code",
+                code_challenge=CODE_CHALLENGE,
+            )
+        )
+
+    account_repository.add.assert_not_called()
+    label_catalog_repository.add_all.assert_not_called()
+    auth_code_repository.add.assert_not_called()
 
 
 def test_login_converts_client_error(config: Config) -> None:
