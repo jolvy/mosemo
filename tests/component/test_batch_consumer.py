@@ -12,6 +12,7 @@ from faststream.kafka import KafkaBroker
 from mosemo.activities.executor import BatchProcessingExecutor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.schemas import ActivityBatchRequest
+from mosemo.clock import utc_now
 from mosemo.infra.batch_consumer import (
     ActivityBatchConsumer,
     InvalidBatchMessage,
@@ -19,6 +20,7 @@ from mosemo.infra.batch_consumer import (
 )
 from mosemo.infra.batch_runtime import MessagingRuntime
 from mosemo.infra.kafka_compat import BatchPartition
+from tests.clock_support import FakeClock
 from tests.component.test_activities_api import activity_request
 
 
@@ -72,7 +74,7 @@ async def test_executor_owns_fresh_session_for_each_attempt(monkeypatch, failure
     monkeypatch.setattr(
         "mosemo.activities.executor.ActivityBatchProcessor.process", process
     )
-    executor = BatchProcessingExecutor(sessions)
+    executor = BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
     for _ in range(2):
         if failure:
             with pytest.raises(
@@ -424,7 +426,8 @@ async def test_consumer_waits_for_executor_commit_and_never_acks_failed_commit(
     broker = Broker()
     broker.commit.side_effect = lambda: acked.set()
     worker = ActivityBatchConsumer(
-        cast(KafkaBroker, broker), BatchProcessingExecutor(sessions)
+        cast(KafkaBroker, broker),
+        BatchProcessingExecutor(sessions, clock=FakeClock(utc_now())),
     )
     stop = asyncio.Event()
     pending = asyncio.create_task(worker.run("test", stop, group_id="group"))

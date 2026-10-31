@@ -22,6 +22,7 @@ from mosemo.activities.timeline import (
     TimelineProjection,
     observation_key,
 )
+from mosemo.clock import Clock
 from mosemo.devices.repository import DeviceRepository
 from mosemo.focus_sessions.models import (
     FocusSessionInvalidTimeError,
@@ -60,8 +61,9 @@ def segment_seed(segment: ActivityTimelineSegment) -> ProjectedSegment:
 
 
 class ActivityBatchProcessor:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, *, clock: Clock):
         self.session = session
+        self._clock = clock
         self.repository = ActivityRepository(session)
         self.receipts = BatchReceiptRepository(session)
 
@@ -69,10 +71,8 @@ class ActivityBatchProcessor:
         self,
         account_id: UUID,
         batch: ActivityBatchRequest,
-        *,
-        now: datetime | None = None,
     ) -> list[dict[str, str]]:
-        current_time = now or datetime.now(UTC)
+        now = self._clock()
         device = await DeviceRepository(self.session).find_owned_by_id(
             account_id=account_id, device_id=batch.device_id
         )
@@ -103,7 +103,7 @@ class ActivityBatchProcessor:
             raise TerminalBatchError("projection_time_regression")
         latest = await self.repository.latest_account_record(account_id)
         if not initialized and latest is not None:
-            await self._rebuild_legacy_projection(account_id, latest, current_time)
+            await self._rebuild_legacy_projection(account_id, latest, now)
         adopted = []
         results = []
         for record in batch.activity_records():
@@ -170,7 +170,7 @@ class ActivityBatchProcessor:
                 raise TerminalBatchError("projection_time_regression")
         if adopted:
             try:
-                await self._project(account_id, adopted, latest, current_time)
+                await self._project(account_id, adopted, latest, now)
             except ProjectionFailure:
                 raise TerminalBatchError("projection_time_regression") from None
         claimed.results = results

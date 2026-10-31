@@ -26,9 +26,11 @@ from mosemo.activities.service import (
     ActivityTimelineBusyError,
     activity_timeline_lock_key,
 )
+from mosemo.clock import utc_now
 from mosemo.devices.models import Device
 from mosemo.devices.repository import DeviceRepository
 from mosemo.timezones import Timezone
+from tests.clock_support import FakeClock
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 
@@ -110,6 +112,7 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
         session=integration_session,
         repository=repository,
         device_repository=device_repository,
+        clock=FakeClock(utc_now()),
     )
     observation = activity_observation(
         device_id=device_id,
@@ -273,6 +276,7 @@ async def test_activity_service_hides_missing_and_unowned_devices(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=FakeClock(utc_now()),
     )
 
     cases = (
@@ -307,12 +311,15 @@ async def test_concurrent_identical_requests_store_one_record(
             sequence=7,
         )
 
+        fake_clock = FakeClock(utc_now())
+
         async def ingest():
             async with session_factory() as session:
                 return await ActivityService(
                     session=session,
                     repository=ActivityRepository(session),
                     device_repository=DeviceRepository(session),
+                    clock=fake_clock,
                 ).create_activity(account_id=account.account_id, record=record)
 
         first, second = await asyncio.gather(ingest(), ingest())
@@ -360,12 +367,15 @@ async def test_account_lock_timeout_rolls_back_without_blocking_other_account(
             sequence=1,
         )
 
+        fake_clock = FakeClock(utc_now())
+
         async def ingest(account_id: UUID, record: ActivityRecord):
             async with session_factory() as session:
                 return await ActivityService(
                     session=session,
                     repository=ActivityRepository(session),
                     device_repository=DeviceRepository(session),
+                    clock=fake_clock,
                 ).create_activity(account_id=account_id, record=record)
 
         async with session_factory() as holder, holder.begin():

@@ -19,6 +19,7 @@ from mosemo.activities.service import (
 from mosemo.dependencies import (
     ActivityServiceDep,
     AuthenticatedAccountDep,
+    ClockDep,
     DeviceRepositoryDep,
     SessionDep,
 )
@@ -111,9 +112,10 @@ async def process_batch_legacy(
     batch: ActivityBatchRequest,
     authenticated_account: AuthenticatedAccountDep,
     session: SessionDep,
+    clock: ClockDep,
 ) -> ActivityBatchProcessedResponse:
     try:
-        results = await LegacyBatchExecutor(session).execute(
+        results = await LegacyBatchExecutor(session, clock=clock).execute(
             authenticated_account.account_id, batch
         )
     except ActivityTimelineBusyError as exc:

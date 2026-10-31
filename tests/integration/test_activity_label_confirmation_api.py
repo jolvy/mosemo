@@ -39,12 +39,16 @@ from mosemo.activity_labels.proposals.suggestions import (
 from mosemo.activity_labels.schemas import SEGMENT_VERSION_PATTERN
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import Clock, utc_now
 from mosemo.config import Config, get_config
 from mosemo.database import get_session
 from mosemo.dependencies import get_clock
 from mosemo.devices.models import Device
 from mosemo.exception_handlers import register_exception_handlers
 from tests.batch_support import batch_client, post_activity, receipt_for
+from tests.clock_support import FakeClock
+
+ARCHIVED_AT = datetime(2026, 9, 14, 2, tzinfo=UTC)
 
 
 def detailed_context(name: str) -> dict[str, object]:
@@ -107,7 +111,7 @@ def state_change_request(
 
 
 def auth_headers(config: Config, account_id: UUID) -> dict[str, str]:
-    token = TokenService(config.auth).issue_access_token(account_id)
+    token = TokenService(config.auth).issue_access_token(account_id, now=utc_now())
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -282,10 +286,11 @@ async def test_known_segment_version_survives_proposal_and_confirmation(
         assert before.status_code == 200
         assert before.json()["segmentVersion"] == expected_version
 
+        clock = FakeClock(utc_now())
         processor = ProposalProcessor(
-            session_factory, suggester=FixedSuggester(label_id)
+            session_factory, suggester=FixedSuggester(label_id), clock=clock
         )
-        scanner = ProposalScanner(session_factory, processor)
+        scanner = ProposalScanner(session_factory, processor, clock=clock)
         assert await scanner.run_once() == 1
         proposed = await client.get(state_url, headers=headers)
         assert proposed.status_code == 200
@@ -1244,7 +1249,7 @@ async def test_batch_rejects_archived_label(
         async with session_factory() as session:
             archived = await session.get(Label, coding_id)
             assert archived is not None
-            archived.archived_at = datetime.now(UTC)
+            archived.archived_at = ARCHIVED_AT
             await session.commit()
 
         unavailable = await client.post(
@@ -1452,7 +1457,9 @@ async def test_batch_uses_user_choices_with_ready_and_waiting_proposals(
             name="Browser",
         )
         processor = ProposalProcessor(
-            session_factory, suggester=FixedSuggester(coding_id)
+            session_factory,
+            suggester=FixedSuggester(coding_id),
+            clock=FakeClock(utc_now()),
         )
         assert await processor.process_candidate(account_id, first_event_id)
         timeline = await client.get(
@@ -1565,9 +1572,9 @@ class CountingProposalProcessor(ProposalProcessor):
         session_factory: async_sessionmaker[AsyncSession],
         *,
         suggester: LabelSuggester,
-        now: Callable[[], datetime] | None = None,
+        clock: Clock,
     ) -> None:
-        super().__init__(session_factory, suggester=suggester, now=now)
+        super().__init__(session_factory, suggester=suggester, clock=clock)
         self.candidates: list[tuple[UUID, UUID]] = []
 
     async def process_candidate(self, account_id: UUID, first_event_id: UUID) -> bool:
@@ -1611,7 +1618,9 @@ async def test_worker_proposal_is_visible_but_not_confirmed_over_http(
         )
 
         suggester = FixedSuggester(coding_id)
-        processor = ProposalProcessor(session_factory, suggester=suggester)
+        processor = ProposalProcessor(
+            session_factory, suggester=suggester, clock=FakeClock(utc_now())
+        )
         await processor.process_candidate(account_id, event_id)
         assert "web_host: example.com" in suggester.inputs[0].activity
         assert "private" not in suggester.inputs[0].activity
@@ -1672,7 +1681,7 @@ async def test_user_can_confirm_unclassified_after_proposal_failure(
         processor = ProposalProcessor(
             session_factory,
             suggester=RecoveringSuggester(),
-            now=lambda: datetime(2026, 9, 14, 1, tzinfo=UTC),
+            clock=FakeClock(datetime(2026, 9, 14, 1, tzinfo=UTC)),
         )
         assert await processor.process_candidate(account_id, event_id)
 
@@ -1721,11 +1730,9 @@ async def test_failed_proposal_stays_pending_then_retries_as_unclassified(
             ended_at="2026-09-14T00:00:30Z",
             name="Editor",
         )
-        current_time = [datetime(2026, 9, 14, 1, tzinfo=UTC)]
+        clock = FakeClock(datetime(2026, 9, 14, 1, tzinfo=UTC))
         suggester = RecoveringSuggester()
-        processor = ProposalProcessor(
-            session_factory, suggester=suggester, now=lambda: current_time[0]
-        )
+        processor = ProposalProcessor(session_factory, suggester=suggester, clock=clock)
         assert await processor.process_candidate(account_id, event_id)
         failed = await client.get(
             f"/api/v1/activities/segments/{segment_id}/label-state", headers=headers
@@ -1735,7 +1742,7 @@ async def test_failed_proposal_stays_pending_then_retries_as_unclassified(
         assert not await processor.process_candidate(account_id, event_id)
         assert suggester.calls == 1
 
-        current_time[0] += timedelta(minutes=1, seconds=1)
+        clock.advance(timedelta(minutes=1, seconds=1))
         assert await processor.process_candidate(account_id, event_id)
         ready = await client.get(
             f"/api/v1/activities/segments/{segment_id}/label-state", headers=headers
@@ -1774,15 +1781,13 @@ async def test_three_failed_attempts_leave_the_proposal_pending_for_review(
             ended_at="2026-09-14T00:00:30Z",
             name="Editor",
         )
-        current_time = [datetime(2026, 9, 14, 1, tzinfo=UTC)]
+        clock = FakeClock(datetime(2026, 9, 14, 1, tzinfo=UTC))
         suggester = FailingSuggester()
-        processor = ProposalProcessor(
-            session_factory, suggester=suggester, now=lambda: current_time[0]
-        )
+        processor = ProposalProcessor(session_factory, suggester=suggester, clock=clock)
         for delay in (0, 1, 5):
-            current_time[0] += timedelta(minutes=delay, seconds=1)
+            clock.advance(timedelta(minutes=delay, seconds=1))
             assert await processor.process_candidate(account_id, event_id)
-        current_time[0] += timedelta(days=1)
+        clock.advance(timedelta(days=1))
         assert not await processor.process_candidate(account_id, event_id)
         assert suggester.calls == 3
         async with session_factory() as session:
@@ -1840,9 +1845,9 @@ async def test_claim_without_work_raises_and_commits_expired_final_lease(
             ended_at="2026-09-14T00:00:30Z",
             name="Editor",
         )
-        now = datetime(2026, 9, 14, 1, tzinfo=UTC)
+        clock = FakeClock(datetime(2026, 9, 14, 1, tzinfo=UTC))
         processor = ProposalProcessor(
-            session_factory, suggester=FixedSuggester(label_id), now=lambda: now
+            session_factory, suggester=FixedSuggester(label_id), clock=clock
         )
         with pytest.raises(NoProposalWorkError):
             await processor._claim(account_id, uuid4())
@@ -1862,7 +1867,7 @@ async def test_claim_without_work_raises_and_commits_expired_final_lease(
             proposal.status = ActivityLabelProposalStatus.PROCESSING
             proposal.attempt_count = 3
             proposal.lease_token = uuid4()
-            proposal.lease_expires_at = now - timedelta(seconds=1)
+            proposal.lease_expires_at = clock.now - timedelta(seconds=1)
 
         with pytest.raises(NoProposalWorkError):
             await processor._claim(account_id, event_id)
@@ -1901,7 +1906,7 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
         await session.commit()
     headers = auth_headers(config, account_id)
     open_headers = auth_headers(config, open_account_id)
-    now = datetime.now(UTC)
+    clock = FakeClock(utc_now())
     try:
         for sequence, observed_at, context in (
             (1, "2026-09-14T00:00:00Z", detailed_context("Explicit")),
@@ -1945,17 +1950,15 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
             json=activity_request(
                 device_id=open_device.device_id,
                 sequence=1,
-                observed_at=now.isoformat().replace("+00:00", "Z"),
+                observed_at=clock.now.isoformat().replace("+00:00", "Z"),
                 context=detailed_context("Open"),
             ),
         )
         assert open_record.status_code == 200
 
         suggester = FixedSuggester(label_id)
-        processor = ProposalProcessor(
-            session_factory, suggester=suggester, now=lambda: now
-        )
-        scanner = ProposalScanner(session_factory, processor, now=lambda: now)
+        processor = ProposalProcessor(session_factory, suggester=suggester, clock=clock)
+        scanner = ProposalScanner(session_factory, processor, clock=clock)
         assert await scanner.run_once() == 2
         assert len(suggester.inputs) == 2
         assert await scanner.run_once() == 0
@@ -1992,7 +1995,7 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
     headers = auth_headers(config, account_id)
-    now = datetime.now(UTC)
+    clock = FakeClock(utc_now())
     records: list[tuple[UUID, str, str]] = []
     try:
         for index in range(6):
@@ -2010,7 +2013,7 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
 
         completed_suggester = FixedSuggester(label_id)
         completed_processor = ProposalProcessor(
-            session_factory, suggester=completed_suggester, now=lambda: now
+            session_factory, suggester=completed_suggester, clock=clock
         )
         for event_id, _, _ in records[:4]:
             assert await completed_processor.process_candidate(account_id, event_id)
@@ -2039,9 +2042,9 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
 
         scanner_suggester = FixedSuggester(label_id)
         processor = CountingProposalProcessor(
-            session_factory, suggester=scanner_suggester, now=lambda: now
+            session_factory, suggester=scanner_suggester, clock=clock
         )
-        scanner = ProposalScanner(session_factory, processor, now=lambda: now)
+        scanner = ProposalScanner(session_factory, processor, clock=clock)
         total_scanned = 0
         processed = 0
         while True:
@@ -2098,7 +2101,7 @@ async def test_scanner_sweep_processes_every_page_until_complete(
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
     headers = auth_headers(config, account_id)
-    now = datetime.now(UTC)
+    clock = FakeClock(utc_now())
     event_ids: list[UUID] = []
     try:
         for index in range(5):
@@ -2113,15 +2116,15 @@ async def test_scanner_sweep_processes_every_page_until_complete(
             )
             event_ids.append(event_id)
         completed_processor = ProposalProcessor(
-            session_factory, suggester=FixedSuggester(label_id), now=lambda: now
+            session_factory, suggester=FixedSuggester(label_id), clock=clock
         )
         assert await completed_processor.process_candidate(account_id, event_ids[0])
 
         suggester = FixedSuggester(label_id)
         processor = CountingProposalProcessor(
-            session_factory, suggester=suggester, now=lambda: now
+            session_factory, suggester=suggester, clock=clock
         )
-        scanner = ProposalScanner(session_factory, processor, now=lambda: now)
+        scanner = ProposalScanner(session_factory, processor, clock=clock)
 
         processed = await scanner.run_sweep(max_scanned=2)
 
@@ -2234,7 +2237,9 @@ async def test_next_proposal_uses_only_owners_latest_confirmation_and_stays_stab
             name="Second",
         )
         suggester = FixedSuggester(coding_id)
-        processor = ProposalProcessor(session_factory, suggester=suggester)
+        processor = ProposalProcessor(
+            session_factory, suggester=suggester, clock=FakeClock(utc_now())
+        )
         assert await processor.process_candidate(account_id, event_id)
         assert len(suggester.inputs) == 1
         assert [example.label_id for example in suggester.inputs[0].examples] == [
@@ -2369,11 +2374,13 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
             by_event_id[examples["stale"][0]].segment_version = "0" * 64
             label = await session.get(Label, archived_label_id)
             assert label is not None
-            label.archived_at = datetime.now(UTC)
+            label.archived_at = ARCHIVED_AT
 
         monkeypatch.setattr(RecentConfirmedExampleRetriever, "PAGE_SIZE", 2)
         suggester = FixedSuggester(active_label_id)
-        processor = ProposalProcessor(session_factory, suggester=suggester)
+        processor = ProposalProcessor(
+            session_factory, suggester=suggester, clock=FakeClock(utc_now())
+        )
         assert await processor.process_candidate(account_id, target[0])
 
         actual = suggester.inputs[0].examples
@@ -2413,13 +2420,15 @@ async def test_archived_suggestion_is_retained_and_blocks_label_deletion(
             name="Editor",
         )
         processor = ProposalProcessor(
-            session_factory, suggester=FixedSuggester(label_id)
+            session_factory,
+            suggester=FixedSuggester(label_id),
+            clock=FakeClock(utc_now()),
         )
         assert await processor.process_candidate(account_id, event_id)
         async with session_factory() as session, session.begin():
             label = await session.get(Label, label_id)
             assert label is not None
-            label.archived_at = datetime.now(UTC)
+            label.archived_at = ARCHIVED_AT
         async with session_factory() as session:
             with pytest.raises(IntegrityError):
                 async with session.begin():
@@ -2489,6 +2498,7 @@ async def test_confirmation_during_model_call_does_not_publish_a_proposal(
         processor = ProposalProcessor(
             session_factory,
             suggester=CallbackSuggester(label_id, confirm_while_running),
+            clock=FakeClock(utc_now()),
         )
         assert await processor.process_candidate(account_id, event_id)
         state = await client.get(
@@ -2555,7 +2565,9 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
             RecentConfirmedExampleRetriever, "find", pause_example_lookup
         )
         processor = ProposalProcessor(
-            session_factory, suggester=FixedSuggester(label_id)
+            session_factory,
+            suggester=FixedSuggester(label_id),
+            clock=FakeClock(utc_now()),
         )
         task = asyncio.create_task(processor.process_candidate(account_id, event_id))
         await asyncio.wait_for(lookup_started.wait(), timeout=3)
@@ -2647,6 +2659,7 @@ async def test_projection_change_during_model_call_discards_stale_result(
         processor = ProposalProcessor(
             session_factory,
             suggester=CallbackSuggester(label_id, insert_late_observation),
+            clock=FakeClock(utc_now()),
         )
         assert await processor.process_candidate(account_id, event_id)
         changed = await client.get(
@@ -2658,7 +2671,9 @@ async def test_projection_change_during_model_call_discards_stale_result(
         assert changed.json()["proposal"] == {"status": "waiting"}
 
         next_processor = ProposalProcessor(
-            session_factory, suggester=FixedSuggester(label_id)
+            session_factory,
+            suggester=FixedSuggester(label_id),
+            clock=FakeClock(utc_now()),
         )
         assert await next_processor.process_candidate(account_id, event_id)
         current = await client.get(
@@ -2700,10 +2715,10 @@ async def test_expired_worker_lease_cannot_overwrite_newer_proposal(
             ended_at="2026-09-14T00:00:30Z",
             name="Editor",
         )
-        current_time = [datetime.now(UTC)]
+        clock = FakeClock(utc_now())
         blocked = BlockingSuggester(first_label_id)
         first_processor = ProposalProcessor(
-            session_factory, suggester=blocked, now=lambda: current_time[0]
+            session_factory, suggester=blocked, clock=clock
         )
         first_task = asyncio.create_task(
             first_processor.process_candidate(account_id, event_id)
@@ -2718,12 +2733,12 @@ async def test_expired_worker_lease_cannot_overwrite_newer_proposal(
         second_processor = ProposalProcessor(
             session_factory,
             suggester=duplicate,
-            now=lambda: current_time[0],
+            clock=clock,
         )
         assert not await second_processor.process_candidate(account_id, event_id)
         assert duplicate.inputs == []
 
-        current_time[0] += timedelta(minutes=2, seconds=1)
+        clock.advance(timedelta(minutes=2, seconds=1))
         assert await second_processor.process_candidate(account_id, event_id)
         blocked.release.set()
         assert await first_task
@@ -2817,7 +2832,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
         )
         assert unowned.status_code == 404
 
-        archived_at = datetime.now(UTC)
+        archived_at = ARCHIVED_AT
         async with session_factory() as session:
             archived_label = await session.get(Label, coding_id)
             assert archived_label is not None
@@ -2834,7 +2849,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
         assert archived.status_code == 404
         assert archived.json()["error"]["status"] == "LABEL_NOT_AVAILABLE"
 
-        now = datetime.now(UTC).replace(microsecond=0)
+        now = utc_now().replace(microsecond=0)
         open_segment = await post_activity(
             client,
             headers=other_headers,
@@ -3304,7 +3319,8 @@ async def test_label_timeline_defaults_to_account_local_today(
 ) -> None:
     client, session_factory, app = label_api_client
     fixed_now = datetime(2026, 9, 14, 15, 30, tzinfo=UTC)
-    app.dependency_overrides[get_clock] = lambda: lambda: fixed_now
+    fake_clock = FakeClock(fixed_now)
+    app.dependency_overrides[get_clock] = lambda: fake_clock
     async with session_factory() as session:
         account_id, device, _, _ = await create_account_with_labels(session)
         other_account_id, _, _, _ = await create_account_with_labels(session)
@@ -3400,9 +3416,7 @@ async def test_label_timeline_returns_open_detailed_activity_separately(
     headers = auth_headers(config, account_id)
     try:
         observed_at = (
-            (datetime.now(UTC))
-            .isoformat(timespec="microseconds")
-            .replace("+00:00", "Z")
+            utc_now().isoformat(timespec="microseconds").replace("+00:00", "Z")
         )
         created = await post_activity(
             client,
@@ -3714,7 +3728,7 @@ async def test_new_label_selection_rejects_foreign_and_archived_catalog_labels(
         if unavailable == "archived":
             label = await session.get(Label, own_label_id)
             assert label is not None
-            label.archived_at = datetime.now(UTC)
+            label.archived_at = ARCHIVED_AT
         await session.commit()
     headers = auth_headers(config, account_id)
     label_id = foreign_label_id if unavailable == "foreign" else own_label_id
@@ -3796,7 +3810,7 @@ async def test_past_confirmation_keeps_archived_label_and_displays_current_name(
             label = await session.get(Label, label_id)
             assert label is not None
             label.display_name = "개발 작업"
-            label.archived_at = datetime.now(UTC)
+            label.archived_at = ARCHIVED_AT
 
         state = await client.get(
             f"/api/v1/activities/segments/{segment_id}/label-state", headers=headers
@@ -3859,7 +3873,7 @@ async def test_worker_uses_owned_active_catalog_and_revalidates_suggestion(
         other_id, _, foreign_id, _ = await create_account_with_labels(session)
         archived_label = await session.get(Label, archived_id)
         assert archived_label is not None
-        archived_label.archived_at = datetime.now(UTC)
+        archived_label.archived_at = ARCHIVED_AT
         await session.commit()
     headers = auth_headers(config, account_id)
     try:
@@ -3892,10 +3906,12 @@ async def test_worker_uses_owned_active_catalog_and_revalidates_suggestion(
                 async with session_factory() as session, session.begin():
                     label = await session.get(Label, active_id)
                     assert label is not None
-                    label.archived_at = datetime.now(UTC)
+                    label.archived_at = ARCHIVED_AT
 
             suggester = CallbackSuggester(selected_id, archive_selected_label)
-        processor = ProposalProcessor(session_factory, suggester=suggester)
+        processor = ProposalProcessor(
+            session_factory, suggester=suggester, clock=FakeClock(utc_now())
+        )
         assert await processor.process_candidate(account_id, event_id)
 
         assert {label.label_id for label in suggester.inputs[0].labels} == (

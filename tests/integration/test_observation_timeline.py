@@ -19,9 +19,11 @@ from mosemo.activities.schemas import (
     CaptureGapResponse,
 )
 from mosemo.activities.service import ActivityService
+from mosemo.clock import utc_now
 from mosemo.devices.models import Device
 from mosemo.devices.repository import DeviceRepository
 from mosemo.timezones import Timezone
+from tests.clock_support import FakeClock
 
 record_adapter = TypeAdapter(ActivityRecord)
 
@@ -101,10 +103,12 @@ async def test_activity_projection_merges_devices_and_keeps_instant_switch(
         integration_session
     )
     await integration_session.commit()
+    fake_clock = FakeClock(utc_now())
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     detailed = detailed_context()
     records = [
@@ -166,10 +170,12 @@ async def test_silence_closes_at_last_observation_without_synthetic_gap(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 14, 0, 2, 1, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     records = [
         observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"}),
@@ -185,13 +191,11 @@ async def test_silence_closes_at_last_observation_without_synthetic_gap(
         await service.create_activity(
             account_id=account_id,
             record=record,
-            now=datetime(2026, 9, 14, 0, 2, 1, tzinfo=UTC),
         )
 
     segments = await service.get_timeline(
         account_id=account_id,
         date=date(2026, 9, 14),
-        now=datetime(2026, 9, 14, 0, 2, 1, tzinfo=UTC),
     )
     assert len(segments) == 2
     assert all(isinstance(segment, ActivitySegmentResponse) for segment in segments)
@@ -213,27 +217,28 @@ async def test_old_open_activity_is_closed_on_read_and_next_write(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 14, 0, 0, 59, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     record = observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"})
     observed_at = record.observed_at
     await service.create_activity(
         account_id=account_id,
         record=record,
-        now=observed_at + timedelta(seconds=59),
     )
+    fake_clock.advance(timedelta(seconds=1))
     fresh = await service.get_timeline(
         account_id=account_id,
         date=date(2026, 9, 14),
-        now=observed_at + timedelta(seconds=60),
     )
+    fake_clock.advance(timedelta(seconds=1))
     old = await service.get_timeline(
         account_id=account_id,
         date=date(2026, 9, 14),
-        now=observed_at + timedelta(seconds=61),
     )
     assert fresh[0].ended_at is None
     assert old[0].ended_at == observed_at
@@ -241,7 +246,6 @@ async def test_old_open_activity_is_closed_on_read_and_next_write(
     await service.create_activity(
         account_id=account_id,
         record=state_change(device_id, 2, "2026-09-14T00:01:01Z", "active", "resumed"),
-        now=observed_at + timedelta(seconds=61),
     )
     stored = await ActivityRepository(integration_session).list_account_segments(
         account_id
@@ -268,22 +272,22 @@ async def test_local_day_boundary_uses_dst_length(
     assert account is not None
     account.timezone = Timezone.AMERICA_NEW_YORK
     await integration_session.commit()
+    record = observation(device_id, 1, observation_time, {"kind": "opaque"})
+    fake_clock = FakeClock(record.observed_at + timedelta(seconds=10))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
-    record = observation(device_id, 1, observation_time, {"kind": "opaque"})
     await service.create_activity(
         account_id=account_id,
         record=record,
-        now=record.observed_at + timedelta(seconds=10),
     )
 
     segments = await service.get_timeline(
         account_id=account_id,
         date=query_date,
-        now=record.observed_at + timedelta(seconds=10),
     )
     assert len(segments) == expected_count
 
@@ -294,10 +298,12 @@ async def test_earliest_valid_date_returns_empty_with_positive_account_offset(
 ) -> None:
     account_id, _, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(utc_now())
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
 
     assert await service.get_timeline(account_id=account_id, date=date.min) == []
@@ -309,10 +315,12 @@ async def test_stale_midnight_observation_matches_materialized_closed_span(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 15, 15, 0, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     before_midnight = observation(
         device_id, 1, "2026-09-15T14:59:30Z", {"kind": "opaque"}
@@ -323,19 +331,15 @@ async def test_stale_midnight_observation_matches_materialized_closed_span(
         await service.create_activity(
             account_id=account_id,
             record=record,
-            now=at_midnight.observed_at,
         )
 
     new_date = date(2026, 9, 16)
-    assert (
-        await service.get_timeline(account_id=account_id, date=new_date, now=now) == []
-    )
+    fake_clock.now = now
+    assert await service.get_timeline(account_id=account_id, date=new_date) == []
 
     active = state_change(device_id, 3, "2026-09-15T15:02:00Z", "active", "resume")
-    await service.create_activity(account_id=account_id, record=active, now=now)
-    assert (
-        await service.get_timeline(account_id=account_id, date=new_date, now=now) == []
-    )
+    await service.create_activity(account_id=account_id, record=active)
+    assert await service.get_timeline(account_id=account_id, date=new_date) == []
 
 
 @pytest.mark.asyncio
@@ -344,23 +348,22 @@ async def test_cross_midnight_segment_is_unclipped_on_both_dates(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 14, 15, 0, 2, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     first = observation(device_id, 1, "2026-09-14T14:59:59Z", {"kind": "opaque"})
     second = observation(device_id, 2, "2026-09-14T15:00:01Z", detailed_context())
-    now = datetime(2026, 9, 14, 15, 0, 2, tzinfo=UTC)
     for record in (first, second):
-        await service.create_activity(account_id=account_id, record=record, now=now)
+        await service.create_activity(account_id=account_id, record=record)
 
     yesterday = await service.get_timeline(
-        account_id=account_id, date=date(2026, 9, 14), now=now
+        account_id=account_id, date=date(2026, 9, 14)
     )
-    today = await service.get_timeline(
-        account_id=account_id, date=date(2026, 9, 15), now=now
-    )
+    today = await service.get_timeline(account_id=account_id, date=date(2026, 9, 15))
     assert len(yesterday) == 1
     assert len(today) == 2
     assert yesterday[0].segment_id == today[0].segment_id
@@ -374,32 +377,28 @@ async def test_instant_switch_at_local_midnight_belongs_to_new_date(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 14, 15, 0, 1, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     first = observation(device_id, 1, "2026-09-14T15:00:00Z", {"kind": "opaque"})
     second = observation(device_id, 2, "2026-09-14T15:00:00Z", detailed_context())
-    now = datetime(2026, 9, 14, 15, 0, 1, tzinfo=UTC)
-    await service.create_activity(account_id=account_id, record=first, now=now)
+    await service.create_activity(account_id=account_id, record=first)
     await integration_session.execute(
         update(StoredActivityRecord)
         .where(StoredActivityRecord.event_id == first.event_id)
         .values(received_at=datetime(2026, 9, 14, tzinfo=UTC))
     )
     await integration_session.commit()
-    await service.create_activity(account_id=account_id, record=second, now=now)
+    await service.create_activity(account_id=account_id, record=second)
 
     assert (
-        await service.get_timeline(
-            account_id=account_id, date=date(2026, 9, 14), now=now
-        )
-        == []
+        await service.get_timeline(account_id=account_id, date=date(2026, 9, 14)) == []
     )
-    new_date = await service.get_timeline(
-        account_id=account_id, date=date(2026, 9, 15), now=now
-    )
+    new_date = await service.get_timeline(account_id=account_id, date=date(2026, 9, 15))
     assert len(new_date) == 2
     assert new_date[0].started_at == new_date[0].ended_at == first.observed_at
 
@@ -410,10 +409,12 @@ async def test_explicit_gap_ignores_active_and_closes_on_next_observation(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 14, 0, 0, 51, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     records = [
         observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"}),
@@ -424,13 +425,10 @@ async def test_explicit_gap_ignores_active_and_closes_on_next_observation(
         state_change(device_id, 8, "2026-09-14T00:00:45Z", "active", "resumed"),
         observation(device_id, 9, "2026-09-14T00:00:50Z", {"kind": "opaque"}),
     ]
-    now = datetime(2026, 9, 14, 0, 0, 51, tzinfo=UTC)
     for record in records:
-        await service.create_activity(account_id=account_id, record=record, now=now)
+        await service.create_activity(account_id=account_id, record=record)
 
-    segments = await service.get_timeline(
-        account_id=account_id, date=date(2026, 9, 14), now=now
-    )
+    segments = await service.get_timeline(account_id=account_id, date=date(2026, 9, 14))
     assert len(segments) == 3
     first, gap, last = segments
     assert isinstance(first, ActivitySegmentResponse)
@@ -458,10 +456,12 @@ async def test_old_activity_ends_before_suspended_without_inferred_gap(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 14, 0, 1, 1, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     activity = observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"})
     suspended = state_change(
@@ -471,13 +471,10 @@ async def test_old_activity_ends_before_suspended_without_inferred_gap(
         "suspended",
         "screen_locked",
     )
-    now = datetime(2026, 9, 14, 0, 1, 1, tzinfo=UTC)
     for record in (activity, suspended):
-        await service.create_activity(account_id=account_id, record=record, now=now)
+        await service.create_activity(account_id=account_id, record=record)
 
-    segments = await service.get_timeline(
-        account_id=account_id, date=date(2026, 9, 14), now=now
-    )
+    segments = await service.get_timeline(account_id=account_id, date=date(2026, 9, 14))
     assert len(segments) == 2
     assert isinstance(segments[0], ActivitySegmentResponse)
     assert isinstance(segments[1], CaptureGapResponse)
@@ -491,31 +488,26 @@ async def test_open_gap_reaches_today_but_not_future(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 16, 0, 0, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     await service.create_activity(
         account_id=account_id,
         record=state_change(
             device_id, 1, "2026-09-14T00:00:00Z", "suspended", "screen_locked"
         ),
-        now=datetime(2026, 9, 16, 0, 0, tzinfo=UTC),
     )
-    today = datetime(2026, 9, 16, 0, 0, tzinfo=UTC)
     for query_date in (date(2026, 9, 14), date(2026, 9, 15), date(2026, 9, 16)):
-        segments = await service.get_timeline(
-            account_id=account_id, date=query_date, now=today
-        )
+        segments = await service.get_timeline(account_id=account_id, date=query_date)
         assert len(segments) == 1
         assert isinstance(segments[0], CaptureGapResponse)
         assert segments[0].ended_at is None
     assert (
-        await service.get_timeline(
-            account_id=account_id, date=date(2026, 9, 17), now=today
-        )
-        == []
+        await service.get_timeline(account_id=account_id, date=date(2026, 9, 17)) == []
     )
 
 
@@ -525,21 +517,20 @@ async def test_far_future_date_is_empty_even_with_activity(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 14, 0, 0, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     record = observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"})
-    await service.create_activity(
-        account_id=account_id, record=record, now=record.observed_at
-    )
+    await service.create_activity(account_id=account_id, record=record)
 
     assert (
         await service.get_timeline(
             account_id=account_id,
             date=date.max,
-            now=datetime(2026, 9, 14, 0, 0, tzinfo=UTC),
         )
         == []
     )
@@ -552,10 +543,12 @@ async def test_late_observation_matches_chronological_timeline(
     first_account, first_device, _ = await account_with_devices(integration_session)
     second_account, second_device, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 14, 0, 1, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     detailed = detailed_context()
     times = [
@@ -576,19 +569,16 @@ async def test_late_observation_matches_chronological_timeline(
         observation(second_device, index + 1, instant, contexts[index])
         for index, instant in enumerate(times)
     ]
-    now = datetime(2026, 9, 14, 0, 1, tzinfo=UTC)
     for record in chronological:
-        await service.create_activity(account_id=first_account, record=record, now=now)
+        await service.create_activity(account_id=first_account, record=record)
     for index in (0, 2, 1):
-        await service.create_activity(
-            account_id=second_account, record=late[index], now=now
-        )
+        await service.create_activity(account_id=second_account, record=late[index])
 
     first_timeline = await service.get_timeline(
-        account_id=first_account, date=date(2026, 9, 14), now=now
+        account_id=first_account, date=date(2026, 9, 14)
     )
     late_timeline = await service.get_timeline(
-        account_id=second_account, date=date(2026, 9, 14), now=now
+        account_id=second_account, date=date(2026, 9, 14)
     )
     assert len(first_timeline) == len(late_timeline) == 3
     assert [
@@ -606,26 +596,23 @@ async def test_late_bridge_merges_and_keeps_earliest_segment_id(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 14, 0, 2, 1, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     first = observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"})
     last = observation(device_id, 3, "2026-09-14T00:02:00Z", {"kind": "opaque"})
     bridge = observation(device_id, 2, "2026-09-14T00:01:00Z", {"kind": "opaque"})
-    now = datetime(2026, 9, 14, 0, 2, 1, tzinfo=UTC)
     for record in (first, last):
-        await service.create_activity(account_id=account_id, record=record, now=now)
-    before = await service.get_timeline(
-        account_id=account_id, date=date(2026, 9, 14), now=now
-    )
+        await service.create_activity(account_id=account_id, record=record)
+    before = await service.get_timeline(account_id=account_id, date=date(2026, 9, 14))
     assert len(before) == 2
 
-    await service.create_activity(account_id=account_id, record=bridge, now=now)
-    after = await service.get_timeline(
-        account_id=account_id, date=date(2026, 9, 14), now=now
-    )
+    await service.create_activity(account_id=account_id, record=bridge)
+    after = await service.get_timeline(account_id=account_id, date=date(2026, 9, 14))
     assert len(after) == 1
     assert after[0].segment_id == before[0].segment_id
 
@@ -636,10 +623,12 @@ async def test_late_split_stops_at_unchanged_downstream_segment(
 ) -> None:
     account_id, device_id, _ = await account_with_devices(integration_session)
     await integration_session.commit()
+    fake_clock = FakeClock(datetime(2026, 9, 14, 0, 1, 31, tzinfo=UTC))
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
+        clock=fake_clock,
     )
     observations = [
         observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"}),
@@ -647,12 +636,9 @@ async def test_late_split_stops_at_unchanged_downstream_segment(
         observation(device_id, 3, "2026-09-14T00:01:00Z", {"kind": "opaque"}),
         observation(device_id, 4, "2026-09-14T00:01:30Z", detailed_context()),
     ]
-    now = datetime(2026, 9, 14, 0, 1, 31, tzinfo=UTC)
     for record in observations:
-        await service.create_activity(account_id=account_id, record=record, now=now)
-    before = await service.get_timeline(
-        account_id=account_id, date=date(2026, 9, 14), now=now
-    )
+        await service.create_activity(account_id=account_id, record=record)
+    before = await service.get_timeline(account_id=account_id, date=date(2026, 9, 14))
     assert len(before) == 4
     untouched_id = before[2].segment_id
     old_xmin = await integration_session.scalar(
@@ -667,11 +653,8 @@ async def test_late_split_stops_at_unchanged_downstream_segment(
     await service.create_activity(
         account_id=account_id,
         record=observation(device_id, 5, "2026-09-14T00:00:15Z", detailed_context()),
-        now=now,
     )
-    after = await service.get_timeline(
-        account_id=account_id, date=date(2026, 9, 14), now=now
-    )
+    after = await service.get_timeline(account_id=account_id, date=date(2026, 9, 14))
     assert len(after) == 4
     assert after[0].segment_id == before[0].segment_id
     assert after[2].segment_id == untouched_id
@@ -708,7 +691,8 @@ async def test_projection_database_rejects_wrong_kind_fields(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
-    ).create_activity(account_id=account_id, record=record, now=record.observed_at)
+        clock=FakeClock(datetime(2026, 9, 14, 0, 0, tzinfo=UTC)),
+    ).create_activity(account_id=account_id, record=record)
     values: dict[str, object] = {
         "segment_id": uuid4(),
         "account_id": account_id,
@@ -738,7 +722,8 @@ async def test_projection_database_rejects_unsupported_segment_type(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
-    ).create_activity(account_id=account_id, record=record, now=record.observed_at)
+        clock=FakeClock(datetime(2026, 9, 14, 0, 0, tzinfo=UTC)),
+    ).create_activity(account_id=account_id, record=record)
 
     with pytest.raises(IntegrityError):
         await integration_session.execute(
@@ -770,7 +755,8 @@ async def test_account_delete_cascades_raw_and_projection(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
-    ).create_activity(account_id=account_id, record=record, now=record.observed_at)
+        clock=FakeClock(datetime(2026, 9, 14, 0, 0, tzinfo=UTC)),
+    ).create_activity(account_id=account_id, record=record)
 
     await integration_session.execute(
         delete(Account).where(Account.account_id == account_id)
@@ -800,7 +786,8 @@ async def test_referenced_raw_event_cannot_be_deleted_without_projection_change(
         session=integration_session,
         repository=ActivityRepository(integration_session),
         device_repository=DeviceRepository(integration_session),
-    ).create_activity(account_id=account_id, record=record, now=record.observed_at)
+        clock=FakeClock(datetime(2026, 9, 14, 0, 0, tzinfo=UTC)),
+    ).create_activity(account_id=account_id, record=record)
     await integration_session.execute(
         delete(StoredActivityRecord).where(
             StoredActivityRecord.event_id == record.event_id

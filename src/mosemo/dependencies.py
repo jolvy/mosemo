@@ -1,5 +1,3 @@
-from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Annotated, cast
 
 import httpx2
@@ -22,6 +20,7 @@ from mosemo.auth.oauth_client import OAuthClient
 from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.service import AuthService, OAuthClientResolver
 from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
+from mosemo.clock import Clock, utc_now
 from mosemo.config import Config, get_config
 from mosemo.database import get_session
 from mosemo.devices.repository import DeviceRepository
@@ -44,11 +43,11 @@ ConfigDep = Annotated[Config, Depends(get_config)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-def get_clock() -> Callable[[], datetime]:
-    return lambda: datetime.now(UTC)
+def get_clock() -> Clock:
+    return utc_now
 
 
-ClockDep = Annotated[Callable[[], datetime], Depends(get_clock)]
+ClockDep = Annotated[Clock, Depends(get_clock)]
 
 
 def get_account_repository(session: SessionDep) -> AccountRepository:
@@ -110,11 +109,13 @@ def get_activity_service(
     session: SessionDep,
     repository: ActivityRepositoryDep,
     device_repository: DeviceRepositoryDep,
+    clock: ClockDep,
 ) -> ActivityService:
     return ActivityService(
         session=session,
         repository=repository,
         device_repository=device_repository,
+        clock=clock,
     )
 
 
@@ -247,6 +248,7 @@ def get_auth_service(
     get_oauth_client: OAuthClientResolverDep,
     token_service: TokenServiceDep,
     config: ConfigDep,
+    clock: ClockDep,
 ) -> AuthService:
     return AuthService(
         get_oauth_client=get_oauth_client,
@@ -256,6 +258,7 @@ def get_auth_service(
         label_catalog_repository=label_catalog_repository,
         token_service=token_service,
         config=config.auth,
+        clock=clock,
     )
 
 

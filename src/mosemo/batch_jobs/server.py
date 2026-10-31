@@ -9,6 +9,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.util import undefined
 
 from mosemo.batch_jobs.job import BatchJob, execute_job
+from mosemo.clock import Clock
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ def _tracked(job: BatchJob, running: set[asyncio.Task[object]]):
 
 
 def build_scheduler(
-    jobs: Sequence[BatchJob], running: set[asyncio.Task[object]]
+    jobs: Sequence[BatchJob], running: set[asyncio.Task[object]], *, now: datetime
 ) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone=UTC)
     for job in jobs:
@@ -46,16 +47,20 @@ def build_scheduler(
             coalesce=True,
             # None runs a late tick once (coalesced) instead of dropping it.
             misfire_grace_time=None,
-            next_run_time=datetime.now(UTC) if job.schedule.run_on_start else undefined,
+            next_run_time=now if job.schedule.run_on_start else undefined,
         )
     return scheduler
 
 
 async def serve(
-    jobs: Sequence[BatchJob], stop: asyncio.Event, *, shutdown_timeout: float = 10.0
+    jobs: Sequence[BatchJob],
+    stop: asyncio.Event,
+    *,
+    clock: Clock,
+    shutdown_timeout: float = 10.0,
 ) -> None:
     running: set[asyncio.Task[object]] = set()
-    scheduler = build_scheduler(jobs, running)
+    scheduler = build_scheduler(jobs, running, now=clock())
     scheduler.start()
     logger.info("batch job server started", extra={"operation": "batch_jobs"})
     try:

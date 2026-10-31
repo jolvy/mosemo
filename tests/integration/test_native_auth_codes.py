@@ -19,7 +19,9 @@ from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.service import AuthService, InvalidAuthorizationCodeError
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import Clock, utc_now
 from mosemo.config import Config
+from tests.clock_support import FakeClock
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
@@ -29,6 +31,7 @@ def make_service(
     *,
     session: AsyncSession,
     config: Config,
+    clock: Clock,
 ) -> AuthService:
     return AuthService(
         get_oauth_client=Mock(return_value=create_autospec(KakaoClient, instance=True)),
@@ -38,6 +41,7 @@ def make_service(
         label_catalog_repository=LabelCatalogRepository(session),
         token_service=TokenService(config.auth),
         config=config.auth,
+        clock=clock,
     )
 
 
@@ -63,6 +67,7 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
         label_catalog_repository=LabelCatalogRepository(integration_session),
         token_service=TokenService(config.auth),
         config=config.auth,
+        clock=FakeClock(utc_now()),
     )
 
     with pytest.raises(RuntimeError, match="code storage failed"):
@@ -98,6 +103,7 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
         label_catalog_repository=LabelCatalogRepository(integration_session),
         token_service=TokenService(config.auth),
         config=config.auth,
+        clock=FakeClock(utc_now()),
     )
 
     await service.login(
@@ -181,6 +187,7 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
                 label_catalog_repository=LabelCatalogRepository(session),
                 token_service=TokenService(config.auth),
                 config=config.auth,
+                clock=FakeClock(utc_now()),
             )
 
             with pytest.raises(RuntimeError, match="code storage failed"):
@@ -221,6 +228,8 @@ async def test_authorization_code_is_hashed_and_consumed_once_concurrently(
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     account_id: UUID | None = None
 
+    fake_clock = FakeClock(utc_now())
+
     try:
         authorization_code = secrets.token_urlsafe(32)
         code_digest = hashlib.sha256(authorization_code.encode()).hexdigest()
@@ -238,7 +247,7 @@ async def test_authorization_code_is_hashed_and_consumed_once_concurrently(
                 code_digest=code_digest,
                 account_id=account_id,
                 code_challenge=CODE_CHALLENGE,
-                expires_at=datetime.now(UTC) + timedelta(minutes=1),
+                expires_at=fake_clock.now + timedelta(minutes=1),
             )
             await session.commit()
 
@@ -254,6 +263,7 @@ async def test_authorization_code_is_hashed_and_consumed_once_concurrently(
                     return await make_service(
                         session=session,
                         config=config,
+                        clock=fake_clock,
                     ).exchange_authorization_code(
                         authorization_code=authorization_code,
                         code_verifier=CODE_VERIFIER,
@@ -287,6 +297,8 @@ async def test_expired_authorization_code_is_deleted(
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     account_id: UUID | None = None
 
+    fake_clock = FakeClock(utc_now())
+
     try:
         authorization_code = secrets.token_urlsafe(32)
         code_digest = hashlib.sha256(authorization_code.encode()).hexdigest()
@@ -304,7 +316,7 @@ async def test_expired_authorization_code_is_deleted(
                 code_digest=code_digest,
                 account_id=account_id,
                 code_challenge=CODE_CHALLENGE,
-                expires_at=datetime.now(UTC) - timedelta(seconds=1),
+                expires_at=fake_clock.now - timedelta(seconds=1),
             )
             await session.commit()
 
@@ -313,6 +325,7 @@ async def test_expired_authorization_code_is_deleted(
                 await make_service(
                     session=session,
                     config=config,
+                    clock=fake_clock,
                 ).exchange_authorization_code(
                     authorization_code=authorization_code,
                     code_verifier=CODE_VERIFIER,

@@ -40,6 +40,7 @@ async def process_published_batches(url: str, bootstrap_servers: str, topic: str
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
     from mosemo.activities.executor import BatchProcessingExecutor
+    from mosemo.clock import utc_now
     from mosemo.infra.batch_consumer import ActivityBatchConsumer
 
     engine = create_async_engine(url)
@@ -57,7 +58,8 @@ async def process_published_batches(url: str, bootstrap_servers: str, topic: str
                     consumer_only=True,
                 )
                 worker = ActivityBatchConsumer(
-                    broker, BatchProcessingExecutor(async_sessionmaker(engine))
+                    broker,
+                    BatchProcessingExecutor(async_sessionmaker(engine), clock=utc_now),
                 )
                 task = asyncio.create_task(worker.run(topic, stop, group_id=group))
                 async with asyncio.timeout(30):
@@ -129,6 +131,7 @@ with (
     from mosemo.activities.models import ActivityRecord
     from mosemo.activity_labels.catalog.models import Label
     from mosemo.auth.tokens import TokenService
+    from mosemo.clock import utc_now
     from mosemo.config import get_config
     from mosemo.devices.models import Device
 
@@ -146,7 +149,7 @@ with (
             result = {
                 "url": api_url,
                 "token": TokenService(get_config().auth).issue_access_token(
-                    account.account_id
+                    account.account_id, now=utc_now()
                 ),
                 "deviceID": str(device.device_id),
                 "labelID": str(label.label_id),

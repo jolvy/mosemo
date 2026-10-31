@@ -1,7 +1,6 @@
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from time import perf_counter
 from uuid import UUID, uuid4
 
@@ -35,6 +34,7 @@ from mosemo.activity_labels.proposals.suggestions import (
     SuggestionResult,
     summarize_context,
 )
+from mosemo.clock import Clock
 
 MAX_EXAMPLES = 8
 SCAN_PAGE_SIZE = 100
@@ -169,11 +169,11 @@ class ProposalProcessor:
         session_factory: async_sessionmaker[AsyncSession],
         *,
         suggester: LabelSuggester,
-        now: Callable[[], datetime] | None = None,
+        clock: Clock,
     ) -> None:
         self._session_factory = session_factory
         self._suggester = suggester
-        self._now = now or (lambda: datetime.now(UTC))
+        self._clock = clock
 
     async def process_candidate(self, account_id: UUID, first_event_id: UUID) -> bool:
         try:
@@ -216,7 +216,7 @@ class ProposalProcessor:
         first_event_id: UUID,
         activity: str,
     ) -> SuggestionInput:
-        now = self._now()
+        now = self._clock()
         async with self._session_factory() as session:
             catalog_repository = LabelCatalogRepository(session)
             labels = await catalog_repository.list_active_owned(account_id=account_id)
@@ -235,7 +235,7 @@ class ProposalProcessor:
         )
 
     async def _claim(self, account_id: UUID, first_event_id: UUID) -> _Claim:
-        now = self._now()
+        now = self._clock()
         async with self._session_factory() as session, session.begin():
             await acquire_activity_timeline_lock(session, account_id=account_id)
             activity_repository = ActivityRepository(session)
@@ -291,7 +291,7 @@ class ProposalProcessor:
         result: SuggestionResult | None,
         latency_ms: int,
     ) -> None:
-        now = self._now()
+        now = self._clock()
         async with self._session_factory() as session, session.begin():
             await acquire_activity_timeline_lock(session, account_id=account_id)
             proposal = await session.get(ActivityLabelProposal, claim.proposal_id)
@@ -353,11 +353,11 @@ class ProposalScanner:
         session_factory: async_sessionmaker[AsyncSession],
         processor: ProposalProcessor,
         *,
-        now: Callable[[], datetime] | None = None,
+        clock: Clock,
     ) -> None:
         self._session_factory = session_factory
         self._processor = processor
-        self._now = now or (lambda: datetime.now(UTC))
+        self._clock = clock
         self._last_segment_id: UUID | None = None
 
     async def run_once(self, *, max_processed: int = 100) -> int:
@@ -418,7 +418,7 @@ class ProposalScanner:
         return ProposalScanBatch(processed, scanned, False)
 
     async def _find_page(self, *, limit: int) -> list[_ScannedSegment]:
-        now = self._now()
+        now = self._clock()
         async with self._session_factory() as session:
             statement = (
                 select(ActivityTimelineSegment)

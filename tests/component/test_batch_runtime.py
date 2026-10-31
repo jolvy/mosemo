@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from mosemo.activities.executor import LegacyBatchExecutor
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import utc_now
 from mosemo.config import BatchDeliveryConfig, Config, get_config
 from mosemo.dependencies import get_device_repository
 from mosemo.exception_handlers import register_exception_handlers
@@ -29,7 +30,7 @@ def make_app(config: Config):
     account_id = uuid4()
     headers = {
         "Authorization": "Bearer "
-        + TokenService(config.auth).issue_access_token(account_id)
+        + TokenService(config.auth).issue_access_token(account_id, now=utc_now())
     }
     return app, devices, account_id, headers
 

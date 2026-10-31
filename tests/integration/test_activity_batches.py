@@ -19,8 +19,10 @@ from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.activities.timeline import ProjectedActivity, project_events
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import utc_now
 from mosemo.config import Config
 from mosemo.devices.models import Device
+from tests.clock_support import FakeClock
 
 
 def record(sequence, seconds, *, context=None, event_id=None):
@@ -44,9 +46,14 @@ def batch(device, records, *, batch_id=None):
     }
 
 
+@pytest.fixture
+def fake_clock() -> FakeClock:
+    return FakeClock(utc_now())
+
+
 @pytest_asyncio.fixture
 async def real_batch_app(
-    integration_database_url, config: Config, monkeypatch
+    integration_database_url, config: Config, monkeypatch, fake_clock: FakeClock
 ) -> AsyncIterator:
     # Exercise the direct-processing route against isolated PostgreSQL. Kafka
     # publication is tested independently; Consumer execution belongs to #65.
@@ -71,8 +78,10 @@ async def real_batch_app(
     # Main token config is the explicit non-secret test environment, overridden
     # with the fixture config for matching signing claims.
     from mosemo.config import get_config
+    from mosemo.dependencies import get_clock
 
     app.dependency_overrides[get_config] = lambda: config
+    app.dependency_overrides[get_clock] = lambda: fake_clock
     accounts = []
     devices = []
     async with factory() as session:
@@ -101,7 +110,7 @@ async def real_batch_app(
             headers = [
                 {
                     "Authorization": "Bearer "
-                    + TokenService(config.auth).issue_access_token(owner)
+                    + TokenService(config.auth).issue_access_token(owner, now=utc_now())
                 }
                 for owner in accounts
             ]
@@ -233,7 +242,7 @@ async def test_postgres_projection_failure_rolls_back_whole_batch_and_other_acco
 
 @pytest.mark.asyncio
 async def test_append_and_past_replay_match_full_reference_and_stop_reading_suffix(
-    real_batch_app, monkeypatch
+    real_batch_app, monkeypatch, fake_clock
 ):
     _app, client, factory, accounts, devices, headers, _ = real_batch_app
 
@@ -297,7 +306,7 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
             accounts[0], from_observed_at=datetime(2026, 9, 14, tzinfo=UTC)
         )
         segments = await repo.list_account_segments(accounts[0])
-    reference = project_events(source, now=datetime.now(UTC))
+    reference = project_events(source, now=fake_clock.now)
     for stored, expected in zip(segments, reference, strict=True):
         assert (stored.started_at, stored.ended_at, stored.first_event_id) == (
             expected.started_at,
@@ -407,7 +416,7 @@ async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("first_batch", ["append", "late", "duplicate", "rollback"])
 async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_processing(
-    real_batch_app, monkeypatch, first_batch
+    real_batch_app, monkeypatch, first_batch, fake_clock
 ):
     _app, client, factory, accounts, devices, headers, _ = real_batch_app
 
@@ -446,7 +455,7 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
         # Legacy ties followed received_at: B before A, and F before E.
         await repo.replace_account_segments(
             account_id=accounts[0],
-            projected=project_events(stored, now=datetime.now(UTC)),
+            projected=project_events(stored, now=fake_clock.now),
             existing=[],
             event_observed_at=stored[-1].observed_at,
         )
@@ -471,7 +480,7 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
                 accounts[0], from_observed_at=stored[0].observed_at
             )
             segments = await repo.list_account_segments(accounts[0])
-        reference = project_events(source, now=datetime.now(UTC))
+        reference = project_events(source, now=fake_clock.now)
         assert [shape(s) for s in segments] == [shape(s) for s in reference]
         assert (
             next(s.segment_id for s in segments if s.context == context("C"))
@@ -746,7 +755,7 @@ async def test_legacy_lock_timeout_keeps_http_contract_and_releases_transaction(
 @pytest.mark.parametrize("path", ["legacy", "kafka"])
 @pytest.mark.parametrize("failure", ["projection", "commit"])
 async def test_executors_rollback_raw_projection_and_receipt(
-    real_batch_app, monkeypatch, path, failure
+    real_batch_app, monkeypatch, path, failure, fake_clock
 ):
     from sqlalchemy import event
 
@@ -780,7 +789,7 @@ async def test_executors_rollback_raw_projection_and_receipt(
             assert response.status_code == 500
         else:
             with pytest.raises(RuntimeError, match=f"injected {failure} failure"):
-                await BatchProcessingExecutor(factory).execute(
+                await BatchProcessingExecutor(factory, clock=fake_clock).execute(
                     ActivityRegistrationRequested.from_batch(accounts[0], payload)
                 )
         assert await counts(factory, devices[0]) == (0, 0)

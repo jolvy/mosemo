@@ -9,6 +9,7 @@ from faststream.kafka import KafkaBroker
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mosemo.activities.executor import BatchProcessingExecutor
+from mosemo.clock import utc_now
 from mosemo.config import BatchDeliveryConfig
 from mosemo.infra.batch_consumer import ActivityBatchConsumer
 from mosemo.infra.batch_delivery import ActivityBatchPublisher
@@ -31,9 +32,9 @@ class MessagingRuntime:
             graceful_timeout=0,
             consumer_only=True,
         )
-        await ActivityBatchConsumer(broker, BatchProcessingExecutor(sessions)).run(
-            config.topic, stop, group_id=config.group_id
-        )
+        await ActivityBatchConsumer(
+            broker, BatchProcessingExecutor(sessions, clock=utc_now)
+        ).run(config.topic, stop, group_id=config.group_id)
 
     def __init__(self, api: FastAPI, config: BatchDeliveryConfig):
         self.api = api

@@ -14,6 +14,7 @@ from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.models import ActivityRecord
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import utc_now
 from mosemo.config import Config, get_config
 from mosemo.database import get_session
 from mosemo.devices.models import Device
@@ -83,7 +84,7 @@ async def create_account_with_devices(
 
 
 def auth_headers(config: Config, account_id: UUID) -> dict[str, str]:
-    token = TokenService(config.auth).issue_access_token(account_id)
+    token = TokenService(config.auth).issue_access_token(account_id, now=utc_now())
     return {"Authorization": f"Bearer {token}"}
 
 

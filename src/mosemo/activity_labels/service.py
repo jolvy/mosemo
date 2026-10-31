@@ -1,5 +1,4 @@
-from collections.abc import Callable
-from datetime import UTC, date, datetime
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +19,7 @@ from mosemo.activity_labels.schemas import (
     ConfirmedActivityLabelStateResponse,
     LabelTimelineItemResponse,
 )
+from mosemo.clock import Clock
 
 
 class ActivityLabelService:
@@ -31,7 +31,7 @@ class ActivityLabelService:
         confirmation_repository: ConfirmationRepository,
         label_catalog_repository: LabelCatalogRepository,
         proposal_repository: ProposalRepository,
-        clock: Callable[[], datetime],
+        clock: Clock,
     ) -> None:
         self._session = session
         self._confirmations = ConfirmationService(
@@ -49,21 +49,21 @@ class ActivityLabelService:
         self._clock = clock
 
     async def get_timeline(
-        self, *, account_id: UUID, date: date | None = None, now: datetime | None = None
+        self, *, account_id: UUID, date: date | None = None
     ) -> list[LabelTimelineItemResponse]:
-        current_time = now or self._clock()
+        now = self._clock()
         async with self._session.begin():
             return await self._queries.get_timeline(
-                account_id=account_id, date=date, current_time=current_time
+                account_id=account_id, date=date, now=now
             )
 
     async def get_state(
-        self, *, account_id: UUID, segment_id: UUID, now: datetime | None = None
+        self, *, account_id: UUID, segment_id: UUID
     ) -> ActivityLabelStateResponse:
-        current_time = now or datetime.now(UTC)
+        now = self._clock()
         async with self._session.begin():
             return await self._queries.get_state(
-                account_id=account_id, segment_id=segment_id, current_time=current_time
+                account_id=account_id, segment_id=segment_id, now=now
             )
 
     async def confirm(
@@ -72,19 +72,18 @@ class ActivityLabelService:
         account_id: UUID,
         segment_id: UUID,
         request: ActivityLabelConfirmationRequest,
-        now: datetime | None = None,
     ) -> ConfirmedActivityLabelStateResponse:
-        current_time = now or datetime.now(UTC)
+        now = self._clock()
         async with self._session.begin():
             await acquire_activity_timeline_lock(self._session, account_id=account_id)
             saved = await self._confirmations.confirm(
                 account_id=account_id,
                 segment_id=segment_id,
                 request=request,
-                current_time=current_time,
+                now=now,
             )
             return await self._queries.confirmed_state(
-                account_id=account_id, saved=saved, current_time=current_time
+                account_id=account_id, saved=saved, now=now
             )
 
     async def confirm_batch(
@@ -92,19 +91,18 @@ class ActivityLabelService:
         *,
         account_id: UUID,
         request: BatchLabelConfirmationRequest,
-        now: datetime | None = None,
     ) -> BatchLabelConfirmationResponse:
         self._confirmations.reject_duplicate_segments(request)
-        current_time = now or datetime.now(UTC)
+        now = self._clock()
         async with self._session.begin():
             await acquire_activity_timeline_lock(self._session, account_id=account_id)
             saved = await self._confirmations.confirm_batch(
-                account_id=account_id, request=request, current_time=current_time
+                account_id=account_id, request=request, now=now
             )
             return BatchLabelConfirmationResponse(
                 items=[
                     await self._queries.confirmed_state(
-                        account_id=account_id, saved=item, current_time=current_time
+                        account_id=account_id, saved=item, now=now
                     )
                     for item in saved
                 ]

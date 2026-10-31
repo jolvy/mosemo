@@ -14,9 +14,11 @@ from mosemo.activities.executor import BatchProcessingExecutor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
 from mosemo.activities.schemas import ActivityBatchRequest
+from mosemo.clock import utc_now
 from mosemo.devices.models import Device
 from mosemo.infra.batch_consumer import ActivityBatchConsumer
 from mosemo.infra.kafka_compat import BatchPartition
+from tests.clock_support import FakeClock
 from tests.integration.test_activity_batches import batch, record
 from tests.kafka_support import GroupOffsets, KafkaTestAdmin
 
@@ -127,7 +129,7 @@ async def test_real_partitions_parallel_but_next_batch_waits_for_db_and_offset_a
     entered = asyncio.Queue()
     release = {owner: asyncio.Event() for owner in owners}
     before_commit, allow_commit = asyncio.Event(), asyncio.Event()
-    real_executor = BatchProcessingExecutor(sessions)
+    real_executor = BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
 
     class Executor:
         async def execute(self, msg):
@@ -178,7 +180,7 @@ async def test_valid_offsets_resume_and_new_group_uses_earliest(
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
     seen = []
-    real = BatchProcessingExecutor(sessions)
+    real = BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
 
     class Executor:
         async def execute(self, msg):
@@ -225,7 +227,7 @@ async def test_rebalance_between_group_members_cancels_old_session_before_replay
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
     entered, cancelled = asyncio.Event(), asyncio.Event()
-    real = BatchProcessingExecutor(sessions)
+    real = BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
     seen = []
 
     class HeldExecutor:
@@ -359,7 +361,9 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 await eventually(api_ready)
                 headers = {
                     "Authorization": "Bearer "
-                    + TokenService(config.auth).issue_access_token(owners[0])
+                    + TokenService(config.auth).issue_access_token(
+                        owners[0], now=utc_now()
+                    )
                 }
                 body = batch(devices[0], [record(0, 0)])
                 response = await client.post(
@@ -544,7 +548,9 @@ async def test_kafka_commits_and_acks_while_account_advisory_lock_is_held(
     async with sessions() as holder, holder.begin():
         await acquire_activity_timeline_lock(holder, account_id=owners[0])
         await publish(config, owners[:1], devices[:1], 1)
-        async with running(config, BatchProcessingExecutor(sessions)) as (
+        async with running(
+            config, BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+        ) as (
             consumer,
             _,
             _,
@@ -570,7 +576,9 @@ async def test_real_kafka_commit_failure_rolls_back_every_write_without_ack(
     sessions, owners, devices = consumption_db
     await publish(config, owners[:1], devices[:1], 1)
     broker = KafkaBroker(config.bootstrap_servers, logger=None, graceful_timeout=0)
-    worker = ActivityBatchConsumer(broker, BatchProcessingExecutor(sessions))
+    worker = ActivityBatchConsumer(
+        broker, BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+    )
 
     def fail_commit(session):
         raise RuntimeError("injected Kafka DB commit failure")

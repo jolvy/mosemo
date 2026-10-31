@@ -21,12 +21,14 @@ from mosemo.auth.service import (
 )
 from mosemo.auth.tokens import TokenService
 from mosemo.config import Config
+from tests.clock_support import FakeClock
 
+NOW = datetime(2026, 9, 1, tzinfo=UTC)
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
 
 
-def make_service(config: Config):
+def make_service(config: Config, clock: FakeClock):
     oauth_client = create_autospec(OAuthClient, instance=True)
     session = create_autospec(AsyncSession, instance=True)
     account_repository = create_autospec(AccountRepository, instance=True)
@@ -45,6 +47,7 @@ def make_service(config: Config):
         label_catalog_repository=label_catalog_repository,
         token_service=token_service,
         config=config.auth,
+        clock=clock,
     )
     return (
         service,
@@ -61,6 +64,7 @@ def test_login_updates_existing_account_and_stores_code(
     config: Config,
     monkeypatch,
 ) -> None:
+    fake_clock = FakeClock(NOW)
     (
         service,
         get_oauth_client,
@@ -69,7 +73,7 @@ def test_login_updates_existing_account_and_stores_code(
         auth_code_repository,
         label_catalog_repository,
         _,
-    ) = make_service(config)
+    ) = make_service(config, fake_clock)
     oauth_client = get_oauth_client.return_value
     existing_account = Account(
         account_id=uuid4(),
@@ -83,7 +87,7 @@ def test_login_updates_existing_account_and_stores_code(
         lambda length: "one-time-authorization-code",
     )
 
-    before = datetime.now(UTC)
+    before = fake_clock.now
     result = asyncio.run(
         service.login(
             provider=AccountProvider.KAKAO,
@@ -118,6 +122,7 @@ def test_login_updates_existing_account_and_stores_code(
 def test_login_flushes_new_account_before_storing_code(
     config: Config,
 ) -> None:
+    fake_clock = FakeClock(NOW)
     (
         service,
         get_oauth_client,
@@ -126,7 +131,7 @@ def test_login_flushes_new_account_before_storing_code(
         auth_code_repository,
         label_catalog_repository,
         _,
-    ) = make_service(config)
+    ) = make_service(config, fake_clock)
     oauth_client = get_oauth_client.return_value
     new_account = Account(
         provider=AccountProvider.KAKAO,
@@ -164,8 +169,9 @@ def test_login_flushes_new_account_before_storing_code(
 
 
 def test_login_converts_client_error(config: Config) -> None:
+    fake_clock = FakeClock(NOW)
     service, get_oauth_client, session, account_repository, _, _, _ = make_service(
-        config
+        config, fake_clock
     )
     oauth_client = get_oauth_client.return_value
     oauth_client.get_user_id.side_effect = OAuthClientError()
@@ -187,15 +193,16 @@ def test_login_converts_client_error(config: Config) -> None:
 def test_exchange_authorization_code_consumes_code_and_issues_token(
     config: Config,
 ) -> None:
+    fake_clock = FakeClock(NOW)
     service, _, session, _, auth_code_repository, _, token_service = make_service(
-        config
+        config, fake_clock
     )
     account_id = uuid4()
     stored_code = NativeAuthCode(
         code_digest="digest",
         account_id=account_id,
         code_challenge=CODE_CHALLENGE,
-        expires_at=datetime.now(UTC) + timedelta(minutes=1),
+        expires_at=fake_clock.now + timedelta(minutes=1),
     )
     auth_code_repository.find_for_update.return_value = stored_code
     token_service.issue_access_token.return_value = "access-token"
@@ -215,20 +222,23 @@ def test_exchange_authorization_code_consumes_code_and_issues_token(
     auth_code_repository.delete.assert_awaited_once_with(stored_code)
     session.commit.assert_not_awaited()
     session.rollback.assert_not_awaited()
-    token_service.issue_access_token.assert_called_once_with(account_id)
+    token_service.issue_access_token.assert_called_once_with(
+        account_id, now=fake_clock.now
+    )
 
 
 def test_exchange_authorization_code_preserves_code_when_token_issuance_fails(
     config: Config,
 ) -> None:
+    fake_clock = FakeClock(NOW)
     service, _, session, _, auth_code_repository, _, token_service = make_service(
-        config
+        config, fake_clock
     )
     stored_code = NativeAuthCode(
         code_digest="digest",
         account_id=uuid4(),
         code_challenge=CODE_CHALLENGE,
-        expires_at=datetime.now(UTC) + timedelta(minutes=1),
+        expires_at=fake_clock.now + timedelta(minutes=1),
     )
     auth_code_repository.find_for_update.return_value = stored_code
     token_service.issue_access_token.side_effect = RuntimeError("token issuance failed")
@@ -248,14 +258,15 @@ def test_exchange_authorization_code_preserves_code_when_token_issuance_fails(
 
 
 def test_exchange_authorization_code_rejects_wrong_verifier(config: Config) -> None:
+    fake_clock = FakeClock(NOW)
     service, _, session, _, auth_code_repository, _, token_service = make_service(
-        config
+        config, fake_clock
     )
     stored_code = NativeAuthCode(
         code_digest="digest",
         account_id=uuid4(),
         code_challenge=CODE_CHALLENGE,
-        expires_at=datetime.now(UTC) + timedelta(minutes=1),
+        expires_at=fake_clock.now + timedelta(minutes=1),
     )
     auth_code_repository.find_for_update.return_value = stored_code
 
@@ -275,14 +286,15 @@ def test_exchange_authorization_code_rejects_wrong_verifier(config: Config) -> N
 
 
 def test_exchange_authorization_code_deletes_expired_code(config: Config) -> None:
+    fake_clock = FakeClock(NOW)
     service, _, session, _, auth_code_repository, _, token_service = make_service(
-        config
+        config, fake_clock
     )
     stored_code = NativeAuthCode(
         code_digest="digest",
         account_id=uuid4(),
         code_challenge=CODE_CHALLENGE,
-        expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        expires_at=fake_clock.now - timedelta(seconds=1),
     )
     auth_code_repository.find_for_update.return_value = stored_code
 
@@ -302,8 +314,9 @@ def test_exchange_authorization_code_deletes_expired_code(config: Config) -> Non
 
 
 def test_exchange_authorization_code_rejects_unknown_code(config: Config) -> None:
+    fake_clock = FakeClock(NOW)
     service, _, session, _, auth_code_repository, _, token_service = make_service(
-        config
+        config, fake_clock
     )
     auth_code_repository.find_for_update.return_value = None
 

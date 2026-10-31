@@ -24,6 +24,7 @@ from mosemo.activities.schemas import (
     TimelineSegmentResponse,
 )
 from mosemo.activities.timeline import project_events
+from mosemo.clock import Clock
 from mosemo.devices.repository import DeviceRepository
 from mosemo.focus_sessions.models import FocusSessionNotFoundError
 from mosemo.focus_sessions.repository import FocusSessionRepository
@@ -82,10 +83,10 @@ def timeline_date_window(
     *,
     account_timezone: Timezone,
     requested_date: date | None,
-    current_time: datetime,
+    now: datetime,
 ) -> tuple[date, datetime, datetime] | None:
     timezone = ZoneInfo(account_timezone.value)
-    today = current_time.astimezone(timezone).date()
+    today = now.astimezone(timezone).date()
     selected_date = requested_date or today
     if selected_date > today:
         return None
@@ -141,19 +142,20 @@ class ActivityService:
         session: AsyncSession,
         repository: ActivityRepository,
         device_repository: DeviceRepository,
+        clock: Clock,
     ) -> None:
         self._session = session
         self._repository = repository
         self._device_repository = device_repository
+        self._clock = clock
 
     async def create_activity(
         self,
         *,
         account_id: UUID,
         record: ActivityRecord,
-        now: datetime | None = None,
     ) -> ActivityCreateResponse:
-        current_time = now or datetime.now(UTC)
+        now = self._clock()
         async with self._session.begin():
             await acquire_activity_timeline_lock(
                 self._session,
@@ -194,7 +196,7 @@ class ActivityService:
                     account_id=account_id,
                     projected=project_events(
                         records,
-                        now=current_time,
+                        now=now,
                         stop_after_event_id=stored.event_id,
                         stop_when_closed=lambda segment: (
                             converged_old_index(
@@ -237,9 +239,8 @@ class ActivityService:
         *,
         account_id: UUID,
         date: date,
-        now: datetime | None = None,
     ) -> list[TimelineSegmentResponse]:
-        current_time = now or datetime.now(UTC)
+        now = self._clock()
         async with self._session.begin():
             account_timezone = await self._repository.find_account_timezone(account_id)
             if account_timezone is None:
@@ -247,7 +248,7 @@ class ActivityService:
             window = timeline_date_window(
                 account_timezone=account_timezone,
                 requested_date=date,
-                current_time=current_time,
+                now=now,
             )
             if window is None:
                 return []
@@ -263,14 +264,14 @@ class ActivityService:
                 if not segment.overlaps_window(
                     start=start,
                     end=end,
-                    now=current_time,
+                    now=now,
                 ):
                     continue
                 responses.append(
                     _timeline_response(
                         segment,
-                        kind=segment.timeline_kind_at(current_time),
-                        ended_at=segment.effective_ended_at(current_time),
+                        kind=segment.timeline_kind_at(now),
+                        ended_at=segment.effective_ended_at(now),
                     )
                 )
             return responses

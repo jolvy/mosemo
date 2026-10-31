@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -12,6 +12,7 @@ from mosemo.activities.service import (
     timeline_date_window,
 )
 from mosemo.activity_labels.catalog.models import Label
+from mosemo.clock import Clock
 from mosemo.devices.repository import DeviceRepository
 from mosemo.focus_sessions.models import (
     FocusSessionConflictError,
@@ -37,11 +38,13 @@ class FocusSessionService:
         repository: FocusSessionRepository,
         activity_repository: ActivityRepository,
         device_repository: DeviceRepository,
+        clock: Clock,
     ) -> None:
         self._session = session
         self._repository = repository
         self._activity_repository = activity_repository
         self._device_repository = device_repository
+        self._clock = clock
 
     async def create(
         self, account_id: UUID, request: FocusSessionCreateRequest
@@ -103,7 +106,7 @@ class FocusSessionService:
             window = timeline_date_window(
                 account_timezone=timezone,
                 requested_date=day,
-                current_time=datetime.now(UTC),
+                now=self._clock(),
             )
             if window is None:
                 return []

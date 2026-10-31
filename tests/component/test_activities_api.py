@@ -11,6 +11,7 @@ from mosemo.activities.schemas import ActivitySegmentResponse, CaptureGapRespons
 from mosemo.activities.service import ActivityService
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import utc_now
 from mosemo.config import Config, get_config
 from mosemo.dependencies import get_activity_service, get_device_repository
 from mosemo.exception_handlers import register_exception_handlers
@@ -46,7 +47,7 @@ def make_app(*, config: Config, account_id: UUID, service: ActivityService):
     app.state.devices = AsyncMock()
     app.state.batch_publisher = AsyncMock()
     app.dependency_overrides[get_device_repository] = lambda: app.state.devices
-    token = TokenService(config.auth).issue_access_token(account_id)
+    token = TokenService(config.auth).issue_access_token(account_id, now=utc_now())
     return app, token
 
 

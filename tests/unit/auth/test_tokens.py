@@ -1,10 +1,11 @@
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from uuid import uuid4
 
 import jwt
 import pytest
 
 from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
+from mosemo.clock import utc_now
 from mosemo.config import Config
 
 
@@ -12,7 +13,7 @@ def test_issue_and_decode_access_token(config: Config) -> None:
     service = TokenService(config.auth)
     account_id = uuid4()
 
-    token = service.issue_access_token(account_id)
+    token = service.issue_access_token(account_id, now=utc_now())
     payload = jwt.decode(token, options={"verify_signature": False})
 
     assert service.decode_access_token(token) == account_id
@@ -25,7 +26,7 @@ def test_issue_and_decode_access_token(config: Config) -> None:
 
 
 def encode_token(config: Config, **overrides) -> str:
-    now = datetime.now(UTC)
+    now = utc_now()
     payload = {
         "sub": str(uuid4()),
         "iss": config.auth.jwt_issuer,
@@ -65,7 +66,7 @@ def test_decode_rejects_malformed_or_forged_token(
 @pytest.mark.parametrize(
     "overrides",
     [
-        {"exp": datetime.now(UTC) - timedelta(seconds=1)},
+        {"exp": utc_now() - timedelta(seconds=1)},
         {"iss": "another-issuer"},
         {"aud": "another-audience"},
         {"token_type": "refresh"},
