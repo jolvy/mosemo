@@ -181,7 +181,7 @@ class ActivityService:
                     observed_at=record.observed_at,
                 )
 
-            stored = await self._repository.insert(record)
+            stored = await self._repository.add_if_absent(record)
             if stored is not None:
                 replay_start = await self._repository.find_replay_start(
                     account_id, stored.observed_at

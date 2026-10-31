@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
+from mosemo.activity_labels.catalog.models import DEFAULT_LABEL_NAMES
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.auth.models import NativeAuthCode
 from mosemo.auth.oauth_client import OAuthClient, OAuthClientError
@@ -103,20 +104,18 @@ def test_login_updates_existing_account_and_stores_code(
         provider_subject="123456789",
     )
     assert existing_account.last_authenticated_at >= before
-    account_repository.save.assert_not_called()
-    label_catalog_repository.create_defaults.assert_not_called()
+    account_repository.add.assert_not_called()
+    label_catalog_repository.add_all.assert_not_called()
     session.begin.assert_called_once_with()
     session.flush.assert_not_awaited()
     session.commit.assert_not_awaited()
     session.refresh.assert_not_awaited()
     auth_code_repository.delete_expired.assert_awaited_once()
-    save_call = auth_code_repository.save.call_args
-    assert (
-        save_call.kwargs["code_digest"] == hashlib.sha256(result.encode()).hexdigest()
-    )
-    assert save_call.kwargs["code_digest"] != result
-    assert save_call.kwargs["account_id"] == existing_account.account_id
-    assert save_call.kwargs["code_challenge"] == CODE_CHALLENGE
+    (stored_code,) = auth_code_repository.add.call_args.args
+    assert stored_code.code_digest == hashlib.sha256(result.encode()).hexdigest()
+    assert stored_code.code_digest != result
+    assert stored_code.account_id == existing_account.account_id
+    assert stored_code.code_challenge == CODE_CHALLENGE
 
 
 def test_login_flushes_new_account_before_storing_code(
@@ -133,18 +132,14 @@ def test_login_flushes_new_account_before_storing_code(
         _,
     ) = make_service(config, fake_clock)
     oauth_client = get_oauth_client.return_value
-    new_account = Account(
-        provider=AccountProvider.KAKAO,
-        provider_subject="123456789",
-    )
     account_id = uuid4()
 
     async def assign_account_id() -> None:
-        new_account.account_id = account_id
+        (added_account,) = account_repository.add.call_args.args
+        added_account.account_id = account_id
 
     oauth_client.get_user_id.return_value = "123456789"
     account_repository.find.return_value = None
-    account_repository.save.return_value = new_account
     session.flush.side_effect = assign_account_id
 
     result = asyncio.run(
@@ -156,16 +151,20 @@ def test_login_flushes_new_account_before_storing_code(
     )
 
     assert result
-    account_repository.save.assert_called_once_with(
-        provider=AccountProvider.KAKAO,
-        provider_subject="123456789",
+    account_repository.add.assert_called_once()
+    (new_account,) = account_repository.add.call_args.args
+    assert new_account.provider is AccountProvider.KAKAO
+    assert new_account.provider_subject == "123456789"
+    label_catalog_repository.add_all.assert_called_once()
+    (labels,) = label_catalog_repository.add_all.call_args.args
+    assert [label.account_id for label in labels] == [account_id] * len(
+        DEFAULT_LABEL_NAMES
     )
-    label_catalog_repository.create_defaults.assert_called_once_with(
-        account_id=account_id,
-    )
+    assert [label.display_name for label in labels] == list(DEFAULT_LABEL_NAMES)
     session.begin.assert_called_once_with()
     session.flush.assert_awaited_once_with()
-    assert auth_code_repository.save.call_args.kwargs["account_id"] == account_id
+    (stored_code,) = auth_code_repository.add.call_args.args
+    assert stored_code.account_id == account_id
 
 
 def test_login_converts_client_error(config: Config) -> None:

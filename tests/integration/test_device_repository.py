@@ -20,14 +20,16 @@ from mosemo.devices.service import DeviceService
 async def test_device_create_is_idempotent_within_account(
     integration_session: AsyncSession,
 ) -> None:
-    first_account = AccountRepository(integration_session).save(
+    first_account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"device-first-{uuid4()}",
     )
-    second_account = AccountRepository(integration_session).save(
+    AccountRepository(integration_session).add(first_account)
+    second_account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"device-second-{uuid4()}",
     )
+    AccountRepository(integration_session).add(second_account)
     await integration_session.flush()
     first_account_id = first_account.account_id
     second_account_id = second_account.account_id
@@ -76,10 +78,11 @@ async def test_concurrent_device_create_retries_return_one_id(
     account_id: UUID | None = None
     try:
         async with session_factory() as setup_session:
-            account = AccountRepository(setup_session).save(
+            account = Account(
                 provider=AccountProvider.KAKAO,
                 provider_subject=f"device-concurrent-{uuid4()}",
             )
+            AccountRepository(setup_session).add(account)
             await setup_session.commit()
             account_id = account.account_id
 

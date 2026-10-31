@@ -78,10 +78,11 @@ def collection_state_changed(
 async def create_account_and_device(
     session: AsyncSession,
 ) -> tuple[Account, Device]:
-    account = AccountRepository(session).save(
+    account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"activity-integration-{uuid4()}",
     )
+    AccountRepository(session).add(account)
     await session.flush()
     device = Device(
         account_id=account.account_id,
@@ -97,10 +98,11 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
     integration_session: AsyncSession,
 ) -> None:
     account, device = await create_account_and_device(integration_session)
-    other_account = AccountRepository(integration_session).save(
+    other_account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"activity-other-{uuid4()}",
     )
+    AccountRepository(integration_session).add(other_account)
     await integration_session.flush()
     account_id = account.account_id
     other_account_id = other_account.account_id
@@ -264,10 +266,11 @@ async def test_activity_service_hides_missing_and_unowned_devices(
     integration_session: AsyncSession,
 ) -> None:
     owner, device = await create_account_and_device(integration_session)
-    other_account = AccountRepository(integration_session).save(
+    other_account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"activity-unowned-{uuid4()}",
     )
+    AccountRepository(integration_session).add(other_account)
     await integration_session.commit()
     owner_id = owner.account_id
     other_account_id = other_account.account_id

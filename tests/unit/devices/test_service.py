@@ -26,7 +26,7 @@ def test_create_device_commits_new_device() -> None:
         account_id=account_id,
         idempotency_key=idempotency_key,
     )
-    repository.insert.return_value = device
+    repository.add_if_absent.return_value = device
 
     result = asyncio.run(
         service.create_device(
@@ -36,7 +36,7 @@ def test_create_device_commits_new_device() -> None:
     )
 
     assert result.device_id == device.device_id
-    repository.insert.assert_awaited_once_with(
+    repository.add_if_absent.assert_awaited_once_with(
         account_id=account_id,
         idempotency_key=idempotency_key,
     )
@@ -55,7 +55,7 @@ def test_create_device_returns_original_id_for_retry() -> None:
         account_id=account_id,
         idempotency_key=idempotency_key,
     )
-    repository.insert.return_value = None
+    repository.add_if_absent.return_value = None
     repository.find_by_idempotency_key.return_value = device
 
     result = asyncio.run(
@@ -77,7 +77,7 @@ def test_create_device_returns_original_id_for_retry() -> None:
 
 def test_create_device_rolls_back_unresolved_conflict() -> None:
     service, session, repository = make_service()
-    repository.insert.return_value = None
+    repository.add_if_absent.return_value = None
     repository.find_by_idempotency_key.return_value = None
 
     with pytest.raises(RuntimeError, match="device conflict could not be resolved"):

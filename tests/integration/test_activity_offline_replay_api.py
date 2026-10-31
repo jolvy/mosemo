@@ -65,10 +65,11 @@ async def create_account_with_devices(
     device_count: int = 1,
 ) -> tuple[UUID, list[UUID]]:
     async with session_factory() as session:
-        account = AccountRepository(session).save(
+        account = Account(
             provider=AccountProvider.KAKAO,
             provider_subject=f"offline-replay-{uuid4()}",
         )
+        AccountRepository(session).add(account)
         await session.flush()
         devices = [
             Device(account_id=account.account_id, idempotency_key=uuid4())

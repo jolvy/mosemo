@@ -5,9 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.accounts.models import AccountProvider
+from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
-from mosemo.activity_labels.catalog.models import Label
+from mosemo.activity_labels.catalog.models import Label, default_labels
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 
 
@@ -16,23 +16,23 @@ async def test_label_constraints_are_account_scoped_and_cascade(
     integration_session: AsyncSession,
 ) -> None:
     account_repository = AccountRepository(integration_session)
-    first_account = account_repository.save(
+    first_account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"label-{uuid4()}",
     )
-    second_account = account_repository.save(
+    account_repository.add(first_account)
+    second_account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"label-{uuid4()}",
     )
+    account_repository.add(second_account)
     await integration_session.flush()
 
     label_repository = LabelCatalogRepository(integration_session)
-    first_labels = label_repository.create_defaults(
-        account_id=first_account.account_id,
-    )
-    second_labels = label_repository.create_defaults(
-        account_id=second_account.account_id,
-    )
+    first_labels = default_labels(first_account.account_id)
+    label_repository.add_all(first_labels)
+    second_labels = default_labels(second_account.account_id)
+    label_repository.add_all(second_labels)
     await integration_session.flush()
     assert len(first_labels) == 5
     assert len(second_labels) == 5

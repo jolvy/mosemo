@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.service import activity_timeline_lock_key
-from mosemo.activity_labels.catalog.models import Label
+from mosemo.activity_labels.catalog.models import Label, default_labels
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
 from mosemo.activity_labels.proposals.models import (
@@ -196,17 +196,17 @@ def group_confirmation_item(
 async def create_account_with_labels(
     session: AsyncSession,
 ) -> tuple[UUID, Device, UUID, UUID]:
-    account = AccountRepository(session).save(
+    account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"label-confirmation-{uuid4()}",
     )
+    AccountRepository(session).add(account)
     await session.flush()
     device = Device(account_id=account.account_id, idempotency_key=uuid4())
     session.add(device)
     await session.flush()
-    labels = LabelCatalogRepository(session).create_defaults(
-        account_id=account.account_id
-    )
+    labels = default_labels(account.account_id)
+    LabelCatalogRepository(session).add_all(labels)
     await session.flush()
     return account.account_id, device, labels[0].label_id, labels[1].label_id
 

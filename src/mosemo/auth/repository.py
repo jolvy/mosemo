@@ -1,5 +1,4 @@
 from datetime import datetime
-from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,22 +10,8 @@ class NativeAuthCodeRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def save(
-        self,
-        *,
-        code_digest: str,
-        account_id: UUID,
-        code_challenge: str,
-        expires_at: datetime,
-    ) -> NativeAuthCode:
-        auth_code = NativeAuthCode(
-            code_digest=code_digest,
-            account_id=account_id,
-            code_challenge=code_challenge,
-            expires_at=expires_at,
-        )
+    def add(self, auth_code: NativeAuthCode) -> None:
         self._session.add(auth_code)
-        return auth_code
 
     async def find_for_update(self, code_digest: str) -> NativeAuthCode | None:
         result = await self._session.scalars(
