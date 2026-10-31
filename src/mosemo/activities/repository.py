@@ -8,6 +8,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account
+from mosemo.activities.constants import MAX_OBSERVATION_GAP
 from mosemo.activities.enums import SegmentType
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.models import ActivityTimelineSegment
@@ -370,6 +371,33 @@ class ActivityRepository:
             .where(ActivityTimelineSegment.account_id == account_id)
             .where(ActivityTimelineSegment.first_event_id == first_event_id)
         )
+
+    async def list_closed_detailed_segments(
+        self,
+        *,
+        after_segment_id: UUID | None,
+        now: datetime,
+        limit: int,
+    ) -> list[ActivityTimelineSegment]:
+        statement = (
+            select(ActivityTimelineSegment)
+            .where(ActivityTimelineSegment.segment_type == SegmentType.ACTIVITY)
+            .where(ActivityTimelineSegment.context["kind"].astext == "detailed")
+            .where(
+                or_(
+                    ActivityTimelineSegment.ended_at.is_not(None),
+                    ActivityTimelineSegment.last_observed_at
+                    < now - MAX_OBSERVATION_GAP,
+                )
+            )
+            .order_by(ActivityTimelineSegment.segment_id)
+            .limit(limit)
+        )
+        if after_segment_id is not None:
+            statement = statement.where(
+                ActivityTimelineSegment.segment_id > after_segment_id
+            )
+        return list((await self._session.scalars(statement)).all())
 
     async def replace_account_segments(
         self,

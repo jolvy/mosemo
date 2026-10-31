@@ -4,11 +4,9 @@ from datetime import datetime
 from time import perf_counter
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from mosemo.activities.constants import MAX_OBSERVATION_GAP
-from mosemo.activities.enums import ActivityTimelineKind, SegmentType
+from mosemo.activities.enums import ActivityTimelineKind
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.repository import (
     ActivityRepository,
@@ -88,7 +86,7 @@ class RecentConfirmedExampleRetriever:
     PAGE_SIZE = 40
 
     def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+        self._confirmation_repository = ConfirmationRepository(session)
 
     async def find(
         self,
@@ -98,30 +96,15 @@ class RecentConfirmedExampleRetriever:
         active_label_ids: set[UUID],
         now: datetime,
     ) -> list[ConfirmedExample]:
-        query = (
-            select(ActivityLabelConfirmation, ActivityTimelineSegment)
-            .join(
-                ActivityTimelineSegment,
-                and_(
-                    ActivityTimelineSegment.account_id
-                    == ActivityLabelConfirmation.account_id,
-                    ActivityTimelineSegment.first_event_id
-                    == ActivityLabelConfirmation.first_event_id,
-                ),
-            )
-            .where(ActivityLabelConfirmation.account_id == account_id)
-            .where(ActivityLabelConfirmation.first_event_id != exclude_first_event_id)
-            .order_by(
-                ActivityLabelConfirmation.updated_at.desc(),
-                ActivityLabelConfirmation.confirmation_id.desc(),
-            )
-        )
         examples: list[ConfirmedExample] = []
         offset = 0
         while len(examples) < MAX_EXAMPLES:
-            rows = (
-                await self._session.execute(query.limit(self.PAGE_SIZE).offset(offset))
-            ).all()
+            rows = await self._confirmation_repository.list_example_page(
+                account_id=account_id,
+                exclude_first_event_id=exclude_first_event_id,
+                limit=self.PAGE_SIZE,
+                offset=offset,
+            )
             if not rows:
                 break
             for confirmation, segment in rows:
@@ -250,7 +233,8 @@ class ProposalProcessor:
             )
             if confirmation is not None and confirmation.segment_version == version:
                 raise NoProposalWorkError
-            proposal = await ProposalRepository(session).find_proposal(
+            proposal_repository = ProposalRepository(session)
+            proposal = await proposal_repository.find_proposal(
                 account_id=account_id,
                 first_event_id=first_event_id,
                 segment_version=version,
@@ -263,7 +247,7 @@ class ProposalProcessor:
                     status=ActivityLabelProposalStatus.PROCESSING,
                     attempt_count=0,
                 )
-                session.add(proposal)
+                proposal_repository.add(proposal)
 
             token = uuid4()
             claim_result = proposal.try_start_attempt(now=now, token=token)
@@ -293,7 +277,7 @@ class ProposalProcessor:
         now = self._clock()
         async with self._session_factory() as session, session.begin():
             await ActivityRepository(session).lock_timeline(account_id)
-            proposal = await session.get(ActivityLabelProposal, claim.proposal_id)
+            proposal = await ProposalRepository(session).find_by_id(claim.proposal_id)
             if proposal is None or not proposal.owns_attempt(claim.lease_token):
                 return
             confirmation_repository = ConfirmationRepository(session)
@@ -419,25 +403,9 @@ class ProposalScanner:
     async def _find_page(self, *, limit: int) -> list[_ScannedSegment]:
         now = self._clock()
         async with self._session_factory() as session:
-            statement = (
-                select(ActivityTimelineSegment)
-                .where(ActivityTimelineSegment.segment_type == SegmentType.ACTIVITY)
-                .where(ActivityTimelineSegment.context["kind"].astext == "detailed")
-                .where(
-                    or_(
-                        ActivityTimelineSegment.ended_at.is_not(None),
-                        ActivityTimelineSegment.last_observed_at
-                        < now - MAX_OBSERVATION_GAP,
-                    )
-                )
-                .order_by(ActivityTimelineSegment.segment_id)
-                .limit(limit)
+            segments = await ActivityRepository(session).list_closed_detailed_segments(
+                after_segment_id=self._last_segment_id, now=now, limit=limit
             )
-            if self._last_segment_id is not None:
-                statement = statement.where(
-                    ActivityTimelineSegment.segment_id > self._last_segment_id
-                )
-            segments = list((await session.scalars(statement)).all())
             versioned_segments = [
                 (segment, _current_version(segment, now=now)) for segment in segments
             ]
@@ -461,16 +429,9 @@ class ProposalScanner:
                 (segment.account_id, segment.first_event_id)
                 for segment, _ in current_segments
             ]
-            confirmations = (
-                await session.scalars(
-                    select(ActivityLabelConfirmation).where(
-                        tuple_(
-                            ActivityLabelConfirmation.account_id,
-                            ActivityLabelConfirmation.first_event_id,
-                        ).in_(confirmation_keys)
-                    )
-                )
-            ).all()
+            confirmations = await ConfirmationRepository(session).list_by_keys(
+                confirmation_keys
+            )
             current_confirmations = {
                 (
                     confirmation.account_id,
@@ -483,17 +444,7 @@ class ProposalScanner:
                 (segment.account_id, segment.first_event_id, version)
                 for segment, version in current_segments
             ]
-            proposals = (
-                await session.scalars(
-                    select(ActivityLabelProposal).where(
-                        tuple_(
-                            ActivityLabelProposal.account_id,
-                            ActivityLabelProposal.first_event_id,
-                            ActivityLabelProposal.segment_version,
-                        ).in_(proposal_keys)
-                    )
-                )
-            ).all()
+            proposals = await ProposalRepository(session).list_by_keys(proposal_keys)
             current_proposals = {
                 (
                     proposal.account_id,
