@@ -13,7 +13,7 @@ class FocusSessionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def create(
+    async def add_if_absent(
         self, account_id: UUID, request: FocusSessionCreateRequest
     ) -> FocusSession | None:
         result = await self._session.scalars(

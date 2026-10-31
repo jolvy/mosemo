@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
+from mosemo.activity_labels.catalog.models import default_labels
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
+from mosemo.auth.models import NativeAuthCode
 from mosemo.auth.oauth_client import OAuthClient, OAuthClientError
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.repository import NativeAuthCodeRepository
@@ -69,13 +71,11 @@ class AuthService:
                 provider_subject=provider_subject,
             )
             if account is None:
-                account = self._account_repository.save(
-                    provider=provider,
-                    provider_subject=provider_subject,
-                )
+                account = Account(provider=provider, provider_subject=provider_subject)
+                self._account_repository.add(account)
                 await self._session.flush()
-                self._label_catalog_repository.create_defaults(
-                    account_id=account.account_id,
+                self._label_catalog_repository.add_all(
+                    default_labels(account.account_id)
                 )
             else:
                 account.last_authenticated_at = now
@@ -99,12 +99,14 @@ class AuthService:
         code_digest = hashlib.sha256(authorization_code.encode()).hexdigest()
 
         await self._native_auth_code_repository.delete_expired(now)
-        self._native_auth_code_repository.save(
-            code_digest=code_digest,
-            account_id=account.account_id,
-            code_challenge=code_challenge,
-            expires_at=now
-            + timedelta(seconds=self._config.authorization_code_ttl_seconds),
+        self._native_auth_code_repository.add(
+            NativeAuthCode(
+                code_digest=code_digest,
+                account_id=account.account_id,
+                code_challenge=code_challenge,
+                expires_at=now
+                + timedelta(seconds=self._config.authorization_code_ttl_seconds),
+            )
         )
         return authorization_code
 

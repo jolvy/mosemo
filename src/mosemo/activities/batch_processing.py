@@ -97,11 +97,11 @@ class ActivityBatchProcessor:
             if winner.fingerprint != fingerprint:
                 raise TerminalBatchError("batch_content_conflict")
             return winner.results
-        if not initialized and not await self.repository.account_clock_is_monotone(
+        if not initialized and not await self.repository.is_account_clock_monotone(
             account_id
         ):
             raise TerminalBatchError("projection_time_regression")
-        latest = await self.repository.latest_account_record(account_id)
+        latest = await self.repository.find_latest_account_record(account_id)
         if not initialized and latest is not None:
             await self._rebuild_legacy_projection(account_id, latest, now)
         adopted = []
@@ -145,7 +145,7 @@ class ActivityBatchProcessor:
                     FocusSessionInvalidTimeError,
                 ) as error:
                     raise TerminalBatchError(type(error).__name__) from None
-            stored = await self.repository.insert(record)
+            stored = await self.repository.add_if_absent(record)
             if stored is None:
                 event = await self.repository.find_by_event_id(record.event_id)
                 if event is not None:
@@ -166,7 +166,7 @@ class ActivityBatchProcessor:
                 status = "stored"
             results.append({"eventId": str(record.event_id), "status": status})
         for record in adopted:
-            if not await self.repository.validate_device_clock(record):
+            if not await self.repository.is_device_clock_valid(record):
                 raise TerminalBatchError("projection_time_regression")
         if adopted:
             try:
@@ -186,13 +186,13 @@ class ActivityBatchProcessor:
         start = datetime.min.replace(tzinfo=UTC)
         projection = TimelineProjection()
         after = None
-        while page := await self.repository.record_page(
+        while page := await self.repository.list_record_page(
             account_id, start=start, after=after
         ):
             for record in page:
                 projection.feed(record)
             after = observation_key(page[-1])
-        existing = await self.repository.segment_range(account_id, start=start)
+        existing = await self.repository.list_segment_range(account_id, start=start)
         await self.repository.replace_account_segments(
             account_id=account_id,
             projected=projection.finish(now),
@@ -211,7 +211,9 @@ class ActivityBatchProcessor:
         ordered = sorted(adopted, key=observation_key)
         append = latest is None or observation_key(ordered[0]) > observation_key(latest)
         last_segment = (
-            await self.repository.last_account_segment(account_id) if append else None
+            await self.repository.find_last_account_segment(account_id)
+            if append
+            else None
         )
         if append and last_segment is not None:
             projection = TimelineProjection(segment_seed(last_segment))
@@ -232,7 +234,7 @@ class ActivityBatchProcessor:
         remaining = {r.event_id for r in ordered}
         convergence = None
         while True:
-            page = await self.repository.record_page(
+            page = await self.repository.list_record_page(
                 account_id, start=start, after=after
             )
             if not page:
@@ -254,7 +256,7 @@ class ActivityBatchProcessor:
             if convergence is not None:
                 break
             after = observation_key(page[-1])
-        existing = await self.repository.segment_range(
+        existing = await self.repository.list_segment_range(
             account_id,
             start=start,
             through=convergence.started_at if convergence else None,

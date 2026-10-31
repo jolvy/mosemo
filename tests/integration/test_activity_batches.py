@@ -86,9 +86,10 @@ async def real_batch_app(
     devices = []
     async with factory() as session:
         for _ in range(2):
-            account = AccountRepository(session).save(
+            account = Account(
                 provider=AccountProvider.KAKAO, provider_subject=f"batches-{uuid4()}"
             )
+            AccountRepository(session).add(account)
             await session.flush()
             device = Device(account_id=account.account_id, idempotency_key=uuid4())
             session.add(device)
@@ -270,14 +271,14 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
             )
         ).status_code == 200
     pages = []
-    original = ActivityRepository.record_page
+    original = ActivityRepository.list_record_page
 
     async def counted(self, *args, **kwargs):
         page = await original(self, *args, **kwargs)
         pages.append(len(page))
         return page
 
-    monkeypatch.setattr(ActivityRepository, "record_page", counted)
+    monkeypatch.setattr(ActivityRepository, "list_record_page", counted)
     appended = batch(devices[0], [record(4000, 400, context=context(400))])
     assert (
         await client.post(
@@ -354,7 +355,7 @@ async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
     entered = asyncio.Event()
     release = asyncio.Event()
     arrivals = 0
-    original = ActivityRepository.insert
+    original = ActivityRepository.add_if_absent
     shared_event = uuid4()
 
     async def simultaneous(self, source):
@@ -365,7 +366,7 @@ async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
         await release.wait()
         return await original(self, source)
 
-    monkeypatch.setattr(ActivityRepository, "insert", simultaneous)
+    monkeypatch.setattr(ActivityRepository, "add_if_absent", simultaneous)
     first_source = batch(devices[0], [record(0, 0, event_id=shared_event)])
     second_source = batch(devices[1], [record(0, 1, event_id=shared_event)])
     async with (
@@ -449,7 +450,7 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
         repo = ActivityRepository(session)
         stored: list[ActivityRecord] = []
         for source in legacy.activity_records():
-            inserted = await repo.insert(source)
+            inserted = await repo.add_if_absent(source)
             assert inserted is not None
             stored.append(inserted)
         # Legacy ties followed received_at: B before A, and F before E.
@@ -494,13 +495,13 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
         "rollback": record(70, 220, context=context("E")),
     }[first_batch]
     payload = batch(devices[0], [first])
-    original_insert = ActivityRepository.insert
+    original_insert = ActivityRepository.add_if_absent
     if first_batch == "rollback":
 
         async def fail_insert(self, source):
             raise RuntimeError("controlled failure after legacy rebuild")
 
-        monkeypatch.setattr(ActivityRepository, "insert", fail_insert)
+        monkeypatch.setattr(ActivityRepository, "add_if_absent", fail_insert)
     assert (
         await client.post(
             "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
@@ -515,7 +516,7 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
         assert [(s.segment_id, shape(s)) for s in rolled_back] == [
             (s.segment_id, shape(s)) for s in original
         ]
-        monkeypatch.setattr(ActivityRepository, "insert", original_insert)
+        monkeypatch.setattr(ActivityRepository, "add_if_absent", original_insert)
         response = await client.post(
             "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
         )
@@ -527,13 +528,13 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
     await assert_matches_full_replay()
 
     pages = []
-    original_page = ActivityRepository.record_page
+    original_page = ActivityRepository.list_record_page
 
     async def counted(self, *args, **kwargs):
         pages.append(kwargs)
         return await original_page(self, *args, **kwargs)
 
-    monkeypatch.setattr(ActivityRepository, "record_page", counted)
+    monkeypatch.setattr(ActivityRepository, "list_record_page", counted)
     for following in [
         payload,
         batch(devices[0], [record(80, 230, context=context("E"))]),
@@ -594,7 +595,7 @@ async def test_legacy_commits_projection_retries_and_rolls_back_invalid_batch(
     ]
     assert await counts(factory, devices[0]) == (2, 1)
     async with factory() as session:
-        segments = await ActivityRepository(session).segment_range(
+        segments = await ActivityRepository(session).list_segment_range(
             accounts[0], start=datetime.min.replace(tzinfo=UTC)
         )
         assert segments

@@ -90,14 +90,14 @@ def test_create_activity_commits_new_record() -> None:
         account_id=account_id,
         idempotency_key=uuid4(),
     )
-    repository.insert.return_value = stored
+    repository.add_if_absent.return_value = stored
 
     result = asyncio.run(service.create_activity(account_id=account_id, record=record))
 
     assert result.event_id == record.event_id
     assert result.status == "accepted"
     assert result.received_at == RECEIVED_AT
-    repository.insert.assert_awaited_once_with(record)
+    repository.add_if_absent.assert_awaited_once_with(record)
     session.begin.assert_called_once_with()
     session.commit.assert_not_awaited()
     session.rollback.assert_not_awaited()
@@ -113,7 +113,7 @@ def test_create_activity_returns_original_result_for_identical_retry() -> None:
         account_id=account_id,
         idempotency_key=uuid4(),
     )
-    repository.insert.return_value = None
+    repository.add_if_absent.return_value = None
     repository.find_by_event_id.return_value = existing
 
     result = asyncio.run(service.create_activity(account_id=account_id, record=record))
@@ -135,7 +135,7 @@ def test_create_activity_rejects_changed_content_for_existing_event_id() -> None
         account_id=account_id,
         idempotency_key=uuid4(),
     )
-    repository.insert.return_value = None
+    repository.add_if_absent.return_value = None
     repository.find_by_event_id.return_value = stored_record(
         record,
         timezone_id=Timezone.UTC,
@@ -159,7 +159,7 @@ def test_create_activity_rejects_sequence_used_by_another_event() -> None:
         account_id=account_id,
         idempotency_key=uuid4(),
     )
-    repository.insert.return_value = None
+    repository.add_if_absent.return_value = None
     repository.find_by_event_id.return_value = None
     repository.find_by_device_sequence.return_value = stored_record(
         record,
@@ -187,7 +187,7 @@ def test_create_activity_allows_an_unused_lower_sequence() -> None:
         account_id=account_id,
         idempotency_key=uuid4(),
     )
-    repository.insert.return_value = stored_record(record)
+    repository.add_if_absent.return_value = stored_record(record)
 
     result = asyncio.run(service.create_activity(account_id=account_id, record=record))
 
@@ -211,7 +211,7 @@ def test_create_activity_hides_missing_and_unowned_devices() -> None:
         account_id=account_id,
         device_id=record.device_id,
     )
-    repository.insert.assert_not_awaited()
+    repository.add_if_absent.assert_not_awaited()
     session.begin.assert_called_once_with()
     session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()

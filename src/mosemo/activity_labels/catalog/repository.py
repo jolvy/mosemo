@@ -3,23 +3,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activity_labels.catalog.models import DEFAULT_LABEL_NAMES, Label
+from mosemo.activity_labels.catalog.models import Label
 
 
 class LabelCatalogRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def create_defaults(self, *, account_id: UUID) -> list[Label]:
-        labels = [
-            Label(
-                account_id=account_id,
-                display_name=display_name,
-            )
-            for display_name in DEFAULT_LABEL_NAMES
-        ]
+    def add_all(self, labels: list[Label]) -> None:
         self._session.add_all(labels)
-        return labels
 
     async def find_active_owned(
         self,

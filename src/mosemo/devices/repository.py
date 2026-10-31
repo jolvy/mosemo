@@ -24,7 +24,7 @@ class DeviceRepository:
         )
         return result.one_or_none()
 
-    async def insert(
+    async def add_if_absent(
         self,
         *,
         account_id: UUID,

@@ -23,7 +23,7 @@ class DeviceService:
         idempotency_key: UUID,
     ) -> DeviceCreateResponse:
         async with self._session.begin():
-            device = await self._repository.insert(
+            device = await self._repository.add_if_absent(
                 account_id=account_id,
                 idempotency_key=idempotency_key,
             )

@@ -9,6 +9,13 @@ from mosemo.database import Base
 DEFAULT_LABEL_NAMES: tuple[str, ...] = ("코딩", "학습", "소통", "쇼핑", "여가")
 
 
+def default_labels(account_id: UUID) -> list[Label]:
+    return [
+        Label(account_id=account_id, display_name=display_name)
+        for display_name in DEFAULT_LABEL_NAMES
+    ]
+
+
 class Label(Base):
     __tablename__ = "labels"
     __table_args__ = (UniqueConstraint("account_id", "display_name"),)

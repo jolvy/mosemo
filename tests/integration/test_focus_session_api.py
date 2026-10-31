@@ -38,12 +38,10 @@ async def focus_client(integration_database_url: str, config: Config) -> AsyncIt
 
     app.dependency_overrides[get_session] = session_override
     async with factory() as session:
-        account = AccountRepository(session).save(
-            provider=AccountProvider.KAKAO, provider_subject=str(uuid4())
-        )
-        other = AccountRepository(session).save(
-            provider=AccountProvider.KAKAO, provider_subject=str(uuid4())
-        )
+        account = Account(provider=AccountProvider.KAKAO, provider_subject=str(uuid4()))
+        AccountRepository(session).add(account)
+        other = Account(provider=AccountProvider.KAKAO, provider_subject=str(uuid4()))
+        AccountRepository(session).add(other)
         await session.flush()
         device = Device(account_id=account.account_id, idempotency_key=uuid4())
         label = Label(account_id=account.account_id, display_name="집중 테스트")

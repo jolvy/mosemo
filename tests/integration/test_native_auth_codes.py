@@ -57,7 +57,7 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
         NativeAuthCodeRepository,
         instance=True,
     )
-    auth_code_repository.save.side_effect = RuntimeError("code storage failed")
+    auth_code_repository.add.side_effect = RuntimeError("code storage failed")
     account_repository = AccountRepository(integration_session)
     service = AuthService(
         get_oauth_client=Mock(return_value=kakao_client),
@@ -175,10 +175,10 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
             kakao_client = create_autospec(KakaoClient, instance=True)
             kakao_client.get_user_id.return_value = provider_subject
             auth_code_repository = NativeAuthCodeRepository(session)
-            save_auth_code = Mock(
+            add_auth_code = Mock(
                 side_effect=RuntimeError("code storage failed"),
             )
-            monkeypatch.setattr(auth_code_repository, "save", save_auth_code)
+            monkeypatch.setattr(auth_code_repository, "add", add_auth_code)
             service = AuthService(
                 get_oauth_client=Mock(return_value=kakao_client),
                 session=session,
@@ -197,7 +197,7 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
                     code_challenge=CODE_CHALLENGE,
                 )
 
-            save_auth_code.assert_called_once()
+            add_auth_code.assert_called_once()
 
         async with session_factory() as session:
             stored_account = await AccountRepository(session).find(
@@ -243,11 +243,13 @@ async def test_authorization_code_is_hashed_and_consumed_once_concurrently(
             await session.refresh(account)
             account_id = account.account_id
 
-            NativeAuthCodeRepository(session).save(
-                code_digest=code_digest,
-                account_id=account_id,
-                code_challenge=CODE_CHALLENGE,
-                expires_at=fake_clock.now + timedelta(minutes=1),
+            NativeAuthCodeRepository(session).add(
+                NativeAuthCode(
+                    code_digest=code_digest,
+                    account_id=account_id,
+                    code_challenge=CODE_CHALLENGE,
+                    expires_at=fake_clock.now + timedelta(minutes=1),
+                )
             )
             await session.commit()
 
@@ -312,11 +314,13 @@ async def test_expired_authorization_code_is_deleted(
             await session.refresh(account)
             account_id = account.account_id
 
-            NativeAuthCodeRepository(session).save(
-                code_digest=code_digest,
-                account_id=account_id,
-                code_challenge=CODE_CHALLENGE,
-                expires_at=fake_clock.now - timedelta(seconds=1),
+            NativeAuthCodeRepository(session).add(
+                NativeAuthCode(
+                    code_digest=code_digest,
+                    account_id=account_id,
+                    code_challenge=CODE_CHALLENGE,
+                    expires_at=fake_clock.now - timedelta(seconds=1),
+                )
             )
             await session.commit()
 

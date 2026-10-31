@@ -10,15 +10,8 @@ class AccountRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def save(
-        self,
-        *,
-        provider: AccountProvider,
-        provider_subject: str,
-    ) -> Account:
-        account = Account(provider=provider, provider_subject=provider_subject)
+    def add(self, account: Account) -> None:
         self._session.add(account)
-        return account
 
     async def find(
         self,

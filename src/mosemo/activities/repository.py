@@ -46,7 +46,7 @@ class ActivityRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def insert(
+    async def add_if_absent(
         self,
         record: ActivityRecordRequest,
     ) -> StoredActivityRecord | None:
@@ -123,7 +123,7 @@ class ActivityRepository:
         )
         return list(result.all())
 
-    async def latest_account_record(
+    async def find_latest_account_record(
         self, account_id: UUID
     ) -> StoredActivityRecord | None:
         record = StoredActivityRecord
@@ -140,7 +140,7 @@ class ActivityRepository:
             .limit(1)
         )
 
-    async def record_page(
+    async def list_record_page(
         self,
         account_id: UUID,
         *,
@@ -177,7 +177,7 @@ class ActivityRepository:
             ).all()
         )
 
-    async def account_clock_is_monotone(self, account_id: UUID) -> bool:
+    async def is_account_clock_monotone(self, account_id: UUID) -> bool:
         # One-time validation of legacy source before this account's first receipt.
         # Subsequent consumer inserts preserve the invariant through neighbor checks.
         record = StoredActivityRecord
@@ -199,7 +199,7 @@ class ActivityRepository:
         )
         return regression is None
 
-    async def validate_device_clock(self, record: StoredActivityRecord) -> bool:
+    async def is_device_clock_valid(self, record: StoredActivityRecord) -> bool:
         model = StoredActivityRecord
         for preceding in (True, False):
             statement = select(model.observed_at).where(
@@ -221,7 +221,7 @@ class ActivityRepository:
                 return False
         return True
 
-    async def last_account_segment(
+    async def find_last_account_segment(
         self, account_id: UUID
     ) -> ActivityTimelineSegment | None:
         record = StoredActivityRecord
@@ -237,7 +237,7 @@ class ActivityRepository:
             .limit(1)
         )
 
-    async def segment_range(
+    async def list_segment_range(
         self, account_id: UUID, *, start: datetime, through: datetime | None = None
     ) -> list[ActivityTimelineSegment]:
         # Page only the calculated prefix, never pre-read the unaffected suffix.

@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.accounts.models import AccountProvider
+from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.timezones import Timezone
 
@@ -24,10 +24,11 @@ async def test_repository_saves_and_finds_account(
         is None
     )
 
-    account = repository.save(
+    account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=provider_subject,
     )
+    repository.add(account)
     await integration_session.flush()
     assert account.timezone is Timezone.ASIA_SEOUL
 
@@ -51,13 +52,17 @@ async def test_repository_enforces_provider_subject_uniqueness(
     provider_subject = f"integration-{uuid4()}"
     repository = AccountRepository(integration_session)
 
-    repository.save(
-        provider=AccountProvider.KAKAO,
-        provider_subject=provider_subject,
+    repository.add(
+        Account(
+            provider=AccountProvider.KAKAO,
+            provider_subject=provider_subject,
+        )
     )
-    repository.save(
-        provider=AccountProvider.KAKAO,
-        provider_subject=provider_subject,
+    repository.add(
+        Account(
+            provider=AccountProvider.KAKAO,
+            provider_subject=provider_subject,
+        )
     )
 
     with pytest.raises(IntegrityError):

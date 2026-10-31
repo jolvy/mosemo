@@ -29,10 +29,11 @@ record_adapter = TypeAdapter(ActivityRecord)
 
 
 async def account_with_devices(session: AsyncSession) -> tuple[UUID, UUID, UUID]:
-    account = AccountRepository(session).save(
+    account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"timeline-{uuid4()}",
     )
+    AccountRepository(session).add(account)
     await session.flush()
     first = Device(account_id=account.account_id, idempotency_key=uuid4())
     second = Device(account_id=account.account_id, idempotency_key=uuid4())

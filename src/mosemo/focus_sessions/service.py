@@ -55,7 +55,7 @@ class FocusSessionService:
             )
             if device is None:
                 raise ActivityDeviceNotFoundError
-            stored = await self._repository.create(account_id, request)
+            stored = await self._repository.add_if_absent(account_id, request)
             if stored is None:
                 stored = await self._repository.find_owned(
                     account_id, request.session_id

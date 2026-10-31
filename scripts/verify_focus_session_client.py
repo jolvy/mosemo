@@ -126,7 +126,7 @@ with (
     from sqlalchemy import select
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    from mosemo.accounts.models import AccountProvider
+    from mosemo.accounts.models import Account, AccountProvider
     from mosemo.accounts.repository import AccountRepository
     from mosemo.activities.models import ActivityRecord
     from mosemo.activity_labels.catalog.models import Label
@@ -138,9 +138,10 @@ with (
     async def seed():
         engine = create_async_engine(url)
         async with async_sessionmaker(engine, expire_on_commit=False)() as session:
-            account = AccountRepository(session).save(
+            account = Account(
                 provider=AccountProvider.KAKAO, provider_subject=str(uuid4())
             )
+            AccountRepository(session).add(account)
             await session.flush()
             device = Device(account_id=account.account_id, idempotency_key=uuid4())
             label = Label(account_id=account.account_id, display_name="집중 테스트")
