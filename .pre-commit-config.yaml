@@ -24,6 +24,13 @@ repos:
         stages: [pre-commit, pre-push]
         pass_filenames: false
         always_run: true
+      - id: harness-conventions
+        name: harness code conventions
+        entry: uv run --locked python .codex/skills/verification/scripts/validate_conventions.py
+        language: system
+        stages: [pre-commit, pre-push]
+        pass_filenames: false
+        always_run: true
       - id: harness-tests
         name: harness regression tests
         entry: uv run --locked python -m pytest -q tests/unit/harness

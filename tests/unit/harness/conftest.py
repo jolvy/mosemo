@@ -25,3 +25,8 @@ def docs_validator() -> ModuleType:
 @pytest.fixture(scope="session")
 def architecture_validator() -> ModuleType:
     return load_validator("validate_architecture")
+
+
+@pytest.fixture(scope="session")
+def conventions_validator() -> ModuleType:
+    return load_validator("validate_conventions")

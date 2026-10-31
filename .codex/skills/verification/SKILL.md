@@ -32,7 +32,8 @@ description: 요구사항·모델 승인·문서 형식·품질 게이트·테�
 - `uv run --locked python .codex/skills/verification/scripts/validate_docs.py`: 7개 Skill과 참조 문서의 형식과 Requirement·PRD·ADR의 파일명, 필수 섹션, 자리표시자, 로컬 링크, 인수 조건 ID를 검사한다. 필수 섹션은 생성 Skill의 내장 템플릿에서 읽고 모든 문서를 검사한다.
 - `uv run --locked python .codex/skills/verification/scripts/validate_docs.py --plan /tmp/plan.md`: 임시 내보낸 Plan Issue 본문의 승인 기록·작업 연결·검증 증거 형식과 연결한 로컬 문서의 AC 누락을 검사한다. 로컬 문서 링크는 저장소 루트 기준이다. 임시 본문을 Plan 복제본으로 저장소에 남기지 않는다.
 - `uv run --locked python .codex/skills/verification/scripts/validate_architecture.py`: 모델·저장소에서 FastAPI/Starlette 및 Mosemo router 모듈 참조를 금지하고, ADR 0001에 따라 exceptions/responses에서 openapi 참조를 금지한다. 절대·상대·함수 내부 import를 AST로 검사하며 기존 ORM의 SQLAlchemy 사용은 허용한다.
-- `bash .codex/skills/verification/scripts/validate.sh`: 문서·구조 검사와 Ruff·포맷·타입·빌드·전체 테스트·diff 검사를 실행한다. 스크립트 위치에서 저장소 루트를 찾아 실행한다.
+- `uv run --locked python .codex/skills/verification/scripts/validate_conventions.py`: 현재 시각 처리와 검사 억제 규칙을 검사한다. 테스트의 `clock=` lambda와 `get_clock` 재정의의 lambda 반환 lambda, `src`·`tests`·`scripts`·`migrations`·`.codex` 주석의 규칙 미지정 `noqa`·`ruff: noqa`·TID251/DTZ 억제, `pyproject.toml`의 TID251/DTZ/`ALL` 무시와 `exclude`, 다른 Ruff 설정 파일, `src`의 `__init__`에서 키워드 전용 필수가 아닌 `clock` 매개변수를 금지한다. 위반마다 파일·라인·규칙 ID와 수정 안내를 출력한다.
+- `bash .codex/skills/verification/scripts/validate.sh`: 문서·구조·코드 규칙 검사와 Ruff·포맷·타입·빌드·전체 테스트·diff 검사를 실행한다. 스크립트 위치에서 저장소 루트를 찾아 실행한다.
 
 검사기 회귀 테스트는 `tests/unit/harness/`에 둔다. 문서·구조 검사와 회귀 테스트는 Git 훅과 CI에서도 실행한다. 로컬 훅 설치는 `uv run --locked pre-commit install --hook-type pre-commit --hook-type pre-push`로 수행한다. 훅은 우회 가능하며 원격 필수 체크 설정은 별도 확인한다.
 

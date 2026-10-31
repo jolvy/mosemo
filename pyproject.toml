@@ -64,7 +64,18 @@ line-length = 88
 target-version = "py314"
 
 [tool.ruff.lint]
-extend-select = ["I"]
+extend-select = ["I", "TID251", "DTZ"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/mosemo/clock.py" = ["TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
+"time.time".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
 
 [tool.ruff.format]
 indent-style = "space"

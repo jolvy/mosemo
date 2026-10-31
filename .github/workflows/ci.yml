@@ -40,6 +40,9 @@ jobs:
       - name: Validate architecture
         run: uv run --locked python .codex/skills/verification/scripts/validate_architecture.py
 
+      - name: Validate code conventions
+        run: uv run --locked python .codex/skills/verification/scripts/validate_conventions.py
+
       - name: Lint
         run: uv run --locked ruff check --output-format=github .
 
