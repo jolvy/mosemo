@@ -327,7 +327,7 @@ class ConfirmationService:
                 confirmed_at=now,
                 updated_at=now,
             )
-            self._session.add(confirmation)
+            self._confirmation_repository.add(confirmation)
         else:
             confirmation.apply_selection(
                 segment_version=target.version,
