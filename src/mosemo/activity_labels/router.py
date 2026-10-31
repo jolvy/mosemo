@@ -4,10 +4,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, status
 
-from mosemo.activities.service import (
-    ActivityAccountNotFoundError,
-    ActivityTimelineBusyError,
-)
+from mosemo.activities.repository import ActivityTimelineBusyError
+from mosemo.activities.service import ActivityAccountNotFoundError
 from mosemo.activity_labels.confirmations.service import (
     ActivityLabelConfirmationConflictError,
     ActivityLabelSegmentChangedError,

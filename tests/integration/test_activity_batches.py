@@ -671,7 +671,7 @@ async def test_legacy_serializes_until_commit_or_rollback(
     real_batch_app, monkeypatch, fail_first
 ):
     from mosemo.activities.batch_processing import ActivityBatchProcessor
-    from mosemo.activities.service import activity_timeline_lock_key
+    from mosemo.activities.repository import activity_timeline_lock_key
 
     _, client, factory, accounts, devices, headers, _ = real_batch_app
     entered, release = asyncio.Event(), asyncio.Event()
@@ -730,12 +730,12 @@ async def test_legacy_serializes_until_commit_or_rollback(
 async def test_legacy_lock_timeout_keeps_http_contract_and_releases_transaction(
     real_batch_app,
 ):
-    from mosemo.activities.service import acquire_activity_timeline_lock
+    from mosemo.activities.repository import ActivityRepository
 
     _, client, factory, accounts, devices, headers, _ = real_batch_app
     payload = batch(devices[0], [record(0, 0)])
     async with factory() as holder, holder.begin():
-        await acquire_activity_timeline_lock(holder, account_id=accounts[0])
+        await ActivityRepository(holder).lock_timeline(accounts[0])
         response = await asyncio.wait_for(
             client.post(
                 "/api/v1/activities/batches/legacy", headers=headers[0], json=payload

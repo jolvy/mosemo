@@ -1,8 +1,10 @@
 from datetime import datetime
+from hashlib import blake2b
 from uuid import UUID, uuid7
 
-from sqlalchemy import and_, func, or_, select, tuple_
+from sqlalchemy import and_, func, or_, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account
@@ -17,6 +19,18 @@ from mosemo.activities.timeline import (
 )
 from mosemo.devices.models import Device
 from mosemo.timezones import Timezone
+
+
+class ActivityTimelineBusyError(Exception):
+    pass
+
+
+def activity_timeline_lock_key(account_id: UUID) -> int:
+    digest = blake2b(
+        f"activity_timeline:{account_id}".encode(),
+        digest_size=8,
+    ).digest()
+    return int.from_bytes(digest, signed=True)
 
 
 def activity_payload(record: ActivityRecordRequest) -> dict[str, object]:
@@ -45,6 +59,18 @@ def is_same_activity_record(
 class ActivityRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def lock_timeline(self, account_id: UUID) -> None:
+        try:
+            await self._session.execute(text("SET LOCAL lock_timeout = '3s'"))
+            await self._session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": activity_timeline_lock_key(account_id)},
+            )
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) == "55P03":
+                raise ActivityTimelineBusyError from exc
+            raise
 
     async def add_if_absent(
         self,
@@ -87,6 +113,13 @@ class ActivityRepository:
             .where(StoredActivityRecord.sequence == sequence)
         )
         return result.one_or_none()
+
+    async def find_last_observed_at(self, session_id: UUID) -> datetime | None:
+        return await self._session.scalar(
+            select(func.max(StoredActivityRecord.observed_at)).where(
+                StoredActivityRecord.focus_session_id == session_id
+            )
+        )
 
     async def find_account_timezone(self, account_id: UUID) -> Timezone | None:
         return await self._session.scalar(

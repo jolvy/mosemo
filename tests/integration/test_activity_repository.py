@@ -16,15 +16,17 @@ from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.enums import RecordType
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
-from mosemo.activities.repository import ActivityRepository
+from mosemo.activities.repository import (
+    ActivityRepository,
+    ActivityTimelineBusyError,
+    activity_timeline_lock_key,
+)
 from mosemo.activities.schemas import ActivityRecord
 from mosemo.activities.service import (
     ActivityDeviceNotFoundError,
     ActivityEventIdConflictError,
     ActivitySequenceConflictError,
     ActivityService,
-    ActivityTimelineBusyError,
-    activity_timeline_lock_key,
 )
 from mosemo.clock import utc_now
 from mosemo.devices.models import Device

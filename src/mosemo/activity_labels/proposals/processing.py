@@ -10,10 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from mosemo.activities.constants import MAX_OBSERVATION_GAP
 from mosemo.activities.enums import ActivityTimelineKind, SegmentType
 from mosemo.activities.models import ActivityTimelineSegment
-from mosemo.activities.repository import ActivityRepository
-from mosemo.activities.service import (
+from mosemo.activities.repository import (
+    ActivityRepository,
     ActivityTimelineBusyError,
-    acquire_activity_timeline_lock,
 )
 from mosemo.activities.versions import segment_version
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
@@ -237,8 +236,8 @@ class ProposalProcessor:
     async def _claim(self, account_id: UUID, first_event_id: UUID) -> _Claim:
         now = self._clock()
         async with self._session_factory() as session, session.begin():
-            await acquire_activity_timeline_lock(session, account_id=account_id)
             activity_repository = ActivityRepository(session)
+            await activity_repository.lock_timeline(account_id)
             confirmation_repository = ConfirmationRepository(session)
             segment = await activity_repository.find_account_segment_by_first_event(
                 account_id=account_id, first_event_id=first_event_id
@@ -293,7 +292,7 @@ class ProposalProcessor:
     ) -> None:
         now = self._clock()
         async with self._session_factory() as session, session.begin():
-            await acquire_activity_timeline_lock(session, account_id=account_id)
+            await ActivityRepository(session).lock_timeline(account_id)
             proposal = await session.get(ActivityLabelProposal, claim.proposal_id)
             if proposal is None or not proposal.owns_attempt(claim.lease_token):
                 return

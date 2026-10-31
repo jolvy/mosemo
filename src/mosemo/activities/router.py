@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Request, status
 
 from mosemo.activities.executor import LegacyBatchExecutor
 from mosemo.activities.messages import TerminalBatchError
+from mosemo.activities.repository import ActivityTimelineBusyError
 from mosemo.activities.schemas import (
     ActivityBatchProcessedResponse,
     ActivityBatchRecordResult,
@@ -12,10 +13,7 @@ from mosemo.activities.schemas import (
     ActivityBatchResponse,
     TimelineSegmentResponse,
 )
-from mosemo.activities.service import (
-    ActivityAccountNotFoundError,
-    ActivityTimelineBusyError,
-)
+from mosemo.activities.service import ActivityAccountNotFoundError
 from mosemo.dependencies import (
     ActivityServiceDep,
     AuthenticatedAccountDep,
