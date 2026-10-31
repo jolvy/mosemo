@@ -1,17 +1,15 @@
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.models import ActivityRecord
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import (
     ActivityAccountNotFoundError,
     ActivityDeviceNotFoundError,
     timeline_date_window,
 )
-from mosemo.activity_labels.catalog.models import Label
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.clock import Clock
 from mosemo.devices.repository import DeviceRepository
 from mosemo.focus_sessions.models import (
@@ -38,12 +36,14 @@ class FocusSessionService:
         repository: FocusSessionRepository,
         activity_repository: ActivityRepository,
         device_repository: DeviceRepository,
+        label_catalog_repository: LabelCatalogRepository,
         clock: Clock,
     ) -> None:
         self._session = session
         self._repository = repository
         self._activity_repository = activity_repository
         self._device_repository = device_repository
+        self._label_catalog_repository = label_catalog_repository
         self._clock = clock
 
     async def create(
@@ -78,19 +78,13 @@ class FocusSessionService:
             if stored is None:
                 raise FocusSessionNotFoundError
             if stored.ended_at is None:
-                label = await self._session.scalar(
-                    select(Label).where(
-                        Label.label_id == request.label_id,
-                        Label.account_id == account_id,
-                        Label.archived_at.is_(None),
-                    )
+                label = await self._label_catalog_repository.find_active_owned(
+                    account_id=account_id, label_id=request.label_id
                 )
                 if label is None:
                     raise FocusSessionLabelNotAvailableError
-            last_observed_at = await self._session.scalar(
-                select(func.max(ActivityRecord.observed_at)).where(
-                    ActivityRecord.focus_session_id == session_id
-                )
+            last_observed_at = await self._activity_repository.find_last_observed_at(
+                session_id
             )
             stored.complete(**request.model_dump(), last_observed_at=last_observed_at)
             await self._session.flush()

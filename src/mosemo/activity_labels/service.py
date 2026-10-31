@@ -4,7 +4,6 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.repository import ActivityRepository
-from mosemo.activities.service import acquire_activity_timeline_lock
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.confirmations.service import ConfirmationService
@@ -34,6 +33,7 @@ class ActivityLabelService:
         clock: Clock,
     ) -> None:
         self._session = session
+        self._activity_repository = activity_repository
         self._confirmations = ConfirmationService(
             session=session,
             activity_repository=activity_repository,
@@ -75,7 +75,7 @@ class ActivityLabelService:
     ) -> ConfirmedActivityLabelStateResponse:
         now = self._clock()
         async with self._session.begin():
-            await acquire_activity_timeline_lock(self._session, account_id=account_id)
+            await self._activity_repository.lock_timeline(account_id)
             saved = await self._confirmations.confirm(
                 account_id=account_id,
                 segment_id=segment_id,
@@ -95,7 +95,7 @@ class ActivityLabelService:
         self._confirmations.reject_duplicate_segments(request)
         now = self._clock()
         async with self._session.begin():
-            await acquire_activity_timeline_lock(self._session, account_id=account_id)
+            await self._activity_repository.lock_timeline(account_id)
             saved = await self._confirmations.confirm_batch(
                 account_id=account_id, request=request, now=now
             )

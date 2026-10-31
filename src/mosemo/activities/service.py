@@ -1,11 +1,8 @@
 from datetime import UTC, date, datetime, time, timedelta
-from hashlib import blake2b
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from pydantic import TypeAdapter
-from sqlalchemy import text
-from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.enums import ActivityTimelineKind, SegmentType
@@ -43,40 +40,11 @@ class ActivitySequenceConflictError(Exception):
     pass
 
 
-class ActivityTimelineBusyError(Exception):
-    pass
-
-
 class ActivityAccountNotFoundError(Exception):
     pass
 
 
 context_adapter = TypeAdapter(ActivityContext)
-
-
-def activity_timeline_lock_key(account_id: UUID) -> int:
-    digest = blake2b(
-        f"activity_timeline:{account_id}".encode(),
-        digest_size=8,
-    ).digest()
-    return int.from_bytes(digest, signed=True)
-
-
-async def acquire_activity_timeline_lock(
-    session: AsyncSession,
-    *,
-    account_id: UUID,
-) -> None:
-    try:
-        await session.execute(text("SET LOCAL lock_timeout = '3s'"))
-        await session.execute(
-            text("SELECT pg_advisory_xact_lock(:key)"),
-            {"key": activity_timeline_lock_key(account_id)},
-        )
-    except DBAPIError as exc:
-        if getattr(exc.orig, "sqlstate", None) == "55P03":
-            raise ActivityTimelineBusyError from exc
-        raise
 
 
 def timeline_date_window(
@@ -157,10 +125,7 @@ class ActivityService:
     ) -> ActivityCreateResponse:
         now = self._clock()
         async with self._session.begin():
-            await acquire_activity_timeline_lock(
-                self._session,
-                account_id=account_id,
-            )
+            await self._repository.lock_timeline(account_id)
 
             device = await self._device_repository.find_owned_by_id(
                 account_id=account_id,

@@ -217,7 +217,7 @@ async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
 )
 async def test_legacy_processing_errors(config, monkeypatch, error, expected):
     from mosemo.activities.messages import TerminalBatchError
-    from mosemo.activities.service import ActivityTimelineBusyError
+    from mosemo.activities.repository import ActivityTimelineBusyError
     from mosemo.database import get_session
 
     app, _, _, headers = make_app(config)

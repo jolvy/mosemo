@@ -9,6 +9,7 @@ from mosemo.activities.service import (
     ActivityAccountNotFoundError,
     ActivityDeviceNotFoundError,
 )
+from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.dependencies import AuthenticatedAccountDep, ClockDep, SessionDep
 from mosemo.devices.repository import DeviceRepository
 from mosemo.exceptions import ApiException, ErrorCode
@@ -40,6 +41,7 @@ def get_focus_session_service(
         repository=FocusSessionRepository(session),
         activity_repository=ActivityRepository(session),
         device_repository=DeviceRepository(session),
+        label_catalog_repository=LabelCatalogRepository(session),
         clock=clock,
     )
 

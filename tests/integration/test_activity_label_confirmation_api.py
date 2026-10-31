@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
-from mosemo.activities.service import activity_timeline_lock_key
+from mosemo.activities.repository import activity_timeline_lock_key
 from mosemo.activity_labels.catalog.models import Label, default_labels
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation

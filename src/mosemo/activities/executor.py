@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.batch_processing import ActivityBatchProcessor
 from mosemo.activities.messages import ActivityRegistrationRequested
+from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityBatchRequest
-from mosemo.activities.service import acquire_activity_timeline_lock
 from mosemo.clock import Clock
 
 
@@ -46,7 +46,7 @@ class LegacyBatchExecutor:
         self, account_id: UUID, batch: ActivityBatchRequest
     ) -> list[dict[str, str]]:
         async with self.session.begin():
-            await acquire_activity_timeline_lock(self.session, account_id=account_id)
+            await ActivityRepository(self.session).lock_timeline(account_id)
             return await ActivityBatchProcessor(
                 self.session, clock=self._clock
             ).process(account_id, batch)

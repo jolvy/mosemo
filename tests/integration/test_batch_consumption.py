@@ -540,13 +540,13 @@ async def test_registered_faststream_handler_rejects_invalid_message_without_pro
 async def test_kafka_commits_and_acks_while_account_advisory_lock_is_held(
     integration_kafka, consumption_db
 ):
-    from mosemo.activities.service import acquire_activity_timeline_lock
+    from mosemo.activities.repository import ActivityRepository
 
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
     # This is an independent lock holder, not concurrent legacy processing.
     async with sessions() as holder, holder.begin():
-        await acquire_activity_timeline_lock(holder, account_id=owners[0])
+        await ActivityRepository(holder).lock_timeline(owners[0])
         await publish(config, owners[:1], devices[:1], 1)
         async with running(
             config, BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
