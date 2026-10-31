@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -6,12 +7,12 @@ from unittest.mock import Mock, create_autospec
 from uuid import UUID
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
-from mosemo.activity_labels.catalog.models import Label
+from mosemo.activity_labels.catalog.models import Label, default_labels
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.models import NativeAuthCode
@@ -344,4 +345,119 @@ async def test_expired_authorization_code_is_deleted(
                     delete(Account).where(Account.account_id == account_id)
                 )
                 await session.commit()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first_login_commits", [True, False])
+async def test_concurrent_first_login_uses_account_created_by_other_request(
+    integration_database_url: str,
+    config: Config,
+    first_login_commits: bool,
+) -> None:
+    engine = create_async_engine(integration_database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    provider_subject = f"integration-{secrets.token_hex(8)}"
+    login_time = datetime(2001, 2, 3, 4, 5, 6, tzinfo=UTC)
+    winner = session_factory()
+    login_task: asyncio.Task[str] | None = None
+
+    async def login() -> str:
+        async with session_factory() as session:
+            kakao_client = create_autospec(KakaoClient, instance=True)
+            kakao_client.get_user_id.return_value = provider_subject
+            service = AuthService(
+                get_oauth_client=Mock(return_value=kakao_client),
+                session=session,
+                account_repository=AccountRepository(session),
+                native_auth_code_repository=NativeAuthCodeRepository(session),
+                label_catalog_repository=LabelCatalogRepository(session),
+                token_service=TokenService(config.auth),
+                config=config.auth,
+                clock=FakeClock(login_time),
+            )
+            return await service.login(
+                provider=AccountProvider.KAKAO,
+                code="authorization-code",
+                code_challenge=CODE_CHALLENGE,
+            )
+
+    try:
+        await winner.begin()
+        winner_account = Account(
+            provider=AccountProvider.KAKAO,
+            provider_subject=provider_subject,
+        )
+        winner.add(winner_account)
+        await winner.flush()
+        winner_labels = default_labels(winner_account.account_id)
+        winner.add_all(winner_labels)
+        await winner.flush()
+        winner_xid = await winner.scalar(text("SELECT pg_current_xact_id()::text"))
+
+        login_task = asyncio.create_task(login())
+        async with asyncio.timeout(5), session_factory() as observer:
+            while not await observer.scalar(
+                text(
+                    "SELECT EXISTS (SELECT 1 FROM pg_locks "
+                    "WHERE locktype = 'transactionid' "
+                    "AND transactionid::text = :xid AND NOT granted)"
+                ),
+                {"xid": winner_xid},
+            ):
+                assert not login_task.done(), login_task.result()
+                await asyncio.sleep(0.01)
+
+        if first_login_commits:
+            await winner.commit()
+        else:
+            await winner.rollback()
+        authorization_code = await asyncio.wait_for(login_task, 5)
+
+        async with session_factory() as session:
+            accounts = (
+                await session.scalars(
+                    select(Account).where(
+                        Account.provider == AccountProvider.KAKAO,
+                        Account.provider_subject == provider_subject,
+                    )
+                )
+            ).all()
+            assert len(accounts) == 1
+            (account,) = accounts
+            labels = (
+                await session.scalars(
+                    select(Label).where(Label.account_id == account.account_id)
+                )
+            ).all()
+            assert len(labels) == 5
+            stored_code = await session.get(
+                NativeAuthCode,
+                hashlib.sha256(authorization_code.encode()).hexdigest(),
+            )
+            assert stored_code is not None
+            assert stored_code.account_id == account.account_id
+            if first_login_commits:
+                assert account.account_id == winner_account.account_id
+                assert {label.label_id for label in labels} == {
+                    label.label_id for label in winner_labels
+                }
+                assert account.last_authenticated_at == login_time
+            else:
+                assert account.account_id != winner_account.account_id
+    finally:
+        await winner.rollback()
+        await winner.close()
+        if login_task is not None and not login_task.done():
+            login_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await login_task
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(
+                    Account.provider == AccountProvider.KAKAO,
+                    Account.provider_subject == provider_subject,
+                )
+            )
+            await session.commit()
         await engine.dispose()

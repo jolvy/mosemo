@@ -66,18 +66,21 @@ class AuthService:
 
         async with self._session.begin():
             now = self._clock()
-            account = await self._account_repository.find(
+            account = await self._account_repository.add_if_absent(
                 provider=provider,
                 provider_subject=provider_subject,
             )
-            if account is None:
-                account = Account(provider=provider, provider_subject=provider_subject)
-                self._account_repository.add(account)
-                await self._session.flush()
+            if account is not None:
                 self._label_catalog_repository.add_all(
                     default_labels(account.account_id)
                 )
             else:
+                account = await self._account_repository.find(
+                    provider=provider,
+                    provider_subject=provider_subject,
+                )
+                if account is None:
+                    raise RuntimeError("account conflict could not be resolved")
                 account.last_authenticated_at = now
 
             authorization_code = await self._create_authorization_code(

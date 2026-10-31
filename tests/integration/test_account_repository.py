@@ -67,3 +67,36 @@ async def test_repository_enforces_provider_subject_uniqueness(
 
     with pytest.raises(IntegrityError):
         await integration_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_repository_adds_account_only_if_absent(
+    integration_session: AsyncSession,
+) -> None:
+    provider_subject = f"integration-{uuid4()}"
+    repository = AccountRepository(integration_session)
+
+    account = await repository.add_if_absent(
+        provider=AccountProvider.KAKAO,
+        provider_subject=provider_subject,
+    )
+
+    assert account is not None
+    assert account.account_id is not None
+    assert account.provider is AccountProvider.KAKAO
+    assert account.provider_subject == provider_subject
+    assert account.timezone is Timezone.ASIA_SEOUL
+    assert (
+        await repository.find(
+            provider=AccountProvider.KAKAO,
+            provider_subject=provider_subject,
+        )
+        is account
+    )
+    assert (
+        await repository.add_if_absent(
+            provider=AccountProvider.KAKAO,
+            provider_subject=provider_subject,
+        )
+        is None
+    )
