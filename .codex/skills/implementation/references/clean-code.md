@@ -216,7 +216,7 @@ def build_user(email: Email, password: str) -> User:
 def create_user(email: Email, password: str) -> User:
     validate_input(email, password)
     user = User(email, password)
-    repository.save(user)
+    repository.add(user)
     return user
 ```
 
@@ -364,7 +364,9 @@ def create_user(payload: UserCreate) -> int:
 # GOOD: a specific failure crosses the boundary; FastAPI maps it to HTTP.
 def create_user(payload: UserCreate) -> User:
     validate_input(payload)
-    return repository.save(User.from_payload(payload))
+    user = User.from_payload(payload)
+    repository.add(user)
+    return user
 
 
 @app.exception_handler(EmailAlreadyUsed)

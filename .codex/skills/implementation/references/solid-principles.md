@@ -29,7 +29,7 @@ class Order:
 
 
 class OrderRepository:
-    async def save(self, order: Order) -> None: ...
+    def add(self, order: Order) -> None: ...
 
 
 class InvoiceRenderer:

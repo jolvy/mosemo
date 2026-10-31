@@ -195,7 +195,7 @@ class OrderProcessor:
 
     def process(self, order: Order) -> None:
         order.validate_and_calculate_total()
-        self.repository.save(order)
+        self.repository.add(order)
         self.notifier.confirm_order(order)
 ```
 
