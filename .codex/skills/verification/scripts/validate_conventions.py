@@ -1,4 +1,4 @@
-"""현재 시각 처리와 검사 억제에 관한 코드 규칙을 AST·주석 토큰·Ruff 설정으로 검사한다."""
+"""현재 시각 처리, 검사 억제, repository 저장에 관한 코드 규칙을 AST·주석 토큰·Ruff 설정으로 검사한다."""
 
 import ast
 import io
@@ -13,6 +13,37 @@ PYTHON_DIRS = ("src", "tests", "scripts", "migrations", ".codex")
 SKIPPED_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".ruff_cache"}
 RUFF_CONFIG_FILES = {"ruff.toml", ".ruff.toml"}
 CLOCK_EXCEPTION = ("src/mosemo/clock.py", "TID251")
+REPOSITORY_METHODS = {"find", "add", "add_all", "add_if_absent", "delete", "claim"}
+REPOSITORY_METHOD_PREFIXES = (
+    "find_",
+    "list_",
+    "has_",
+    "is_",
+    "delete_",
+    "replace_",
+    "lock_",
+)
+SESSION_NAMES = {"session", "_session"}
+TRANSACTION_METHODS = {"begin", "commit", "rollback", "flush"}
+SQL_MODULES = {"sqlalchemy", "sqlalchemy.dialects.postgresql"}
+SQL_CONSTRUCTS = {
+    "select",
+    "insert",
+    "update",
+    "delete",
+    "text",
+    "func",
+    "and_",
+    "or_",
+    "not_",
+    "tuple_",
+    "exists",
+    "case",
+    "literal",
+    "literal_column",
+    "union",
+    "union_all",
+}
 
 CLOCK_HINT = (
     "현재 시각은 `mosemo.clock`의 clock을 주입받아 얻고, "
@@ -191,6 +222,130 @@ def check_init_clock(tree: ast.AST) -> list[str]:
     return errors
 
 
+def is_repository_file(path: Path) -> bool:
+    return path.name == "repository.py" or path.name.endswith("_repository.py")
+
+
+def is_repository_method_name(name: str) -> bool:
+    return name in REPOSITORY_METHODS or name.startswith(REPOSITORY_METHOD_PREFIXES)
+
+
+def check_repository_method_names(tree: ast.AST) -> list[str]:
+    """(f) repository 클래스의 공개 메서드 이름이 허용한 동사인지 확인한다."""
+    return [
+        f"{method.lineno}: CS-P10: repository 메서드 `{method.name}`의 이름을 "
+        "허용한 동사로 바꾼다. 조회는 `find`·`find_`·`list_`, 존재 여부는 `has_`, "
+        "조건 판정은 `is_`, 새 엔티티 저장은 `add`·`add_all`·`add_if_absent`, "
+        "삭제·교체·잠금은 `delete`·`delete_`·`replace_`·`lock_`, "
+        "업무 동사는 `claim`만 쓴다"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef)
+        for method in node.body
+        if isinstance(method, ast.FunctionDef | ast.AsyncFunctionDef)
+        and not method.name.startswith("_")
+        and not is_repository_method_name(method.name)
+    ]
+
+
+def integrity_error_aliases(tree: ast.AST) -> set[str]:
+    return {"IntegrityError"} | {
+        alias.asname
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+        if alias.name == "IntegrityError" and alias.asname
+    }
+
+
+def is_integrity_error(node: ast.AST, aliases: set[str]) -> bool:
+    if isinstance(node, ast.Tuple):
+        return any(is_integrity_error(element, aliases) for element in node.elts)
+    return (isinstance(node, ast.Name) and node.id in aliases) or (
+        isinstance(node, ast.Attribute) and node.attr == "IntegrityError"
+    )
+
+
+def check_integrity_error_handling(tree: ast.AST) -> list[str]:
+    """(g) `IntegrityError`를 잡는 `except` 절을 찾는다."""
+    aliases = integrity_error_aliases(tree)
+    return [
+        f"{node.lineno}: CS-P26: `IntegrityError`를 잡아 중복을 처리하지 않는다. "
+        "repository의 `add_if_absent`에서 `on_conflict_do_nothing`으로 충돌을 "
+        "피하고 반환값으로 중복을 판단한다"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ExceptHandler)
+        and node.type is not None
+        and is_integrity_error(node.type, aliases)
+    ]
+
+
+def check_add_if_absent_conflict(tree: ast.AST) -> list[str]:
+    """(g) repository의 `add_if_absent`가 `on_conflict_do_nothing`을 쓰는지 확인한다."""
+    return [
+        f"{node.lineno}: CS-P26: `add_if_absent`는 `insert(...)"
+        ".on_conflict_do_nothing(...)`으로 충돌을 피한다. 먼저 조회하거나 "
+        "`IntegrityError`를 잡는 방식으로 바꾸지 않는다"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and node.name == "add_if_absent"
+        and not any(
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Attribute)
+            and call.func.attr == "on_conflict_do_nothing"
+            for call in ast.walk(node)
+        )
+    ]
+
+
+def is_session(node: ast.AST) -> bool:
+    return (isinstance(node, ast.Name) and node.id in SESSION_NAMES) or (
+        isinstance(node, ast.Attribute) and node.attr in SESSION_NAMES
+    )
+
+
+def check_session_calls(tree: ast.AST) -> list[str]:
+    """(h) repository 밖에서 session의 트랜잭션 메서드 외 호출을 찾는다."""
+    return [
+        f"{node.lineno}: CS-P25: repository 밖에서 `session.{node.func.attr}`을 "
+        "호출하지 않는다. 조회·저장은 repository 메서드로 옮긴다. service는 "
+        "session의 begin·commit·rollback·flush만 쓴다"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and is_session(node.func.value)
+        and node.func.attr not in TRANSACTION_METHODS
+    ]
+
+
+def check_sql_imports(tree: ast.AST) -> list[str]:
+    """(h) repository·models 밖에서 SQL 구문 import와 `import sqlalchemy`를 찾는다."""
+    errors = []
+    hint = (
+        "SQL 구문은 repository 파일에서만 만든다. 조회·저장은 repository 메서드로 "
+        "옮기고, 이 파일에서는 그 메서드를 호출한다"
+    )
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            errors.extend(
+                f"{node.lineno}: CS-P25: repository 밖에서 `import {alias.name}`를 "
+                f"쓰지 않는다. {hint}"
+                for alias in node.names
+                if alias.name == "sqlalchemy" or alias.name.startswith("sqlalchemy.")
+            )
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module in SQL_MODULES
+        ):
+            errors.extend(
+                f"{node.lineno}: CS-P25: repository 밖에서 `{node.module}`의 "
+                f"`{alias.name}`을 import하지 않는다. {hint}"
+                for alias in node.names
+                if alias.name in SQL_CONSTRUCTS
+            )
+    return errors
+
+
 def python_files(root: Path) -> list[Path]:
     files = []
     for directory in PYTHON_DIRS:
@@ -230,7 +385,15 @@ def validate(root: Path = ROOT) -> list[str]:
         if relative.parts[0] == "tests":
             file_errors += check_test_clock_lambdas(tree)
         if relative.parts[0] == "src":
-            file_errors += check_init_clock(tree)
+            file_errors += check_init_clock(tree) + check_integrity_error_handling(tree)
+            if is_repository_file(relative):
+                file_errors += check_repository_method_names(
+                    tree
+                ) + check_add_if_absent_conflict(tree)
+            else:
+                file_errors += check_session_calls(tree)
+                if relative.name != "models.py":
+                    file_errors += check_sql_imports(tree)
         errors.extend(f"{relative}:{error}" for error in file_errors)
     pyproject = root / "pyproject.toml"
     if pyproject.is_file():

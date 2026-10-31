@@ -223,3 +223,209 @@ def test_real_repository_satisfies_conventions(
     conventions_validator: ModuleType,
 ) -> None:
     assert conventions_validator.validate() == []
+
+
+def repository_class(method: str) -> str:
+    return f"class Repo:\n    async def {method}(self):\n        pass\n"
+
+
+@pytest.mark.parametrize("method", ["save", "insert", "get_by_id", "count", "upsert"])
+def test_repository_method_names_reject_unlisted_verbs(
+    conventions_validator: ModuleType, method: str
+) -> None:
+    errors = conventions_validator.check_repository_method_names(
+        ast.parse(repository_class(method))
+    )
+    assert errors and "CS-P10" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        "find",
+        "find_by_id",
+        "list_owned",
+        "has_device",
+        "is_confirmed",
+        "add",
+        "add_all",
+        "add_if_absent",
+        "delete",
+        "delete_expired",
+        "replace_labels",
+        "lock_timeline",
+        "claim",
+        "_build_query",
+        "__init__",
+    ],
+)
+def test_repository_method_names_allow_listed_verbs_and_private(
+    conventions_validator: ModuleType, method: str
+) -> None:
+    assert (
+        conventions_validator.check_repository_method_names(
+            ast.parse(repository_class(method))
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "try:\n    pass\nexcept IntegrityError:\n    pass\n",
+        "try:\n    pass\nexcept sqlalchemy.exc.IntegrityError:\n    pass\n",
+        (
+            "from sqlalchemy.exc import IntegrityError as Duplicate\n"
+            "try:\n    pass\nexcept Duplicate:\n    pass\n"
+        ),
+        "try:\n    pass\nexcept (ValueError, IntegrityError) as error:\n    pass\n",
+    ],
+)
+def test_integrity_error_handler_is_rejected(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    errors = conventions_validator.check_integrity_error_handling(ast.parse(source))
+    assert errors and "CS-P26" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "try:\n    pass\nexcept DBAPIError:\n    pass\n",
+        "try:\n    pass\nexcept (ValueError, KeyError):\n    pass\n",
+        "try:\n    pass\nexcept:\n    raise\n",
+    ],
+)
+def test_other_exception_handlers_are_allowed(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    assert conventions_validator.check_integrity_error_handling(ast.parse(source)) == []
+
+
+def test_add_if_absent_requires_on_conflict_do_nothing(
+    conventions_validator: ModuleType,
+) -> None:
+    source = (
+        "class Repo:\n"
+        "    async def add_if_absent(self, row):\n"
+        "        self._session.add(row)\n"
+    )
+    errors = conventions_validator.check_add_if_absent_conflict(ast.parse(source))
+    assert errors and "CS-P26" in errors[0]
+
+
+def test_add_if_absent_allows_on_conflict_do_nothing(
+    conventions_validator: ModuleType,
+) -> None:
+    source = (
+        "class Repo:\n"
+        "    async def add_if_absent(self, values):\n"
+        "        statement = insert(Row).values(values).on_conflict_do_nothing()\n"
+        "        return await self._session.scalar(statement)\n"
+    )
+    assert conventions_validator.check_add_if_absent_conflict(ast.parse(source)) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "await self._session.scalar(statement)",
+        "await self.session.execute(statement)",
+        "await session.get(Device, device_id)",
+        "session.add(row)",
+    ],
+)
+def test_session_calls_outside_repository_are_rejected(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    errors = conventions_validator.check_session_calls(ast.parse(source))
+    assert errors and "CS-P25" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "self._session.begin()",
+        "await self._session.flush()",
+        "await session.commit()",
+        "await self.session.rollback()",
+        "self._session_factory()",
+        "self.sessions()",
+    ],
+)
+def test_session_transaction_calls_are_allowed(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    assert conventions_validator.check_session_calls(ast.parse(source)) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from sqlalchemy import select",
+        "from sqlalchemy import MetaData, func",
+        "from sqlalchemy.dialects.postgresql import insert",
+        "import sqlalchemy",
+        "import sqlalchemy as sa",
+    ],
+)
+def test_sql_construct_imports_are_rejected(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    errors = conventions_validator.check_sql_imports(ast.parse(source))
+    assert errors and "CS-P25" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker",
+        "from sqlalchemy.exc import DBAPIError",
+        "from sqlalchemy import MetaData",
+        "from sqlalchemy.types import String, TypeDecorator",
+        "from sqlalchemy.dialects.postgresql import JSONB",
+        "from .sqlalchemy import select",
+    ],
+)
+def test_session_types_and_exception_imports_are_allowed(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    assert conventions_validator.check_sql_imports(ast.parse(source)) == []
+
+
+def test_validate_scopes_repository_rules_to_src(
+    conventions_validator: ModuleType, tmp_path: Path
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(ALLOWED_PYPROJECT)
+    service = (
+        "from sqlalchemy import select\n"
+        "async def run(session):\n"
+        "    await session.scalar(select(1))\n"
+    )
+    outside = service + "import sqlalchemy\nsession.add(row)\n"
+    files = {
+        "src/mosemo/x/repository.py": (
+            "from sqlalchemy import select\n"
+            "class XRepository:\n"
+            "    async def find(self):\n"
+            "        return await self._session.scalar(select(1))\n"
+            "    async def save(self, row):\n"
+            "        self._session.add(row)\n"
+        ),
+        "src/mosemo/x/models.py": "from sqlalchemy import func\n",
+        "src/mosemo/x/service.py": service,
+        "tests/integration/test_x_repository.py": outside
+        + "class Repo:\n    def save(self):\n        pass\n",
+        "migrations/versions/x.py": outside,
+        "scripts/x.py": outside,
+    }
+    for name, source in files.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(source)
+    errors = conventions_validator.validate(tmp_path)
+    assert [error.split(": ", 2)[:2] for error in errors] == [
+        ["src/mosemo/x/repository.py:5", "CS-P10"],
+        ["src/mosemo/x/service.py:3", "CS-P25"],
+        ["src/mosemo/x/service.py:1", "CS-P25"],
+    ]
