@@ -14,6 +14,7 @@ from mosemo.activities.models import ActivityRecord
 from mosemo.activity_labels.catalog.models import Label
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import utc_now
 from mosemo.config import Config, get_config
 from mosemo.database import get_session
 from mosemo.devices.models import Device
@@ -51,11 +52,15 @@ async def focus_client(integration_database_url: str, config: Config) -> AsyncIt
         await session.commit()
         headers = {
             "Authorization": "Bearer "
-            + TokenService(config.auth).issue_access_token(account.account_id)
+            + TokenService(config.auth).issue_access_token(
+                account.account_id, now=utc_now()
+            )
         }
         other_headers = {
             "Authorization": "Bearer "
-            + TokenService(config.auth).issue_access_token(other.account_id)
+            + TokenService(config.auth).issue_access_token(
+                other.account_id, now=utc_now()
+            )
         }
     async with batch_client(app, factory) as client:
         yield (

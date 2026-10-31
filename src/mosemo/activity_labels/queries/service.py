@@ -79,7 +79,7 @@ class LabelQueries:
         self._label_query_repository = label_query_repository
 
     async def get_timeline(
-        self, *, account_id: UUID, date: date | None, current_time: datetime
+        self, *, account_id: UUID, date: date | None, now: datetime
     ) -> list[LabelTimelineItemResponse]:
         account_timezone = await self._activity_repository.find_account_timezone(
             account_id
@@ -89,7 +89,7 @@ class LabelQueries:
         window = timeline_date_window(
             account_timezone=account_timezone,
             requested_date=date,
-            current_time=current_time,
+            now=now,
         )
         if window is None:
             return []
@@ -105,11 +105,11 @@ class LabelQueries:
             if not segment.overlaps_window(
                 start=start,
                 end=end,
-                now=current_time,
+                now=now,
             ):
                 continue
             if (
-                segment.timeline_kind_at(current_time)
+                segment.timeline_kind_at(now)
                 is ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
             ):
                 labelable_first_event_ids.add(segment.first_event_id)
@@ -136,12 +136,12 @@ class LabelQueries:
             if not segment.overlaps_window(
                 start=start,
                 end=end,
-                now=current_time,
+                now=now,
             ):
                 continue
 
-            kind = segment.timeline_kind_at(current_time)
-            ended_at = segment.effective_ended_at(current_time)
+            kind = segment.timeline_kind_at(now)
+            ended_at = segment.effective_ended_at(now)
             if kind is ActivityTimelineKind.CAPTURE_GAP:
                 flush_group()
                 assert segment.reason is not None
@@ -257,15 +257,15 @@ class LabelQueries:
         return results
 
     async def get_state(
-        self, *, account_id: UUID, segment_id: UUID, current_time: datetime
+        self, *, account_id: UUID, segment_id: UUID, now: datetime
     ) -> ActivityLabelStateResponse:
         segment = await find_labelable_segment(
             self._activity_repository,
             account_id=account_id,
             segment_id=segment_id,
-            current_time=current_time,
+            now=now,
         )
-        ended_at = segment.effective_ended_at(current_time)
+        ended_at = segment.effective_ended_at(now)
         assert ended_at is not None
         version = segment_version(segment, ended_at=ended_at)
         confirmation = await self._confirmation_repository.find_confirmation(
@@ -286,11 +286,11 @@ class LabelQueries:
                 else None
             ),
             proposal=proposal,
-            now=current_time,
+            now=now,
         )
 
     async def confirmed_state(
-        self, *, account_id: UUID, saved: SavedConfirmation, current_time: datetime
+        self, *, account_id: UUID, saved: SavedConfirmation, now: datetime
     ) -> ConfirmedActivityLabelStateResponse:
         proposal = await self._proposal_repository.find_proposal(
             account_id=account_id,
@@ -302,7 +302,7 @@ class LabelQueries:
             version=saved.version,
             confirmation=saved.confirmation,
             proposal=proposal,
-            now=current_time,
+            now=now,
         )
 
     @staticmethod

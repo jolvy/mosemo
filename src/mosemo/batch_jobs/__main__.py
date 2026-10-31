@@ -26,6 +26,7 @@ async def run(args: argparse.Namespace) -> int:
     from mosemo.batch_jobs.job import run_job_once
     from mosemo.batch_jobs.registry import build_jobs
     from mosemo.batch_jobs.server import serve
+    from mosemo.clock import utc_now
     from mosemo.config import get_config
     from mosemo.database import SessionFactory, engine
 
@@ -37,7 +38,7 @@ async def run(args: argparse.Namespace) -> int:
     try:
         jobs = build_jobs(SessionFactory, get_config())
         if args.command == "serve":
-            await serve(jobs, stop)
+            await serve(jobs, stop, clock=utc_now)
             return 0
         job = next((job for job in jobs if job.name == args.job_name), None)
         if job is None:

@@ -18,6 +18,7 @@ from mosemo.api import v1_api_router
 from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import utc_now
 from mosemo.config import Config, get_config
 from mosemo.database import get_session
 from mosemo.dependencies import get_kakao_client, get_oauth_client_resolver
@@ -173,7 +174,7 @@ async def test_label_catalog_returns_owned_active_and_archived_labels(
         }
         await session.commit()
 
-    token = TokenService(config.auth).issue_access_token(owner_id)
+    token = TokenService(config.auth).issue_access_token(owner_id, now=utc_now())
     response = await client.get(
         "/api/v1/labels",
         headers={"Authorization": f"Bearer {token}"},
@@ -222,7 +223,7 @@ async def test_label_catalog_returns_empty_array_for_account_without_labels(
         account_id = account.account_id
         await session.commit()
 
-    token = TokenService(config.auth).issue_access_token(account_id)
+    token = TokenService(config.auth).issue_access_token(account_id, now=utc_now())
     response = await client.get(
         "/api/v1/labels",
         headers={"Authorization": f"Bearer {token}"},
@@ -270,7 +271,9 @@ async def test_label_catalog_rejects_token_for_deleted_account(
             provider_subject=f"label-catalog-deleted-{uuid4()}",
         )
         await session.flush()
-        token = TokenService(config.auth).issue_access_token(account.account_id)
+        token = TokenService(config.auth).issue_access_token(
+            account.account_id, now=utc_now()
+        )
         await session.delete(account)
         await session.commit()
 

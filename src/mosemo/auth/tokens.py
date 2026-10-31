@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 import jwt
@@ -26,17 +26,14 @@ class TokenService:
     def __init__(self, config: AuthConfig) -> None:
         self._config = config
 
-    def issue_access_token(self, account_id: UUID) -> str:
-        issued_at = datetime.now(UTC)
-        expires_at = issued_at + timedelta(
-            seconds=self._config.access_token_ttl_seconds
-        )
+    def issue_access_token(self, account_id: UUID, *, now: datetime) -> str:
+        expires_at = now + timedelta(seconds=self._config.access_token_ttl_seconds)
         return jwt.encode(
             {
                 "sub": str(account_id),
                 "iss": self._config.jwt_issuer,
                 "aud": self._config.jwt_audience,
-                "iat": issued_at,
+                "iat": now,
                 "exp": expires_at,
                 "jti": str(uuid4()),
                 "token_type": "access",

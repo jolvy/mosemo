@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from mosemo.api import v1_api_router
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import utc_now
 from mosemo.config import Config, get_config
 from mosemo.dependencies import get_device_service
 from mosemo.devices.schemas import DeviceCreateResponse
@@ -25,7 +26,7 @@ def make_app(
     app.include_router(v1_api_router)
     app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_device_service] = lambda: service
-    token = TokenService(config.auth).issue_access_token(account_id)
+    token = TokenService(config.auth).issue_access_token(account_id, now=utc_now())
     return app, token
 
 

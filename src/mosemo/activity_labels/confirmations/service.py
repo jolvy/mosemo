@@ -90,15 +90,15 @@ class ConfirmationService:
         account_id: UUID,
         segment_id: UUID,
         request: ActivityLabelConfirmationRequest,
-        current_time: datetime,
+        now: datetime,
     ) -> SavedConfirmation:
         segment = await find_labelable_segment(
             self._activity_repository,
             account_id=account_id,
             segment_id=segment_id,
-            current_time=current_time,
+            now=now,
         )
-        ended_at = segment.effective_ended_at(current_time)
+        ended_at = segment.effective_ended_at(now)
         assert ended_at is not None
         version = segment_version(segment, ended_at=ended_at)
         if request.segment_version != version:
@@ -118,7 +118,7 @@ class ConfirmationService:
             target=ConfirmationTarget(
                 segment=segment, version=version, label_id=label_id
             ),
-            current_time=current_time,
+            now=now,
         )
 
     async def confirm_batch(
@@ -126,16 +126,14 @@ class ConfirmationService:
         *,
         account_id: UUID,
         request: BatchLabelConfirmationRequest,
-        current_time: datetime,
+        now: datetime,
     ) -> list[SavedConfirmation]:
         self.reject_duplicate_segments(request)
         targets = await self._validate_batch_items(
-            account_id=account_id, request=request, current_time=current_time
+            account_id=account_id, request=request, now=now
         )
         return [
-            await self._save_confirmation(
-                account_id=account_id, target=target, current_time=current_time
-            )
+            await self._save_confirmation(account_id=account_id, target=target, now=now)
             for target in targets
         ]
 
@@ -164,7 +162,7 @@ class ConfirmationService:
         *,
         account_id: UUID,
         request: BatchLabelConfirmationRequest,
-        current_time: datetime,
+        now: datetime,
     ) -> list[ConfirmationTarget]:
         targets = []
         for item_index, item in enumerate(request.items):
@@ -172,7 +170,7 @@ class ConfirmationService:
                 account_id=account_id,
                 item=item,
                 item_index=item_index,
-                current_time=current_time,
+                now=now,
             )
             targets.append(target)
         return targets
@@ -183,19 +181,19 @@ class ConfirmationService:
         account_id: UUID,
         item: SegmentLabelConfirmationItemRequest,
         item_index: int,
-        current_time: datetime,
+        now: datetime,
     ) -> ConfirmationTarget:
         segment = await self._find_batch_segment(
             account_id=account_id,
             item=item,
             item_index=item_index,
-            current_time=current_time,
+            now=now,
         )
         version = self._validate_batch_segment_version(
             item=item,
             item_index=item_index,
             segment=segment,
-            current_time=current_time,
+            now=now,
         )
         label_id = getattr(item.selection, "label_id", None)
         confirmation = await self._find_batch_confirmation(
@@ -221,14 +219,14 @@ class ConfirmationService:
         account_id: UUID,
         item: SegmentLabelConfirmationItemRequest,
         item_index: int,
-        current_time: datetime,
+        now: datetime,
     ) -> ActivityTimelineSegment:
         try:
             return await find_labelable_segment(
                 self._activity_repository,
                 account_id=account_id,
                 segment_id=item.segment_id,
-                current_time=current_time,
+                now=now,
             )
         except (
             ActivityLabelSegmentNotFoundError,
@@ -244,9 +242,9 @@ class ConfirmationService:
         item: SegmentLabelConfirmationItemRequest,
         item_index: int,
         segment: ActivityTimelineSegment,
-        current_time: datetime,
+        now: datetime,
     ) -> str:
-        ended_at = segment.effective_ended_at(current_time)
+        ended_at = segment.effective_ended_at(now)
         assert ended_at is not None
         version = segment_version(segment, ended_at=ended_at)
         if item.segment_version != version:
@@ -314,7 +312,7 @@ class ConfirmationService:
         *,
         account_id: UUID,
         target: ConfirmationTarget,
-        current_time: datetime,
+        now: datetime,
     ) -> SavedConfirmation:
         segment = target.segment
         confirmation = await self._confirmation_repository.find_confirmation(
@@ -326,15 +324,15 @@ class ConfirmationService:
                 first_event_id=segment.first_event_id,
                 segment_version=target.version,
                 label_id=target.label_id,
-                confirmed_at=current_time,
-                updated_at=current_time,
+                confirmed_at=now,
+                updated_at=now,
             )
             self._session.add(confirmation)
         else:
             confirmation.apply_selection(
                 segment_version=target.version,
                 label_id=target.label_id,
-                now=current_time,
+                now=now,
             )
 
         await self._session.flush()
@@ -348,7 +346,7 @@ async def find_labelable_segment(
     *,
     account_id: UUID,
     segment_id: UUID,
-    current_time: datetime,
+    now: datetime,
 ) -> ActivityTimelineSegment:
     segment = await activity_repository.find_account_segment(
         account_id=account_id,
@@ -357,7 +355,7 @@ async def find_labelable_segment(
     if segment is None:
         raise ActivityLabelSegmentNotFoundError
     if (
-        segment.timeline_kind_at(current_time)
+        segment.timeline_kind_at(now)
         is not ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
     ):
         raise ActivityLabelSegmentNotLabelableError

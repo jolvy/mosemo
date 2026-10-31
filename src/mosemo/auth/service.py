@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from mosemo.auth.oauth_client import OAuthClient, OAuthClientError
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import Clock
 from mosemo.config import AuthConfig
 
 
@@ -37,6 +38,7 @@ class AuthService:
         label_catalog_repository: LabelCatalogRepository,
         token_service: TokenService,
         config: AuthConfig,
+        clock: Clock,
     ) -> None:
         self._get_oauth_client = get_oauth_client
         self._session = session
@@ -45,6 +47,7 @@ class AuthService:
         self._label_catalog_repository = label_catalog_repository
         self._token_service = token_service
         self._config = config
+        self._clock = clock
 
     async def login(
         self,
@@ -60,6 +63,7 @@ class AuthService:
             raise OAuthAuthenticationError from exc
 
         async with self._session.begin():
+            now = self._clock()
             account = await self._account_repository.find(
                 provider=provider,
                 provider_subject=provider_subject,
@@ -74,11 +78,12 @@ class AuthService:
                     account_id=account.account_id,
                 )
             else:
-                account.last_authenticated_at = datetime.now(UTC)
+                account.last_authenticated_at = now
 
             authorization_code = await self._create_authorization_code(
                 account=account,
                 code_challenge=code_challenge,
+                now=now,
             )
 
         return authorization_code
@@ -88,8 +93,8 @@ class AuthService:
         *,
         account: Account,
         code_challenge: str,
+        now: datetime,
     ) -> str:
-        now = datetime.now(UTC)
         authorization_code = secrets.token_urlsafe(32)
         code_digest = hashlib.sha256(authorization_code.encode()).hexdigest()
 
@@ -122,7 +127,7 @@ class AuthService:
             if stored_code is None:
                 raise InvalidAuthorizationCodeError
 
-            now = datetime.now(UTC)
+            now = self._clock()
             if stored_code.expires_at <= now:
                 await self._native_auth_code_repository.delete(stored_code)
             else:
@@ -133,7 +138,7 @@ class AuthService:
                     raise InvalidAuthorizationCodeError
 
                 access_token = self._token_service.issue_access_token(
-                    stored_code.account_id
+                    stored_code.account_id, now=now
                 )
                 await self._native_auth_code_repository.delete(stored_code)
                 return access_token

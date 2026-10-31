@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from mosemo.auth.context import AuthenticatedAccount
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import utc_now
 from mosemo.config import Config
 from mosemo.dependencies import get_authenticated_account
 
@@ -23,7 +24,7 @@ def test_get_authenticated_account_decodes_account_id(config: Config) -> None:
     token_service = TokenService(config.auth)
     credentials = HTTPAuthorizationCredentials(
         scheme="Bearer",
-        credentials=token_service.issue_access_token(account_id),
+        credentials=token_service.issue_access_token(account_id, now=utc_now()),
     )
 
     context = asyncio.run(

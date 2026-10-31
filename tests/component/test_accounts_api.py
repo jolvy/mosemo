@@ -10,6 +10,7 @@ from mosemo.accounts.service import AccountNotFoundError, AccountService
 from mosemo.api import v1_api_router
 from mosemo.auth.service import AuthService
 from mosemo.auth.tokens import TokenService
+from mosemo.clock import utc_now
 from mosemo.config import Config, get_config
 from mosemo.dependencies import get_account_service, get_auth_service
 from mosemo.exception_handlers import register_exception_handlers
@@ -17,7 +18,7 @@ from mosemo.timezones import Timezone
 
 
 def make_account() -> Account:
-    now = datetime.now(UTC)
+    now = datetime(2026, 9, 1, tzinfo=UTC)
     return Account(
         account_id=uuid4(),
         provider=AccountProvider.KAKAO,
@@ -71,7 +72,9 @@ def test_accounts_me_returns_authenticated_account(config: Config) -> None:
     account_service = create_autospec(AccountService, instance=True)
     account_service.get_account.return_value = account
     app = make_app(config=config, account_service=account_service)
-    access_token = TokenService(config.auth).issue_access_token(account.account_id)
+    access_token = TokenService(config.auth).issue_access_token(
+        account.account_id, now=utc_now()
+    )
 
     with TestClient(app) as client:
         response = client.get(
@@ -122,7 +125,9 @@ def test_accounts_me_rejects_deleted_account(config: Config) -> None:
     account_service = create_autospec(AccountService, instance=True)
     account_service.get_account.side_effect = AccountNotFoundError()
     app = make_app(config=config, account_service=account_service)
-    access_token = TokenService(config.auth).issue_access_token(account_id)
+    access_token = TokenService(config.auth).issue_access_token(
+        account_id, now=utc_now()
+    )
 
     with TestClient(app) as client:
         response = client.get(

@@ -9,7 +9,7 @@ from mosemo.activities.service import (
     ActivityAccountNotFoundError,
     ActivityDeviceNotFoundError,
 )
-from mosemo.dependencies import AuthenticatedAccountDep, SessionDep
+from mosemo.dependencies import AuthenticatedAccountDep, ClockDep, SessionDep
 from mosemo.devices.repository import DeviceRepository
 from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.focus_sessions.models import (
@@ -32,12 +32,15 @@ from mosemo.openapi import api_error_responses
 router = APIRouter(prefix="/focus-sessions")
 
 
-def get_focus_session_service(session: SessionDep) -> FocusSessionService:
+def get_focus_session_service(
+    session: SessionDep, clock: ClockDep
+) -> FocusSessionService:
     return FocusSessionService(
         session=session,
         repository=FocusSessionRepository(session),
         activity_repository=ActivityRepository(session),
         device_repository=DeviceRepository(session),
+        clock=clock,
     )
 
 
