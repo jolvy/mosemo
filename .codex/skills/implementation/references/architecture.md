@@ -79,12 +79,12 @@ from typing import Protocol
 
 
 class UserRepository(Protocol):
-    async def save(self, user: User) -> None: ...
+    def add(self, user: User) -> None: ...
     async def find_by_id(self, user_id: UserId) -> User | None: ...
 
 
 class PostgresUserRepository:
-    async def save(self, user: User) -> None:
+    def add(self, user: User) -> None:
         # SQLAlchemy persistence here
         ...
 

@@ -80,7 +80,7 @@ def process_order(order: Order, session: Session, mailer: Mailer) -> None:
 def process_order(order: Order, repository: OrderRepository, mailer: Mailer) -> None:
     order.validate()
     order.calculate_total()
-    repository.save(order)
+    repository.add(order)
     mailer.confirm_order(order)
 ```
 

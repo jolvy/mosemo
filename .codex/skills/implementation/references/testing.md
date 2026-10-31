@@ -50,7 +50,7 @@ Test multiple components together.
 async def test_repository_saves_and_loads_order(db_session: AsyncSession) -> None:
     repo = PostgresOrderRepository(db_session)
     order = Order.create(customer_id="customer-1")
-    await repo.save(order)
+    repo.add(order)
     await db_session.commit()
 
     loaded = await repo.find_by_id(order.id)
@@ -183,7 +183,7 @@ class StubUserRepository:
     async def find_by_id(self, user_id: UserId) -> User | None:
         return User(id=user_id, name="Test")
 
-    async def save(self, user: User) -> None:
+    def add(self, user: User) -> None:
         pass
 ```
 
@@ -226,7 +226,7 @@ class InMemoryUserRepository:
     def __init__(self) -> None:
         self.users: dict[UserId, User] = {}
 
-    async def save(self, user: User) -> None:
+    def add(self, user: User) -> None:
         self.users[user.id] = user
 
     async def find_by_id(self, user_id: UserId) -> User | None:
@@ -282,7 +282,7 @@ async def test_postgres_repository_persists_order(db_session: AsyncSession) -> N
     repo = PostgresOrderRepository(db_session)
     order = Order.create(customer_id="customer-1")
 
-    await repo.save(order)
+    repo.add(order)
     await db_session.commit()
 
     assert await repo.find_by_id(order.id) == order
@@ -309,7 +309,7 @@ async def test_user_repository_contract(repo_factory) -> None:
     repo = await repo_factory()
     user = User.create(name="Test")
 
-    await repo.save(user)
+    repo.add(user)
 
     assert await repo.find_by_id(user.id) == user
     assert await repo.find_by_id(UserId("missing")) is None
