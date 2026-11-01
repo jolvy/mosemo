@@ -1,6 +1,6 @@
 from datetime import datetime
 from hashlib import blake2b
-from uuid import UUID, uuid7
+from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert
@@ -14,10 +14,7 @@ from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.schemas import ActivityObservation
 from mosemo.activities.schemas import ActivityRecord as ActivityRecordRequest
-from mosemo.activities.timeline import (
-    ProjectedActivity,
-    ProjectedSegment,
-)
+from mosemo.activities.timeline import ProjectedSegment
 from mosemo.devices.models import Device
 from mosemo.timezones import Timezone
 
@@ -407,20 +404,9 @@ class ActivityRepository:
         existing: list[ActivityTimelineSegment],
         event_observed_at: datetime,
     ) -> None:
-        convergence: tuple[int, int] | None = None
-        for new_index, new_segment in enumerate(projected):
-            old_index = converged_old_index(
-                existing, new_segment, observed_at=event_observed_at
-            )
-            if old_index is not None:
-                convergence = (new_index, old_index)
-                break
-
-        if convergence is not None:
-            projected = projected[: convergence[0]]
-            to_delete = existing[: convergence[1]]
-        else:
-            to_delete = existing
+        projected, to_delete = self._trim_converged(
+            projected, existing=existing, observed_at=event_observed_at
+        )
         by_first_event = {segment.first_event_id: segment for segment in to_delete}
         for segment in to_delete:
             await self._session.delete(segment)
@@ -428,60 +414,56 @@ class ActivityRepository:
 
         reused_ids: set[UUID] = set()
         for projected_segment in projected:
-            old = by_first_event.get(projected_segment.first_event_id)
-            segment_type = (
-                SegmentType.ACTIVITY
-                if isinstance(projected_segment, ProjectedActivity)
-                else SegmentType.CAPTURE_GAP
+            segment_id = self._reusable_id(
+                projected_segment,
+                by_first_event=by_first_event,
+                candidates=to_delete,
+                reused_ids=reused_ids,
             )
-            if old is None or old.segment_id in reused_ids:
-                old = _merged_existing_segment(
-                    to_delete, projected_segment, reused_ids=reused_ids
+            if segment_id is not None:
+                reused_ids.add(segment_id)
+            self._session.add(
+                projected_segment.to_segment(
+                    account_id=account_id, segment_id=segment_id
                 )
-            segment_id = (
-                old.segment_id
-                if old is not None and old.segment_type == segment_type
-                else uuid7()
             )
-            reused_ids.add(segment_id)
-            segment = ActivityTimelineSegment(
-                segment_id=segment_id,
-                account_id=account_id,
-                segment_type=segment_type,
-                started_at=projected_segment.started_at,
-                ended_at=projected_segment.ended_at,
-                first_event_id=projected_segment.first_event_id,
-                last_event_id=(
-                    projected_segment.last_event_id
-                    if isinstance(projected_segment, ProjectedActivity)
-                    else None
-                ),
-                last_observed_at=(
-                    projected_segment.last_observed_at
-                    if isinstance(projected_segment, ProjectedActivity)
-                    else None
-                ),
-                context=(
-                    projected_segment.context
-                    if isinstance(projected_segment, ProjectedActivity)
-                    else None
-                ),
-                reason=(
-                    projected_segment.reason
-                    if not isinstance(projected_segment, ProjectedActivity)
-                    else None
-                ),
-            )
-            self._session.add(segment)
         await self._session.flush()
 
+    @staticmethod
+    def _trim_converged(
+        projected: list[ProjectedSegment],
+        *,
+        existing: list[ActivityTimelineSegment],
+        observed_at: datetime,
+    ) -> tuple[list[ProjectedSegment], list[ActivityTimelineSegment]]:
+        for new_index, new_segment in enumerate(projected):
+            old_index = new_segment.converged_index(existing, observed_at=observed_at)
+            if old_index is not None:
+                return projected[:new_index], existing[:old_index]
+        return projected, existing
 
-def _reaches_event(segment: ProjectedSegment, observed_at: datetime) -> bool:
-    if segment.started_at > observed_at:
-        return True
-    if segment.ended_at is None:
-        return segment.started_at <= observed_at
-    return segment.ended_at > observed_at
+    @staticmethod
+    def _reusable_id(
+        projected: ProjectedSegment,
+        *,
+        by_first_event: dict[UUID, ActivityTimelineSegment],
+        candidates: list[ActivityTimelineSegment],
+        reused_ids: set[UUID],
+    ) -> UUID | None:
+        old = by_first_event.get(projected.first_event_id)
+        if old is None or old.segment_id in reused_ids:
+            old = next(
+                (
+                    candidate
+                    for candidate in candidates
+                    if candidate.segment_id not in reused_ids
+                    and projected.continues(candidate)
+                ),
+                None,
+            )
+        if old is not None and projected.can_inherit(old):
+            return old.segment_id
+        return None
 
 
 def _ordered_account_segments(account_id: UUID):
@@ -499,67 +481,3 @@ def _ordered_account_segments(account_id: UUID):
             StoredActivityRecord.event_id,
         )
     )
-
-
-def converged_old_index(
-    existing: list[ActivityTimelineSegment],
-    projected: ProjectedSegment,
-    *,
-    observed_at: datetime,
-) -> int | None:
-    if not _reaches_event(projected, observed_at):
-        return None
-    for index, old in enumerate(existing):
-        if _same_projected_segment(old, projected):
-            return index
-    return None
-
-
-def _same_projected_segment(
-    stored: ActivityTimelineSegment, projected: ProjectedSegment
-) -> bool:
-    if isinstance(projected, ProjectedActivity):
-        return (
-            stored.segment_type is SegmentType.ACTIVITY
-            and stored.started_at == projected.started_at
-            and stored.ended_at == projected.ended_at
-            and stored.first_event_id == projected.first_event_id
-            and stored.last_event_id == projected.last_event_id
-            and stored.last_observed_at == projected.last_observed_at
-            and stored.context == projected.context
-        )
-    return (
-        stored.segment_type is SegmentType.CAPTURE_GAP
-        and stored.started_at == projected.started_at
-        and stored.ended_at == projected.ended_at
-        and stored.first_event_id == projected.first_event_id
-        and stored.reason == projected.reason
-    )
-
-
-def _merged_existing_segment(
-    existing: list[ActivityTimelineSegment],
-    projected: ProjectedSegment,
-    *,
-    reused_ids: set[UUID],
-) -> ActivityTimelineSegment | None:
-    segment_type = (
-        SegmentType.ACTIVITY
-        if isinstance(projected, ProjectedActivity)
-        else SegmentType.CAPTURE_GAP
-    )
-    for old in existing:
-        if old.segment_id in reused_ids:
-            continue
-        if old.segment_type is not segment_type:
-            continue
-        if (
-            isinstance(projected, ProjectedActivity)
-            and old.context != projected.context
-        ):
-            continue
-        if old.started_at >= projected.started_at and (
-            projected.ended_at is None or old.started_at <= projected.ended_at
-        ):
-            return old
-    return None

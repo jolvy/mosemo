@@ -9,7 +9,6 @@ from mosemo.activities.enums import ActivityTimelineKind, SegmentType
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.repository import (
     ActivityRepository,
-    converged_old_index,
     is_same_activity_record,
 )
 from mosemo.activities.schemas import (
@@ -164,10 +163,8 @@ class ActivityService:
                         now=now,
                         stop_after_event_id=stored.event_id,
                         stop_when_closed=lambda segment: (
-                            converged_old_index(
-                                existing_segments,
-                                segment,
-                                observed_at=stored.observed_at,
+                            segment.converged_index(
+                                existing_segments, observed_at=stored.observed_at
                             )
                             is not None
                         ),

@@ -12,7 +12,7 @@ from mosemo.activities.messages import TerminalBatchError
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.receipt_repository import BatchReceiptRepository
-from mosemo.activities.repository import ActivityRepository, converged_old_index
+from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.activities.timeline import (
     ProjectedActivity,
@@ -247,8 +247,8 @@ class ActivityBatchProcessor:
                     )
                     if (
                         old is not None
-                        and converged_old_index(
-                            [old], closed, observed_at=ordered[-1].observed_at
+                        and closed.converged_index(
+                            [old], observed_at=ordered[-1].observed_at
                         )
                         is not None
                     ):
