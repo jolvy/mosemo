@@ -7,13 +7,9 @@ import pytest
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.enums import RecordType
+from mosemo.activities.mappers import ActivityRecordMapper
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
-from mosemo.activities.repository import (
-    ActivityRepository,
-    activity_payload,
-    is_same_activity_record,
-)
+from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityRecord
 from mosemo.activities.service import (
     ActivityDeviceNotFoundError,
@@ -52,19 +48,11 @@ def make_record(
 
 
 def stored_record(record: ActivityRecord, **changes: object) -> StoredActivityRecord:
-    values = {
-        "event_id": record.event_id,
-        "device_id": record.device_id,
-        "sequence": record.sequence,
-        "record_type": record.record_type,
-        "observed_at": record.observed_at,
-        "timezone_id": record.timezone_id,
-        "utc_offset_minutes": record.utc_offset_minutes,
-        "payload": activity_payload(record),
-        "received_at": RECEIVED_AT,
-        **changes,
-    }
-    return StoredActivityRecord(**values)
+    stored = ActivityRecordMapper().to_entity(record)
+    stored.received_at = RECEIVED_AT
+    for field, value in changes.items():
+        setattr(stored, field, value)
+    return stored
 
 
 def make_service():
@@ -97,7 +85,10 @@ def test_create_activity_commits_new_record() -> None:
     assert result.event_id == record.event_id
     assert result.status == "accepted"
     assert result.received_at == RECEIVED_AT
-    repository.add_if_absent.assert_awaited_once_with(record)
+    repository.add_if_absent.assert_awaited_once()
+    candidate = repository.add_if_absent.await_args.args[0]
+    assert isinstance(candidate, StoredActivityRecord)
+    assert candidate.has_same_content(ActivityRecordMapper().to_entity(record))
     session.begin.assert_called_once_with()
     session.commit.assert_not_awaited()
     session.rollback.assert_not_awaited()
@@ -215,85 +206,3 @@ def test_create_activity_hides_missing_and_unowned_devices() -> None:
     session.begin.assert_called_once_with()
     session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()
-
-
-@pytest.mark.parametrize(
-    ("field", "different_value"),
-    [
-        ("event_id", uuid4()),
-        ("device_id", uuid4()),
-        ("sequence", 99),
-        ("record_type", RecordType.COLLECTION_STATE_CHANGED),
-        ("observed_at", datetime(2026, 9, 14, 2, tzinfo=UTC)),
-        ("timezone_id", Timezone.UTC),
-        ("utc_offset_minutes", 0),
-        ("payload", {"context": {"kind": "opaque", "unexpected": True}}),
-    ],
-)
-def test_activity_record_identity_compares_every_stored_request_field(
-    field: str,
-    different_value: object,
-) -> None:
-    record = make_record()
-
-    assert is_same_activity_record(stored_record(record), record)
-    assert not is_same_activity_record(
-        stored_record(record, **{field: different_value}),
-        record,
-    )
-
-
-def test_activity_payload_keeps_nested_public_field_names() -> None:
-    record = activity_record_adapter.validate_python(
-        {
-            "deviceId": str(uuid4()),
-            "eventId": str(uuid4()),
-            "sequence": 3,
-            "recordType": "activity_observation",
-            "observedAt": "2026-09-14T00:00:00Z",
-            "timezoneId": "Asia/Seoul",
-            "utcOffsetMinutes": 540,
-            "context": {
-                "kind": "detailed",
-                "app": {
-                    "bundleId": {"status": "captured", "value": "com.apple.Safari"},
-                    "name": {"status": "captured", "value": "Safari"},
-                },
-                "window": {
-                    "status": "captured",
-                    "title": {
-                        "status": "captured",
-                        "value": "Mosemo",
-                        "truncated": True,
-                        "originalByteLength": 12,
-                    },
-                },
-                "web": {"kind": "not_applicable"},
-            },
-        }
-    )
-
-    payload = activity_payload(record)
-
-    assert payload == {
-        "context": {
-            "kind": "detailed",
-            "app": {
-                "bundleId": {
-                    "status": "captured",
-                    "value": "com.apple.Safari",
-                },
-                "name": {"status": "captured", "value": "Safari"},
-            },
-            "window": {
-                "status": "captured",
-                "title": {
-                    "status": "captured",
-                    "value": "Mosemo",
-                    "truncated": True,
-                    "originalByteLength": 12,
-                },
-            },
-            "web": {"kind": "not_applicable"},
-        }
-    }

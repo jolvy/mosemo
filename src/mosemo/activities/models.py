@@ -74,6 +74,36 @@ class ActivityRecord(Base):
         server_default=func.now(),
     )
 
+    def has_same_content(self, other: ActivityRecord) -> bool:
+        return (
+            self.event_id,
+            self.device_id,
+            self.focus_session_id,
+            self.sequence,
+            self.record_type,
+            self.observed_at,
+            self.timezone_id,
+            self.utc_offset_minutes,
+            self.payload,
+        ) == (
+            other.event_id,
+            other.device_id,
+            other.focus_session_id,
+            other.sequence,
+            other.record_type,
+            other.observed_at,
+            other.timezone_id,
+            other.utc_offset_minutes,
+            other.payload,
+        )
+
+    def is_in_device_order(
+        self, *, previous: datetime | None, following: datetime | None
+    ) -> bool:
+        return (previous is None or previous <= self.observed_at) and (
+            following is None or self.observed_at <= following
+        )
+
 
 class ActivityTimelineSegment(Base):
     __tablename__ = "activity_timeline_segments"
