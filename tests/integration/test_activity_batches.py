@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.batch_processing import batch_fingerprint
+from mosemo.activities.mappers import ActivityRecordMapper
 from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityBatchRequest
@@ -450,7 +451,9 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
         repo = ActivityRepository(session)
         stored: list[ActivityRecord] = []
         for source in legacy.activity_records():
-            inserted = await repo.add_if_absent(source)
+            inserted = await repo.add_if_absent(
+                ActivityRecordMapper().to_entity(source)
+            )
             assert inserted is not None
             stored.append(inserted)
         # Legacy ties followed received_at: B before A, and F before E.

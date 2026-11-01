@@ -6,11 +6,9 @@ from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.enums import ActivityTimelineKind, SegmentType
+from mosemo.activities.mappers import ActivityRecordMapper
 from mosemo.activities.models import ActivityTimelineSegment
-from mosemo.activities.repository import (
-    ActivityRepository,
-    is_same_activity_record,
-)
+from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import (
     ActivityContext,
     ActivityCreateResponse,
@@ -115,6 +113,7 @@ class ActivityService:
         self._repository = repository
         self._device_repository = device_repository
         self._clock = clock
+        self._mapper = ActivityRecordMapper()
 
     async def create_activity(
         self,
@@ -145,7 +144,8 @@ class ActivityService:
                     observed_at=record.observed_at,
                 )
 
-            stored = await self._repository.add_if_absent(record)
+            candidate = self._mapper.to_entity(record)
+            stored = await self._repository.add_if_absent(candidate)
             if stored is not None:
                 replay_start = await self._repository.find_replay_start(
                     account_id, stored.observed_at
@@ -180,7 +180,7 @@ class ActivityService:
 
             existing_event = await self._repository.find_by_event_id(record.event_id)
             if existing_event is not None:
-                if is_same_activity_record(existing_event, record):
+                if existing_event.has_same_content(candidate):
                     return ActivityCreateResponse(
                         event_id=existing_event.event_id,
                         status="accepted",

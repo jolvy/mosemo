@@ -8,12 +8,14 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.enums import SegmentType
+from mosemo.activities.mappers import ActivityRecordMapper
 from mosemo.activities.messages import TerminalBatchError
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.receipt_repository import BatchReceiptRepository
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityBatchRequest
+from mosemo.activities.schemas import ActivityRecord as ActivityRecordRequest
 from mosemo.activities.timeline import (
     ProjectedActivity,
     ProjectedGap,
@@ -64,6 +66,7 @@ class ActivityBatchProcessor:
         self._clock = clock
         self.repository = ActivityRepository(session)
         self.receipts = BatchReceiptRepository(session)
+        self._mapper = ActivityRecordMapper()
 
     async def process(
         self,
@@ -71,11 +74,7 @@ class ActivityBatchProcessor:
         batch: ActivityBatchRequest,
     ) -> list[dict[str, str]]:
         now = self._clock()
-        device = await DeviceRepository(self.session).find_owned_by_id(
-            account_id=account_id, device_id=batch.device_id
-        )
-        if device is None:
-            raise TerminalBatchError("device_not_owned")
+        await self._ensure_device_owned(account_id, batch.device_id)
         initialized = await self.receipts.has_for_account(account_id)
         fingerprint = batch_fingerprint(batch)
         claimed = await self.receipts.claim(
@@ -85,87 +84,14 @@ class ActivityBatchProcessor:
             fingerprint=fingerprint,
         )
         if claimed is None:
-            winner = await self.receipts.find(
-                account_id=account_id,
-                device_id=batch.device_id,
-                batch_id=batch.batch_id,
+            return await self._winner_results(
+                account_id, batch, fingerprint=fingerprint
             )
-            if winner is None:
-                raise RuntimeError("receipt winner missing")
-            if winner.fingerprint != fingerprint:
-                raise TerminalBatchError("batch_content_conflict")
-            return winner.results
-        if not initialized and not await self.repository.is_account_clock_monotone(
-            account_id
-        ):
-            raise TerminalBatchError("projection_time_regression")
-        latest = await self.repository.find_latest_account_record(account_id)
-        if not initialized and latest is not None:
-            await self._rebuild_legacy_projection(account_id, latest, now=now)
-        adopted = []
-        results = []
-        for record in batch.activity_records():
-            # Processed IDs are immutable. Pre-reads do not replace INSERT's
-            # unique constraints: concurrent winners are still reread below.
-            event = await self.repository.find_by_event_id(record.event_id)
-            if event is not None:
-                results.append(
-                    {
-                        "eventId": str(record.event_id),
-                        "status": "duplicate"
-                        if event.device_id == batch.device_id
-                        else "event_id_rejected",
-                    }
-                )
-                continue
-            sequence = await self.repository.find_by_device_sequence(
-                device_id=batch.device_id, sequence=record.sequence
-            )
-            if sequence is not None:
-                results.append(
-                    {"eventId": str(record.event_id), "status": "sequence_rejected"}
-                )
-                continue
-            if record.focus_session_id is not None:
-                focus = await FocusSessionRepository(self.session).find_owned(
-                    account_id, record.focus_session_id
-                )
-                try:
-                    if focus is None:
-                        raise FocusSessionNotFoundError
-                    focus.validate_activity(
-                        account_id=account_id,
-                        device_id=batch.device_id,
-                        observed_at=record.observed_at,
-                    )
-                except (
-                    FocusSessionNotFoundError,
-                    FocusSessionInvalidTimeError,
-                ) as error:
-                    raise TerminalBatchError(type(error).__name__) from None
-            stored = await self.repository.add_if_absent(record)
-            if stored is None:
-                event = await self.repository.find_by_event_id(record.event_id)
-                if event is not None:
-                    status = (
-                        "duplicate"
-                        if event.device_id == batch.device_id
-                        else "event_id_rejected"
-                    )
-                else:
-                    sequence = await self.repository.find_by_device_sequence(
-                        device_id=batch.device_id, sequence=record.sequence
-                    )
-                    if sequence is None:
-                        raise RuntimeError("record winner missing")
-                    status = "sequence_rejected"
-            else:
-                adopted.append(stored)
-                status = "stored"
-            results.append({"eventId": str(record.event_id), "status": status})
-        for record in adopted:
-            if not await self.repository.is_device_clock_valid(record):
-                raise TerminalBatchError("projection_time_regression")
+        latest = await self._initialize_account(
+            account_id, initialized=initialized, now=now
+        )
+        adopted, results = await self._store_records(account_id, batch)
+        await self._ensure_device_order(adopted)
         if adopted:
             try:
                 await self._project(account_id, adopted, latest=latest, now=now)
@@ -174,6 +100,110 @@ class ActivityBatchProcessor:
         claimed.results = results
         await self.session.flush()
         return results
+
+    async def _ensure_device_owned(self, account_id: UUID, device_id: UUID) -> None:
+        device = await DeviceRepository(self.session).find_owned_by_id(
+            account_id=account_id, device_id=device_id
+        )
+        if device is None:
+            raise TerminalBatchError("device_not_owned")
+
+    async def _winner_results(
+        self, account_id: UUID, batch: ActivityBatchRequest, *, fingerprint: str
+    ) -> list[dict[str, str]]:
+        winner = await self.receipts.find(
+            account_id=account_id,
+            device_id=batch.device_id,
+            batch_id=batch.batch_id,
+        )
+        if winner is None:
+            raise RuntimeError("receipt winner missing")
+        if winner.fingerprint != fingerprint:
+            raise TerminalBatchError("batch_content_conflict")
+        return winner.results
+
+    async def _initialize_account(
+        self, account_id: UUID, *, initialized: bool, now: datetime
+    ) -> StoredActivityRecord | None:
+        if not initialized and not await self.repository.is_account_clock_monotone(
+            account_id
+        ):
+            raise TerminalBatchError("projection_time_regression")
+        latest = await self.repository.find_latest_account_record(account_id)
+        if not initialized and latest is not None:
+            await self._rebuild_legacy_projection(account_id, latest, now=now)
+        return latest
+
+    async def _store_records(
+        self, account_id: UUID, batch: ActivityBatchRequest
+    ) -> tuple[list[StoredActivityRecord], list[dict[str, str]]]:
+        adopted = []
+        results = []
+        for record in batch.activity_records():
+            stored, status = await self._store_record(account_id, record)
+            if stored is not None:
+                adopted.append(stored)
+            results.append({"eventId": str(record.event_id), "status": status})
+        return adopted, results
+
+    async def _store_record(
+        self, account_id: UUID, record: ActivityRecordRequest
+    ) -> tuple[StoredActivityRecord | None, str]:
+        # Processed IDs are immutable. Pre-reads do not replace INSERT's
+        # unique constraints: concurrent winners are still reread below.
+        status = await self._rejection_status(record)
+        if status is not None:
+            return None, status
+        await self._validate_focus_session(account_id, record)
+        stored = await self.repository.add_if_absent(self._mapper.to_entity(record))
+        if stored is not None:
+            return stored, "stored"
+        status = await self._rejection_status(record)
+        if status is None:
+            raise RuntimeError("record winner missing")
+        return None, status
+
+    async def _rejection_status(self, record: ActivityRecordRequest) -> str | None:
+        event = await self.repository.find_by_event_id(record.event_id)
+        if event is not None:
+            if event.device_id == record.device_id:
+                return "duplicate"
+            return "event_id_rejected"
+        sequence = await self.repository.find_by_device_sequence(
+            device_id=record.device_id, sequence=record.sequence
+        )
+        if sequence is not None:
+            return "sequence_rejected"
+        return None
+
+    async def _validate_focus_session(
+        self, account_id: UUID, record: ActivityRecordRequest
+    ) -> None:
+        if record.focus_session_id is None:
+            return
+        focus = await FocusSessionRepository(self.session).find_owned(
+            account_id, record.focus_session_id
+        )
+        try:
+            if focus is None:
+                raise FocusSessionNotFoundError
+            focus.validate_activity(
+                account_id=account_id,
+                device_id=record.device_id,
+                observed_at=record.observed_at,
+            )
+        except (
+            FocusSessionNotFoundError,
+            FocusSessionInvalidTimeError,
+        ) as error:
+            raise TerminalBatchError(type(error).__name__) from None
+
+    async def _ensure_device_order(self, adopted: list[StoredActivityRecord]) -> None:
+        for record in adopted:
+            previous = await self.repository.find_previous_device_observed_at(record)
+            following = await self.repository.find_next_device_observed_at(record)
+            if not record.is_in_device_order(previous=previous, following=following):
+                raise TerminalBatchError("projection_time_regression")
 
     async def _rebuild_legacy_projection(
         self, account_id: UUID, latest: StoredActivityRecord, *, now: datetime
@@ -208,23 +238,41 @@ class ActivityBatchProcessor:
         now: datetime,
     ) -> None:
         ordered = sorted(adopted, key=observation_key)
-        append = latest is None or observation_key(ordered[0]) > observation_key(latest)
-        last_segment = (
-            await self.repository.find_last_account_segment(account_id)
-            if append
-            else None
+        if latest is None or observation_key(ordered[0]) > observation_key(latest):
+            last_segment = await self.repository.find_last_account_segment(account_id)
+            if last_segment is not None:
+                await self._append(
+                    account_id, ordered, last_segment=last_segment, now=now
+                )
+                return
+        await self._replay(account_id, ordered, now=now)
+
+    async def _append(
+        self,
+        account_id: UUID,
+        ordered: list[StoredActivityRecord],
+        *,
+        last_segment: ActivityTimelineSegment,
+        now: datetime,
+    ) -> None:
+        projection = TimelineProjection(segment_seed(last_segment))
+        for record in ordered:
+            projection.feed(record)
+        await self.repository.replace_account_segments(
+            account_id=account_id,
+            projected=projection.finish(now),
+            existing=[last_segment],
+            event_observed_at=ordered[-1].observed_at,
         )
-        if append and last_segment is not None:
-            projection = TimelineProjection(segment_seed(last_segment))
-            for record in ordered:
-                projection.feed(record)
-            await self.repository.replace_account_segments(
-                account_id=account_id,
-                projected=projection.finish(now),
-                existing=[last_segment],
-                event_observed_at=ordered[-1].observed_at,
-            )
-            return
+
+    async def _replay(
+        self,
+        account_id: UUID,
+        ordered: list[StoredActivityRecord],
+        *,
+        now: datetime,
+    ) -> None:
+        observed_at = ordered[-1].observed_at
         start = await self.repository.find_replay_start(
             account_id, ordered[0].observed_at
         )
@@ -232,30 +280,20 @@ class ActivityBatchProcessor:
         after = None
         remaining = {r.event_id for r in ordered}
         convergence = None
-        while True:
-            page = await self.repository.list_record_page(
+        while convergence is None and (
+            page := await self.repository.list_record_page(
                 account_id, start=start, after=after
             )
-            if not page:
-                break
+        ):
             for record in page:
                 remaining.discard(record.event_id)
                 closed = projection.feed(record)
                 if closed is not None and not remaining:
-                    old = await self.repository.find_account_segment_by_first_event(
-                        account_id=account_id, first_event_id=closed.first_event_id
+                    convergence = await self._converged_segment(
+                        account_id, closed, observed_at=observed_at
                     )
-                    if (
-                        old is not None
-                        and closed.converged_index(
-                            [old], observed_at=ordered[-1].observed_at
-                        )
-                        is not None
-                    ):
-                        convergence = old
+                    if convergence is not None:
                         break
-            if convergence is not None:
-                break
             after = observation_key(page[-1])
         existing = await self.repository.list_segment_range(
             account_id,
@@ -267,5 +305,18 @@ class ActivityBatchProcessor:
             account_id=account_id,
             projected=projected,
             existing=existing,
-            event_observed_at=ordered[-1].observed_at,
+            event_observed_at=observed_at,
         )
+
+    async def _converged_segment(
+        self, account_id: UUID, closed: ProjectedSegment, *, observed_at: datetime
+    ) -> ActivityTimelineSegment | None:
+        old = await self.repository.find_account_segment_by_first_event(
+            account_id=account_id, first_event_id=closed.first_event_id
+        )
+        if (
+            old is None
+            or closed.converged_index([old], observed_at=observed_at) is None
+        ):
+            return None
+        return old

@@ -12,8 +12,6 @@ from mosemo.activities.constants import MAX_OBSERVATION_GAP
 from mosemo.activities.enums import SegmentType
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.models import ActivityTimelineSegment
-from mosemo.activities.schemas import ActivityObservation
-from mosemo.activities.schemas import ActivityRecord as ActivityRecordRequest
 from mosemo.activities.timeline import ProjectedSegment
 from mosemo.devices.models import Device
 from mosemo.timezones import Timezone
@@ -29,29 +27,6 @@ def activity_timeline_lock_key(account_id: UUID) -> int:
         digest_size=8,
     ).digest()
     return int.from_bytes(digest, signed=True)
-
-
-def activity_payload(record: ActivityRecordRequest) -> dict[str, object]:
-    if isinstance(record, ActivityObservation):
-        return {"context": record.context.model_dump(mode="json", by_alias=True)}
-    return {"state": record.state.value, "reason": record.reason}
-
-
-def is_same_activity_record(
-    stored: StoredActivityRecord,
-    requested: ActivityRecordRequest,
-) -> bool:
-    return (
-        stored.event_id == requested.event_id
-        and stored.device_id == requested.device_id
-        and stored.focus_session_id == requested.focus_session_id
-        and stored.sequence == requested.sequence
-        and stored.record_type == requested.record_type
-        and stored.observed_at == requested.observed_at
-        and stored.timezone_id == requested.timezone_id
-        and stored.utc_offset_minutes == requested.utc_offset_minutes
-        and stored.payload == activity_payload(requested)
-    )
 
 
 class ActivityRepository:
@@ -72,7 +47,7 @@ class ActivityRepository:
 
     async def add_if_absent(
         self,
-        record: ActivityRecordRequest,
+        record: StoredActivityRecord,
     ) -> StoredActivityRecord | None:
         statement = (
             insert(StoredActivityRecord)
@@ -85,7 +60,7 @@ class ActivityRepository:
                 observed_at=record.observed_at,
                 timezone_id=record.timezone_id,
                 utc_offset_minutes=record.utc_offset_minutes,
-                payload=activity_payload(record),
+                payload=record.payload,
             )
             .on_conflict_do_nothing()
             .returning(StoredActivityRecord)
@@ -230,27 +205,29 @@ class ActivityRepository:
         )
         return regression is None
 
-    async def is_device_clock_valid(self, record: StoredActivityRecord) -> bool:
+    async def find_previous_device_observed_at(
+        self, record: StoredActivityRecord
+    ) -> datetime | None:
         model = StoredActivityRecord
-        for preceding in (True, False):
-            statement = select(model.observed_at).where(
-                model.device_id == record.device_id
-            )
-            if preceding:
-                statement = statement.where(model.sequence < record.sequence).order_by(
-                    model.sequence.desc()
-                )
-            else:
-                statement = statement.where(model.sequence > record.sequence).order_by(
-                    model.sequence
-                )
-            observed_at = await self._session.scalar(statement.limit(1))
-            if observed_at is not None and (
-                (preceding and observed_at > record.observed_at)
-                or (not preceding and observed_at < record.observed_at)
-            ):
-                return False
-        return True
+        return await self._session.scalar(
+            select(model.observed_at)
+            .where(model.device_id == record.device_id)
+            .where(model.sequence < record.sequence)
+            .order_by(model.sequence.desc())
+            .limit(1)
+        )
+
+    async def find_next_device_observed_at(
+        self, record: StoredActivityRecord
+    ) -> datetime | None:
+        model = StoredActivityRecord
+        return await self._session.scalar(
+            select(model.observed_at)
+            .where(model.device_id == record.device_id)
+            .where(model.sequence > record.sequence)
+            .order_by(model.sequence)
+            .limit(1)
+        )
 
     async def find_last_account_segment(
         self, account_id: UUID

@@ -1,16 +1,1 @@
-[
-  {
-    "path": "src/mosemo/activities/batch_processing.py",
-    "file_name": "batch_processing.py",
-    "functions": [
-      {
-        "name": "ActivityBatchProcessor::_project",
-        "complexity": 24
-      },
-      {
-        "name": "ActivityBatchProcessor::process",
-        "complexity": 47
-      }
-    ]
-  }
-]
+[]
