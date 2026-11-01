@@ -3311,6 +3311,104 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
 
 
 @pytest.mark.asyncio
+async def test_label_timeline_splits_same_label_at_zero_duration_capture_gap(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, coding_id, _ = await create_account_with_labels(session)
+        await session.commit()
+
+    headers = auth_headers(config, account_id)
+    try:
+        requests = [
+            activity_request(
+                device_id=device.device_id,
+                sequence=1,
+                observed_at="2026-09-14T00:00:00Z",
+                context=detailed_context("Editor"),
+            ),
+            state_change_request(
+                device_id=device.device_id,
+                sequence=2,
+                observed_at="2026-09-14T00:01:00Z",
+            ),
+            activity_request(
+                device_id=device.device_id,
+                sequence=3,
+                observed_at="2026-09-14T00:01:00Z",
+                context=detailed_context("Editor"),
+            ),
+            activity_request(
+                device_id=device.device_id,
+                sequence=4,
+                observed_at="2026-09-14T00:02:00Z",
+                context=detailed_context("Browser"),
+            ),
+        ]
+        for request in requests:
+            response = await post_activity(client, headers=headers, json=request)
+            assert response.status_code == 200
+
+        observed = await client.get(
+            "/api/v1/activities/timeline?date=2026-09-14",
+            headers=headers,
+        )
+        assert observed.status_code == 200
+        editor_segments = [
+            segment
+            for segment in observed.json()
+            if segment.get("context", {}).get("kind") == "detailed"
+            and segment["context"]["app"]["name"]["value"] == "Editor"
+        ]
+        assert len(editor_segments) == 2
+        for segment in editor_segments:
+            state = await client.get(
+                f"/api/v1/activities/segments/{segment['segmentId']}/label-state",
+                headers=headers,
+            )
+            confirmed = await client.put(
+                f"/api/v1/activities/segments/{segment['segmentId']}/label-confirmation",
+                headers=headers,
+                json={
+                    "segmentVersion": state.json()["segmentVersion"],
+                    "selection": {"kind": "label", "labelId": str(coding_id)},
+                },
+            )
+            assert confirmed.status_code == 200
+
+        response = await client.get(
+            "/api/v1/activities/label-timeline?date=2026-09-14",
+            headers=headers,
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert [item["itemType"] for item in body[:3]] == [
+            "activity_group",
+            "capture_gap",
+            "activity_group",
+        ]
+        assert [member["segmentId"] for member in body[0]["segments"]] == [
+            editor_segments[0]["segmentId"]
+        ]
+        assert body[1]["startedAt"] == body[1]["endedAt"] == "2026-09-14T00:01:00Z"
+        assert [member["segmentId"] for member in body[2]["segments"]] == [
+            editor_segments[1]["segmentId"]
+        ]
+        assert body[0]["selection"] == body[2]["selection"]
+        assert body[0]["endedAt"] == body[2]["startedAt"]
+    finally:
+        async with session_factory() as session:
+            await session.execute(
+                delete(Account).where(Account.account_id == account_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
 async def test_label_timeline_defaults_to_account_local_today(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI

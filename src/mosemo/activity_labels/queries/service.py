@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from hashlib import sha256
 from uuid import UUID
@@ -6,6 +7,7 @@ from uuid import UUID
 from pydantic import TypeAdapter
 
 from mosemo.activities.enums import ActivityTimelineKind
+from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityContext
 from mosemo.activities.service import ActivityAccountNotFoundError, timeline_date_window
@@ -21,7 +23,10 @@ from mosemo.activity_labels.proposals.models import (
     ActivityLabelProposalStatus,
 )
 from mosemo.activity_labels.proposals.repository import ProposalRepository
-from mosemo.activity_labels.queries.repository import LabelQueryRepository
+from mosemo.activity_labels.queries.repository import (
+    ConfirmationWithLabelName,
+    LabelQueryRepository,
+)
 from mosemo.activity_labels.schemas import (
     ActivityGroupResponse,
     ActivityLabelProposalResponse,
@@ -64,6 +69,36 @@ def group_version(members: list[str]) -> str:
     return sha256(json.dumps(members, separators=(",", ":")).encode()).hexdigest()
 
 
+@dataclass(frozen=True, slots=True)
+class LabelTimelineEntry:
+    """A labelable segment with the confirmation that applies to its version."""
+
+    segment: ActivityTimelineSegment
+    version: str
+    ended_at: datetime
+    confirmation: ActivityLabelConfirmation | None
+    display_name: str | None
+
+    def joins(self, previous: LabelTimelineEntry) -> bool:
+        if previous.ended_at != self.segment.started_at:
+            return False
+        if previous.confirmation is None or self.confirmation is None:
+            return previous.confirmation is None and self.confirmation is None
+        return previous.confirmation.label_id == self.confirmation.label_id
+
+    def member_response(self) -> LabelTimelineSegmentResponse:
+        assert self.segment.context is not None
+        assert self.segment.last_observed_at is not None
+        return LabelTimelineSegmentResponse(
+            segment_id=self.segment.segment_id,
+            segment_version=self.version,
+            started_at=self.segment.started_at,
+            ended_at=self.ended_at,
+            last_observed_at=self.segment.last_observed_at,
+            context=activity_context_adapter.validate_python(self.segment.context),
+        )
+
+
 class LabelQueries:
     def __init__(
         self,
@@ -100,161 +135,148 @@ class LabelQueries:
             end=end,
         )
 
-        labelable_first_event_ids: set[UUID] = set()
-        for segment in segments:
-            if not segment.overlaps_window(
-                start=start,
-                end=end,
-                now=now,
-            ):
-                continue
-            if (
-                segment.timeline_kind_at(now)
-                is ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
-            ):
-                labelable_first_event_ids.add(segment.first_event_id)
-
+        visible_segments = [
+            segment
+            for segment in segments
+            if segment.overlaps_window(start=start, end=end, now=now)
+        ]
         confirmations = (
             await self._label_query_repository.list_confirmations_with_label_names(
                 account_id=account_id,
-                first_event_ids=labelable_first_event_ids,
+                first_event_ids={
+                    segment.first_event_id
+                    for segment in visible_segments
+                    if segment.timeline_kind_at(now)
+                    is ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
+                },
             )
         )
 
         results: list[LabelTimelineItemResponse] = []
-        current_group: ActivityGroupResponse | None = None
-        current_group_versions: list[str] = []
-
-        def flush_group() -> None:
-            nonlocal current_group, current_group_versions
-            if current_group is not None:
-                results.append(current_group)
-                current_group = None
-                current_group_versions = []
-
-        for segment in segments:
-            if not segment.overlaps_window(
-                start=start,
-                end=end,
-                now=now,
-            ):
-                continue
-
+        group: list[LabelTimelineEntry] = []
+        for segment in visible_segments:
             kind = segment.timeline_kind_at(now)
-            ended_at = segment.effective_ended_at(now)
-            if kind is ActivityTimelineKind.CAPTURE_GAP:
-                flush_group()
-                assert segment.reason is not None
-                results.append(
-                    LabelTimelineCaptureGapResponse(
-                        item_type="capture_gap",
-                        segment_id=segment.segment_id,
-                        started_at=segment.started_at,
-                        ended_at=ended_at,
-                        reason=segment.reason,
-                    )
-                )
+            if kind is not ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY:
+                if group:
+                    results.append(self._group_response(group))
+                    group = []
+                results.append(self._standalone_response(segment, kind=kind, now=now))
                 continue
+            entry = self._timeline_entry(segment, confirmations, now=now)
+            if group and not entry.joins(group[-1]):
+                results.append(self._group_response(group))
+                group = []
+            group.append(entry)
+        if group:
+            results.append(self._group_response(group))
+        return results
 
-            assert segment.context is not None
-            context = activity_context_adapter.validate_python(segment.context)
-            if kind is ActivityTimelineKind.OPAQUE_ACTIVITY:
-                flush_group()
-                assert segment.last_observed_at is not None
-                results.append(
-                    OpaqueActivityResponse(
-                        item_type="opaque_activity",
-                        segment_id=segment.segment_id,
-                        started_at=segment.started_at,
-                        ended_at=ended_at,
-                        last_observed_at=segment.last_observed_at,
-                        context=context,
-                    )
-                )
-                continue
-
-            assert segment.last_observed_at is not None
-            if kind is ActivityTimelineKind.IN_PROGRESS_ACTIVITY:
-                flush_group()
-                results.append(
-                    InProgressActivityResponse(
-                        item_type="in_progress_activity",
-                        segment_id=segment.segment_id,
-                        started_at=segment.started_at,
-                        ended_at=None,
-                        last_observed_at=segment.last_observed_at,
-                        context=context,
-                    )
-                )
-                continue
-
-            assert ended_at is not None
-            version = segment_version(segment, ended_at=ended_at)
-            confirmation_with_name = confirmations.get(segment.first_event_id)
-            confirmation = (
-                confirmation_with_name.confirmation
-                if confirmation_with_name is not None
-                and confirmation_with_name.confirmation.segment_version == version
-                else None
+    @staticmethod
+    def _timeline_entry(
+        segment: ActivityTimelineSegment,
+        confirmations: dict[UUID, ConfirmationWithLabelName],
+        *,
+        now: datetime,
+    ) -> LabelTimelineEntry:
+        ended_at = segment.effective_ended_at(now)
+        assert ended_at is not None
+        version = segment_version(segment, ended_at=ended_at)
+        confirmation_with_name = confirmations.get(segment.first_event_id)
+        if confirmation_with_name is None or not (
+            confirmation_with_name.confirmation.applies_to(version)
+        ):
+            return LabelTimelineEntry(
+                segment=segment,
+                version=version,
+                ended_at=ended_at,
+                confirmation=None,
+                display_name=None,
             )
-            display_name = (
-                confirmation_with_name.display_name
-                if confirmation is not None and confirmation_with_name is not None
-                else None
-            )
-            if confirmation is None:
-                state = "pending"
-                selection = None
-            elif confirmation.label_id is None:
-                state = "confirmed"
-                selection = UnclassifiedSelectionResponse(kind="unclassified")
-            else:
-                assert display_name is not None
-                state = "confirmed"
-                selection = LabelTimelineLabelSelectionResponse(
-                    kind="label",
-                    label_id=confirmation.label_id,
-                    display_name=display_name,
-                )
+        return LabelTimelineEntry(
+            segment=segment,
+            version=version,
+            ended_at=ended_at,
+            confirmation=confirmation_with_name.confirmation,
+            display_name=confirmation_with_name.display_name,
+        )
 
-            member = LabelTimelineSegmentResponse(
+    @staticmethod
+    def _standalone_response(
+        segment: ActivityTimelineSegment,
+        *,
+        kind: ActivityTimelineKind,
+        now: datetime,
+    ) -> LabelTimelineItemResponse:
+        ended_at = segment.effective_ended_at(now)
+        if kind is ActivityTimelineKind.CAPTURE_GAP:
+            assert segment.reason is not None
+            return LabelTimelineCaptureGapResponse(
+                item_type="capture_gap",
                 segment_id=segment.segment_id,
-                segment_version=version,
+                started_at=segment.started_at,
+                ended_at=ended_at,
+                reason=segment.reason,
+            )
+        assert segment.context is not None
+        assert segment.last_observed_at is not None
+        context = activity_context_adapter.validate_python(segment.context)
+        if kind is ActivityTimelineKind.OPAQUE_ACTIVITY:
+            return OpaqueActivityResponse(
+                item_type="opaque_activity",
+                segment_id=segment.segment_id,
                 started_at=segment.started_at,
                 ended_at=ended_at,
                 last_observed_at=segment.last_observed_at,
                 context=context,
             )
-            member_version = group_member_version(
-                segment_id=segment.segment_id,
-                version=version,
-                confirmation=confirmation,
-            )
-            if (
-                current_group is not None
-                and current_group.ended_at == segment.started_at
-                and current_group.state == state
-                and current_group.selection == selection
-            ):
-                current_group.segments.append(member)
-                current_group.ended_at = ended_at
-                current_group_versions.append(member_version)
-                current_group.group_version = group_version(current_group_versions)
-            else:
-                flush_group()
-                current_group_versions = [member_version]
-                current_group = ActivityGroupResponse(
-                    item_type="activity_group",
-                    group_version=group_version(current_group_versions),
-                    started_at=segment.started_at,
-                    ended_at=ended_at,
-                    state=state,
-                    selection=selection,
-                    segments=[member],
-                )
+        assert kind is ActivityTimelineKind.IN_PROGRESS_ACTIVITY
+        return InProgressActivityResponse(
+            item_type="in_progress_activity",
+            segment_id=segment.segment_id,
+            started_at=segment.started_at,
+            ended_at=None,
+            last_observed_at=segment.last_observed_at,
+            context=context,
+        )
 
-        flush_group()
-        return results
+    @staticmethod
+    def _group_response(group: list[LabelTimelineEntry]) -> ActivityGroupResponse:
+        first = group[0]
+        selection: (
+            UnclassifiedSelectionResponse | LabelTimelineLabelSelectionResponse | None
+        )
+        if first.confirmation is None:
+            state = "pending"
+            selection = None
+        elif first.confirmation.label_id is None:
+            state = "confirmed"
+            selection = UnclassifiedSelectionResponse(kind="unclassified")
+        else:
+            assert first.display_name is not None
+            state = "confirmed"
+            selection = LabelTimelineLabelSelectionResponse(
+                kind="label",
+                label_id=first.confirmation.label_id,
+                display_name=first.display_name,
+            )
+        return ActivityGroupResponse(
+            item_type="activity_group",
+            group_version=group_version(
+                [
+                    group_member_version(
+                        segment_id=entry.segment.segment_id,
+                        version=entry.version,
+                        confirmation=entry.confirmation,
+                    )
+                    for entry in group
+                ]
+            ),
+            started_at=first.segment.started_at,
+            ended_at=group[-1].ended_at,
+            state=state,
+            selection=selection,
+            segments=[entry.member_response() for entry in group],
+        )
 
     async def get_state(
         self, *, account_id: UUID, segment_id: UUID, now: datetime
@@ -282,7 +304,7 @@ class LabelQueries:
             version=version,
             confirmation=(
                 confirmation
-                if confirmation is not None and confirmation.segment_version == version
+                if confirmation is not None and confirmation.applies_to(version)
                 else None
             ),
             proposal=proposal,

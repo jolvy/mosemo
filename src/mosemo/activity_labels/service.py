@@ -4,11 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.repository import ActivityRepository
-from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
-from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.confirmations.service import ConfirmationService
-from mosemo.activity_labels.proposals.repository import ProposalRepository
-from mosemo.activity_labels.queries.repository import LabelQueryRepository
 from mosemo.activity_labels.queries.service import LabelQueries
 from mosemo.activity_labels.schemas import (
     ActivityLabelConfirmationRequest,
@@ -27,25 +23,14 @@ class ActivityLabelService:
         *,
         session: AsyncSession,
         activity_repository: ActivityRepository,
-        confirmation_repository: ConfirmationRepository,
-        label_catalog_repository: LabelCatalogRepository,
-        proposal_repository: ProposalRepository,
+        confirmations: ConfirmationService,
+        queries: LabelQueries,
         clock: Clock,
     ) -> None:
         self._session = session
         self._activity_repository = activity_repository
-        self._confirmations = ConfirmationService(
-            session=session,
-            activity_repository=activity_repository,
-            confirmation_repository=confirmation_repository,
-            label_catalog_repository=label_catalog_repository,
-        )
-        self._queries = LabelQueries(
-            activity_repository=activity_repository,
-            confirmation_repository=confirmation_repository,
-            proposal_repository=proposal_repository,
-            label_query_repository=LabelQueryRepository(session),
-        )
+        self._confirmations = confirmations
+        self._queries = queries
         self._clock = clock
 
     async def get_timeline(

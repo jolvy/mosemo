@@ -42,6 +42,9 @@ class ActivityLabelConfirmation(Base):
         DateTime(timezone=True),
     )
 
+    def applies_to(self, segment_version: str) -> bool:
+        return self.segment_version == segment_version
+
     def accepts_batch_selection(
         self, *, segment_version: str, label_id: UUID | None
     ) -> bool:
