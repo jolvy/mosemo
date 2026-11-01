@@ -6,19 +6,22 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.focus_sessions.models import FocusSession
-from mosemo.focus_sessions.schemas import FocusSessionCreateRequest
 
 
 class FocusSessionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def add_if_absent(
-        self, account_id: UUID, request: FocusSessionCreateRequest
-    ) -> FocusSession | None:
+    async def add_if_absent(self, focus_session: FocusSession) -> FocusSession | None:
         result = await self._session.scalars(
             insert(FocusSession)
-            .values(account_id=account_id, **request.model_dump())
+            .values(
+                session_id=focus_session.session_id,
+                account_id=focus_session.account_id,
+                device_id=focus_session.device_id,
+                started_at=focus_session.started_at,
+                target_seconds=focus_session.target_seconds,
+            )
             .on_conflict_do_nothing()
             .returning(FocusSession)
         )

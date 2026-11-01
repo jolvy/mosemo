@@ -25,7 +25,9 @@ from mosemo.focus_sessions.schemas import (
     FocusSessionResponse,
 )
 from mosemo.focus_sessions.service import (
+    FocusSessionCommands,
     FocusSessionLabelNotAvailableError,
+    FocusSessionQueries,
     FocusSessionService,
 )
 from mosemo.openapi import api_error_responses
@@ -36,12 +38,19 @@ router = APIRouter(prefix="/focus-sessions")
 def get_focus_session_service(
     session: SessionDep, clock: ClockDep
 ) -> FocusSessionService:
+    repository = FocusSessionRepository(session)
+    activity_repository = ActivityRepository(session)
     return FocusSessionService(
         session=session,
-        repository=FocusSessionRepository(session),
-        activity_repository=ActivityRepository(session),
-        device_repository=DeviceRepository(session),
-        label_catalog_repository=LabelCatalogRepository(session),
+        commands=FocusSessionCommands(
+            repository=repository,
+            device_repository=DeviceRepository(session),
+            label_catalog_repository=LabelCatalogRepository(session),
+            activity_repository=activity_repository,
+        ),
+        queries=FocusSessionQueries(
+            repository=repository, activity_repository=activity_repository
+        ),
         clock=clock,
     )
 

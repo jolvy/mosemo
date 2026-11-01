@@ -61,6 +61,13 @@ class FocusSession(Base):
     )
     description: Mapped[str] = mapped_column(Text, default="")
 
+    def has_same_start(self, other: FocusSession) -> bool:
+        return (self.device_id, self.started_at, self.target_seconds) == (
+            other.device_id,
+            other.started_at,
+            other.target_seconds,
+        )
+
     def complete(
         self,
         *,
