@@ -12,6 +12,31 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && uv run --locked python .codex/hooks/post_edit_feedback.py",
+            "timeout": 10,
+            "statusMessage": "Checking edited Python files with Ruff"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && uv run --locked python .codex/hooks/stop_gate.py",
+            "timeout": 300,
+            "statusMessage": "Running code style checks and affected tests"
+          }
+        ]
+      }
     ]
   }
 }
