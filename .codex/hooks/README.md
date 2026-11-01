@@ -96,8 +96,8 @@ input parsing differs between the tools.
 - The stop hook formats every changed `.py` file in the work tree, including
   changes unrelated to the current task.
 
-Run the hook tests:
-
-```sh
-uv run --locked pytest -q tests/unit/harness/test_agent_hooks.py
-```
+The repository keeps no behavior tests for these hooks (Plan #109, decision
+S7). The removed tests ran inside the pre-commit `harness-tests` stage, inherited
+the `GIT_DIR` and related variables that Git passes to hooks, and wrote test
+settings into the shared `.git/config`. If you add hook tests again, unset every
+variable listed by `git rev-parse --local-env-vars` before a test runs Git.
