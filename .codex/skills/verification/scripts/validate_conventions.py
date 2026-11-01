@@ -2,7 +2,6 @@
 
 import ast
 import io
-import json
 import os
 import re
 import tokenize
@@ -41,44 +40,25 @@ BROAD_EXCEPT_ALLOWED = {
     # job 하나의 실패가 스케줄러를 멈추지 않고, 예외 메시지를 로그에 남기지 않음
     ("src/mosemo/batch_jobs/job.py", "execute_job"): 1,
 }
-# (파일, complexipy 이름): 기준선 점수 상한. 새 함수는 15 이하로 작성한다.
-COMPLEXITY_LIMITS = {
-    (
-        "src/mosemo/activities/batch_processing.py",
-        "ActivityBatchProcessor::process",
-    ): 47,
-    (
-        "src/mosemo/activities/batch_processing.py",
-        "ActivityBatchProcessor::_project",
-    ): 24,
-    ("src/mosemo/activity_labels/queries/service.py", "LabelQueries::get_timeline"): 32,
-    ("src/mosemo/activities/timeline.py", "TimelineProjection::feed"): 29,
-    (
-        "src/mosemo/activity_labels/proposals/processing.py",
-        "ProposalScanner::run_batch",
-    ): 19,
-    (
-        "src/mosemo/activities/repository.py",
-        "ActivityRepository::replace_account_segments",
-    ): 16,
-}
 RUFF_CONFIG = tomllib.loads("""
 line-length = 88
 target-version = "py314"
 
 [lint]
 extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", "PLR0917",
-                 "FBT001", "FBT003", "PLR2004", "N", "FAST002", "ASYNC", "ERA001", "S110", "SIM105", "PT"]
+                 "FBT001", "FBT003", "PLR2004", "N", "FAST002", "ASYNC", "ERA001", "S110", "SIM105", "PT",
+                 "PLR0913"]
 
 [lint.per-file-ignores]
 "src/mosemo/clock.py" = ["TID251"]
 "migrations/env.py" = ["F401"]
 "src/mosemo/middleware.py" = ["PLR0917"]
-"tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917"]
+"tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]
 ".codex/**" = ["PLR2004"]
 "src/**" = ["BLE001"]
+"src/**/models.py" = ["PLR0913"]
 
 [lint.pylint]
 max-positional-args = 2
@@ -99,6 +79,24 @@ indent-style = "space"
 line-ending = "auto"
 quote-style = "double"
 """)
+DEPENDENCY_NAMES = {"AsyncSession", "Session", "async_sessionmaker", "sessionmaker"}
+DEPENDENCY_SUFFIXES = (
+    "Repository",
+    "Service",
+    "Clock",
+    "Config",
+    "Client",
+    "Resolver",
+    "Mapper",
+    "Queries",
+    "Commands",
+    "Provisioner",
+    "Processor",
+    "Scanner",
+    "Suggester",
+)
+OVERRIDE_MODULES = {"typing", "typing_extensions"}
+MAX_MODEL_ARGUMENTS = 5
 REPOSITORY_METHODS = {"find", "add", "add_all", "add_if_absent", "delete", "claim"}
 REPOSITORY_METHOD_PREFIXES = (
     "find_",
@@ -467,26 +465,17 @@ def check_broad_excepts(trees: dict[str, ast.AST]) -> list[str]:
     return errors
 
 
-def check_complexity_snapshot(snapshot: str) -> list[str]:
-    """(l) complexipy 기준선의 함수가 고정 상한 목록 안에 있고 상한 이하인지 확인한다."""
-    errors = []
-    for entry in json.loads(snapshot):
-        for function in entry["functions"]:
-            key = (entry["path"], function["name"])
-            limit = COMPLEXITY_LIMITS.get(key)
-            if limit is None:
-                errors.append(
-                    f"{COMPLEXITY_SNAPSHOT}: CS-P01: `{key[0]}`의 `{key[1]}`을 "
-                    "기준선에 넣지 않는다. 인지 복잡도를 15 이하로 낮추고 "
-                    "`--snapshot-create` 없이 complexipy를 다시 실행한다"
-                )
-            elif function["complexity"] > limit:
-                errors.append(
-                    f"{COMPLEXITY_SNAPSHOT}: CS-P01: `{key[0]}`의 `{key[1]}` "
-                    f"복잡도 {function['complexity']}가 상한 {limit}을 넘는다. "
-                    "기준선 함수의 복잡도를 올리지 말고 낮춘다"
-                )
-    return errors
+def check_complexity_snapshot(root: Path) -> list[str]:
+    """(l) 저장소 루트에 complexipy 기준선 파일이 없는지 확인한다."""
+    if not (root / COMPLEXITY_SNAPSHOT).is_file():
+        return []
+    return [
+        (
+            f"{COMPLEXITY_SNAPSHOT}: CS-P01: complexipy 기준선 파일을 두지 않는다. "
+            "이 파일을 삭제하고 인지 복잡도 15를 넘는 함수를 나눈다. "
+            "`--snapshot-create`로 기준선을 만들지 않는다"
+        )
+    ]
 
 
 def check_complexity_config(pyproject: str) -> list[str]:
@@ -500,6 +489,247 @@ def check_complexity_config(pyproject: str) -> list[str]:
             "--no-ignore`로만 실행하고 설정으로 대상을 제외하거나 기준을 바꾸지 않는다"
         )
     ]
+
+
+def annotation_names(node: ast.AST) -> set[str]:
+    """타입 주석에서 Name, Attribute의 마지막 이름, 문자열 주석 안의 이름을 모은다."""
+    if isinstance(node, ast.Name):
+        return {node.id}
+    if isinstance(node, ast.Attribute):
+        return {node.attr}
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        try:
+            return annotation_names(ast.parse(node.value, mode="eval").body)
+        except SyntaxError:
+            return set()
+    names = set()
+    for child in ast.iter_child_nodes(node):
+        names |= annotation_names(child)
+    return names
+
+
+def is_dependency_name(name: str) -> bool:
+    return name in DEPENDENCY_NAMES or name.endswith(DEPENDENCY_SUFFIXES)
+
+
+def is_bundle_class(node: ast.ClassDef) -> bool:
+    decorators = [
+        decorator.func if isinstance(decorator, ast.Call) else decorator
+        for decorator in node.decorator_list
+    ]
+    return any(is_named(decorator, {"dataclass"}) for decorator in decorators) or any(
+        is_named(base, {"NamedTuple"}) for base in node.bases
+    )
+
+
+def check_dependency_bundles(tree: ast.AST) -> list[str]:
+    """(o) dataclass·NamedTuple 필드의 타입이 의존성인지 확인한다."""
+    return [
+        f"{field.lineno}: CS-P27: `{node.name}`의 필드에 의존성 `{name}`을 담지 "
+        "않는다. 의존성을 묶은 객체로 인자 개수를 줄이지 말고, 책임을 나눠 각 "
+        "협력자가 필요한 의존성만 생성자로 받게 한다. 묶음 객체는 업무 사건의 "
+        "데이터를 담는 값 객체에만 쓴다"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef) and is_bundle_class(node)
+        for field in node.body
+        if isinstance(field, ast.AnnAssign)
+        for name in sorted(annotation_names(field.annotation))
+        if is_dependency_name(name)
+    ]
+
+
+def module_name(relative: Path) -> list[str]:
+    """`src` 아래 파일의 모듈 이름을 구성 요소 목록으로 돌려준다."""
+    parts = list(relative.with_suffix("").parts[1:])
+    return parts[:-1] if parts[-1] == "__init__" else parts
+
+
+def imported_modules(tree: ast.AST, package: list[str]) -> list[tuple[int, str]]:
+    """import 문이 가리키는 모듈을 상대 import를 해석해 (라인, 모듈)로 모은다.
+
+    `from A import b`는 `A`와 `A.b`를 모두 돌려준다(`b`가 모듈일 수 있다).
+    """
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.extend((node.lineno, alias.name) for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            base = package[: len(package) - node.level + 1] if node.level else []
+            module = ".".join([*base, *(node.module or "").split(".")]).strip(".")
+            found.append((node.lineno, module))
+            found.extend(
+                (node.lineno, f"{module}.{alias.name}".strip("."))
+                for alias in node.names
+            )
+    return found
+
+
+def check_schema_imports(tree: ast.AST, package: list[str]) -> list[str]:
+    """(p) repository·models가 `schemas` 모듈을 import하는지 확인한다."""
+    lines = sorted(
+        {
+            line
+            for line, module in imported_modules(tree, package)
+            if "schemas" in module.split(".")
+        }
+    )
+    return [
+        f"{line}: CS-P28: repository·models에서 API 스키마(`schemas` 모듈)를 "
+        "import하지 않는다. 요청 스키마로 엔티티를 만드는 일은 `mappers.py`의 "
+        "`XxxMapper.to_entity`에 맡기고, repository에는 키 인자나 미저장 엔티티를 넘긴다"
+        for line in lines
+    ]
+
+
+def is_mapper_forbidden_module(module: str) -> bool:
+    parts = module.split(".")
+    return (
+        any(part == "repository" or part.endswith("_repository") for part in parts)
+        or parts[0] == "sqlalchemy"
+        or parts[:2] in (["mosemo", "database"], ["mosemo", "clock"])
+    )
+
+
+def check_mapper_purity(tree: ast.AST, package: list[str]) -> list[str]:
+    """(q) `mappers.py`가 비동기 함수와 저장·시각 모듈 import 없이 순수한지 확인한다."""
+    hint = (
+        "Mapper는 요청 스키마로 미저장 엔티티를 만드는 상태 없는 변환만 맡는다. "
+        "조회·저장은 repository, 현재 시각은 service가 맡고 Mapper에는 값으로 넘긴다"
+    )
+    errors = [
+        f"{node.lineno}: CS-P29: `mappers.py`에 `async def {node.name}`을 두지 "
+        f"않는다. {hint}"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.AsyncFunctionDef)
+    ]
+    lines = sorted(
+        {
+            line
+            for line, module in imported_modules(tree, package)
+            if is_mapper_forbidden_module(module)
+        }
+    )
+    errors.extend(
+        f"{line}: CS-P29: `mappers.py`에서 repository·`sqlalchemy`·"
+        f"`mosemo.database`·`mosemo.clock`을 import하지 않는다. {hint}"
+        for line in lines
+    )
+    return errors
+
+
+def override_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
+    """`override` 데코레이터 이름과 `typing`·`typing_extensions` 모듈 별칭을 모은다."""
+    names = {"override"}
+    modules = set(OVERRIDE_MODULES)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module in OVERRIDE_MODULES:
+            names.update(
+                alias.asname
+                for alias in node.names
+                if alias.name == "override" and alias.asname
+            )
+        if isinstance(node, ast.Import):
+            modules.update(
+                alias.asname
+                for alias in node.names
+                if alias.name in OVERRIDE_MODULES and alias.asname
+            )
+    return names, modules
+
+
+def is_override(
+    function: ast.FunctionDef | ast.AsyncFunctionDef,
+    aliases: tuple[set[str], set[str]],
+) -> bool:
+    names, modules = aliases
+    return any(
+        (isinstance(decorator, ast.Name) and decorator.id in names)
+        or (
+            isinstance(decorator, ast.Attribute)
+            and decorator.attr == "override"
+            and isinstance(decorator.value, ast.Name)
+            and decorator.value.id in modules
+        )
+        for decorator in function.decorator_list
+    )
+
+
+def check_constructor_override(tree: ast.AST) -> list[str]:
+    """(r) `__init__`·`__new__`에 `typing.override` 데코레이터가 있는지 확인한다."""
+    aliases = override_aliases(tree)
+    return [
+        f"{node.lineno}: CS-P31: 생성자 `{node.name}`에 `@override`를 붙이지 "
+        "않는다. Ruff `PLR0913`·`PLR0917`이 `@override` 메서드를 건너뛰므로 "
+        "인자 수 규칙을 피하게 된다. 데코레이터를 지우고 인자가 많으면 책임을 나눈다"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and node.name in {"__init__", "__new__"}
+        and is_override(node, aliases)
+    ]
+
+
+def argument_count(
+    function: ast.FunctionDef | ast.AsyncFunctionDef, *, is_method: bool
+) -> int:
+    """Ruff `PLR0913`과 같이 `self`·`cls`와 `*args`·`**kwargs`를 빼고 인자를 센다."""
+    arguments = function.args
+    positional = [*arguments.posonlyargs, *arguments.args]
+    bound = (
+        is_method
+        and positional
+        and not any(
+            is_named(item, {"staticmethod"}) for item in function.decorator_list
+        )
+    )
+    return len(positional) + len(arguments.kwonlyargs) - bool(bound)
+
+
+def model_functions(
+    node: ast.AST, *, in_class: bool = False
+) -> list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, bool]]:
+    """모든 함수를 클래스 스코프에 정의된 메서드인지와 함께 모은다."""
+    found = []
+    for child in ast.iter_child_nodes(node):
+        is_function = isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef)
+        if is_function:
+            found.append((child, in_class))
+        found += model_functions(
+            child,
+            in_class=isinstance(child, ast.ClassDef) or (in_class and not is_function),
+        )
+    return found
+
+
+def check_model_argument_counts(tree: ast.AST) -> list[str]:
+    """(s) `models.py`의 `__init__` 밖 함수가 인자 5개 이하인지 확인한다."""
+    aliases = override_aliases(tree)
+    errors = []
+    for function, is_method in model_functions(tree):
+        if function.name == "__init__" or is_override(function, aliases):
+            continue
+        count = argument_count(function, is_method=is_method)
+        if count > MAX_MODEL_ARGUMENTS:
+            errors.append(
+                f"{function.lineno}: CS-P30: `models.py`의 `{function.name}` 인자 "
+                f"{count}개가 {MAX_MODEL_ARGUMENTS}개를 넘는다. `models.py`에서 "
+                "인자 수 제한을 받지 않는 것은 엔티티 생성자 `__init__`뿐이다. "
+                "책임을 나누거나 값 객체를 인자로 받는다"
+            )
+    return errors
+
+
+def check_role_rules(relative: Path, tree: ast.AST) -> list[str]:
+    """`src` 파일에 역할 규칙(CS-P27~CS-P30)을 파일 이름에 따라 적용한다."""
+    module = module_name(relative)
+    package = module if relative.name == "__init__.py" else module[:-1]
+    errors = check_dependency_bundles(tree)
+    if is_repository_file(relative) or relative.name == "models.py":
+        errors += check_schema_imports(tree, package)
+    if relative.name == "mappers.py":
+        errors += check_mapper_purity(tree, package)
+    if relative.name == "models.py":
+        errors += check_model_argument_counts(tree)
+    return errors
 
 
 def base_names(node: ast.ClassDef) -> set[str]:
@@ -608,12 +838,17 @@ def validate(root: Path = ROOT) -> list[str]:
         api_exception_names(exceptions_tree) if exceptions_tree else {API_EXCEPTION}
     )
     for relative, tree in trees.items():
-        file_errors = check_clock_overrides(tree) + check_exception_classes(
-            tree, in_exceptions_file=relative.as_posix() == EXCEPTIONS_FILE
+        file_errors = (
+            check_clock_overrides(tree)
+            + check_exception_classes(
+                tree, in_exceptions_file=relative.as_posix() == EXCEPTIONS_FILE
+            )
+            + check_constructor_override(tree)
         )
         if relative.parts[0] == "tests":
             file_errors += check_test_clock_lambdas(tree)
         if relative.parts[0] == "src":
+            file_errors += check_role_rules(relative, tree)
             file_errors += check_init_clock(tree) + check_integrity_error_handling(tree)
             if is_repository_file(relative):
                 file_errors += check_repository_method_names(
@@ -640,9 +875,7 @@ def validate(root: Path = ROOT) -> list[str]:
     if pyproject.is_file():
         errors += check_ruff_config(pyproject.read_text())
         errors += check_complexity_config(pyproject.read_text())
-    snapshot = root / COMPLEXITY_SNAPSHOT
-    if snapshot.is_file():
-        errors += check_complexity_snapshot(snapshot.read_text())
+    errors += check_complexity_snapshot(root)
     errors.extend(
         f"{path.relative_to(root)}: CS-P22: Ruff 설정은 `pyproject.toml` 하나에 둔다. "
         f"이 파일을 삭제한다. {CLOCK_HINT}"

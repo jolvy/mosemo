@@ -1,5 +1,4 @@
 import ast
-import json
 from pathlib import Path
 from types import ModuleType
 
@@ -12,17 +11,19 @@ target-version = "py314"
 
 [tool.ruff.lint]
 extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", "PLR0917",
-                 "FBT001", "FBT003", "PLR2004", "N", "FAST002", "ASYNC", "ERA001", "S110", "SIM105", "PT"]
+                 "FBT001", "FBT003", "PLR2004", "N", "FAST002", "ASYNC", "ERA001", "S110", "SIM105", "PT",
+                 "PLR0913"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/mosemo/clock.py" = ["TID251"]
 "migrations/env.py" = ["F401"]
 "src/mosemo/middleware.py" = ["PLR0917"]
-"tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917"]
+"tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]
 ".codex/**" = ["PLR2004"]
 "src/**" = ["BLE001"]
+"src/**/models.py" = ["PLR0913"]
 
 [tool.ruff.lint.pylint]
 max-positional-args = 2
@@ -180,7 +181,10 @@ def test_ruff_config_allows_exact_config(
         ALLOWED_PYPROJECT.replace('["TID251"]', '["TID251", "DTZ005"]'),
         ALLOWED_PYPROJECT.replace("src/mosemo/clock.py", "src/mosemo/other.py"),
         ALLOWED_PYPROJECT.replace('"S110", ', ""),
-        ALLOWED_PYPROJECT.replace(', "PT"]', ', "PT", "E501"]'),
+        ALLOWED_PYPROJECT.replace('"PT",\n', '"PT", "E501",\n'),
+        ALLOWED_PYPROJECT.replace(',\n                 "PLR0913"]', "]"),
+        ALLOWED_PYPROJECT.replace('"PLR0917", "PLR0913"]', '"PLR0917"]'),
+        ALLOWED_PYPROJECT.replace('"src/**/models.py" = ["PLR0913"]\n', ""),
         ALLOWED_PYPROJECT.replace("max-positional-args = 2", "max-positional-args = 5"),
         ALLOWED_PYPROJECT.replace(
             "[tool.ruff.lint]\n", '[tool.ruff.lint]\nignore = ["PLR2004"]\n'
@@ -631,53 +635,12 @@ def test_broad_excepts_reject_listed_function_without_handler(
     assert errors[0].startswith("src/mosemo/auth/router.py: CS-P18")
 
 
-ALLOWED_SNAPSHOT = [
-    {
-        "path": "src/mosemo/activities/batch_processing.py",
-        "file_name": "batch_processing.py",
-        "functions": [
-            {"name": "ActivityBatchProcessor::_project", "complexity": 24},
-            {"name": "ActivityBatchProcessor::process", "complexity": 47},
-        ],
-    },
-    {
-        "path": "src/mosemo/activities/repository.py",
-        "file_name": "repository.py",
-        "functions": [
-            {"name": "ActivityRepository::replace_account_segments", "complexity": 10}
-        ],
-    },
-]
-
-
-def test_complexity_snapshot_allows_listed_functions_within_limit(
-    conventions_validator: ModuleType,
+def test_complexity_snapshot_rejects_existing_file(
+    conventions_validator: ModuleType, tmp_path: Path
 ) -> None:
-    snapshot = json.dumps(ALLOWED_SNAPSHOT)
-    assert conventions_validator.check_complexity_snapshot(snapshot) == []
-
-
-@pytest.mark.parametrize(
-    ("path", "function"),
-    [
-        ("src/mosemo/x.py", {"name": "Service::run", "complexity": 16}),
-        (
-            "src/mosemo/activities/batch_processing.py",
-            {"name": "ActivityBatchProcessor::process", "complexity": 48},
-        ),
-        (
-            "src/mosemo/activities/timeline.py",
-            {"name": "TimelineProjection::other", "complexity": 20},
-        ),
-    ],
-)
-def test_complexity_snapshot_rejects_unlisted_or_raised_functions(
-    conventions_validator: ModuleType, path: str, function: dict[str, object]
-) -> None:
-    snapshot = json.dumps(
-        [*ALLOWED_SNAPSHOT, {"path": path, "file_name": "", "functions": [function]}]
-    )
-    errors = conventions_validator.check_complexity_snapshot(snapshot)
+    assert conventions_validator.check_complexity_snapshot(tmp_path) == []
+    (tmp_path / "complexipy-snapshot.json").write_text("[]")
+    errors = conventions_validator.check_complexity_snapshot(tmp_path)
     assert len(errors) == 1
     assert errors[0].startswith("complexipy-snapshot.json: CS-P01")
 
@@ -698,17 +661,7 @@ def test_validate_checks_complexity_files(
 ) -> None:
     (tmp_path / "pyproject.toml").write_text(ALLOWED_PYPROJECT)
     (tmp_path / "complexipy.toml").write_text("")
-    (tmp_path / "complexipy-snapshot.json").write_text(
-        json.dumps(
-            [
-                {
-                    "path": "src/x.py",
-                    "file_name": "x.py",
-                    "functions": [{"name": "run", "complexity": 16}],
-                }
-            ]
-        )
-    )
+    (tmp_path / "complexipy-snapshot.json").write_text("[]")
     errors = rule_errors(conventions_validator.validate(tmp_path), "CS-P01")
     assert [error.split(": ", 2)[:2] for error in errors] == [
         ["complexipy-snapshot.json", "CS-P01"],
@@ -804,4 +757,238 @@ def test_validate_scopes_exception_rules(
     assert sorted(error.split(": ", 2)[:2] for error in errors) == [
         ["src/mosemo/x/service.py:1", "CS-P07"],
         ["tests/test_x.py:3", "CS-P07"],
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "@dataclass\nclass Deps:\n    repository: ActivityRepository\n",
+        (
+            "@dataclasses.dataclass(frozen=True)\n"
+            "class Deps:\n    repository: ActivityRepository | None\n"
+        ),
+        '@dataclass(slots=True)\nclass Deps:\n    repository: "ActivityRepository"\n',
+        "class Deps(NamedTuple):\n    clock: Clock\n",
+        "class Deps(typing.NamedTuple):\n    clock: mosemo.clock.Clock\n",
+        "@dataclass\nclass Deps:\n    services: list[LabelService]\n",
+        "@dataclass\nclass Deps:\n    factory: async_sessionmaker[AsyncSession]\n",
+        "@dataclass\nclass Deps:\n    session: Optional[Session] = None\n",
+    ],
+)
+def test_dependency_bundles_are_rejected(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    errors = conventions_validator.check_dependency_bundles(ast.parse(source))
+    assert errors
+    assert all("CS-P27" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "@dataclass(frozen=True)\nclass Event:\n    started_at: datetime\n    n: int\n",
+        "@dataclass\nclass Result:\n    session: FocusSession\n",
+        "@dataclass\nclass Result:\n    sessions: list[FocusSession] | None\n",
+        "class AppState(TypedDict):\n    repository: ActivityRepository\n",
+        "class Service:\n    repository: ActivityRepository\n",
+    ],
+)
+def test_value_objects_and_typed_dicts_are_allowed(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    assert conventions_validator.check_dependency_bundles(ast.parse(source)) == []
+
+
+PACKAGE = ["mosemo", "x"]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from mosemo.x.schemas import A\n",
+        "import mosemo.x.schemas\n",
+        "from mosemo.x import schemas\n",
+        "from .schemas import A\n",
+        "from . import schemas\n",
+        "from ..y.schemas import A\n",
+        "def f():\n    from mosemo.y import schemas\n",
+    ],
+)
+def test_schema_imports_are_rejected(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    errors = conventions_validator.check_schema_imports(ast.parse(source), PACKAGE)
+    assert len(errors) == 1
+    assert "CS-P28" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from mosemo.x.models import A\n",
+        "from .mappers import AMapper\n",
+        "from mosemo.x import models, schemata\n",
+        "import pydantic\n",
+    ],
+)
+def test_other_imports_are_allowed_in_repository(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    assert conventions_validator.check_schema_imports(ast.parse(source), PACKAGE) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "async def to_entity(request):\n    pass\n",
+        "class AMapper:\n    async def to_entity(self, request):\n        pass\n",
+        "from sqlalchemy import select\n",
+        "import sqlalchemy.orm\n",
+        "from mosemo.x.repository import ARepository\n",
+        "from .device_repository import DeviceRepository\n",
+        "from mosemo.x import repository\n",
+        "from mosemo.database import get_session\n",
+        "from mosemo import clock\n",
+        "from mosemo.clock import Clock\n",
+    ],
+)
+def test_impure_mappers_are_rejected(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    errors = conventions_validator.check_mapper_purity(ast.parse(source), PACKAGE)
+    assert len(errors) == 1
+    assert "CS-P29" in errors[0]
+
+
+def test_pure_mapper_is_allowed(conventions_validator: ModuleType) -> None:
+    source = (
+        "from mosemo.x.schemas import ACreate\n"
+        "from .models import A\n"
+        "class AMapper:\n"
+        "    def to_entity(self, request: ACreate) -> A:\n"
+        "        return A(name=request.name)\n"
+    )
+    assert conventions_validator.check_mapper_purity(ast.parse(source), PACKAGE) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "class A:\n    def m(self, a, b, c, d, e, f):\n        pass\n",
+        "def f(a, b, c, /, d, *, e, f):\n    pass\n",
+        "class A:\n    @staticmethod\n    def m(a, b, c, d, e, f):\n        pass\n",
+        "class A:\n    @classmethod\n    async def m(cls, a, b, c, d, e, *, f):\n        pass\n",
+        "class A:\n    def m(self):\n        def inner(a, b, c, d, e, f):\n            pass\n",
+    ],
+)
+def test_model_functions_over_five_arguments_are_rejected(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    errors = conventions_validator.check_model_argument_counts(ast.parse(source))
+    assert len(errors) == 1
+    assert "CS-P30" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "class A:\n    def __init__(self, a, b, c, d, e, f, g, h, i):\n        pass\n",
+        "class A:\n    def m(self, a, b, c, d, e, *args, **kwargs):\n        pass\n",
+        "def f(a, b, c, d, e, *args, **kwargs):\n    pass\n",
+        "class A:\n    if X:\n        def m(self, a, b, c, d, e):\n            pass\n",
+        (
+            "from typing import override\n"
+            "class A(B):\n    @override\n    def m(self, a, b, c, d, e, f):\n"
+            "        pass\n"
+        ),
+    ],
+)
+def test_model_functions_within_limit_are_allowed(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    assert conventions_validator.check_model_argument_counts(ast.parse(source)) == []
+
+
+def constructor(decorator: str, name: str = "__init__") -> str:
+    return f"class A:\n    {decorator}\n    def {name}(self):\n        pass\n"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from typing import override\n" + constructor("@override"),
+        "import typing\n" + constructor("@typing.override"),
+        "import typing_extensions\n" + constructor("@typing_extensions.override"),
+        "from typing_extensions import override\n" + constructor("@override"),
+        "from typing import override as ov\n" + constructor("@ov"),
+        "import typing as t\n" + constructor("@t.override"),
+        "import typing_extensions as te\n" + constructor("@te.override"),
+        "from typing import override\n" + constructor("@override", "__new__"),
+    ],
+)
+def test_constructor_override_is_rejected(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    errors = conventions_validator.check_constructor_override(ast.parse(source))
+    assert len(errors) == 1
+    assert "CS-P31" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from typing import override\n" + constructor("@override", "handle"),
+        "from typing import final\n" + constructor("@final"),
+        "import other as t\n" + constructor("@t.override"),
+        "from other import override as ov\n" + constructor("@ov"),
+    ],
+)
+def test_override_outside_constructor_is_allowed(
+    conventions_validator: ModuleType, source: str
+) -> None:
+    assert conventions_validator.check_constructor_override(ast.parse(source)) == []
+
+
+def test_validate_scopes_role_rules(
+    conventions_validator: ModuleType, tmp_path: Path
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(ALLOWED_PYPROJECT)
+    bundle = "@dataclass\nclass Deps:\n    repository: ActivityRepository\n"
+    schema_import = "from .schemas import A\n"
+    long_method = "class A:\n    def m(self, a, b, c, d, e, f):\n        pass\n"
+    init_override = "from typing import override\n" + constructor("@override")
+    files = {
+        "src/mosemo/x/service.py": bundle + schema_import + long_method,
+        "src/mosemo/x/repository.py": schema_import,
+        "src/mosemo/x/device_repository.py": schema_import,
+        "src/mosemo/x/models.py": schema_import + long_method,
+        "src/mosemo/x/mappers.py": schema_import + "import sqlalchemy\n",
+        "tests/test_x.py": bundle + init_override,
+        "scripts/x.py": init_override,
+        "migrations/x.py": init_override,
+        ".codex/x.py": init_override,
+    }
+    for name, source in files.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(source)
+    errors = rule_errors(
+        conventions_validator.validate(tmp_path),
+        "CS-P27",
+        "CS-P28",
+        "CS-P29",
+        "CS-P30",
+        "CS-P31",
+    )
+    assert sorted(error.split(": ", 2)[:2] for error in errors) == [
+        [".codex/x.py:4", "CS-P31"],
+        ["migrations/x.py:4", "CS-P31"],
+        ["scripts/x.py:4", "CS-P31"],
+        ["src/mosemo/x/device_repository.py:1", "CS-P28"],
+        ["src/mosemo/x/mappers.py:2", "CS-P29"],
+        ["src/mosemo/x/models.py:1", "CS-P28"],
+        ["src/mosemo/x/models.py:3", "CS-P30"],
+        ["src/mosemo/x/repository.py:1", "CS-P28"],
+        ["src/mosemo/x/service.py:3", "CS-P27"],
+        ["tests/test_x.py:7", "CS-P31"],
     ]

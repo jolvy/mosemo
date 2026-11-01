@@ -46,7 +46,7 @@ jobs:
       - name: Check cognitive complexity
         run: |
           uv run --locked complexipy src --max-complexity-allowed 15 --isolated --no-ignore
-          git diff --exit-code complexipy-snapshot.json
+          test ! -e complexipy-snapshot.json
 
       - name: Lint
         run: uv run --locked ruff check --output-format=github .
