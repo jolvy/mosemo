@@ -68,7 +68,7 @@ target-version = "py314"
 
 [lint]
 extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", "PLR0917",
-                 "FBT001", "FBT003", "PLR2004", "N", "FAST002", "ASYNC", "ERA001", "S110", "PT"]
+                 "FBT001", "FBT003", "PLR2004", "N", "FAST002", "ASYNC", "ERA001", "S110", "SIM105", "PT"]
 
 [lint.per-file-ignores]
 "src/mosemo/clock.py" = ["TID251"]
