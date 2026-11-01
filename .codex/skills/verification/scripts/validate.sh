@@ -6,6 +6,7 @@ uv run --locked python .codex/skills/verification/scripts/validate_docs.py
 uv run --locked python .codex/skills/verification/scripts/validate_architecture.py
 uv run --locked python .codex/skills/verification/scripts/validate_conventions.py
 uv run --locked ruff check .
+uv run --locked complexipy src --max-complexity-allowed 15 --isolated --no-ignore
 uv run --locked ruff format --check .
 uv run --locked ty check
 uv build

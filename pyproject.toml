@@ -24,6 +24,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "complexipy==8.3.0",
     "poethepoet>=0.48.0",
     "pre-commit>=4.6.2",
     "pytest>=9.1.1",
@@ -64,10 +65,24 @@ line-length = 88
 target-version = "py314"
 
 [tool.ruff.lint]
-extend-select = ["I", "TID251", "DTZ"]
+extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", "PLR0917",
+                 "FBT001", "FBT003", "PLR2004", "N", "FAST002", "ASYNC", "ERA001", "S110", "PT"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/mosemo/clock.py" = ["TID251"]
+"migrations/env.py" = ["F401"]
+"src/mosemo/middleware.py" = ["PLR0917"]
+"tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917"]
+"scripts/**" = ["PLR2004"]
+"migrations/**" = ["PLR2004"]
+".codex/**" = ["PLR2004"]
+"src/**" = ["BLE001"]
+
+[tool.ruff.lint.pylint]
+max-positional-args = 2
+
+[tool.ruff.lint.pep8-naming]
+extend-ignore-names = ["*Exception"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."

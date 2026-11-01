@@ -57,7 +57,7 @@ def main() -> None:
     loop = asyncio.new_event_loop()
     try:
         exit_code = loop.run_until_complete(run(args))
-    except Exception, asyncio.CancelledError:  # noqa: BLE001 - safe process boundary
+    except Exception, asyncio.CancelledError:  # safe process boundary
         # Do not print configuration input values, SQL parameters or secrets.
         raise SystemExit("Batch job process failed") from None
     finally:

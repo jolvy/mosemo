@@ -1,0 +1,56 @@
+[
+  {
+    "path": "src/mosemo/activities/batch_processing.py",
+    "file_name": "batch_processing.py",
+    "functions": [
+      {
+        "name": "ActivityBatchProcessor::_project",
+        "complexity": 24
+      },
+      {
+        "name": "ActivityBatchProcessor::process",
+        "complexity": 47
+      }
+    ]
+  },
+  {
+    "path": "src/mosemo/activities/repository.py",
+    "file_name": "repository.py",
+    "functions": [
+      {
+        "name": "ActivityRepository::replace_account_segments",
+        "complexity": 16
+      }
+    ]
+  },
+  {
+    "path": "src/mosemo/activities/timeline.py",
+    "file_name": "timeline.py",
+    "functions": [
+      {
+        "name": "TimelineProjection::feed",
+        "complexity": 29
+      }
+    ]
+  },
+  {
+    "path": "src/mosemo/activity_labels/proposals/processing.py",
+    "file_name": "processing.py",
+    "functions": [
+      {
+        "name": "ProposalScanner::run_batch",
+        "complexity": 19
+      }
+    ]
+  },
+  {
+    "path": "src/mosemo/activity_labels/queries/service.py",
+    "file_name": "service.py",
+    "functions": [
+      {
+        "name": "LabelQueries::get_timeline",
+        "complexity": 32
+      }
+    ]
+  }
+]
