@@ -381,7 +381,7 @@ class ProposalScanner:
             )
             if not page:
                 self._last_segment_id = None
-                return ProposalScanBatch(processed, scanned, True)
+                return ProposalScanBatch(processed, scanned, sweep_complete=True)
 
             for segment in page:
                 scanned += 1
@@ -398,7 +398,7 @@ class ProposalScanner:
                     processed += 1
                     if processed == max_processed:
                         break
-        return ProposalScanBatch(processed, scanned, False)
+        return ProposalScanBatch(processed, scanned, sweep_complete=False)
 
     async def _find_page(self, *, limit: int) -> list[_ScannedSegment]:
         now = self._clock()
@@ -420,7 +420,7 @@ class ProposalScanner:
                         segment.segment_id,
                         segment.account_id,
                         segment.first_event_id,
-                        False,
+                        needs_processing=False,
                     )
                     for segment in segments
                 ]

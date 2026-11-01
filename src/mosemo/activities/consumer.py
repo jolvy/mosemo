@@ -18,7 +18,7 @@ async def run() -> None:
         loop.add_signal_handler(sig, stop.set)
     try:
         await MessagingRuntime.run_consumer(
-            get_config().batch_delivery, SessionFactory, stop
+            get_config().batch_delivery, SessionFactory, stop=stop
         )
     finally:
         for sig in signals:

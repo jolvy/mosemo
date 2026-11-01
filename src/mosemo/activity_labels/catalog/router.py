@@ -25,6 +25,7 @@ router = APIRouter(prefix="/labels")
 async def list_labels(
     authenticated_account: AuthenticatedAccountDep,
     account_service: AccountServiceDep,
+    *,
     repository: LabelCatalogRepositoryDep,
 ) -> list[LabelResponse]:
     account_id = authenticated_account.account_id

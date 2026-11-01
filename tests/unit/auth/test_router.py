@@ -59,7 +59,12 @@ def test_login_redirects_to_kakao_and_sets_oauth_cookies(
         lambda length: "fixed-state",
     )
 
-    response = login(config, make_kakao_client(config), CODE_CHALLENGE, "S256")
+    response = login(
+        config,
+        make_kakao_client(config),
+        code_challenge=CODE_CHALLENGE,
+        code_challenge_method="S256",
+    )
 
     location = urlsplit(response.headers["location"])
     query = parse_qs(location.query)
@@ -97,8 +102,8 @@ def test_login_uses_secure_cookies_in_production(
     response = login(
         production_config,
         make_kakao_client(production_config),
-        CODE_CHALLENGE,
-        "S256",
+        code_challenge=CODE_CHALLENGE,
+        code_challenge_method="S256",
     )
 
     cookies = response_cookies(response)
@@ -262,8 +267,8 @@ def test_exchange_token_returns_bearer_response(config: Config) -> None:
                 }
             ),
             service,
-            config,
-            Response(),
+            config=config,
+            response=Response(),
         )
     )
 
@@ -293,8 +298,8 @@ def test_exchange_token_returns_fixed_error(config: Config) -> None:
                     }
                 ),
                 service,
-                config,
-                Response(),
+                config=config,
+                response=Response(),
             )
         )
 

@@ -21,6 +21,7 @@ class MessagingRuntime:
     async def run_consumer(
         config: BatchDeliveryConfig,
         sessions: async_sessionmaker[AsyncSession],
+        *,
         stop: asyncio.Event,
     ) -> None:
         if not config.enabled:

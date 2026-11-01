@@ -37,7 +37,7 @@ class MainPushProtectionTests(unittest.TestCase):
         ]
         for command in commands:
             with self.subTest(command=command):
-                self.assertTrue(blocks(command))
+                assert blocks(command)
 
     def test_allows_normal_pushes_and_explicit_feature_force_pushes(self):
         commands = [
@@ -55,7 +55,7 @@ class MainPushProtectionTests(unittest.TestCase):
         ]
         for command in commands:
             with self.subTest(command=command):
-                self.assertFalse(blocks(command))
+                assert not blocks(command)
 
     def test_hook_protocol(self):
         script = Path(__file__).with_name("protect_main.py")
@@ -72,7 +72,7 @@ class MainPushProtectionTests(unittest.TestCase):
                         capture_output=True,
                         check=False,
                     )
-                    self.assertEqual(result.returncode, expected, result.stderr)
+                    assert result.returncode == expected, result.stderr
         result = subprocess.run(
             [sys.executable, str(script)],
             input="{}",
@@ -80,7 +80,7 @@ class MainPushProtectionTests(unittest.TestCase):
             capture_output=True,
             check=False,
         )
-        self.assertEqual(result.returncode, 2)
+        assert result.returncode == 2
 
 
 if __name__ == "__main__":

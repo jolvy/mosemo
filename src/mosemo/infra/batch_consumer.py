@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import Iterable
+from typing import override
 
 from faststream import BaseMiddleware
 from faststream.kafka import KafkaBroker, KafkaMessage
@@ -12,7 +13,7 @@ from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.infra.kafka_compat import BatchPartition, BatchRebalanceAdapter
 
 
-class InvalidBatchMessage(ValueError):
+class InvalidBatchMessageError(ValueError):
     """Safe diagnostic only; do not expose message contents."""
 
 
@@ -24,7 +25,7 @@ def decode_batch(
         if key != str(message.account_id).encode("utf-8"):
             raise ValueError("account key mismatch")
     except ValueError:
-        raise InvalidBatchMessage("invalid_activity_batch_message") from None
+        raise InvalidBatchMessageError("invalid_activity_batch_message") from None
     return message
 
 
@@ -56,6 +57,7 @@ class ActivityBatchConsumer:
         owner = self
 
         class ObserveErrors(BaseMiddleware):
+            @override
             async def after_processed(self, exc_type=None, exc_val=None, exc_tb=None):
                 # Also observe parser/decoder failures outside the handler call.
                 if isinstance(exc_val, Exception):

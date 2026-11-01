@@ -19,7 +19,7 @@ def test_get_oauth_client_resolves_kakao(config: Config) -> None:
     client = get_oauth_client(
         AccountProvider.KAKAO,
         config,
-        cast(httpx2.AsyncClient, object()),
+        http_client=cast(httpx2.AsyncClient, object()),
     )
 
     assert isinstance(client, KakaoClient)
@@ -38,7 +38,7 @@ def test_get_oauth_client_asserts_account_provider_before_creating_client(
         get_oauth_client(
             cast(AccountProvider, provider),
             config,
-            cast(httpx2.AsyncClient, object()),
+            http_client=cast(httpx2.AsyncClient, object()),
         )
 
     kakao_client.assert_not_called()

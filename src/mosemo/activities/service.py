@@ -165,7 +165,9 @@ class ActivityService:
                         stop_after_event_id=stored.event_id,
                         stop_when_closed=lambda segment: (
                             converged_old_index(
-                                existing_segments, segment, stored.observed_at
+                                existing_segments,
+                                segment,
+                                observed_at=stored.observed_at,
                             )
                             is not None
                         ),

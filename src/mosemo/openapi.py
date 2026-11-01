@@ -150,6 +150,7 @@ def _error_example(spec: ErrorCode) -> dict[str, Any]:
 def _merge_headers(
     specs: Sequence[ErrorCode],
     additional_headers: Mapping[int, Mapping[str, Any]] | None,
+    *,
     status_code: int,
 ) -> dict[str, dict[str, Any]]:
     headers: dict[str, dict[str, Any]] = {}
@@ -209,7 +210,7 @@ def api_error_responses(
             "headers": _merge_headers(
                 specs_for_status,
                 headers,
-                status_code,
+                status_code=status_code,
             ),
         }
         for status_code, specs_for_status in grouped.items()

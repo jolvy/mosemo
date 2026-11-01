@@ -64,8 +64,8 @@ def test_code_example_cannot_supply_required_section(
     assert docs_validator.check_document(
         "```markdown\n## 인수 조건\nAC-1 거짓 섹션\n```",
         ["인수 조건"],
-        tmp_path / "x.md",
-        tmp_path,
+        path=tmp_path / "x.md",
+        root=tmp_path,
     )
 
 
@@ -100,7 +100,10 @@ def test_template_comment_is_not_a_filled_section(
     docs_validator: ModuleType, tmp_path: Path
 ) -> None:
     errors = docs_validator.check_document(
-        "## 인수 조건\n<!-- 채울 것 -->", ["인수 조건"], tmp_path / "x.md", tmp_path
+        "## 인수 조건\n<!-- 채울 것 -->",
+        ["인수 조건"],
+        path=tmp_path / "x.md",
+        root=tmp_path,
     )
     assert any("자리표시자" in error for error in errors)
 
@@ -129,8 +132,8 @@ def test_api_date_format_is_not_an_unresolved_document_date(
         docs_validator.check_document(
             "## 계약\nGET /api/items?date=YYYY-MM-DD",
             ["계약"],
-            tmp_path / "x.md",
-            tmp_path,
+            path=tmp_path / "x.md",
+            root=tmp_path,
         )
         == []
     )
@@ -139,8 +142,8 @@ def test_api_date_format_is_not_an_unresolved_document_date(
         for error in docs_validator.check_document(
             "---\ndate: YYYY-MM-DD\n---\n## 계약\n날짜 조회",
             ["계약"],
-            tmp_path / "x.md",
-            tmp_path,
+            path=tmp_path / "x.md",
+            root=tmp_path,
         )
     )
 

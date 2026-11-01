@@ -1,4 +1,5 @@
 import logging
+from http import HTTPStatus
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exception_handlers import http_exception_handler
@@ -14,6 +15,8 @@ from mosemo.responses import error_response
 from mosemo.schemas import ValidationDetail
 
 logger = logging.getLogger(__name__)
+
+_MAX_HTTP_ERROR_STATUS = 599
 
 
 def _validation_details(exc: RequestValidationError) -> list[ValidationDetail]:
@@ -74,16 +77,16 @@ async def http_exception_handler_for_public_api(
     request: Request,
     exc: StarletteHTTPException,
 ) -> Response:
-    if exc.status_code == 404:
+    if exc.status_code == HTTPStatus.NOT_FOUND:
         return error_response(ErrorCode.REQUEST_ROUTE_NOT_FOUND)
 
-    if exc.status_code == 405:
+    if exc.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
         response = error_response(ErrorCode.REQUEST_METHOD_NOT_ALLOWED)
         if exc.headers is not None:
             response.headers.update(exc.headers)
         return response
 
-    if exc.status_code == 400 and _is_invalid_encoding(exc):
+    if exc.status_code == HTTPStatus.BAD_REQUEST and _is_invalid_encoding(exc):
         return error_response(
             ErrorCode.INVALID_ARGUMENT,
             details=[
@@ -95,7 +98,7 @@ async def http_exception_handler_for_public_api(
             ],
         )
 
-    if 400 <= exc.status_code <= 599:
+    if HTTPStatus.BAD_REQUEST <= exc.status_code <= _MAX_HTTP_ERROR_STATUS:
         return _unexpected_exception_response(exc)
 
     return await http_exception_handler(request, exc)

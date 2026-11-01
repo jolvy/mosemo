@@ -15,7 +15,7 @@ from mosemo.clock import utc_now
 from mosemo.config import Config, get_config
 from mosemo.dependencies import get_activity_service, get_device_repository
 from mosemo.exception_handlers import register_exception_handlers
-from mosemo.infra.batch_delivery import DeliveryUnavailable
+from mosemo.infra.batch_delivery import DeliveryUnavailableError
 from mosemo.middleware import BatchBodyLimitMiddleware
 
 
@@ -135,7 +135,7 @@ def test_batch_admission_returns_common_retryable_delivery_error(config):
         account_id=uuid4(),
         service=create_autospec(ActivityService, instance=True),
     )
-    app.state.batch_publisher.publish.side_effect = DeliveryUnavailable()
+    app.state.batch_publisher.publish.side_effect = DeliveryUnavailableError()
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/activities/batches",

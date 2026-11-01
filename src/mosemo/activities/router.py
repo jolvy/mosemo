@@ -24,7 +24,7 @@ from mosemo.dependencies import (
 from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.infra.batch_delivery import (
     ActivityBatchPublisher,
-    DeliveryUnavailable,
+    DeliveryUnavailableError,
 )
 from mosemo.openapi import api_error_responses
 
@@ -59,6 +59,7 @@ router = APIRouter(prefix="/activities")
 async def accept_batch(
     batch: ActivityBatchRequest,
     request: Request,
+    *,
     authenticated_account: AuthenticatedAccountDep,
     devices: DeviceRepositoryDep,
 ) -> ActivityBatchResponse:
@@ -75,7 +76,7 @@ async def accept_batch(
         raise ApiException(ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE)
     try:
         await publisher.publish(account_id, batch)
-    except DeliveryUnavailable as exc:
+    except DeliveryUnavailableError as exc:
         raise ApiException(ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE) from exc
     return ActivityBatchResponse(batch_id=batch.batch_id, status="accepted")
 
@@ -109,6 +110,7 @@ async def accept_batch(
 async def process_batch_legacy(
     batch: ActivityBatchRequest,
     authenticated_account: AuthenticatedAccountDep,
+    *,
     session: SessionDep,
     clock: ClockDep,
 ) -> ActivityBatchProcessedResponse:
@@ -156,6 +158,7 @@ async def process_batch_legacy(
 async def get_timeline(
     service: ActivityServiceDep,
     authenticated_account: AuthenticatedAccountDep,
+    *,
     date: Annotated[
         date,
         Query(description="계정 시간대 기준 조회할 달력 날짜(YYYY-MM-DD)입니다."),

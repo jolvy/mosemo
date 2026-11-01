@@ -30,7 +30,7 @@ class BatchJob:
     schedule: Schedule | None = None
 
 
-def _result(job: BatchJob, outcome: str, started: float) -> dict[str, object]:
+def _result(job: BatchJob, outcome: str, *, started: float) -> dict[str, object]:
     return {
         "operation": job.name,
         "outcome": outcome,
@@ -43,14 +43,18 @@ async def execute_job(job: BatchJob) -> bool:
     try:
         await job.run()
     except asyncio.CancelledError:
-        logger.warning("batch job cancelled", extra=_result(job, "cancelled", started))
+        logger.warning(
+            "batch job cancelled", extra=_result(job, "cancelled", started=started)
+        )
         raise
     except Exception:
         # The formatter records only the exception type and location, never its
         # message, so job inputs do not reach the logs.
-        logger.exception("batch job failed", extra=_result(job, "failure", started))
+        logger.exception(
+            "batch job failed", extra=_result(job, "failure", started=started)
+        )
         return False
-    logger.info("batch job completed", extra=_result(job, "success", started))
+    logger.info("batch job completed", extra=_result(job, "success", started=started))
     return True
 
 

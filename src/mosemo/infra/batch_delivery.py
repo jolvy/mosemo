@@ -10,7 +10,7 @@ from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.infra.kafka_compat import KafkaPublicationError
 
 
-class DeliveryUnavailable(Exception):
+class DeliveryUnavailableError(Exception):
     pass
 
 
@@ -42,4 +42,4 @@ class ActivityBatchPublisher:
                 )
         except (KafkaPublicationError, ConnectionError, TimeoutError) as exc:
             # Timeout does not establish non-publication; retry the same batch.
-            raise DeliveryUnavailable from exc
+            raise DeliveryUnavailableError from exc

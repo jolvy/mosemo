@@ -5,7 +5,7 @@ import pytest
 
 from mosemo.activities.enums import RecordType
 from mosemo.activities.models import ActivityRecord
-from mosemo.activities.timeline import ProjectionFailure, project_events
+from mosemo.activities.timeline import ProjectionError, project_events
 
 
 def record(second, sequence=0, device=None):
@@ -20,7 +20,7 @@ def record(second, sequence=0, device=None):
 
 
 def test_projection_never_merges_a_negative_observation_gap():
-    with pytest.raises(ProjectionFailure):
+    with pytest.raises(ProjectionError):
         project_events([record(10), record(5)])
 
 

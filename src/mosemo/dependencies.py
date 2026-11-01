@@ -108,6 +108,7 @@ DeviceServiceDep = Annotated[
 def get_activity_service(
     session: SessionDep,
     repository: ActivityRepositoryDep,
+    *,
     device_repository: DeviceRepositoryDep,
     clock: ClockDep,
 ) -> ActivityService:
@@ -170,6 +171,7 @@ ProposalRepositoryDep = Annotated[
 def get_activity_label_service(
     session: SessionDep,
     activity_repository: ActivityRepositoryDep,
+    *,
     confirmation_repository: ConfirmationRepositoryDep,
     label_catalog_repository: LabelCatalogRepositoryDep,
     proposal_repository: ProposalRepositoryDep,
@@ -217,6 +219,7 @@ KakaoClientDep = Annotated[
 def get_oauth_client(
     provider: AccountProvider,
     config: Config,
+    *,
     http_client: httpx2.AsyncClient,
 ) -> OAuthClient:
     assert isinstance(provider, AccountProvider)
@@ -229,7 +232,7 @@ def get_oauth_client_resolver(
     http_client: HttpClientDep,
 ) -> OAuthClientResolver:
     def resolve(provider: AccountProvider) -> OAuthClient:
-        return get_oauth_client(provider, config, http_client)
+        return get_oauth_client(provider, config, http_client=http_client)
 
     return resolve
 
@@ -243,6 +246,7 @@ OAuthClientResolverDep = Annotated[
 def get_auth_service(
     session: SessionDep,
     account_repository: AccountRepositoryDep,
+    *,
     native_auth_code_repository: NativeAuthCodeRepositoryDep,
     label_catalog_repository: LabelCatalogRepositoryDep,
     get_oauth_client: OAuthClientResolverDep,
