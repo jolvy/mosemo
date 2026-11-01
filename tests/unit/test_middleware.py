@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from starlette.types import Message, Receive, Scope, Send
 
 from mosemo.middleware import (
     BatchBodyLimitMiddleware,
@@ -23,25 +24,23 @@ def test_sensitive_callback_query_is_cleared_before_response_start() -> None:
         "query_string": b"code=secret&state=secret",
     }
 
-    async def app(scope, receive, send) -> None:
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
         query_string = scope["query_string"]
         assert isinstance(query_string, bytes)
         observed_query_strings.append(query_string)
         await send({"type": "http.response.start", "status": 200, "headers": []})
         await send({"type": "http.response.body", "body": b""})
 
-    async def receive():
+    async def receive() -> Message:
         return {"type": "http.request", "body": b"", "more_body": False}
 
-    async def send(message) -> None:
+    async def send(message: Message) -> None:
         if message["type"] == "http.response.start":
             query_string = scope["query_string"]
             assert isinstance(query_string, bytes)
             observed_query_strings.append(query_string)
 
-    asyncio.run(
-        RedactSensitiveQueryStringMiddleware(app)(scope, receive, send)  # type: ignore[arg-type]
-    )
+    asyncio.run(RedactSensitiveQueryStringMiddleware(app)(scope, receive, send))
 
     assert observed_query_strings == [
         b"code=secret&state=secret",

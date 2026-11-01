@@ -375,7 +375,8 @@ async def test_rejected_activity_preserves_original_and_http_timeline(
         error = response.json()["error"]
         assert error["status"] == error_status
         assert error["code"] == status_code
-        assert isinstance(error["message"], str) and error["message"]
+        assert isinstance(error["message"], str)
+        assert error["message"]
         assert bool(error["details"]) is (status_code == 422)
         if status_code == 401:
             assert response.headers["www-authenticate"] == "Bearer"
@@ -440,7 +441,8 @@ async def test_cross_device_chains_merge_by_observation_and_device_identity(
     async with session_factory() as session:
         first_stored = await session.get(ActivityRecord, high_event_id)
         second_stored = await session.get(ActivityRecord, low_event_id)
-    assert first_stored is not None and second_stored is not None
+    assert first_stored is not None
+    assert second_stored is not None
     assert first_stored.received_at < second_stored.received_at
 
     timeline = await client.get(TIMELINE_URL, headers=headers)

@@ -11,7 +11,8 @@ SCRIPTS = Path(__file__).resolve().parents[3] / ".codex/skills/verification/scri
 
 def load_validator(name: str) -> ModuleType:
     spec = spec_from_file_location(name, SCRIPTS / f"{name}.py")
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

@@ -40,7 +40,7 @@ def test_plan_allows_honest_not_run_but_rejects_pass_without_evidence(
 
 
 @pytest.mark.parametrize(
-    "old,new,expected",
+    ("old", "new", "expected"),
     [
         ("| T1 |", "| T99 |", "작업 연결"),
         ("| 유효 |", "| 알아서 승인 |", "상태 오류"),

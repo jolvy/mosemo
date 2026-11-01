@@ -193,11 +193,8 @@ def test_success_responses_document_content_and_important_headers(
                 assert "content" not in response, (path, method, status_code)
             else:
                 content = response.get("content")
-                assert isinstance(content, dict) and content, (
-                    path,
-                    method,
-                    status_code,
-                )
+                assert isinstance(content, dict), (path, method, status_code)
+                assert content, (path, method, status_code)
                 assert all("schema" in media for media in content.values()), (
                     path,
                     method,
@@ -318,8 +315,10 @@ def test_public_error_examples_match_status_and_common_schema(
         == "recordType"
     )
     activity_responses = activity_post["responses"]
-    assert "202" in activity_responses and "201" not in activity_responses
-    assert "409" not in activity_responses and "413" in activity_responses
+    assert "202" in activity_responses
+    assert "201" not in activity_responses
+    assert "409" not in activity_responses
+    assert "413" in activity_responses
     assert set(
         activity_responses["404"]["content"]["application/json"]["examples"]
     ) == {"REQUEST_ROUTE_NOT_FOUND", "ACTIVITY_DEVICE_NOT_FOUND"}

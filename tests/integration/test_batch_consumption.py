@@ -204,7 +204,8 @@ async def test_valid_offsets_resume_and_new_group_uses_earliest(
             return await consumer.committed(BatchPartition(config.topic, 0)) == 2
 
         await eventually(committed_again)
-    assert len(seen) == 2 and len(set(seen)) == 2
+    assert len(seen) == 2
+    assert len(set(seen)) == 2
     fresh = config.model_copy(update={"group_id": config.group_id + ".fresh"})
     try:
         async with running(fresh, Executor()) as (consumer, _, _):
