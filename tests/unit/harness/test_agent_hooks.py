@@ -676,3 +676,21 @@ def test_hooks_are_registered_for_claude_code_and_codex() -> None:
     [guard] = codex["PreToolUse"]
     assert guard["matcher"] == "^Bash$"
     assert "protect_main.py" in guard["hooks"][0]["command"]
+
+
+# AC-13
+
+
+@pytest.mark.parametrize(
+    "phrase", ["규칙에 맞게 구현", "지우거나 되돌리지", "기능을 빼지"]
+)
+def test_stop_instruction_and_implementation_skill_keep_rule_priority_phrases(
+    stop_hook: ModuleType, phrase: str
+) -> None:
+    skill = (REPOSITORY / ".codex/skills/implementation/SKILL.md").read_text()
+    [rule] = [line for line in skill.splitlines() if "저장소 검사 규칙" in line]
+
+    assert "\n" not in stop_hook.INSTRUCTION
+    assert phrase in stop_hook.INSTRUCTION
+    assert phrase in rule
+    assert "종료 전 hook이 막을 때도 같다" in rule
