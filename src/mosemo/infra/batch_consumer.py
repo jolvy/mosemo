@@ -122,7 +122,7 @@ class ActivityBatchConsumer:
                 raise
             if task not in self._revoked and not self._closing:
                 self._fail(RuntimeError("activity_batch_execution_cancelled"))
-        except Exception as error:  # noqa: BLE001 - propagate through runtime supervisor
+        except Exception as error:  # propagate through runtime supervisor
             self._fail(error)
         finally:
             self._revoked.discard(task)

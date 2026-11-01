@@ -2,6 +2,7 @@
 
 import ast
 import io
+import json
 import os
 import re
 import tokenize
@@ -12,7 +13,92 @@ ROOT = Path(__file__).resolve().parents[4]
 PYTHON_DIRS = ("src", "tests", "scripts", "migrations", ".codex")
 SKIPPED_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".ruff_cache"}
 RUFF_CONFIG_FILES = {"ruff.toml", ".ruff.toml"}
-CLOCK_EXCEPTION = ("src/mosemo/clock.py", "TID251")
+COMPLEXIPY_CONFIG_FILE = "complexipy.toml"
+COMPLEXITY_SNAPSHOT = "complexipy-snapshot.json"
+EXCEPTIONS_FILE = "src/mosemo/exceptions.py"
+API_EXCEPTION = "ApiException"
+API_EXCEPTION_FILES = {
+    "src/mosemo/dependencies.py",
+    "src/mosemo/exception_handlers.py",
+    EXCEPTIONS_FILE,
+}
+BROAD_EXCEPTIONS = {"Exception", "BaseException"}
+# (파일, 감싸는 클래스·함수 이름): 허용 개수. 새 경계는 이유와 함께 추가하고 리뷰한다.
+BROAD_EXCEPT_ALLOWED = {
+    # 프로세스 경계: 예외 메시지(payload·비밀값)를 출력하지 않고 종료
+    ("src/mosemo/activities/consumer.py", "main"): 1,
+    # 프로세스 경계
+    ("src/mosemo/batch_jobs/__main__.py", "main"): 1,
+    # 오류를 runtime supervisor로 넘김
+    ("src/mosemo/infra/batch_consumer.py", "ActivityBatchConsumer.handle"): 1,
+    # 어떤 오류든 앱으로 실패 리다이렉트
+    ("src/mosemo/auth/router.py", "callback"): 1,
+    # 후보 하나의 제안 생성 실패는 시도 실패로 기록하고 스캐너를 멈추지 않음
+    (
+        "src/mosemo/activity_labels/proposals/processing.py",
+        "ProposalProcessor.process_candidate",
+    ): 1,
+    # job 하나의 실패가 스케줄러를 멈추지 않고, 예외 메시지를 로그에 남기지 않음
+    ("src/mosemo/batch_jobs/job.py", "execute_job"): 1,
+}
+# (파일, complexipy 이름): 기준선 점수 상한. 새 함수는 15 이하로 작성한다.
+COMPLEXITY_LIMITS = {
+    (
+        "src/mosemo/activities/batch_processing.py",
+        "ActivityBatchProcessor::process",
+    ): 47,
+    (
+        "src/mosemo/activities/batch_processing.py",
+        "ActivityBatchProcessor::_project",
+    ): 24,
+    ("src/mosemo/activity_labels/queries/service.py", "LabelQueries::get_timeline"): 32,
+    ("src/mosemo/activities/timeline.py", "TimelineProjection::feed"): 29,
+    (
+        "src/mosemo/activity_labels/proposals/processing.py",
+        "ProposalScanner::run_batch",
+    ): 19,
+    (
+        "src/mosemo/activities/repository.py",
+        "ActivityRepository::replace_account_segments",
+    ): 16,
+}
+RUFF_CONFIG = tomllib.loads("""
+line-length = 88
+target-version = "py314"
+
+[lint]
+extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", "PLR0917",
+                 "FBT001", "FBT003", "PLR2004", "N", "FAST002", "ASYNC", "ERA001", "S110", "PT"]
+
+[lint.per-file-ignores]
+"src/mosemo/clock.py" = ["TID251"]
+"migrations/env.py" = ["F401"]
+"src/mosemo/middleware.py" = ["PLR0917"]
+"tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917"]
+"scripts/**" = ["PLR2004"]
+"migrations/**" = ["PLR2004"]
+".codex/**" = ["PLR2004"]
+"src/**" = ["BLE001"]
+
+[lint.pylint]
+max-positional-args = 2
+
+[lint.pep8-naming]
+extend-ignore-names = ["*Exception"]
+
+[lint.flake8-tidy-imports.banned-api]
+"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
+"time.time".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+
+[format]
+indent-style = "space"
+line-ending = "auto"
+quote-style = "double"
+""")
 REPOSITORY_METHODS = {"find", "add", "add_all", "add_if_absent", "delete", "claim"}
 REPOSITORY_METHOD_PREFIXES = (
     "find_",
@@ -49,9 +135,16 @@ CLOCK_HINT = (
     "현재 시각은 `mosemo.clock`의 clock을 주입받아 얻고, "
     "Ruff TID251·DTZ 검사를 끄거나 우회하지 않는다"
 )
-NOQA = re.compile(r"(?<![a-z0-9_])noqa(?![a-z0-9_])", re.IGNORECASE)
-NOQA_CODES = re.compile(r"\s*:\s*([a-z]+[0-9]*(?:[\s,]+[a-z]+[0-9]*)*)", re.IGNORECASE)
-FILE_NOQA = re.compile(r"ruff\s*:\s*noqa", re.IGNORECASE)
+SUPPRESSION_DIRECTIVE = re.compile(
+    r"(?<!\w)(?:"
+    r"(?:(?:ruff\s*:\s*)?noqa"
+    r"|(?:type|ty|pyright|complexipy)\s*:\s*ignore"
+    r"|pragma\s*:\s*no\s*cover)(?!\w)"
+    r"|isort\s*:"
+    r"|fmt\s*:"
+    r")",
+    re.IGNORECASE,
+)
 
 
 def is_lambda_returning_lambda(node: ast.AST | None) -> bool:
@@ -116,79 +209,57 @@ def check_clock_overrides(tree: ast.AST) -> list[str]:
 
 
 def check_suppression_comments(source: str) -> list[str]:
-    """(c) 주석 토큰에서 전체 억제와 TID251·DTZ 억제를 찾는다."""
+    """(i) 주석 토큰에서 검사를 끄거나 우회하는 지시문을 찾는다."""
     errors = []
     tokens = tokenize.generate_tokens(io.StringIO(source).readline)
     for token in tokens:
         if token.type != tokenize.COMMENT:
             continue
-        line = token.start[0]
-        if FILE_NOQA.search(token.string):
-            errors.append(
-                f"{line}: CS-P15: 파일 단위 `# ruff: noqa`를 쓰지 않는다. "
-                f"필요한 줄에만 규칙 코드를 지정한다. {CLOCK_HINT}"
-            )
-            continue
-        for match in NOQA.finditer(token.string):
-            codes_match = NOQA_CODES.match(token.string, match.end())
-            if codes_match is None:
-                errors.append(
-                    f"{line}: CS-P15: 규칙을 지정하지 않은 `# noqa`를 쓰지 않는다. "
-                    "`# noqa: F401`처럼 규칙 코드를 지정한다"
-                )
-                continue
-            codes = re.split(r"[\s,]+", codes_match.group(1).upper())
-            if any(code.startswith(("TID251", "DTZ")) for code in codes):
-                errors.append(
-                    f"{line}: CS-P15: `noqa`로 TID251·DTZ를 억제하지 않는다. "
-                    f"{CLOCK_HINT}"
-                )
+        errors.extend(
+            f"{token.start[0]}: CS-P22: 검사 억제 주석 `{match.group(0)}`을 쓰지 "
+            "않는다. 주석을 지우고 지적된 코드를 고친다. 경로 단위 예외가 필요하면 "
+            "검사기의 허용 Ruff 설정을 바꿔야 하며 리뷰 대상이다. "
+            f"{CLOCK_HINT}"
+            for match in SUPPRESSION_DIRECTIVE.finditer(token.string)
+        )
     return errors
 
 
-def is_banned_ignore(code: str) -> bool:
-    code = code.upper()
-    return code in {"ALL", "TID", "TID2", "TID25"} or code.startswith(("TID251", "DTZ"))
+def ruff_config_differences(
+    actual: object, expected: object, *, section: str
+) -> list[str]:
+    if not (isinstance(actual, dict) and isinstance(expected, dict)):
+        if actual == expected:
+            return []
+        return [f"`{section}` 값을 `{expected!r}`로 되돌린다"]
+    differences = [
+        f"`{section}.{key}`를 삭제한다" for key in actual if key not in expected
+    ]
+    differences.extend(
+        f"`{section}.{key}`를 `{expected[key]!r}`로 되살린다"
+        for key in expected
+        if key not in actual
+    )
+    for key in expected:
+        if key in actual:
+            differences += ruff_config_differences(
+                actual[key], expected[key], section=f"{section}.{key}"
+            )
+    return differences
 
 
 def check_ruff_config(pyproject: str) -> list[str]:
-    """(d) pyproject.toml의 Ruff 설정에서 TID251·DTZ 무력화와 제외 경로를 찾는다."""
+    """(j) pyproject.toml의 Ruff 설정이 허용 설정과 키 집합·값 모두 같은지 확인한다."""
     ruff = tomllib.loads(pyproject).get("tool", {}).get("ruff", {})
-    errors = []
-    for section_name, section in (
-        ("tool.ruff", ruff),
-        ("tool.ruff.lint", ruff.get("lint", {})),
-    ):
-        for key in ("exclude", "extend-exclude"):
-            if key in section:
-                errors.append(
-                    f"pyproject.toml: CS-P15: `{section_name}.{key}`로 검사 대상을 "
-                    f"제외하지 않는다. 설정을 삭제한다. {CLOCK_HINT}"
-                )
-        for key in ("ignore", "extend-ignore"):
-            banned = [code for code in section.get(key, []) if is_banned_ignore(code)]
-            if banned:
-                errors.append(
-                    f"pyproject.toml: CS-P15: `{section_name}.{key}`에서 {banned}를 "
-                    f"뺀다. {CLOCK_HINT}"
-                )
-        for key in ("per-file-ignores", "extend-per-file-ignores"):
-            for pattern, codes in section.get(key, {}).items():
-                banned = [
-                    code
-                    for code in codes
-                    if is_banned_ignore(code)
-                    and not (
-                        key == "per-file-ignores" and (pattern, code) == CLOCK_EXCEPTION
-                    )
-                ]
-                if banned:
-                    errors.append(
-                        f"pyproject.toml: CS-P15: `{section_name}.{key}`의 "
-                        f"`{pattern}`에서 {banned}를 뺀다. TID251 예외는 "
-                        f"`{CLOCK_EXCEPTION[0]}` 하나뿐이다. {CLOCK_HINT}"
-                    )
-    return errors
+    return [
+        f"pyproject.toml: CS-P22: Ruff 설정은 검사기의 허용 설정과 같아야 한다. "
+        f"{difference}. 규칙 선택·경로 예외·제외 경로를 바꿔 검사를 끄거나 "
+        "우회하지 않는다. 설정 변경이 필요하면 검사기 `RUFF_CONFIG`를 함께 바꿔야 "
+        f"하며 리뷰 대상이다. {CLOCK_HINT}"
+        for difference in ruff_config_differences(
+            ruff, RUFF_CONFIG, section="tool.ruff"
+        )
+    ]
 
 
 def check_init_clock(tree: ast.AST) -> list[str]:
@@ -346,6 +417,153 @@ def check_sql_imports(tree: ast.AST) -> list[str]:
     return errors
 
 
+def is_broad_exception(node: ast.expr | None) -> bool:
+    if node is None:
+        return True
+    if isinstance(node, ast.Tuple):
+        return any(is_broad_exception(element) for element in node.elts)
+    return (isinstance(node, ast.Name) and node.id in BROAD_EXCEPTIONS) or (
+        isinstance(node, ast.Attribute) and node.attr in BROAD_EXCEPTIONS
+    )
+
+
+def broad_except_lines(
+    node: ast.AST, scope: tuple[str, ...] = ()
+) -> list[tuple[str, int]]:
+    """넓은 `except` 절을 감싸는 클래스·함수 이름과 라인으로 모은다."""
+    found = []
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            found += broad_except_lines(child, (*scope, child.name))
+            continue
+        if isinstance(child, ast.ExceptHandler) and is_broad_exception(child.type):
+            found.append((".".join(scope) or "<module>", child.lineno))
+        found += broad_except_lines(child, scope)
+    return found
+
+
+def check_broad_excepts(trees: dict[str, ast.AST]) -> list[str]:
+    """(k) `src`의 넓은 `except`가 허용 목록의 (파일, 함수)와 개수 안에 있는지 확인한다."""
+    errors = []
+    counts = dict.fromkeys(BROAD_EXCEPT_ALLOWED, 0)
+    for path, tree in trees.items():
+        for function, line in broad_except_lines(tree):
+            key = (path, function)
+            counts[key] = counts.get(key, 0) + 1
+            if counts[key] > BROAD_EXCEPT_ALLOWED.get(key, 0):
+                errors.append(
+                    f"{path}:{line}: CS-P18: `{function}`의 넓은 `except`"
+                    "(`Exception`·`BaseException`·맨 `except:`)는 등록된 경계에서만 "
+                    "쓴다. 잡을 예외를 좁혀라. 새 경계가 필요하면 이유와 함께 검사기 "
+                    "허용 목록 `BROAD_EXCEPT_ALLOWED`에 추가해야 하며 리뷰 대상이다"
+                )
+    errors.extend(
+        f"{path}: CS-P18: 허용 목록의 `{function}`에 넓은 `except`가 "
+        f"{allowed}개 있어야 하지만 {counts[path, function]}개다. 경계가 사라지거나 "
+        "옮겨졌으면 검사기 허용 목록 `BROAD_EXCEPT_ALLOWED`를 코드와 맞춘다"
+        for (path, function), allowed in BROAD_EXCEPT_ALLOWED.items()
+        if counts[path, function] < allowed
+    )
+    return errors
+
+
+def check_complexity_snapshot(snapshot: str) -> list[str]:
+    """(l) complexipy 기준선의 함수가 고정 상한 목록 안에 있고 상한 이하인지 확인한다."""
+    errors = []
+    for entry in json.loads(snapshot):
+        for function in entry["functions"]:
+            key = (entry["path"], function["name"])
+            limit = COMPLEXITY_LIMITS.get(key)
+            if limit is None:
+                errors.append(
+                    f"{COMPLEXITY_SNAPSHOT}: CS-P01: `{key[0]}`의 `{key[1]}`을 "
+                    "기준선에 넣지 않는다. 인지 복잡도를 15 이하로 낮추고 "
+                    "`--snapshot-create` 없이 complexipy를 다시 실행한다"
+                )
+            elif function["complexity"] > limit:
+                errors.append(
+                    f"{COMPLEXITY_SNAPSHOT}: CS-P01: `{key[0]}`의 `{key[1]}` "
+                    f"복잡도 {function['complexity']}가 상한 {limit}을 넘는다. "
+                    "기준선 함수의 복잡도를 올리지 말고 낮춘다"
+                )
+    return errors
+
+
+def check_complexity_config(pyproject: str) -> list[str]:
+    """(l) pyproject.toml에 complexipy 설정을 두지 않는지 확인한다."""
+    if "complexipy" not in tomllib.loads(pyproject).get("tool", {}):
+        return []
+    return [
+        (
+            "pyproject.toml: CS-P01: `[tool.complexipy]`를 삭제한다. complexipy는 "
+            "고정 명령 `complexipy src --max-complexity-allowed 15 --isolated "
+            "--no-ignore`로만 실행하고 설정으로 대상을 제외하거나 기준을 바꾸지 않는다"
+        )
+    ]
+
+
+def base_names(node: ast.ClassDef) -> set[str]:
+    return {
+        base.id if isinstance(base, ast.Name) else base.attr
+        for base in node.bases
+        if isinstance(base, ast.Name | ast.Attribute)
+    }
+
+
+def api_exception_names(tree: ast.AST) -> set[str]:
+    """`ApiException`과 같은 파일에 정의된 그 하위 클래스 이름을 모은다."""
+    classes = [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+    names = {API_EXCEPTION}
+    changed = True
+    while changed:
+        found = {node.name for node in classes if base_names(node) & names}
+        changed = not found <= names
+        names |= found
+    return names
+
+
+def check_exception_classes(tree: ast.AST, *, in_exceptions_file: bool) -> list[str]:
+    """(m) 이름이 `Exception`으로 끝나는 클래스가 `ApiException` 계층인지 확인한다."""
+    allowed = api_exception_names(tree) if in_exceptions_file else set()
+    return [
+        f"{node.lineno}: CS-P07: `{node.name}`처럼 `Exception`으로 끝나는 이름은 "
+        f"`{EXCEPTIONS_FILE}`의 `ApiException`과 그 하위 클래스에만 쓴다. "
+        "도메인·인프라 오류는 `...Error`로 이름 짓고, API 오류 응답은 router에서 "
+        "`ApiException`으로 바꾼다"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef)
+        and node.name.endswith("Exception")
+        and node.name not in allowed
+    ]
+
+
+def is_named(node: ast.AST | None, names: set[str]) -> bool:
+    return (isinstance(node, ast.Name) and node.id in names) or (
+        isinstance(node, ast.Attribute) and node.attr in names
+    )
+
+
+def check_api_exception_usage(tree: ast.AST, names: set[str]) -> list[str]:
+    """(n) 허용 파일 밖에서 `ApiException` 계층의 import와 생성을 찾는다."""
+    lines = [
+        node.lineno
+        for node in ast.walk(tree)
+        if (
+            isinstance(node, ast.ImportFrom)
+            and any(alias.name in names for alias in node.names)
+        )
+        or (isinstance(node, ast.Call) and is_named(node.func, names))
+        or (isinstance(node, ast.Raise) and is_named(node.exc, names))
+    ]
+    return [
+        f"{line}: CS-P07: `ApiException`은 `router.py`와 `dependencies.py`·"
+        "`exception_handlers.py`·`exceptions.py`에서만 import하거나 만든다. "
+        "service·repository는 도메인 오류(`...Error`)를 던지고, router에서 "
+        "`ApiException`으로 바꾼다"
+        for line in lines
+    ]
+
+
 def python_files(root: Path) -> list[Path]:
     files = []
     for directory in PYTHON_DIRS:
@@ -357,31 +575,42 @@ def python_files(root: Path) -> list[Path]:
     return sorted(files)
 
 
-def ruff_config_files(root: Path) -> list[Path]:
+def config_files(root: Path, names: set[str]) -> list[Path]:
     found = []
     for directory, subdirectories, files in os.walk(root):
         subdirectories[:] = [
             name for name in subdirectories if name not in SKIPPED_DIRS
         ]
-        found.extend(
-            Path(directory) / name for name in files if name in RUFF_CONFIG_FILES
-        )
+        found.extend(Path(directory) / name for name in files if name in names)
     return sorted(found)
 
 
-def validate(root: Path = ROOT) -> list[str]:
+def parse_python_files(root: Path) -> tuple[dict[Path, ast.AST], list[str]]:
+    trees = {}
     errors = []
     for path in python_files(root):
         relative = path.relative_to(root)
         source = path.read_text()
         try:
-            tree = ast.parse(source)
-            file_errors = check_suppression_comments(source) + check_clock_overrides(
-                tree
-            )
+            trees[relative] = ast.parse(source)
+            file_errors = check_suppression_comments(source)
         except (SyntaxError, tokenize.TokenError) as error:
             errors.append(f"{relative}: 코드 분석 실패: {error}")
             continue
+        errors.extend(f"{relative}:{error}" for error in file_errors)
+    return trees, errors
+
+
+def validate(root: Path = ROOT) -> list[str]:
+    trees, errors = parse_python_files(root)
+    exceptions_tree = trees.get(Path(EXCEPTIONS_FILE))
+    api_names = (
+        api_exception_names(exceptions_tree) if exceptions_tree else {API_EXCEPTION}
+    )
+    for relative, tree in trees.items():
+        file_errors = check_clock_overrides(tree) + check_exception_classes(
+            tree, in_exceptions_file=relative.as_posix() == EXCEPTIONS_FILE
+        )
         if relative.parts[0] == "tests":
             file_errors += check_test_clock_lambdas(tree)
         if relative.parts[0] == "src":
@@ -394,14 +623,35 @@ def validate(root: Path = ROOT) -> list[str]:
                 file_errors += check_session_calls(tree)
                 if relative.name != "models.py":
                     file_errors += check_sql_imports(tree)
+            if (
+                relative.name != "router.py"
+                and relative.as_posix() not in API_EXCEPTION_FILES
+            ):
+                file_errors += check_api_exception_usage(tree, api_names)
         errors.extend(f"{relative}:{error}" for error in file_errors)
+    errors += check_broad_excepts(
+        {
+            relative.as_posix(): tree
+            for relative, tree in trees.items()
+            if relative.parts[0] == "src"
+        }
+    )
     pyproject = root / "pyproject.toml"
     if pyproject.is_file():
-        errors.extend(check_ruff_config(pyproject.read_text()))
+        errors += check_ruff_config(pyproject.read_text())
+        errors += check_complexity_config(pyproject.read_text())
+    snapshot = root / COMPLEXITY_SNAPSHOT
+    if snapshot.is_file():
+        errors += check_complexity_snapshot(snapshot.read_text())
     errors.extend(
-        f"{path.relative_to(root)}: CS-P15: Ruff 설정은 `pyproject.toml` 하나에 둔다. "
+        f"{path.relative_to(root)}: CS-P22: Ruff 설정은 `pyproject.toml` 하나에 둔다. "
         f"이 파일을 삭제한다. {CLOCK_HINT}"
-        for path in ruff_config_files(root)
+        for path in config_files(root, RUFF_CONFIG_FILES)
+    )
+    errors.extend(
+        f"{path.relative_to(root)}: CS-P01: complexipy 설정 파일을 두지 않는다. "
+        "이 파일을 삭제하고 고정 명령으로만 실행한다"
+        for path in config_files(root, {COMPLEXIPY_CONFIG_FILE})
     )
     return errors
 

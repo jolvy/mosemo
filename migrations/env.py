@@ -6,20 +6,20 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from mosemo.accounts import models as accounts_models  # noqa: F401
-from mosemo.activities import models as activities_models  # noqa: F401
-from mosemo.activity_labels.catalog import models as label_catalog_models  # noqa: F401
+from mosemo.accounts import models as accounts_models
+from mosemo.activities import models as activities_models
+from mosemo.activity_labels.catalog import models as label_catalog_models
 from mosemo.activity_labels.confirmations import (
-    models as label_confirmations_models,  # noqa: F401
+    models as label_confirmations_models,
 )
 from mosemo.activity_labels.proposals import (
-    models as label_proposal_models,  # noqa: F401
+    models as label_proposal_models,
 )
-from mosemo.auth import models as auth_models  # noqa: F401
+from mosemo.auth import models as auth_models
 from mosemo.config import get_config
 from mosemo.database import Base
-from mosemo.devices import models as devices_models  # noqa: F401
-from mosemo.focus_sessions import models as focus_session_models  # noqa: F401
+from mosemo.devices import models as devices_models
+from mosemo.focus_sessions import models as focus_session_models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -37,13 +37,10 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
 
