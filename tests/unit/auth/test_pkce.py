@@ -17,5 +17,5 @@ def test_create_code_challenge_uses_s256() -> None:
 def test_create_code_challenge_rejects_invalid_verifier(
     code_verifier: str,
 ) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Invalid PKCE code verifier"):
         create_code_challenge(code_verifier)

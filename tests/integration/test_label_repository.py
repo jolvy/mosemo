@@ -37,38 +37,41 @@ async def test_label_constraints_are_account_scoped_and_cascade(
     assert len(first_labels) == 5
     assert len(second_labels) == 5
 
+    savepoint = await integration_session.begin_nested()
+    integration_session.add(
+        Label(
+            account_id=first_account.account_id,
+            display_name="코딩",
+        )
+    )
     with pytest.raises(IntegrityError):
-        async with integration_session.begin_nested():
-            integration_session.add(
-                Label(
-                    account_id=first_account.account_id,
-                    display_name="코딩",
-                )
-            )
-            await integration_session.flush()
+        await integration_session.flush()
+    await savepoint.rollback()
 
     first_labels[0].archived_at = first_labels[0].created_at
     await integration_session.flush()
 
+    savepoint = await integration_session.begin_nested()
+    integration_session.add(
+        Label(
+            account_id=first_account.account_id,
+            display_name="코딩",
+        )
+    )
     with pytest.raises(IntegrityError):
-        async with integration_session.begin_nested():
-            integration_session.add(
-                Label(
-                    account_id=first_account.account_id,
-                    display_name="코딩",
-                )
-            )
-            await integration_session.flush()
+        await integration_session.flush()
+    await savepoint.rollback()
 
+    savepoint = await integration_session.begin_nested()
+    integration_session.add(
+        Label(
+            account_id=uuid4(),
+            display_name="고아 라벨",
+        )
+    )
     with pytest.raises(IntegrityError):
-        async with integration_session.begin_nested():
-            integration_session.add(
-                Label(
-                    account_id=uuid4(),
-                    display_name="고아 라벨",
-                )
-            )
-            await integration_session.flush()
+        await integration_session.flush()
+    await savepoint.rollback()
 
     await integration_session.delete(second_account)
     await integration_session.flush()

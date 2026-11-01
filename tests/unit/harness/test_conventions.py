@@ -21,7 +21,8 @@ def test_test_clock_argument_rejects_lambda(
     conventions_validator: ModuleType, source: str
 ) -> None:
     errors = conventions_validator.check_test_clock_lambdas(ast.parse(source))
-    assert errors and "CS-P23" in errors[0]
+    assert errors
+    assert "CS-P23" in errors[0]
 
 
 @pytest.mark.parametrize(
@@ -47,7 +48,8 @@ def test_get_clock_override_rejects_lambda_returning_lambda(
     conventions_validator: ModuleType, source: str
 ) -> None:
     errors = conventions_validator.check_clock_overrides(ast.parse(source))
-    assert errors and "CS-P23" in errors[0]
+    assert errors
+    assert "CS-P23" in errors[0]
 
 
 @pytest.mark.parametrize(
@@ -84,7 +86,8 @@ def test_suppression_comment_rejects_blanket_and_clock_codes(
     conventions_validator: ModuleType, comment: str
 ) -> None:
     errors = conventions_validator.check_suppression_comments(f"x = 1  {comment}\n")
-    assert errors and "CS-P15" in errors[0]
+    assert errors
+    assert "CS-P15" in errors[0]
 
 
 @pytest.mark.parametrize(
@@ -128,7 +131,8 @@ def test_ruff_config_rejects_prefix_dtz_and_all(
         "[tool.ruff.lint]\n", f"[tool.ruff.lint]\n{extra}\n"
     )
     errors = conventions_validator.check_ruff_config(pyproject)
-    assert errors and "CS-P15" in errors[0]
+    assert errors
+    assert "CS-P15" in errors[0]
 
 
 @pytest.mark.parametrize(
@@ -152,7 +156,8 @@ def test_ruff_config_rejects_other_ignores_and_excludes(
     conventions_validator: ModuleType, pyproject: str
 ) -> None:
     errors = conventions_validator.check_ruff_config(pyproject)
-    assert errors and "CS-P15" in errors[0]
+    assert errors
+    assert "CS-P15" in errors[0]
 
 
 @pytest.mark.parametrize("name", ["ruff.toml", ".ruff.toml", "src/ruff.toml"])
@@ -163,7 +168,9 @@ def test_validate_rejects_other_ruff_config_files(
     (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
     (tmp_path / name).write_text("")
     errors = conventions_validator.validate(tmp_path)
-    assert errors and errors[0].startswith(name) and "CS-P15" in errors[0]
+    assert errors
+    assert errors[0].startswith(name)
+    assert "CS-P15" in errors[0]
 
 
 @pytest.mark.parametrize(
@@ -181,7 +188,8 @@ def test_init_clock_rejects_positional_or_default(
 ) -> None:
     source = f"class Service:\n    def __init__({signature}):\n        pass\n"
     errors = conventions_validator.check_init_clock(ast.parse(source))
-    assert errors and "CS-P15" in errors[0]
+    assert errors
+    assert "CS-P15" in errors[0]
 
 
 @pytest.mark.parametrize(
@@ -236,7 +244,8 @@ def test_repository_method_names_reject_unlisted_verbs(
     errors = conventions_validator.check_repository_method_names(
         ast.parse(repository_class(method))
     )
-    assert errors and "CS-P10" in errors[0]
+    assert errors
+    assert "CS-P10" in errors[0]
 
 
 @pytest.mark.parametrize(
@@ -286,7 +295,8 @@ def test_integrity_error_handler_is_rejected(
     conventions_validator: ModuleType, source: str
 ) -> None:
     errors = conventions_validator.check_integrity_error_handling(ast.parse(source))
-    assert errors and "CS-P26" in errors[0]
+    assert errors
+    assert "CS-P26" in errors[0]
 
 
 @pytest.mark.parametrize(
@@ -312,7 +322,8 @@ def test_add_if_absent_requires_on_conflict_do_nothing(
         "        self._session.add(row)\n"
     )
     errors = conventions_validator.check_add_if_absent_conflict(ast.parse(source))
-    assert errors and "CS-P26" in errors[0]
+    assert errors
+    assert "CS-P26" in errors[0]
 
 
 def test_add_if_absent_allows_on_conflict_do_nothing(
@@ -340,7 +351,8 @@ def test_session_calls_outside_repository_are_rejected(
     conventions_validator: ModuleType, source: str
 ) -> None:
     errors = conventions_validator.check_session_calls(ast.parse(source))
-    assert errors and "CS-P25" in errors[0]
+    assert errors
+    assert "CS-P25" in errors[0]
 
 
 @pytest.mark.parametrize(
@@ -374,7 +386,8 @@ def test_sql_construct_imports_are_rejected(
     conventions_validator: ModuleType, source: str
 ) -> None:
     errors = conventions_validator.check_sql_imports(ast.parse(source))
-    assert errors and "CS-P25" in errors[0]
+    assert errors
+    assert "CS-P25" in errors[0]
 
 
 @pytest.mark.parametrize(

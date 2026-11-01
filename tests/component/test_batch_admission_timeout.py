@@ -51,7 +51,8 @@ async def test_batch_admission_deadline_cancels_stalled_work_and_returns_retryab
         "client": ("testclient", 1234),
     }
     await asyncio.wait_for(middleware(scope, receive, send), timeout=1)
-    assert entered.is_set() and cleaned.is_set()
+    assert entered.is_set()
+    assert cleaned.is_set()
     assert messages[0]["type"] == "http.response.start"
     assert messages[0]["status"] == 503
     assert (b"retry-after", b"1") in messages[0]["headers"]

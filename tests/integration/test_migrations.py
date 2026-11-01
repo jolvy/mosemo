@@ -25,7 +25,8 @@ def load_label_migration() -> Any:
         "create_label_catalog",
         LABEL_MIGRATION_PATH,
     )
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
     return migration

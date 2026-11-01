@@ -61,7 +61,8 @@ async def test_api_lifecycle_closes_producer_and_preserves_inner_state(
     app = compose_messaging_app(FastAPI(lifespan=inner), config)
     try:
         async with app.router.lifespan_context(app) as state:
-            assert state is not None and state["http_client"] == "preserved"
+            assert state is not None
+            assert state["http_client"] == "preserved"
             assert app.state.batch_publisher.topic == "custom"
             producer.start.assert_awaited_once()
             if failure == "cancel":
@@ -205,7 +206,7 @@ async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "error,expected",
+    ("error", "expected"),
     [
         ("device_not_owned", 404),
         ("batch_content_conflict", 409),
