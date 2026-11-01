@@ -71,6 +71,7 @@ ERRORS = api_error_responses(
 async def create_focus_session(
     request: FocusSessionCreateRequest,
     service: FocusSessionServiceDep,
+    *,
     account: AuthenticatedAccountDep,
 ) -> FocusSessionResponse:
     try:
@@ -92,11 +93,12 @@ async def create_focus_session(
 async def complete_focus_session(
     session_id: Annotated[UUID, Path(description="집중 세션 식별자입니다.")],
     request: FocusSessionCompleteRequest,
+    *,
     service: FocusSessionServiceDep,
     account: AuthenticatedAccountDep,
 ) -> FocusSessionResponse:
     try:
-        return await service.complete(account.account_id, session_id, request)
+        return await service.complete(account.account_id, session_id, request=request)
     except FocusSessionNotFoundError as exc:
         raise ApiException(ErrorCode.FOCUS_SESSION_NOT_FOUND) from exc
     except FocusSessionConflictError as exc:
@@ -118,6 +120,7 @@ async def complete_focus_session(
 async def list_focus_sessions(
     service: FocusSessionServiceDep,
     account: AuthenticatedAccountDep,
+    *,
     date: Annotated[date, Query(description="계정 시간대 기준 세션 시작 날짜입니다.")],
 ) -> list[FocusSessionResponse]:
     try:

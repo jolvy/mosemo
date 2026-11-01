@@ -13,7 +13,7 @@ from mosemo.activity_labels.confirmations.service import (
     ActivityLabelSegmentNotFoundError,
     ActivityLabelSegmentNotLabelableError,
     ActivityLabelUnavailableError,
-    BatchLabelConfirmationFailure,
+    BatchLabelConfirmationError,
 )
 from mosemo.activity_labels.schemas import (
     ActivityLabelConfirmationRequest,
@@ -31,7 +31,7 @@ from mosemo.schemas import ValidationDetail
 router = APIRouter(prefix="/activities")
 
 
-def _batch_failure_response(exc: BatchLabelConfirmationFailure) -> ApiException:
+def _batch_failure_response(exc: BatchLabelConfirmationError) -> ApiException:
     error_codes: dict[type[Exception], ErrorCode] = {
         ActivityLabelSegmentNotFoundError: ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
         ActivityLabelSegmentNotLabelableError: ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
@@ -91,6 +91,7 @@ def _batch_failure_response(exc: BatchLabelConfirmationFailure) -> ApiException:
 async def confirm_segment_labels(
     request: BatchLabelConfirmationRequest,
     service: ActivityLabelServiceDep,
+    *,
     authenticated_account: AuthenticatedAccountDep,
 ) -> BatchLabelConfirmationResponse:
     try:
@@ -98,7 +99,7 @@ async def confirm_segment_labels(
             account_id=authenticated_account.account_id,
             request=request,
         )
-    except BatchLabelConfirmationFailure as exc:
+    except BatchLabelConfirmationError as exc:
         raise _batch_failure_response(exc) from exc
     except ActivityTimelineBusyError as exc:
         raise ApiException(ErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
@@ -123,6 +124,7 @@ async def confirm_segment_labels(
 async def get_label_timeline(
     service: ActivityLabelServiceDep,
     authenticated_account: AuthenticatedAccountDep,
+    *,
     date: Annotated[
         date | None,
         Query(
@@ -166,6 +168,7 @@ async def get_segment_label_state(
         Path(description="라벨 상태를 조회할 관찰 구간 식별자입니다."),
     ],
     service: ActivityLabelServiceDep,
+    *,
     authenticated_account: AuthenticatedAccountDep,
 ) -> ActivityLabelStateResponse:
     try:
@@ -214,6 +217,7 @@ async def put_segment_label_confirmation(
         Path(description="라벨을 확정할 관찰 구간 식별자입니다."),
     ],
     request: ActivityLabelConfirmationRequest,
+    *,
     service: ActivityLabelServiceDep,
     authenticated_account: AuthenticatedAccountDep,
 ) -> ConfirmedActivityLabelStateResponse:

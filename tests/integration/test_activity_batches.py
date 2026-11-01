@@ -769,8 +769,8 @@ async def test_executors_rollback_raw_projection_and_receipt(
     payload = ActivityBatchRequest.model_validate(batch(devices[0], [record(0, 0)]))
     original = ActivityBatchProcessor._project
 
-    async def fail_projection(self, *args):
-        await original(self, *args)
+    async def fail_projection(self, *args, **kwargs):
+        await original(self, *args, **kwargs)
         raise RuntimeError("injected projection failure")
 
     def fail_commit(session):

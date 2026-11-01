@@ -494,7 +494,7 @@ async def test_registered_faststream_handler_rejects_invalid_message_without_pro
 ):
     from unittest.mock import AsyncMock
 
-    from mosemo.infra.batch_consumer import InvalidBatchMessage
+    from mosemo.infra.batch_consumer import InvalidBatchMessageError
 
     config = integration_kafka.config
     _, owners, devices = consumption_db
@@ -524,7 +524,9 @@ async def test_registered_faststream_handler_rejects_invalid_message_without_pro
             else b'{"private": "invalid"}'
         )
         await broker.publish(value, topic=config.topic, key=str(uuid4()).encode())
-        with pytest.raises(InvalidBatchMessage, match="invalid_activity_batch_message"):
+        with pytest.raises(
+            InvalidBatchMessageError, match="invalid_activity_batch_message"
+        ):
             await asyncio.wait_for(pending, 10)
         executor.execute.assert_not_called()
         assert not broker.running

@@ -4,6 +4,8 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_MIN_JWT_SECRET_KEY_BYTES = 32
+
 
 class DatabaseConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -50,7 +52,7 @@ class AuthConfig(BaseModel):
     @field_validator("jwt_secret_key")
     @classmethod
     def validate_jwt_secret_key(cls, value: SecretStr) -> SecretStr:
-        if len(value.get_secret_value().encode()) < 32:
+        if len(value.get_secret_value().encode()) < _MIN_JWT_SECRET_KEY_BYTES:
             raise ValueError("JWT secret key must be at least 32 bytes")
         return value
 

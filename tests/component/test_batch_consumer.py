@@ -15,7 +15,7 @@ from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.clock import utc_now
 from mosemo.infra.batch_consumer import (
     ActivityBatchConsumer,
-    InvalidBatchMessage,
+    InvalidBatchMessageError,
     decode_batch,
 )
 from mosemo.infra.batch_runtime import MessagingRuntime
@@ -45,7 +45,9 @@ def test_invalid_message_never_reaches_processing(invalid):
         value = b"private-invalid-json"
     else:
         value = b'{"private-field": "sensitive"}'
-    with pytest.raises(InvalidBatchMessage, match="^invalid_activity_batch_message$"):
+    with pytest.raises(
+        InvalidBatchMessageError, match="^invalid_activity_batch_message$"
+    ):
         decode_batch(key, value)
 
 
@@ -258,7 +260,7 @@ async def test_runtime_refuses_to_consume_when_delivery_is_disabled(
     monkeypatch.setattr("mosemo.infra.batch_runtime.KafkaBroker", constructor)
     with pytest.raises(ValueError, match="requires BATCH_ENABLED=true"):
         await MessagingRuntime.run_consumer(
-            config.batch_delivery, AsyncMock(), asyncio.Event()
+            config.batch_delivery, AsyncMock(), stop=asyncio.Event()
         )
 
 
@@ -269,7 +271,7 @@ async def test_runtime_configures_manual_offsets_and_earliest(config, monkeypatc
     monkeypatch.setattr("mosemo.infra.batch_runtime.KafkaBroker", constructor)
     stop = asyncio.Event()
     stop.set()
-    await MessagingRuntime.run_consumer(config.batch_delivery, AsyncMock(), stop)
+    await MessagingRuntime.run_consumer(config.batch_delivery, AsyncMock(), stop=stop)
     constructor.assert_called_once_with(
         config.batch_delivery.bootstrap_servers,
         logger=None,

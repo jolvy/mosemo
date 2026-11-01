@@ -42,7 +42,7 @@ class ActivityLabelSegmentDuplicateError(Exception):
     pass
 
 
-class BatchLabelConfirmationFailure(Exception):
+class BatchLabelConfirmationError(Exception):
     def __init__(
         self,
         *,
@@ -152,8 +152,8 @@ class ConfirmationService:
     @staticmethod
     def _batch_failure(
         *, item_index: int, reason: Exception, field_name: str
-    ) -> BatchLabelConfirmationFailure:
-        return BatchLabelConfirmationFailure(
+    ) -> BatchLabelConfirmationError:
+        return BatchLabelConfirmationError(
             item_index=item_index, reason=reason, field_name=field_name
         )
 

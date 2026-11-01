@@ -71,7 +71,11 @@ class FocusSessionService:
             return FocusSessionResponse.model_validate(stored, from_attributes=True)
 
     async def complete(
-        self, account_id: UUID, session_id: UUID, request: FocusSessionCompleteRequest
+        self,
+        account_id: UUID,
+        session_id: UUID,
+        *,
+        request: FocusSessionCompleteRequest,
     ) -> FocusSessionResponse:
         async with self._session.begin():
             stored = await self._repository.find_owned(account_id, session_id)
@@ -105,7 +109,7 @@ class FocusSessionService:
             if window is None:
                 return []
             _, start, end = window
-            sessions = await self._repository.list_completed(account_id, start, end)
+            sessions = await self._repository.list_completed(account_id, start, end=end)
             return [
                 FocusSessionResponse.model_validate(item, from_attributes=True)
                 for item in sessions

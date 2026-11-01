@@ -32,7 +32,7 @@ async def prepare_topic(bootstrap_servers: str, topic: str) -> None:
         await admin.prepare_topic(topic)
 
 
-async def process_published_batches(url: str, bootstrap_servers: str, topic: str):
+async def process_published_batches(url: str, bootstrap_servers: str, *, topic: str):
     """Drain a finite snapshot through the registered FastStream Consumer."""
     from uuid import uuid4
 
@@ -101,7 +101,10 @@ with (
 ):
     url = database.get_connection_url()
     parsed = urlparse(url)
-    assert parsed.username and parsed.password and parsed.hostname and parsed.port
+    assert parsed.username
+    assert parsed.password
+    assert parsed.hostname
+    assert parsed.port
     os.environ.update(
         DB_USER=parsed.username,
         DB_PASSWORD=parsed.password,
@@ -214,7 +217,7 @@ with (
                     process_published_batches(
                         url,
                         os.environ["BATCH_BOOTSTRAP_SERVERS"],
-                        os.environ["BATCH_TOPIC"],
+                        topic=os.environ["BATCH_TOPIC"],
                     )
                 )
 
@@ -222,9 +225,8 @@ with (
                     engine = create_async_engine(url)
                     async with async_sessionmaker(engine)() as session:
                         record = await session.scalar(select(ActivityRecord))
-                        assert (
-                            record is not None and record.focus_session_id is not None
-                        )
+                        assert record is not None
+                        assert record.focus_session_id is not None
                         print(
                             "PostgreSQL verification: activity record links to focus session"
                         )

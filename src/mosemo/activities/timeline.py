@@ -9,7 +9,7 @@ from mosemo.activities.enums import CollectionState, RecordType
 from mosemo.activities.models import ActivityRecord
 
 
-class ProjectionFailure(Exception):
+class ProjectionError(Exception):
     pass
 
 
@@ -55,7 +55,7 @@ class TimelineProjection:
 
     def feed(self, record: ActivityRecord) -> ProjectedSegment | None:
         if self.previous_time is not None and record.observed_at < self.previous_time:
-            raise ProjectionFailure("observation_time_regression")
+            raise ProjectionError("observation_time_regression")
         self.previous_time = record.observed_at
         current = self.segments[-1] if self.segments else None
         closed: ProjectedSegment | None = None
@@ -64,7 +64,7 @@ class TimelineProjection:
             if isinstance(current, ProjectedActivity):
                 gap = record.observed_at - current.last_observed_at
                 if gap.total_seconds() < 0:
-                    raise ProjectionFailure("observation_time_regression")
+                    raise ProjectionError("observation_time_regression")
                 if gap <= MAX_OBSERVATION_GAP and context == current.context:
                     current.last_observed_at = record.observed_at
                     current.last_event_id = record.event_id
@@ -97,7 +97,7 @@ class TimelineProjection:
             if isinstance(current, ProjectedActivity):
                 gap = record.observed_at - current.last_observed_at
                 if gap.total_seconds() < 0:
-                    raise ProjectionFailure("observation_time_regression")
+                    raise ProjectionError("observation_time_regression")
                 current.ended_at = (
                     record.observed_at
                     if gap <= MAX_OBSERVATION_GAP

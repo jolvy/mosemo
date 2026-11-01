@@ -41,6 +41,7 @@ IdempotencyKeyHeader = Annotated[
 async def create_device(
     idempotency_key: IdempotencyKeyHeader,
     service: DeviceServiceDep,
+    *,
     authenticated_account: AuthenticatedAccountDep,
 ) -> DeviceCreateResponse:
     return await service.create_device(

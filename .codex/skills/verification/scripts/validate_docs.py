@@ -66,7 +66,7 @@ def required_headings(root: Path, skill: str) -> list[str]:
     return list(sections(template[1]))
 
 
-def check_links(content: str, path: Path, root: Path) -> list[str]:
+def check_links(content: str, path: Path, *, root: Path) -> list[str]:
     errors = []
     for target in re.findall(r"\[[^\]\n]*\]\(([^)\n]+)\)", content):
         target = target.strip().split(' "', 1)[0].strip("<>")
@@ -80,7 +80,7 @@ def check_links(content: str, path: Path, root: Path) -> list[str]:
 
 
 def check_document(
-    content: str, headings: list[str], path: Path, root: Path
+    content: str, headings: list[str], *, path: Path, root: Path
 ) -> list[str]:
     actual = sections(content)
     errors = [
@@ -88,7 +88,7 @@ def check_document(
     ]
     if PLACEHOLDER.search(content):
         errors.append("미해결 템플릿 자리표시자")
-    errors.extend(check_links(content, path, root))
+    errors.extend(check_links(content, path, root=root))
     return errors
 
 
@@ -118,7 +118,10 @@ def table_rows(content: str) -> list[list[str]]:
 
 def check_plan(content: str, root: Path = ROOT) -> list[str]:
     errors = check_document(
-        content, required_headings(root, "engineering-planning"), root / "PLAN.md", root
+        content,
+        required_headings(root, "engineering-planning"),
+        path=root / "PLAN.md",
+        root=root,
     )
     actual = sections(content)
     approvals = table_rows(actual.get("승인 기록", ""))
@@ -197,7 +200,7 @@ def validate(root: Path = ROOT) -> list[str]:
     ]:
         errors.extend(
             f"{path.relative_to(root)}: {error}"
-            for error in check_links(path.read_text(), path, root)
+            for error in check_links(path.read_text(), path, root=root)
         )
     for folder, skill in DOCUMENT_SKILLS.items():
         headings = required_headings(root, skill)
@@ -211,7 +214,7 @@ def validate(root: Path = ROOT) -> list[str]:
             content = path.read_text()
             errors.extend(
                 f"{relative}: {error}"
-                for error in check_document(content, headings, path, root)
+                for error in check_document(content, headings, path=path, root=root)
             )
             if folder in {"requirements", "prd"}:
                 identifiers = re.findall(

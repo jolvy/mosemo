@@ -409,7 +409,9 @@ class ActivityRepository:
     ) -> None:
         convergence: tuple[int, int] | None = None
         for new_index, new_segment in enumerate(projected):
-            old_index = converged_old_index(existing, new_segment, event_observed_at)
+            old_index = converged_old_index(
+                existing, new_segment, observed_at=event_observed_at
+            )
             if old_index is not None:
                 convergence = (new_index, old_index)
                 break
@@ -502,6 +504,7 @@ def _ordered_account_segments(account_id: UUID):
 def converged_old_index(
     existing: list[ActivityTimelineSegment],
     projected: ProjectedSegment,
+    *,
     observed_at: datetime,
 ) -> int | None:
     if not _reaches_event(projected, observed_at):

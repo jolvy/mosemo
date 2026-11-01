@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.schemas import ActivityBatchRequest
-from mosemo.infra.batch_delivery import ActivityBatchPublisher, DeliveryUnavailable
+from mosemo.infra.batch_delivery import ActivityBatchPublisher, DeliveryUnavailableError
 from tests.component.test_activities_api import activity_request
 
 
@@ -74,7 +74,7 @@ async def test_publisher_waits_for_ack_with_account_key():
 async def test_publisher_translates_transport_failures(failure):
     producer = AsyncMock()
     producer.publish.side_effect = failure
-    with pytest.raises(DeliveryUnavailable):
+    with pytest.raises(DeliveryUnavailableError):
         await ActivityBatchPublisher(producer, topic="test").publish(
             uuid4(), ActivityBatchRequest.model_validate(activity_request())
         )
@@ -105,7 +105,7 @@ async def test_ack_deadline_and_external_cancellation_clean_up_waiter(cancel):
     await asyncio.wait_for(entered.wait(), 1)
     if cancel:
         pending.cancel()
-    with pytest.raises(asyncio.CancelledError if cancel else DeliveryUnavailable):
+    with pytest.raises(asyncio.CancelledError if cancel else DeliveryUnavailableError):
         await asyncio.wait_for(pending, 1)
     assert cleaned.is_set()
 

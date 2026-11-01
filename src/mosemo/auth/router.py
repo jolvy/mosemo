@@ -135,6 +135,7 @@ def _finalize_oauth_callback_response(
 def login(
     config: ConfigDep,
     kakao_client: KakaoClientDep,
+    *,
     code_challenge: Annotated[
         str,
         Query(
@@ -227,6 +228,7 @@ def login(
 async def callback(
     service: AuthServiceDep,
     config: ConfigDep,
+    *,
     kakao_callback: Annotated[KakaoCallback, Query()],
     state_cookie: Annotated[
         str | None,
@@ -316,6 +318,7 @@ async def callback(
 async def exchange_token(
     request: TokenRequest,
     service: AuthServiceDep,
+    *,
     config: ConfigDep,
     response: Response,
 ) -> TokenResponse:

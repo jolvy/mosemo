@@ -37,7 +37,7 @@ class FocusSessionRepository:
         )
 
     async def list_completed(
-        self, account_id: UUID, start: datetime, end: datetime
+        self, account_id: UUID, start: datetime, *, end: datetime
     ) -> list[FocusSession]:
         result = await self._session.scalars(
             select(FocusSession)

@@ -18,7 +18,7 @@ from mosemo.activities.timeline import (
     ProjectedActivity,
     ProjectedGap,
     ProjectedSegment,
-    ProjectionFailure,
+    ProjectionError,
     TimelineProjection,
     observation_key,
 )
@@ -43,11 +43,9 @@ def batch_fingerprint(batch: ActivityBatchRequest) -> str:
 
 def segment_seed(segment: ActivityTimelineSegment) -> ProjectedSegment:
     if segment.segment_type is SegmentType.ACTIVITY:
-        assert (
-            segment.last_event_id is not None
-            and segment.last_observed_at is not None
-            and segment.context is not None
-        )
+        assert segment.last_event_id is not None
+        assert segment.last_observed_at is not None
+        assert segment.context is not None
         # Silence closure is derived; the next observation can extend it.
         return ProjectedActivity(
             segment.started_at,
@@ -103,7 +101,7 @@ class ActivityBatchProcessor:
             raise TerminalBatchError("projection_time_regression")
         latest = await self.repository.find_latest_account_record(account_id)
         if not initialized and latest is not None:
-            await self._rebuild_legacy_projection(account_id, latest, now)
+            await self._rebuild_legacy_projection(account_id, latest, now=now)
         adopted = []
         results = []
         for record in batch.activity_records():
@@ -170,15 +168,15 @@ class ActivityBatchProcessor:
                 raise TerminalBatchError("projection_time_regression")
         if adopted:
             try:
-                await self._project(account_id, adopted, latest, now)
-            except ProjectionFailure:
+                await self._project(account_id, adopted, latest=latest, now=now)
+            except ProjectionError:
                 raise TerminalBatchError("projection_time_regression") from None
         claimed.results = results
         await self.session.flush()
         return results
 
     async def _rebuild_legacy_projection(
-        self, account_id: UUID, latest: StoredActivityRecord, now: datetime
+        self, account_id: UUID, latest: StoredActivityRecord, *, now: datetime
     ) -> None:
         # The first receipt marks an atomic transition from received_at tie order.
         # Rebuild even for duplicate-only batches; an unchanged prefix does not
@@ -205,6 +203,7 @@ class ActivityBatchProcessor:
         self,
         account_id: UUID,
         adopted: list[StoredActivityRecord],
+        *,
         latest: StoredActivityRecord | None,
         now: datetime,
     ) -> None:
@@ -248,7 +247,9 @@ class ActivityBatchProcessor:
                     )
                     if (
                         old is not None
-                        and converged_old_index([old], closed, ordered[-1].observed_at)
+                        and converged_old_index(
+                            [old], closed, observed_at=ordered[-1].observed_at
+                        )
                         is not None
                     ):
                         convergence = old
