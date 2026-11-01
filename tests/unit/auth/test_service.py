@@ -16,8 +16,10 @@ from mosemo.auth.oauth_client import OAuthClient, OAuthClientError
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.service import (
+    AccountProvisioner,
     AuthService,
     InvalidAuthorizationCodeError,
+    NativeAuthCodeService,
     OAuthAuthenticationError,
 )
 from mosemo.auth.tokens import TokenService
@@ -41,13 +43,17 @@ def make_service(config: Config, clock: FakeClock):
     token_service = create_autospec(TokenService, instance=True)
     get_oauth_client = Mock(return_value=oauth_client)
     service = AuthService(
-        get_oauth_client=get_oauth_client,
         session=session,
-        account_repository=account_repository,
-        native_auth_code_repository=auth_code_repository,
-        label_catalog_repository=label_catalog_repository,
-        token_service=token_service,
-        config=config.auth,
+        get_oauth_client=get_oauth_client,
+        account_provisioner=AccountProvisioner(
+            account_repository=account_repository,
+            label_catalog_repository=label_catalog_repository,
+        ),
+        native_auth_codes=NativeAuthCodeService(
+            repository=auth_code_repository,
+            token_service=token_service,
+            config=config.auth,
+        ),
         clock=clock,
     )
     return (
