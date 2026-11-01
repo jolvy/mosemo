@@ -18,7 +18,12 @@ from mosemo.auth.context import AuthenticatedAccount
 from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.oauth_client import OAuthClient
 from mosemo.auth.repository import NativeAuthCodeRepository
-from mosemo.auth.service import AuthService, OAuthClientResolver
+from mosemo.auth.service import (
+    AccountProvisioner,
+    AuthService,
+    NativeAuthCodeService,
+    OAuthClientResolver,
+)
 from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
 from mosemo.clock import Clock, utc_now
 from mosemo.config import Config, get_config
@@ -243,25 +248,54 @@ OAuthClientResolverDep = Annotated[
 ]
 
 
+def get_account_provisioner(
+    account_repository: AccountRepositoryDep,
+    label_catalog_repository: LabelCatalogRepositoryDep,
+) -> AccountProvisioner:
+    return AccountProvisioner(
+        account_repository=account_repository,
+        label_catalog_repository=label_catalog_repository,
+    )
+
+
+AccountProvisionerDep = Annotated[
+    AccountProvisioner,
+    Depends(get_account_provisioner),
+]
+
+
+def get_native_auth_code_service(
+    native_auth_code_repository: NativeAuthCodeRepositoryDep,
+    token_service: TokenServiceDep,
+    *,
+    config: ConfigDep,
+) -> NativeAuthCodeService:
+    return NativeAuthCodeService(
+        repository=native_auth_code_repository,
+        token_service=token_service,
+        config=config.auth,
+    )
+
+
+NativeAuthCodeServiceDep = Annotated[
+    NativeAuthCodeService,
+    Depends(get_native_auth_code_service),
+]
+
+
 def get_auth_service(
     session: SessionDep,
-    account_repository: AccountRepositoryDep,
-    *,
-    native_auth_code_repository: NativeAuthCodeRepositoryDep,
-    label_catalog_repository: LabelCatalogRepositoryDep,
     get_oauth_client: OAuthClientResolverDep,
-    token_service: TokenServiceDep,
-    config: ConfigDep,
+    *,
+    account_provisioner: AccountProvisionerDep,
+    native_auth_codes: NativeAuthCodeServiceDep,
     clock: ClockDep,
 ) -> AuthService:
     return AuthService(
-        get_oauth_client=get_oauth_client,
         session=session,
-        account_repository=account_repository,
-        native_auth_code_repository=native_auth_code_repository,
-        label_catalog_repository=label_catalog_repository,
-        token_service=token_service,
-        config=config.auth,
+        get_oauth_client=get_oauth_client,
+        account_provisioner=account_provisioner,
+        native_auth_codes=native_auth_codes,
         clock=clock,
     )
 

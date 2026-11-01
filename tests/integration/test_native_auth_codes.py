@@ -18,7 +18,12 @@ from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.models import NativeAuthCode
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.repository import NativeAuthCodeRepository
-from mosemo.auth.service import AuthService, InvalidAuthorizationCodeError
+from mosemo.auth.service import (
+    AccountProvisioner,
+    AuthService,
+    InvalidAuthorizationCodeError,
+    NativeAuthCodeService,
+)
 from mosemo.auth.tokens import TokenService
 from mosemo.clock import Clock, utc_now
 from mosemo.config import Config
@@ -35,13 +40,17 @@ def make_service(
     clock: Clock,
 ) -> AuthService:
     return AuthService(
-        get_oauth_client=Mock(return_value=create_autospec(KakaoClient, instance=True)),
         session=session,
-        account_repository=AccountRepository(session),
-        native_auth_code_repository=NativeAuthCodeRepository(session),
-        label_catalog_repository=LabelCatalogRepository(session),
-        token_service=TokenService(config.auth),
-        config=config.auth,
+        get_oauth_client=Mock(return_value=create_autospec(KakaoClient, instance=True)),
+        account_provisioner=AccountProvisioner(
+            account_repository=AccountRepository(session),
+            label_catalog_repository=LabelCatalogRepository(session),
+        ),
+        native_auth_codes=NativeAuthCodeService(
+            repository=NativeAuthCodeRepository(session),
+            token_service=TokenService(config.auth),
+            config=config.auth,
+        ),
         clock=clock,
     )
 
@@ -61,13 +70,17 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
     auth_code_repository.add.side_effect = RuntimeError("code storage failed")
     account_repository = AccountRepository(integration_session)
     service = AuthService(
-        get_oauth_client=Mock(return_value=kakao_client),
         session=integration_session,
-        account_repository=account_repository,
-        native_auth_code_repository=auth_code_repository,
-        label_catalog_repository=LabelCatalogRepository(integration_session),
-        token_service=TokenService(config.auth),
-        config=config.auth,
+        get_oauth_client=Mock(return_value=kakao_client),
+        account_provisioner=AccountProvisioner(
+            account_repository=account_repository,
+            label_catalog_repository=LabelCatalogRepository(integration_session),
+        ),
+        native_auth_codes=NativeAuthCodeService(
+            repository=auth_code_repository,
+            token_service=TokenService(config.auth),
+            config=config.auth,
+        ),
         clock=FakeClock(utc_now()),
     )
 
@@ -97,13 +110,17 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
     kakao_client = create_autospec(KakaoClient, instance=True)
     kakao_client.get_user_id.return_value = provider_subject
     service = AuthService(
-        get_oauth_client=Mock(return_value=kakao_client),
         session=integration_session,
-        account_repository=AccountRepository(integration_session),
-        native_auth_code_repository=NativeAuthCodeRepository(integration_session),
-        label_catalog_repository=LabelCatalogRepository(integration_session),
-        token_service=TokenService(config.auth),
-        config=config.auth,
+        get_oauth_client=Mock(return_value=kakao_client),
+        account_provisioner=AccountProvisioner(
+            account_repository=AccountRepository(integration_session),
+            label_catalog_repository=LabelCatalogRepository(integration_session),
+        ),
+        native_auth_codes=NativeAuthCodeService(
+            repository=NativeAuthCodeRepository(integration_session),
+            token_service=TokenService(config.auth),
+            config=config.auth,
+        ),
         clock=FakeClock(utc_now()),
     )
 
@@ -181,13 +198,17 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
             )
             monkeypatch.setattr(auth_code_repository, "add", add_auth_code)
             service = AuthService(
-                get_oauth_client=Mock(return_value=kakao_client),
                 session=session,
-                account_repository=AccountRepository(session),
-                native_auth_code_repository=auth_code_repository,
-                label_catalog_repository=LabelCatalogRepository(session),
-                token_service=TokenService(config.auth),
-                config=config.auth,
+                get_oauth_client=Mock(return_value=kakao_client),
+                account_provisioner=AccountProvisioner(
+                    account_repository=AccountRepository(session),
+                    label_catalog_repository=LabelCatalogRepository(session),
+                ),
+                native_auth_codes=NativeAuthCodeService(
+                    repository=auth_code_repository,
+                    token_service=TokenService(config.auth),
+                    config=config.auth,
+                ),
                 clock=FakeClock(utc_now()),
             )
 
@@ -367,13 +388,17 @@ async def test_concurrent_first_login_uses_account_created_by_other_request(
             kakao_client = create_autospec(KakaoClient, instance=True)
             kakao_client.get_user_id.return_value = provider_subject
             service = AuthService(
-                get_oauth_client=Mock(return_value=kakao_client),
                 session=session,
-                account_repository=AccountRepository(session),
-                native_auth_code_repository=NativeAuthCodeRepository(session),
-                label_catalog_repository=LabelCatalogRepository(session),
-                token_service=TokenService(config.auth),
-                config=config.auth,
+                get_oauth_client=Mock(return_value=kakao_client),
+                account_provisioner=AccountProvisioner(
+                    account_repository=AccountRepository(session),
+                    label_catalog_repository=LabelCatalogRepository(session),
+                ),
+                native_auth_codes=NativeAuthCodeService(
+                    repository=NativeAuthCodeRepository(session),
+                    token_service=TokenService(config.auth),
+                    config=config.auth,
+                ),
                 clock=FakeClock(login_time),
             )
             return await service.login(
