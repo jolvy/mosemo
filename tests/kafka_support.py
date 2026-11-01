@@ -7,7 +7,7 @@ application producer/consumer or FastStream private state is accessed.
 
 import asyncio
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
@@ -53,10 +53,8 @@ class KafkaTestAdmin:
         await self._admin.close()
 
     async def prepare_topic(self, topic: str, partitions: int = 2) -> int:
-        try:
+        with suppress(TopicAlreadyExistsError):
             await self._admin.create_topics([NewTopic(topic, partitions, 1)])
-        except TopicAlreadyExistsError:
-            pass
         # Existing topics retain their partition count, as the local CLI does.
         return len(await self._ready_partitions(topic))
 
