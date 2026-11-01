@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class _Claim:
+    account_id: UUID
+    first_event_id: UUID
     proposal_id: UUID
     lease_token: UUID
     segment_version: str
@@ -78,6 +80,18 @@ def _current_version(
     if ended_at is None:
         return None
     return segment_version(segment, ended_at=ended_at)
+
+
+def _needs_processing(
+    confirmation: ActivityLabelConfirmation | None,
+    proposal: ActivityLabelProposal | None,
+    *,
+    version: str,
+    now: datetime,
+) -> bool:
+    if confirmation is not None and confirmation.applies_to(version):
+        return False
+    return proposal is None or proposal.needs_worker_attention(now)
 
 
 class RecentConfirmedExampleRetriever:
@@ -138,8 +152,14 @@ class RecentConfirmedExampleRetriever:
         active_label_ids: set[UUID],
         now: datetime,
     ) -> bool:
-        return _current_version(segment, now=now) == confirmation.segment_version and (
-            confirmation.label_id is None or confirmation.label_id in active_label_ids
+        version = _current_version(segment, now=now)
+        return (
+            version is not None
+            and confirmation.applies_to(version)
+            and (
+                confirmation.label_id is None
+                or confirmation.label_id in active_label_ids
+            )
         )
 
 
@@ -182,8 +202,6 @@ class ProposalProcessor:
             else 0
         )
         await self._finish(
-            account_id=account_id,
-            first_event_id=first_event_id,
             claim=claim,
             request=request,
             result=result,
@@ -231,7 +249,7 @@ class ProposalProcessor:
             confirmation = await confirmation_repository.find_confirmation(
                 account_id=account_id, first_event_id=first_event_id
             )
-            if confirmation is not None and confirmation.segment_version == version:
+            if confirmation is not None and confirmation.applies_to(version):
                 raise NoProposalWorkError
             proposal_repository = ProposalRepository(session)
             proposal = await proposal_repository.find_proposal(
@@ -255,10 +273,12 @@ class ProposalProcessor:
                 assert segment.context is not None
                 await session.flush()
                 return _Claim(
-                    proposal.proposal_id,
-                    token,
-                    version,
-                    summarize_context(segment.context),
+                    account_id=account_id,
+                    first_event_id=first_event_id,
+                    proposal_id=proposal.proposal_id,
+                    lease_token=token,
+                    segment_version=version,
+                    activity=summarize_context(segment.context),
                 )
 
         # Commit any expired final-lease cleanup before signaling no work.
@@ -267,13 +287,13 @@ class ProposalProcessor:
     async def _finish(
         self,
         *,
-        account_id: UUID,
-        first_event_id: UUID,
         claim: _Claim,
         request: SuggestionInput | None,
         result: SuggestionResult | None,
         latency_ms: int,
     ) -> None:
+        account_id = claim.account_id
+        first_event_id = claim.first_event_id
         now = self._clock()
         async with self._session_factory() as session, session.begin():
             await ActivityRepository(session).lock_timeline(account_id)
@@ -291,7 +311,7 @@ class ProposalProcessor:
             )
             if _current_version(segment, now=now) != claim.segment_version or (
                 confirmation is not None
-                and confirmation.segment_version == claim.segment_version
+                and confirmation.applies_to(claim.segment_version)
             ):
                 proposal.supersede_attempt(token=claim.lease_token)
             elif result is None or (
@@ -383,22 +403,34 @@ class ProposalScanner:
                 self._last_segment_id = None
                 return ProposalScanBatch(processed, scanned, sweep_complete=True)
 
-            for segment in page:
-                scanned += 1
-                self._last_segment_id = segment.segment_id
-                if not segment.needs_processing:
-                    continue
-                try:
-                    did_process = await self._processor.process_candidate(
-                        segment.account_id, segment.first_event_id
-                    )
-                except ActivityTimelineBusyError:
-                    continue
-                if did_process:
-                    processed += 1
-                    if processed == max_processed:
-                        break
+            page_processed, page_scanned = await self._process_page(
+                page, max_processed=max_processed - processed
+            )
+            processed += page_processed
+            scanned += page_scanned
         return ProposalScanBatch(processed, scanned, sweep_complete=False)
+
+    async def _process_page(
+        self, page: list[_ScannedSegment], *, max_processed: int
+    ) -> tuple[int, int]:
+        processed = 0
+        scanned = 0
+        for segment in page:
+            scanned += 1
+            self._last_segment_id = segment.segment_id
+            if not segment.needs_processing:
+                continue
+            try:
+                did_process = await self._processor.process_candidate(
+                    segment.account_id, segment.first_event_id
+                )
+            except ActivityTimelineBusyError:
+                continue
+            if did_process:
+                processed += 1
+                if processed == max_processed:
+                    break
+        return processed, scanned
 
     async def _find_page(self, *, limit: int) -> list[_ScannedSegment]:
         now = self._clock()
@@ -436,7 +468,7 @@ class ProposalScanner:
                 (
                     confirmation.account_id,
                     confirmation.first_event_id,
-                ): confirmation.segment_version
+                ): confirmation
                 for confirmation in confirmations
             }
 
@@ -458,14 +490,14 @@ class ProposalScanner:
             for segment, version in versioned_segments:
                 needs_processing = False
                 if version is not None:
-                    confirmation_version = current_confirmations.get(
+                    confirmation = current_confirmations.get(
                         (segment.account_id, segment.first_event_id)
                     )
                     proposal = current_proposals.get(
                         (segment.account_id, segment.first_event_id, version)
                     )
-                    needs_processing = confirmation_version != version and (
-                        proposal is None or proposal.needs_worker_attention(now)
+                    needs_processing = _needs_processing(
+                        confirmation, proposal, version=version, now=now
                     )
                 page.append(
                     _ScannedSegment(

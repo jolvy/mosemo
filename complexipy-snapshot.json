@@ -32,25 +32,5 @@
         "complexity": 29
       }
     ]
-  },
-  {
-    "path": "src/mosemo/activity_labels/proposals/processing.py",
-    "file_name": "processing.py",
-    "functions": [
-      {
-        "name": "ProposalScanner::run_batch",
-        "complexity": 19
-      }
-    ]
-  },
-  {
-    "path": "src/mosemo/activity_labels/queries/service.py",
-    "file_name": "service.py",
-    "functions": [
-      {
-        "name": "LabelQueries::get_timeline",
-        "complexity": 32
-      }
-    ]
   }
 ]

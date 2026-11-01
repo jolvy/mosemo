@@ -12,7 +12,10 @@ from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import ActivityService
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
+from mosemo.activity_labels.confirmations.service import ConfirmationService
 from mosemo.activity_labels.proposals.repository import ProposalRepository
+from mosemo.activity_labels.queries.repository import LabelQueryRepository
+from mosemo.activity_labels.queries.service import LabelQueries
 from mosemo.activity_labels.service import ActivityLabelService
 from mosemo.auth.context import AuthenticatedAccount
 from mosemo.auth.kakao_client import KakaoClient
@@ -173,21 +176,68 @@ ProposalRepositoryDep = Annotated[
 ]
 
 
-def get_activity_label_service(
+def get_label_query_repository(session: SessionDep) -> LabelQueryRepository:
+    return LabelQueryRepository(session)
+
+
+LabelQueryRepositoryDep = Annotated[
+    LabelQueryRepository,
+    Depends(get_label_query_repository),
+]
+
+
+def get_confirmation_service(
     session: SessionDep,
     activity_repository: ActivityRepositoryDep,
     *,
     confirmation_repository: ConfirmationRepositoryDep,
     label_catalog_repository: LabelCatalogRepositoryDep,
+) -> ConfirmationService:
+    return ConfirmationService(
+        session=session,
+        activity_repository=activity_repository,
+        confirmation_repository=confirmation_repository,
+        label_catalog_repository=label_catalog_repository,
+    )
+
+
+ConfirmationServiceDep = Annotated[
+    ConfirmationService,
+    Depends(get_confirmation_service),
+]
+
+
+def get_label_queries(
+    activity_repository: ActivityRepositoryDep,
+    confirmation_repository: ConfirmationRepositoryDep,
+    *,
     proposal_repository: ProposalRepositoryDep,
+    label_query_repository: LabelQueryRepositoryDep,
+) -> LabelQueries:
+    return LabelQueries(
+        activity_repository=activity_repository,
+        confirmation_repository=confirmation_repository,
+        proposal_repository=proposal_repository,
+        label_query_repository=label_query_repository,
+    )
+
+
+LabelQueriesDep = Annotated[LabelQueries, Depends(get_label_queries)]
+
+
+def get_activity_label_service(
+    session: SessionDep,
+    activity_repository: ActivityRepositoryDep,
+    *,
+    confirmations: ConfirmationServiceDep,
+    queries: LabelQueriesDep,
     clock: ClockDep,
 ) -> ActivityLabelService:
     return ActivityLabelService(
         session=session,
         activity_repository=activity_repository,
-        confirmation_repository=confirmation_repository,
-        label_catalog_repository=label_catalog_repository,
-        proposal_repository=proposal_repository,
+        confirmations=confirmations,
+        queries=queries,
         clock=clock,
     )
 
