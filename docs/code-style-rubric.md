@@ -15,7 +15,7 @@
 | LLM 예/아니오 | `CS-J` | LLM 채점기(앞으로 할 일) |
 | LLM 점수 | `CS-S` | LLM 채점기(앞으로 할 일) |
 
-번호는 다시 쓰지 않는다. 폐기한 번호는 `CS-P02`다.
+번호는 다시 쓰지 않는다. 폐기한 번호는 `CS-P02`·`CS-P16`이다.
 
 ## 항목 선정 기준
 
@@ -177,6 +177,7 @@
 | Ruff `TRY003` (예외 메시지 인자) | 정답이 정해져 있지 않다(기준 ②). |
 | Ruff `ANN` (타입 주석) | `ty`가 이미 타입을 검사하고, 누락은 일부 특수 메서드뿐이다. |
 | 업무 판단 위치의 일반 규칙(`XxxPolicy` 사용 기준) | 판단의 주어·출처를 가르는 기준마다 반례가 나와 정답 하나로 고정되지 않는다(기준 ②). 판단 위치는 CS-S02와 CS-J06·CS-J10·CS-J11로 채점하고, 기준은 object-design Tell, Don't Ask와 code-smells Feature Envy를 따른다(#118). |
+| 허용 목록 밖의 로그 필드(옛 CS-P16) | `JsonFormatter`가 고정 필드와 `OPTIONAL_FIELDS`만 출력하므로 목록 밖 `extra=` 키는 런타임에 로그로 나가지 않는다. `extra=`에 함수 반환값을 넘기는 곳이 있어 정적 판정은 정상 코드를 잡거나 함수로 감싸 우회되며, 민감 값은 `SensitiveDataFilter`와 [로깅 규칙](logging.md)의 금지 목록이 다룬다. |
 
 ## 관련 문서
 
@@ -202,7 +203,6 @@
 | CS-P12 | 계층·경계 | router·exception handler 밖에서 `HTTPException`을 쓰는가? | Ruff `TID251` | ADR 0001 | 사용처는 `exception_handlers.py` 한 파일뿐이지만 강제하지 않는다. |
 | CS-P13 | 계층·경계 | service·executor·processing 밖에서 트랜잭션을 열거나 확정하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), 저장소 관례 | `begin`·`commit`·`rollback` 16곳이 모두 허용 파일에 있다. CS-P25는 repository 안의 호출만 막는다. |
 | CS-P14 | 계층·경계 | 역할 목록에 없는 새 파일 이름을 쓰는가? | 미정 | [ARCHITECTURE](../ARCHITECTURE.md) | 처음부터 다시 논의(아래) |
-| CS-P16 | 저장소 관용구 | 허용 목록 밖의 로그 필드를 쓰는가? | 검사기 | [로깅 규칙](logging.md) | 미측정 |
 
 - **CS-P08**: 영어 `_Avoid_` 표현만 대상이다. `Device Registration`은 `device_registration`,
   `DeviceRegistration`처럼 snake_case와 PascalCase 토큰열로 바꿔 대조한다. 한국어 표현은 식별자에 쓰이지
