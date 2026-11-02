@@ -5,6 +5,20 @@ from importlib.util import resolve_name
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
+ROLE_RANKS = {
+    "router": 5,
+    "dependencies": 4,
+    "service": 3,
+    "mappers": 2,
+    "repository": 1,
+    "schemas": 1,
+    "models": 0,
+}
+ROLE_DIRECTION_GUIDE = (
+    "의존은 router → dependencies → service → mappers → repository·schemas → models"
+    " 방향으로만 둔다(방향만 정하며 개별 금지는 CS-P28·CS-P29)."
+    " 필요한 값은 인자로 받거나 안쪽 역할로 옮긴다"
+)
 
 
 def imported_modules(tree: ast.AST, package: str) -> list[tuple[int, str]]:
@@ -23,9 +37,39 @@ def imported_modules(tree: ast.AST, package: str) -> list[tuple[int, str]]:
     return imports
 
 
+def role_of(name: str) -> str | None:
+    if name.endswith("_repository"):
+        return "repository"
+    return name if name in ROLE_RANKS else None
+
+
+def role_direction_error(module: str, target: str) -> str | None:
+    if not target.startswith("mosemo."):
+        return None
+    source_name = module.rsplit(".", 1)[-1]
+    target_name = target.rsplit(".", 1)[-1]
+    source_role = role_of(source_name)
+    target_role = role_of(target_name)
+    if source_role is None or target_role is None:
+        return None
+    if target_role == "schemas" and source_role in {"repository", "models"}:
+        return None  # CS-P28이 보고한다.
+    if target_role == "router" and source_name in {"models", "repository"}:
+        return None  # HTTP 계층 참조 규칙이 보고한다.
+    outward = ROLE_RANKS[target_role] > ROLE_RANKS[source_role]
+    if not outward and (source_role, target_role) != ("schemas", "repository"):
+        return None
+    return (
+        f"CS-P32: `{source_name}`가 `{target_name}`를 import한다. "
+        + ROLE_DIRECTION_GUIDE
+    )
+
+
 def check_source(source: str, module: str) -> list[str]:
     errors = []
     for line, target in imported_modules(ast.parse(source), module.rpartition(".")[0]):
+        if message := role_direction_error(module, target):
+            errors.append(f"{line}: {target}: {message}")
         if module.rsplit(".", 1)[-1] in {"models", "repository"} and (
             target.split(".")[0] in {"fastapi", "starlette"}
             or (target.startswith("mosemo.") and "router" in target.split("."))
