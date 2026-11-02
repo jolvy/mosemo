@@ -111,6 +111,8 @@ REPOSITORY_METHOD_PREFIXES = (
 )
 SESSION_NAMES = {"session", "_session"}
 TRANSACTION_METHODS = {"begin", "commit", "rollback", "flush"}
+TRANSACTION_BOUNDARY_METHODS = {"begin", "begin_nested", "commit", "rollback"}
+TRANSACTION_BOUNDARY_FILES = {"service.py", "executor.py", "processing.py"}
 SQL_MODULES = {"sqlalchemy", "sqlalchemy.dialects.postgresql"}
 SQL_CONSTRUCTS = {
     "select",
@@ -385,6 +387,19 @@ def check_session_calls(tree: ast.AST) -> list[str]:
         and isinstance(node.func, ast.Attribute)
         and is_session(node.func.value)
         and node.func.attr not in TRANSACTION_METHODS
+    ]
+
+
+def check_transaction_boundaries(tree: ast.AST) -> list[str]:
+    """(h) service·executor·processing 밖에서 트랜잭션을 열거나 확정하는 호출을 찾는다."""
+    return [
+        f"{node.lineno}: CS-P13: 트랜잭션(`begin`·`commit`·`rollback`)은 "
+        "`service.py`·`executor.py`·`processing.py`에서만 연다. repository·하위 "
+        "협력자·router는 호출하는 service의 트랜잭션 안에서 실행되게 한다"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in TRANSACTION_BOUNDARY_METHODS
     ]
 
 
@@ -871,6 +886,8 @@ def validate(root: Path = ROOT) -> list[str]:
         if relative.parts[0] == "src":
             file_errors += check_role_rules(relative, tree)
             file_errors += check_init_clock(tree) + check_integrity_error_handling(tree)
+            if relative.name not in TRANSACTION_BOUNDARY_FILES:
+                file_errors += check_transaction_boundaries(tree)
             if is_repository_file(relative):
                 file_errors += check_repository_method_names(
                     tree

@@ -512,6 +512,66 @@ def test_validate_scopes_repository_rules_to_src(
     ]
 
 
+def test_validate_rejects_transaction_calls_outside_boundary_files(
+    conventions_validator: ModuleType, tmp_path: Path
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(ALLOWED_PYPROJECT)
+    transaction = (
+        "async def run(session):\n"
+        "    async with session.begin():\n"
+        "        await session.flush()\n"
+        "    await session.commit()\n"
+        "    await session.rollback()\n"
+    )
+    files = {
+        "src/mosemo/x/repository.py": (
+            "async def run(self):\n    async with self._session.begin():\n        pass\n"
+        ),
+        "src/mosemo/x/router.py": "async def run(session):\n    await session.commit()\n",
+        "src/mosemo/x/mappers.py": "session.rollback()\n",
+        "src/mosemo/x/queries.py": (
+            "async def run(self):\n"
+            "    async with self._session_factory.begin_nested():\n"
+            "        pass\n"
+        ),
+        "src/mosemo/x/service.py": transaction,
+        "src/mosemo/x/executor.py": transaction,
+        "src/mosemo/x/processing.py": transaction,
+        "src/mosemo/y/repository.py": "async def run(session):\n    await session.flush()\n",
+        "scripts/x.py": "session.commit()\n",
+        "tests/x.py": "session.commit()\n",
+    }
+    for name, source in files.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(source)
+    errors = rule_errors(conventions_validator.validate(tmp_path), "CS-P13")
+    assert sorted(error.split(": ", 2)[:2] for error in errors) == [
+        ["src/mosemo/x/mappers.py:1", "CS-P13"],
+        ["src/mosemo/x/queries.py:2", "CS-P13"],
+        ["src/mosemo/x/repository.py:2", "CS-P13"],
+        ["src/mosemo/x/router.py:2", "CS-P13"],
+    ]
+    assert "`service.py`·`executor.py`·`processing.py`에서만 연다" in errors[0]
+
+
+def test_validate_keeps_session_rule_for_nested_transaction_in_service(
+    conventions_validator: ModuleType, tmp_path: Path
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(ALLOWED_PYPROJECT)
+    service = tmp_path / "src/mosemo/x/service.py"
+    service.parent.mkdir(parents=True)
+    service.write_text(
+        "async def run(self):\n"
+        "    async with self._session.begin_nested():\n"
+        "        pass\n"
+    )
+    errors = conventions_validator.validate(tmp_path)
+    assert rule_errors(errors, "CS-P13") == []
+    assert [error.split(": ", 2)[:2] for error in rule_errors(errors, "CS-P25")] == [
+        ["src/mosemo/x/service.py:2", "CS-P25"]
+    ]
+
+
 ALLOWED_BROAD_EXCEPTS = {
     "src/mosemo/activities/consumer.py": (
         "def main():\n    try:\n        run()\n    except Exception:\n        exit(1)\n"
