@@ -115,14 +115,14 @@ help = "Run the separate activity batch Consumer"
 
 [tool.poe.tasks.test]
 cmd = "pytest -v"
-envfile = [".env", ".env.test"]
+envfile = { expected = ".env.example", optional = [".env", ".env.test"] }
 
 [tool.poe.tasks.coverage]
 sequence = [
     { cmd = "pytest -v --cov" },
     { cmd = "python scripts/check_coverage.py" },
 ]
-envfile = [".env", ".env.test"]
+envfile = { expected = ".env.example", optional = [".env", ".env.test"] }
 
 [tool.poe.tasks.prod]
 cmd = "fastapi run"
