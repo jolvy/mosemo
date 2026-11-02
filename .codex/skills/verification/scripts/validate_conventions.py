@@ -21,6 +21,8 @@ API_EXCEPTION_FILES = {
     "src/mosemo/exception_handlers.py",
     EXCEPTIONS_FILE,
 }
+HTTP_EXCEPTION = "HTTPException"
+HTTP_EXCEPTION_FILE = "src/mosemo/exception_handlers.py"
 BROAD_EXCEPTIONS = {"Exception", "BaseException"}
 # (파일, 감싸는 클래스·함수 이름): 허용 개수. 새 경계는 이유와 함께 추가하고 리뷰한다.
 BROAD_EXCEPT_ALLOWED = {
@@ -794,6 +796,25 @@ def check_api_exception_usage(tree: ast.AST, names: set[str]) -> list[str]:
     ]
 
 
+def check_http_exception_usage(tree: ast.AST) -> list[str]:
+    """(t) `HTTPException`으로 끝나는 이름의 import와 속성 참조를 찾는다."""
+    lines = [
+        node.lineno
+        for node in ast.walk(tree)
+        if (
+            isinstance(node, ast.ImportFrom)
+            and any(alias.name.endswith(HTTP_EXCEPTION) for alias in node.names)
+        )
+        or (isinstance(node, ast.Attribute) and node.attr.endswith(HTTP_EXCEPTION))
+    ]
+    return [
+        f"{line}: CS-P12: `HTTPException`은 `exception_handlers.py`에서만 다룬다. "
+        "공개할 오류는 `ErrorCode`와 `ApiException`으로, 내부 오류는 도메인 "
+        "오류(`...Error`)로 던진다"
+        for line in lines
+    ]
+
+
 def python_files(root: Path) -> list[Path]:
     files = []
     for directory in PYTHON_DIRS:
@@ -863,6 +884,8 @@ def validate(root: Path = ROOT) -> list[str]:
                 and relative.as_posix() not in API_EXCEPTION_FILES
             ):
                 file_errors += check_api_exception_usage(tree, api_names)
+            if relative.as_posix() != HTTP_EXCEPTION_FILE:
+                file_errors += check_http_exception_usage(tree)
         errors.extend(f"{relative}:{error}" for error in file_errors)
     errors += check_broad_excepts(
         {

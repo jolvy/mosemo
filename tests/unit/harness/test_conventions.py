@@ -992,3 +992,70 @@ def test_validate_scopes_role_rules(
         ["src/mosemo/x/service.py:3", "CS-P27"],
         ["tests/test_x.py:7", "CS-P31"],
     ]
+
+
+@pytest.mark.parametrize(
+    ("path", "source", "line"),
+    [
+        ("src/mosemo/x/router.py", "from fastapi import HTTPException\n", 1),
+        (
+            "src/mosemo/x/router.py",
+            "from fastapi.exceptions import HTTPException as E\n",
+            1,
+        ),
+        (
+            "src/mosemo/x/router.py",
+            "from starlette.exceptions import HTTPException\n",
+            1,
+        ),
+        (
+            "src/mosemo/x/router.py",
+            "import starlette.exceptions as se\nraise se.HTTPException(404)\n",
+            2,
+        ),
+        (
+            "src/mosemo/x/router.py",
+            "from fastapi import exceptions as fx\nfx.HTTPException(404)\n",
+            2,
+        ),
+        (
+            "src/mosemo/x/router.py",
+            "import fastapi\nfastapi.exceptions.HTTPException\n",
+            2,
+        ),
+        (
+            "src/mosemo/x/router.py",
+            "from mosemo.exception_handlers import StarletteHTTPException\n",
+            1,
+        ),
+        ("src/mosemo/x/repository.py", "from fastapi import HTTPException\n", 1),
+    ],
+)
+def test_http_exception_usage_is_rejected(
+    conventions_validator: ModuleType,
+    tmp_path: Path,
+    path: str,
+    source: str,
+    line: int,
+) -> None:
+    (tmp_path / path).parent.mkdir(parents=True)
+    (tmp_path / path).write_text(source)
+    errors = rule_errors(conventions_validator.validate(tmp_path), "CS-P12")
+    assert [error.split(": ", 2)[:2] for error in errors] == [
+        [f"{path}:{line}", "CS-P12"]
+    ]
+
+
+def test_http_exception_usage_is_allowed_in_handlers_and_outside_src(
+    conventions_validator: ModuleType, tmp_path: Path
+) -> None:
+    usage = "from fastapi import HTTPException\n"
+    files = {
+        "src/mosemo/exception_handlers.py": usage,
+        "tests/x.py": usage,
+        "src/mosemo/x/router.py": "import fastapi\nfrom fastapi import Depends\n",
+    }
+    for name, source in files.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(source)
+    assert rule_errors(conventions_validator.validate(tmp_path), "CS-P12") == []
