@@ -201,7 +201,7 @@
 | CS-P11 | 계층·경계 | 금지된 방향으로 import하는가? | import-linter | [architecture](../.codex/skills/implementation/references/architecture.md) Dependency Rule | 미측정. `validate_architecture.py`는 models·repository의 HTTP 참조와 오류 모듈의 OpenAPI 참조만 검사한다. |
 | CS-P12 | 계층·경계 | router·exception handler 밖에서 `HTTPException`을 쓰는가? | Ruff `TID251` | ADR 0001 | 사용처는 `exception_handlers.py` 한 파일뿐이지만 강제하지 않는다. |
 | CS-P13 | 계층·경계 | service·executor·processing 밖에서 트랜잭션을 열거나 확정하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), 저장소 관례 | `begin`·`commit`·`rollback` 16곳이 모두 허용 파일에 있다. CS-P25는 repository 안의 호출만 막는다. |
-| CS-P14 | 계층·경계 | 허용 목록 밖에 파일·패키지를 만들거나 역할이 드러나지 않는 이름을 쓰는가? | 검사기 | [ARCHITECTURE](../ARCHITECTURE.md) | 범위 검토 중(아래) |
+| CS-P14 | 계층·경계 | 역할 목록에 없는 새 파일 이름을 쓰는가? | 미정 | [ARCHITECTURE](../ARCHITECTURE.md) | 처음부터 다시 논의(아래) |
 | CS-P16 | 저장소 관용구 | 허용 목록 밖의 로그 필드를 쓰는가? | 검사기 | [로깅 규칙](logging.md) | 미측정 |
 
 - **CS-P08**: 영어 `_Avoid_` 표현만 대상이다. `Device Registration`은 `device_registration`,
@@ -209,18 +209,18 @@
   않으므로 대상이 아니다.
 - **CS-P13**: `session.begin()`, `commit()`, `rollback()`은 `service.py`, `executor.py`, worker
   처리기(`processing.py`)에서만 쓴다. repository와 router는 트랜잭션을 열지 않는다.
-- **CS-P14**: 기능 패키지 안의 표준 밖 파일까지 경로로 등록하게 하면 정당한 새 파일마다 목록 변경과 승인이
-  필요하고, 저장소가 정답 하나를 정하지 못한다(기준 ②·④). 추천안은 다음 세 가지만 프로그램으로 판정하고, 기능
-  패키지 안의 새 파일 이름과 배치는 CS-J01·CS-J06에 맡기는 것이다.
-  - 패키지 루트 파일을 고정 목록으로 허용한다(`main`, `api`, `dependencies`, `exceptions`,
-    `exception_handlers`, `responses`, `openapi`, `middleware`, `schemas`, `config`, `database`, `logging`,
-    `clock`, `timezones`).
-  - 패키지 목록을 고정하고 기능 패키지와 지원 패키지(`infra`, `batch_jobs`)로 나눈다. 목록에 있지만 사라진
-    항목도 위반이다.
-  - `utils`, `helpers`, `common`, `misc`처럼 역할이 드러나지 않는 이름을 금지한다. 금지 이름 목록은 정해야
-    한다.
-  - 도구 조사 결과 Ruff·import-linter·tach·deply는 파일 이름 허용 목록을 지원하지 않고, ls-lint는 설정
-    파일로 우회할 수 있고 사라진 항목을 잡지 못해 검사기에 직접 둔다.
+- **CS-P14**: 처음부터 다시 논의한다. 무엇을 막을지, 프로그램 항목으로 둘지, LLM 판정(CS-J01·CS-J06)에 맡길지,
+  항목을 둘지 자체도 정하지 않았다. 판정 질문은 처음 후보 문장을 그대로 둔다. 다시 논의할 때 참고할 사실은
+  다음과 같다. 결정이나 추천이 아니다.
+  - 같은 분리 작업에서 모델마다 `validation.py`, `utils.py`, `domain.py`, 루트 `utils.py`, 새 하위 패키지처럼
+    다른 파일·패키지를 만들 수 있다.
+  - `74b74b3`에서 `src`의 표준 역할(`router`, `schemas`, `service`, `repository`, `*_repository`, `models`,
+    `__init__`) 밖 파일은 루트 공용 모듈 14개를 포함해 38개였다. 이후 `mappers.py` 등이 추가되어 다시 세야 한다.
+  - 파일 이름 허용 목록을 직접 지원하는 도구는 찾지 못했다. Ruff·import-linter·tach·deply는 파일 이름을
+    다루지 않는다. ls-lint는 디렉터리별 이름 regex를 지원하지만 설정 파일로 우회할 수 있고, 목록에 있지만
+    사라진 파일을 잡지 못한다.
+  - 표준 밖 파일을 모두 경로로 등록하게 하는 방식은 정당한 새 파일마다 목록 변경과 승인이 필요하다. 이
+    방식은 기준 ②·④에 맞는지 검토가 필요하다.
 
 ### LLM 판정 항목
 
@@ -308,7 +308,7 @@ LLM 항목을 재개발 게이트로 쓰기 전에 채점기의 일관성을 확
 
 | 항목 | 추천 | 영향 |
 | --- | --- | --- |
-| 파일 역할 목록 범위 | 위 CS-P14 추천안(루트·패키지 고정, 역할이 드러나지 않는 이름 금지). 금지 이름 목록과 지원 패키지 구분을 정한다. | CS-P14, CS-J01, CS-J06 |
+| 파일 역할 규칙 | 추천 없음. 막을 대상과 판정 방식(프로그램·LLM·두지 않음)부터 처음부터 다시 논의한다. | CS-P14, CS-J01, CS-J06 |
 | 허용 약어 목록 | `id`, `url`, `uri`, `db`, `api`, `http`, `json`, `utc`, `uuid`, `oauth`, `pkce`, `ai`로 시작한다. | CS-P09 |
 | 점수 평균 기준 | 현재 코드를 채점해 기준선을 본 뒤 정한다. | CS-S 판정 |
 | 채점 모델 | Sonnet급 모델 하나로 고정한다. | 채점기 검증 |
