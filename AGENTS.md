@@ -17,6 +17,7 @@
 - 잠금 파일을 변경하지 않는 설치는 `uv sync --locked`로 실행한다.
 - 로컬 개발 서버는 `uv run --env-file .env fastapi dev`로 실행한다.
 - `.env`, `.env.test` 등 비밀값이 들어갈 수 있는 환경 파일은 커밋하지 않는다.
+- `poe test`·`poe coverage`만 커밋된 `.env.example`을 먼저 읽고, 있으면 `.env`, `.env.test` 순서로 값을 덮어쓴다. 다른 poe 작업은 `.env.example`을 읽지 않는다.
 
 ## 변경 원칙
 
