@@ -84,6 +84,7 @@
 | CS-P29 | 저장소 관용구 | Mapper가 I/O를 하거나 repository·DB·시각에 의존하는가? | 검사기 | #118 |
 | CS-P30 | 함수 구성 | `models.py`의 `__init__`이 아닌 함수가 인자 5개를 넘는가? | 검사기 | #118 |
 | CS-P31 | 저장소 관용구 | 생성자(`__init__`, `__new__`)에 `@override`를 붙여 인자 수 규칙을 피하는가? | 검사기 | #118 |
+| CS-P32 | 계층·경계 | 역할 파일이 바깥 역할을 import하는가? | 검사기 | architecture Dependency Rule |
 
 ### 항목별 정답
 
@@ -175,6 +176,33 @@
   연결되는 데코레이터(별칭 포함)를 붙이지 않는다. 대상은 `src`·`tests`·`scripts`·`migrations`·`.codex`다.
   Ruff `PLR0913`·`PLR0917`은 `@override` 메서드를 건너뛰는데, 생성자는 항상 `object`의 메서드를 덮어쓰고
   ty도 생성자 시그니처 호환을 검사하지 않아 우회가 된다. 일반 메서드의 거짓 `@override`는 ty가 잡는다.
+- **CS-P32**: `src/mosemo`에서 파일 이름(확장자 제외)으로 역할이 정해지는 파일은 자기보다 바깥 역할의
+  `mosemo` 모듈을 import하지 않는다. 루트 모듈(`dependencies.py`, `schemas.py`)도 대상이고, 모듈·패키지와
+  무관하게 다른 모듈의 역할 파일도 같은 순위로 본다. 순위(높을수록 바깥)는 다음과 같다.
+
+  | 순위 | 역할(파일 이름) |
+  | --- | --- |
+  | 5 | `router` |
+  | 4 | `dependencies` |
+  | 3 | `service` |
+  | 2 | `mappers` |
+  | 1 | `repository`·`*_repository`, `schemas` |
+  | 0 | `models` |
+
+  - 순위는 architecture.md의 Dependency Rule("Dependencies point INWARD")을 main `95abb4b`의 현행 의존 쌍에
+    맞춰 정했다. 예를 들어 `dependencies` → `service`는 있고 `schemas` → `repository`는 없다. 같은 순위인
+    `schemas`가 `repository`·`*_repository`를 import하는 것도 위반이다.
+  - import 해석은 `imported_modules`를 따른다. 상대 import와 `from mosemo.x import service` 같은 모듈 이름
+    import를 포함하고, 대상 역할은 모듈 경로의 마지막 이름으로 정한다. `mosemo.`로 시작하지 않는 외부
+    패키지(`pydantic_ai.models`, `fastapi.dependencies`)는 이름이 같아도 판정하지 않는다.
+  - 이 규칙은 방향만 정한다. 같은 방향 안의 개별 금지는 각 규칙이 맡고(예: CS-P29의 `mappers` →
+    `repository`), 중복 보고를 피하려고 CS-P28의 `repository`·`*_repository`·`models` → `schemas`와 HTTP 규칙의
+    `models`·`repository`(이름이 정확히 같은 파일) → `router`는 보지 않는다. `*_repository` → `router`는
+    CS-P32가 본다.
+  - 한계: 같은 역할 사이의 import(예: `focus_sessions/service.py` → `activities/service.py`)는 대상이 아니며
+    모듈 사이 방향은 CS-P11이 다룬다. 역할 목록 밖 파일(`executor`, `handler`, `timeline`, `versions`, `enums`,
+    `batch_processing`, `job`, `messages` 등)과 `__init__.py`는 import하는 쪽이든 import되는 쪽이든 판정하지
+    않는다.
 
 ### 넣지 않은 규칙
 
@@ -209,7 +237,7 @@
 | --- | --- | --- | --- | --- | --- |
 | CS-P08 | 이름 | 용어집의 `_Avoid_` 표현을 식별자에 쓰는가? | 검사기 | [용어집](ubiquitous-language.md) | 미측정 |
 | CS-P09 | 이름 | 허용 약어 목록 밖의 약어를 쓰는가? | 검사기 | clean-code Don't Abbreviate | 미측정, 허용 목록 미결정 |
-| CS-P11 | 계층·경계 | 금지된 방향으로 import하는가? | import-linter | [architecture](../.codex/skills/implementation/references/architecture.md) Dependency Rule | 미측정. `validate_architecture.py`는 models·repository의 HTTP 참조와 오류 모듈의 OpenAPI 참조만 검사한다. |
+| CS-P11 | 계층·경계 | 다른 모듈을 허용되지 않은 방향으로 import하는가? | import-linter | [architecture](../.codex/skills/implementation/references/architecture.md) Dependency Rule | 역할 사이 방향은 CS-P32로 분리. 모듈 사이에는 패키지 단위 순환이 있어 정책 미결정 |
 | CS-P13 | 계층·경계 | service·executor·processing 밖에서 트랜잭션을 열거나 확정하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), 저장소 관례 | `begin`·`commit`·`rollback` 16곳이 모두 허용 파일에 있다. CS-P25는 repository 안의 호출만 막는다. |
 | CS-P14 | 계층·경계 | 역할 목록에 없는 새 파일 이름을 쓰는가? | 미정 | [ARCHITECTURE](../ARCHITECTURE.md) | 처음부터 다시 논의(아래) |
 
