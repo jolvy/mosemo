@@ -5,3 +5,4 @@
 - [제품 명세(PRD)](prd/)
 - [아키텍처 결정(ADR)](adr/)
 - [로깅 규칙](logging.md)
+- [코드 스타일 평가 기준](code-style-rubric.md)
