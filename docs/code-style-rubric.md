@@ -56,7 +56,7 @@
 
 ## 프로그램 판정 항목
 
-`e298365`에서 모든 항목의 위반은 0이다.
+모든 항목의 위반은 0이다.
 
 | ID | 차원 | 판정 질문 | 도구·규칙 | 근거 |
 | --- | --- | --- | --- | --- |
@@ -67,6 +67,7 @@
 | CS-P06 | 함수 구성 | `src`에서 매직 넘버와 비교하는가? | Ruff `PLR2004` (`src`만) | clean-code Searchability, #102 |
 | CS-P07 | 이름 | Python 이름 표기 규칙을 어기거나, `...Exception` 이름과 `ApiException`을 HTTP 계층 밖에서 쓰는가? | Ruff `N`, 검사기 | clean-code Naming, #102 |
 | CS-P10 | 이름 | repository 메서드가 허용 동사 밖의 이름을 쓰는가? | 검사기 | 저장소 관례, #91 |
+| CS-P12 | 계층·경계 | `exception_handlers.py` 밖에서 `HTTPException`을 쓰는가? | 검사기 | [ADR 0001](adr/0001-public-api-error-boundary.md) |
 | CS-P15 | 저장소 관용구 | `src/mosemo/clock.py` 밖에서 현재 시각 API를 호출하거나 `clock`을 키워드 전용 필수 인자로 받지 않는가? | Ruff `TID251`, 검사기 | #86 |
 | CS-P17 | 저장소 관용구 | FastAPI 의존성을 `Annotated` 없이 선언하는가? | Ruff `FAST002` | architecture FastAPI Request Boundaries |
 | CS-P18 | 오류 처리 | 넓은 `except`를 허용 위치 밖에서 쓰거나 예외를 조용히 삼키는가? | 검사기(`src`), Ruff `BLE001`(`src` 밖), `S110` | [ADR 0001](adr/0001-public-api-error-boundary.md), #102 |
@@ -115,6 +116,15 @@
     여러 건이면 `add_all(entities) -> None`이다. 엔티티는 service나 도메인이 만들고 repository는 저장만 한다.
   - 삭제는 `delete`·`delete_`, 교체는 `replace_`, 잠금은 `lock_`으로 시작한다.
   - 업무 의미가 있는 동사는 허용 목록에 등록한다. 현재 `claim` 하나다.
+- **CS-P12**: `HTTPException`은 `src/mosemo/exception_handlers.py`에서만 import하거나 참조한다. router도
+  허용하지 않는다. ADR 0001에 따라 공개할 오류는 `ErrorCode`와 `ApiException`으로 명시하고, 내부 오류는
+  도메인 오류(`...Error`)로 던진다. 판정은 import 경로를 해석하지 않고 이름으로 한다. `ImportFrom`의 가져오는
+  이름이나 속성 참조의 `attr`가 `HTTPException`으로 끝나면 위반이며, 허용 파일이 만든 별칭
+  (`StarletteHTTPException`)을 다시 가져오는 경로도 막는다. `tests`·`scripts`·`migrations`·`.codex`는 대상이
+  아니다.
+  - Ruff `TID251` 대신 검사기로 판정한다. `banned-api`는 금지 항목마다 허용 경로를 줄 수 없어
+    `exception_handlers.py`를 허용하려면 `per-file-ignores`에 `TID251`을 넣어야 하고, 그러면 그 파일에서
+    CS-P15의 현재 시각 API 금지까지 꺼진다.
 - **CS-P15**: 시스템 시각은 `mosemo.clock.utc_now`만 읽는다. 금지 API는 `datetime.now`,
   `datetime.utcnow`, `datetime.today`, `date.today`, `time.time`, `time.time_ns`이고 예외 파일은
   `src/mosemo/clock.py` 하나다. 시각을 읽는 객체는 생성자에서 키워드 전용 필수 인자 `clock`을 받고, 트랜잭션
@@ -199,7 +209,6 @@
 | CS-P08 | 이름 | 용어집의 `_Avoid_` 표현을 식별자에 쓰는가? | 검사기 | [용어집](ubiquitous-language.md) | 미측정 |
 | CS-P09 | 이름 | 허용 약어 목록 밖의 약어를 쓰는가? | 검사기 | clean-code Don't Abbreviate | 미측정, 허용 목록 미결정 |
 | CS-P11 | 계층·경계 | 금지된 방향으로 import하는가? | import-linter | [architecture](../.codex/skills/implementation/references/architecture.md) Dependency Rule | 미측정. `validate_architecture.py`는 models·repository의 HTTP 참조와 오류 모듈의 OpenAPI 참조만 검사한다. |
-| CS-P12 | 계층·경계 | router·exception handler 밖에서 `HTTPException`을 쓰는가? | Ruff `TID251` | ADR 0001 | 사용처는 `exception_handlers.py` 한 파일뿐이지만 강제하지 않는다. |
 | CS-P13 | 계층·경계 | service·executor·processing 밖에서 트랜잭션을 열거나 확정하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), 저장소 관례 | `begin`·`commit`·`rollback` 16곳이 모두 허용 파일에 있다. CS-P25는 repository 안의 호출만 막는다. |
 | CS-P14 | 계층·경계 | 역할 목록에 없는 새 파일 이름을 쓰는가? | 미정 | [ARCHITECTURE](../ARCHITECTURE.md) | 처음부터 다시 논의(아래) |
 | CS-P16 | 저장소 관용구 | 허용 목록 밖의 로그 필드를 쓰는가? | 검사기 | [로깅 규칙](logging.md) | 미측정 |
