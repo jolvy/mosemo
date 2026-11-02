@@ -68,6 +68,7 @@
 | CS-P07 | 이름 | Python 이름 표기 규칙을 어기거나, `...Exception` 이름과 `ApiException`을 HTTP 계층 밖에서 쓰는가? | Ruff `N`, 검사기 | clean-code Naming, #102 |
 | CS-P10 | 이름 | repository 메서드가 허용 동사 밖의 이름을 쓰는가? | 검사기 | 저장소 관례, #91 |
 | CS-P12 | 계층·경계 | `exception_handlers.py` 밖에서 `HTTPException`을 쓰는가? | 검사기 | [ADR 0001](adr/0001-public-api-error-boundary.md) |
+| CS-P13 | 계층·경계 | `service.py`·`executor.py`·`processing.py` 밖에서 트랜잭션을 열거나 확정하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), 저장소 관례 |
 | CS-P15 | 저장소 관용구 | `src/mosemo/clock.py` 밖에서 현재 시각 API를 호출하거나 `clock`을 키워드 전용 필수 인자로 받지 않는가? | Ruff `TID251`, 검사기 | #86 |
 | CS-P17 | 저장소 관용구 | FastAPI 의존성을 `Annotated` 없이 선언하는가? | Ruff `FAST002` | architecture FastAPI Request Boundaries |
 | CS-P18 | 오류 처리 | 넓은 `except`를 허용 위치 밖에서 쓰거나 예외를 조용히 삼키는가? | 검사기(`src`), Ruff `BLE001`(`src` 밖), `S110` | [ADR 0001](adr/0001-public-api-error-boundary.md), #102 |
@@ -126,6 +127,16 @@
   - Ruff `TID251` 대신 검사기로 판정한다. `banned-api`는 금지 항목마다 허용 경로를 줄 수 없어
     `exception_handlers.py`를 허용하려면 `per-file-ignores`에 `TID251`을 넣어야 하고, 그러면 그 파일에서
     CS-P15의 현재 시각 API 금지까지 꺼진다.
+- **CS-P13**: `session.begin()`, `commit()`, `rollback()`은 `service.py`, `executor.py`, worker
+  처리기(`processing.py`)에서만 쓴다. repository와 router는 트랜잭션을 열지 않는다.
+  - 대상은 `src`의 모든 `.py` 파일이고 repository 파일도 포함한다. 메서드 이름이 `begin`·`begin_nested`·
+    `commit`·`rollback`인 속성 호출이면 수신 객체(`session`, `self._session`, session factory, engine)와
+    관계없이 위반이다. `flush`는 대상이 아니며 CS-P25가 맡는다.
+  - 허용은 경로가 아니라 파일 이름(`service.py`·`executor.py`·`processing.py`)으로 판정한다.
+  - CS-P25의 허용 메서드에는 `begin_nested`가 없으므로, 수신 객체가 `session`·`_session`인
+    `begin_nested()`는 repository가 아닌 파일에서 CS-P13 허용 파일이라도 CS-P25로 실패한다. CS-P13에
+    `begin_nested`를 넣은 것은 CS-P25가 보지 않는 repository 파일과 session이 아닌 수신 객체(session
+    factory, engine 등)의 savepoint까지 막기 위해서다.
 - **CS-P15**: 시스템 시각은 `mosemo.clock.utc_now`만 읽는다. 금지 API는 `datetime.now`,
   `datetime.utcnow`, `datetime.today`, `date.today`, `time.time`, `time.time_ns`이고 예외 파일은
   `src/mosemo/clock.py` 하나다. 시각을 읽는 객체는 생성자에서 키워드 전용 필수 인자 `clock`을 받고, 트랜잭션
@@ -238,14 +249,11 @@
 | CS-P08 | 이름 | 용어집의 `_Avoid_` 표현을 식별자에 쓰는가? | 검사기 | [용어집](ubiquitous-language.md) | 미측정 |
 | CS-P09 | 이름 | 허용 약어 목록 밖의 약어를 쓰는가? | 검사기 | clean-code Don't Abbreviate | 미측정, 허용 목록 미결정 |
 | CS-P11 | 계층·경계 | 다른 모듈을 허용되지 않은 방향으로 import하는가? | import-linter | [architecture](../.codex/skills/implementation/references/architecture.md) Dependency Rule | 역할 사이 방향은 CS-P32로 분리. 모듈 사이에는 패키지 단위 순환이 있어 정책 미결정 |
-| CS-P13 | 계층·경계 | service·executor·processing 밖에서 트랜잭션을 열거나 확정하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), 저장소 관례 | `begin`·`commit`·`rollback` 16곳이 모두 허용 파일에 있다. CS-P25는 repository 안의 호출만 막는다. |
 | CS-P14 | 계층·경계 | 역할 목록에 없는 새 파일 이름을 쓰는가? | 미정 | [ARCHITECTURE](../ARCHITECTURE.md) | 처음부터 다시 논의(아래) |
 
 - **CS-P08**: 영어 `_Avoid_` 표현만 대상이다. `Device Registration`은 `device_registration`,
   `DeviceRegistration`처럼 snake_case와 PascalCase 토큰열로 바꿔 대조한다. 한국어 표현은 식별자에 쓰이지
   않으므로 대상이 아니다.
-- **CS-P13**: `session.begin()`, `commit()`, `rollback()`은 `service.py`, `executor.py`, worker
-  처리기(`processing.py`)에서만 쓴다. repository와 router는 트랜잭션을 열지 않는다.
 - **CS-P14**: 처음부터 다시 논의한다. 무엇을 막을지, 프로그램 항목으로 둘지, LLM 판정(CS-J01·CS-J06)에 맡길지,
   항목을 둘지 자체도 정하지 않았다. 판정 질문은 처음 후보 문장을 그대로 둔다. 다시 논의할 때 참고할 사실은
   다음과 같다. 결정이나 추천이 아니다.
