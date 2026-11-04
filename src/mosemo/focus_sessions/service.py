@@ -5,12 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import (
-    ActivityAccountNotFoundError,
     ActivityDeviceNotFoundError,
     timeline_date_window,
 )
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
-from mosemo.devices.repository import DeviceRepository
 from mosemo.focus_sessions.mappers import FocusSessionMapper
 from mosemo.focus_sessions.models import (
     FocusSession,
@@ -23,6 +21,7 @@ from mosemo.focus_sessions.schemas import (
     FocusSessionCreateRequest,
     FocusSessionResponse,
 )
+from mosemo.identity.public import AccountDirectory, DeviceDirectory
 from mosemo.shared.application.clock import Clock
 
 
@@ -35,23 +34,27 @@ class FocusSessionCommands:
         self,
         *,
         repository: FocusSessionRepository,
-        device_repository: DeviceRepository,
+        devices: DeviceDirectory,
         label_catalog_repository: LabelCatalogRepository,
         activity_repository: ActivityRepository,
     ) -> None:
         self._repository = repository
-        self._device_repository = device_repository
+        self._devices = devices
         self._label_catalog_repository = label_catalog_repository
         self._activity_repository = activity_repository
         self._mapper = FocusSessionMapper()
 
     async def create(
-        self, *, account_id: UUID, request: FocusSessionCreateRequest
+        self,
+        db_session: AsyncSession,
+        *,
+        account_id: UUID,
+        request: FocusSessionCreateRequest,
     ) -> FocusSession:
-        device = await self._device_repository.find_owned_by_id(
-            account_id=account_id, device_id=request.device_id
+        owned = await self._devices.find_owned(
+            db_session, account_id=account_id, device_id=request.device_id
         )
-        if device is None:
+        if owned is None:
             raise ActivityDeviceNotFoundError
         candidate = self._mapper.to_entity(request, account_id=account_id)
         stored = await self._repository.add_if_absent(candidate)
@@ -89,17 +92,15 @@ class FocusSessionQueries:
         self,
         *,
         repository: FocusSessionRepository,
-        activity_repository: ActivityRepository,
+        accounts: AccountDirectory,
     ) -> None:
         self._repository = repository
-        self._activity_repository = activity_repository
+        self._accounts = accounts
 
     async def list_completed(
-        self, *, account_id: UUID, day: date, now: datetime
+        self, db_session: AsyncSession, *, account_id: UUID, day: date, now: datetime
     ) -> list[FocusSession]:
-        timezone = await self._activity_repository.find_account_timezone(account_id)
-        if timezone is None:
-            raise ActivityAccountNotFoundError
+        timezone = await self._accounts.get_timezone(db_session, account_id)
         window = timeline_date_window(
             account_timezone=timezone, requested_date=day, now=now
         )
@@ -127,7 +128,9 @@ class FocusSessionService:
         self, account_id: UUID, request: FocusSessionCreateRequest
     ) -> FocusSessionResponse:
         async with self._session.begin():
-            stored = await self._commands.create(account_id=account_id, request=request)
+            stored = await self._commands.create(
+                self._session, account_id=account_id, request=request
+            )
             return FocusSessionResponse.model_validate(stored, from_attributes=True)
 
     async def complete(
@@ -149,7 +152,7 @@ class FocusSessionService:
     ) -> list[FocusSessionResponse]:
         async with self._session.begin():
             sessions = await self._queries.list_completed(
-                account_id=account_id, day=day, now=self._clock()
+                self._session, account_id=account_id, day=day, now=self._clock()
             )
             return [
                 FocusSessionResponse.model_validate(item, from_attributes=True)

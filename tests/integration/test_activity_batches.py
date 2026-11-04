@@ -8,22 +8,23 @@ import httpx2
 import pytest
 import pytest_asyncio
 from asgi_lifespan import LifespanManager
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.batch_processing import batch_fingerprint
 from mosemo.activities.mappers import ActivityRecordMapper
 from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.activities.timeline import ProjectedActivity, project_events
-from mosemo.auth.tokens import TokenService
-from mosemo.devices.models import Device
+from mosemo.identity.bootstrap import create_device_directory
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.domain.devices import Device
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config
 from tests.clock_support import FakeClock
+from tests.identity_support import delete_accounts
 
 
 def record(sequence, seconds, *, context=None, event_id=None):
@@ -90,13 +91,13 @@ async def real_batch_app(
             account = Account(
                 provider=AccountProvider.KAKAO, provider_subject=f"batches-{uuid4()}"
             )
-            AccountRepository(session).add(account)
+            session.add(account)
             await session.flush()
-            device = Device(account_id=account.account_id, idempotency_key=uuid4())
+            device = Device(account_id=account.id, idempotency_key=uuid4())
             session.add(device)
             await session.flush()
-            accounts.append(account.account_id)
-            devices.append(device.device_id)
+            accounts.append(account.id)
+            devices.append(device.id)
         await session.commit()
     closed_sessions.clear()
     try:
@@ -112,7 +113,7 @@ async def real_batch_app(
             headers = [
                 {
                     "Authorization": "Bearer "
-                    + TokenService(config.auth).issue_access_token(owner, now=utc_now())
+                    + get_token_service(config).issue_access_token(owner, now=utc_now())
                 }
                 for owner in accounts
             ]
@@ -120,9 +121,7 @@ async def real_batch_app(
     finally:
         app.dependency_overrides.clear()
         async with factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id.in_(accounts))
-            )
+            await session.execute(delete_accounts(*accounts))
             await session.commit()
         await engine.dispose()
 
@@ -305,7 +304,8 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
     async with factory() as session:
         repo = ActivityRepository(session)
         source = await repo.list_account_records(
-            accounts[0], from_observed_at=datetime(2026, 9, 14, tzinfo=UTC)
+            await create_device_directory().list_device_ids(session, accounts[0]),
+            from_observed_at=datetime(2026, 9, 14, tzinfo=UTC),
         )
         segments = await repo.list_account_segments(accounts[0])
     reference = project_events(source, now=fake_clock.now)
@@ -481,7 +481,8 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
         async with factory() as session:
             repo = ActivityRepository(session)
             source = await repo.list_account_records(
-                accounts[0], from_observed_at=stored[0].observed_at
+                await create_device_directory().list_device_ids(session, accounts[0]),
+                from_observed_at=stored[0].observed_at,
             )
             segments = await repo.list_account_segments(accounts[0])
         reference = project_events(source, now=fake_clock.now)
@@ -793,7 +794,9 @@ async def test_executors_rollback_raw_projection_and_receipt(
             assert response.status_code == 500
         else:
             with pytest.raises(RuntimeError, match=f"injected {failure} failure"):
-                await BatchProcessingExecutor(factory, clock=fake_clock).execute(
+                await BatchProcessingExecutor(
+                    factory, clock=fake_clock, devices=create_device_directory()
+                ).execute(
                     ActivityRegistrationRequested.from_batch(accounts[0], payload)
                 )
         assert await counts(factory, devices[0]) == (0, 0)

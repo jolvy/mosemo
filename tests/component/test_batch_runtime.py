@@ -10,10 +10,10 @@ from fastapi import FastAPI
 
 from mosemo.activities.executor import LegacyBatchExecutor
 from mosemo.api.activity_batches import compose_messaging_app
-from mosemo.api.dependencies import get_device_repository
+from mosemo.api.dependencies import get_device_directory
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
-from mosemo.auth.tokens import TokenService
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import BatchDeliveryConfig, Config, get_config
 from tests.component.test_activities_api import activity_request as payload
@@ -25,12 +25,12 @@ def make_app(config: Config):
     register_exception_handlers(api)
     api.dependency_overrides[get_config] = lambda: config
     devices = AsyncMock()
-    api.dependency_overrides[get_device_repository] = lambda: devices
+    api.dependency_overrides[get_device_directory] = lambda: devices
     app = compose_messaging_app(api, config.batch_delivery)
     account_id = uuid4()
     headers = {
         "Authorization": "Bearer "
-        + TokenService(config.auth).issue_access_token(account_id, now=utc_now())
+        + get_token_service(config).issue_access_token(account_id, now=utc_now())
     }
     return app, devices, account_id, headers
 

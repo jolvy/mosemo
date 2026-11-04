@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 LABEL_REVISION = "e5f6a7b8c9d0"
 PROPOSAL_REVISION = "a7b8c9d0e1f2"
 PREVIOUS_REVISION = "d4e6f7a8b9c0"
+RECEIPT_REVISION = "c9d0e1f2a3b4"
+IDENTITY_KEY_REVISION = "d0e1f2a3b4c5"
 # Drift that already existed at c9d0e1f2a3b4; any other difference fails.
 ALLOWED_METADATA_DRIFT = [
     ("modify_type", "activity_records", "timezone_id"),
@@ -246,7 +248,9 @@ def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == ["c9d0e1f2a3b4"]
+    assert ScriptDirectory.from_config(config).get_heads() == [IDENTITY_KEY_REVISION]
+    # The assertions below describe the schema up to the batch receipts revision.
+    command.downgrade(config, RECEIPT_REVISION)
     account_id = uuid4()
     asyncio.run(insert_account(integration_database_url, account_id))
 
@@ -263,7 +267,7 @@ def test_schema_migration_round_trip_and_label_backfill(
         assert "activity_label_proposals" not in downgraded["tables"]
         assert "activity_batch_receipts" not in downgraded["tables"]
 
-        command.upgrade(config, "head")
+        command.upgrade(config, RECEIPT_REVISION)
         upgraded = asyncio.run(schema_snapshot(integration_database_url))
 
         assert {
@@ -460,8 +464,9 @@ def test_schema_migration_round_trip_and_label_backfill(
             index["column_names"] for index in upgraded["activity_indexes"]
         ]
     finally:
-        command.upgrade(config, "head")
+        command.upgrade(config, RECEIPT_REVISION)
         asyncio.run(delete_account(integration_database_url, account_id))
+        command.upgrade(config, "head")
 
 
 def test_focus_session_migration_preserves_segments_without_session_foreign_key(
@@ -502,6 +507,54 @@ def test_focus_session_migration_preserves_segments_without_session_foreign_key(
     assert "focus_session_id" not in asyncio.run(segment_columns())
 
 
+async def identity_key_columns(database_url: str) -> dict[str, Any]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            return await connection.run_sync(_inspect_identity_keys)
+    finally:
+        await engine.dispose()
+
+
+def _inspect_identity_keys(connection: Any) -> dict[str, Any]:
+    inspector = inspect(connection)
+    return {
+        "account_pk": inspector.get_pk_constraint("accounts")["constrained_columns"],
+        "device_pk": inspector.get_pk_constraint("devices")["constrained_columns"],
+        "referred": sorted(
+            (table, foreign_key["referred_table"], *foreign_key["referred_columns"])
+            for table in inspector.get_table_names()
+            for foreign_key in inspector.get_foreign_keys(table)
+            if foreign_key["referred_table"] in {"accounts", "devices"}
+        ),
+    }
+
+
+def test_identity_primary_key_migration_renames_columns_and_keeps_foreign_keys(
+    integration_database_url: str,
+) -> None:
+    config = alembic_config(integration_database_url)
+    command.downgrade(config, RECEIPT_REVISION)
+    try:
+        before = asyncio.run(identity_key_columns(integration_database_url))
+    finally:
+        command.upgrade(config, "head")
+    after = asyncio.run(identity_key_columns(integration_database_url))
+
+    assert before["account_pk"] == ["account_id"]
+    assert before["device_pk"] == ["device_id"]
+    assert after["account_pk"] == ["id"]
+    assert after["device_pk"] == ["id"]
+    # Every foreign key still points at the renamed primary keys.
+    assert [row[:2] for row in after["referred"]] == [
+        row[:2] for row in before["referred"]
+    ]
+    assert {row[2] for row in before["referred"]} == {"account_id", "device_id"}
+    assert {row[2] for row in after["referred"]} == {"id"}
+    assert len([row for row in after["referred"] if row[1] == "accounts"]) == 8
+    assert len([row for row in after["referred"] if row[1] == "devices"]) == 3
+
+
 def _drift_key(operation: tuple[Any, ...]) -> tuple[str, ...]:
     if operation[0].startswith("modify_"):
         return (operation[0], operation[2], operation[3])
@@ -510,26 +563,26 @@ def _drift_key(operation: tuple[Any, ...]) -> tuple[str, ...]:
 
 async def metadata_drift(database_url: str) -> list[tuple[str, ...]]:
     # Same model modules as migrations/env.py during the coexistence period.
-    from mosemo.accounts import models as accounts_models
     from mosemo.activities import models as activities_models
     from mosemo.activity_labels.catalog import models as label_catalog_models
     from mosemo.activity_labels.confirmations import (
         models as label_confirmations_models,
     )
     from mosemo.activity_labels.proposals import models as label_proposal_models
-    from mosemo.auth import models as auth_models
-    from mosemo.devices import models as devices_models
     from mosemo.focus_sessions import models as focus_session_models
+    from mosemo.identity import bootstrap as identity_bootstrap
+    from mosemo.identity.infrastructure import tables as identity_tables
     from mosemo.infra.persistence import ORM_METADATA
 
+    identity_bootstrap.map_tables()
     assert {
-        accounts_models.Account.__table__,
+        identity_tables.accounts,
         activities_models.ActivityRecord.__table__,
         label_catalog_models.Label.__table__,
         label_confirmations_models.ActivityLabelConfirmation.__table__,
         label_proposal_models.ActivityLabelProposal.__table__,
-        auth_models.NativeAuthCode.__table__,
-        devices_models.Device.__table__,
+        identity_tables.native_auth_codes,
+        identity_tables.devices,
         focus_session_models.FocusSession.__table__,
     } <= set(ORM_METADATA.tables.values())
 

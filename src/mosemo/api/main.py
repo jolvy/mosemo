@@ -7,11 +7,11 @@ import httpx2
 from fastapi import FastAPI
 
 from mosemo.api.activity_batches import compose_messaging_app
-from mosemo.api.dependencies import get_token_current_account
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.middleware import RedactSensitiveQueryStringMiddleware
 from mosemo.api.openapi import public_openapi
 from mosemo.api.routes import v1_api_router
+from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.infra.config import get_config
 from mosemo.infra.database import engine
 from mosemo.infra.logging import configure_logging
@@ -77,7 +77,9 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.add_middleware(RedactSensitiveQueryStringMiddleware)
     app.include_router(v1_api_router)
-    app.dependency_overrides[get_current_account] = get_token_current_account
+    app.dependency_overrides[get_current_account] = (
+        identity_bootstrap.get_token_current_account
+    )
     app.openapi = cast(Any, partial(public_openapi, app))
 
     batch_config = get_config().batch_delivery

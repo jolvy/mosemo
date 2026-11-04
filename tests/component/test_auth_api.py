@@ -1,38 +1,56 @@
+from types import SimpleNamespace
 from typing import cast
-from unittest.mock import create_autospec
+from unittest.mock import ANY, create_autospec, sentinel
 
 import httpx2
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mosemo.accounts.models import AccountProvider
-from mosemo.api.dependencies import get_auth_service, get_kakao_client
-from mosemo.api.exception_handlers import register_exception_handlers
-from mosemo.api.routes import v1_api_router
-from mosemo.auth.kakao_client import KAKAO_AUTHORIZE_URL, KakaoClient
-from mosemo.auth.pkce import create_code_challenge
-from mosemo.auth.service import AuthService, InvalidAuthorizationCodeError
-from mosemo.infra.config import Config, get_config
+from mosemo.identity.application.sign_in import (
+    ExchangeAuthorizationCode,
+    InvalidAuthorizationCodeError,
+    LogIn,
+)
+from mosemo.identity.bootstrap import (
+    create_kakao_client,
+    get_kakao_client,
+    get_oauth_client_resolver,
+)
+from mosemo.identity.domain.accounts import AccountProvider
+from mosemo.identity.domain.pkce import create_code_challenge
+from mosemo.identity.infrastructure.kakao_client import KAKAO_AUTHORIZE_URL
+from mosemo.identity.presentation.auth.router import create_router
+from mosemo.infra.config import Config
+from tests.component.identity_app import make_identity_app
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
 
 
+def make_service() -> SimpleNamespace:
+    return SimpleNamespace(
+        log_in=create_autospec(LogIn, instance=True),
+        exchange=create_autospec(ExchangeAuthorizationCode, instance=True),
+    )
+
+
 def make_app(
     *,
     config: Config,
-    service: AuthService,
+    service: SimpleNamespace,
 ) -> FastAPI:
-    app = FastAPI()
-    register_exception_handlers(app)
-    app.include_router(v1_api_router)
-    app.dependency_overrides[get_config] = lambda: config
-    app.dependency_overrides[get_auth_service] = lambda: service
-    app.dependency_overrides[get_kakao_client] = lambda: KakaoClient(
-        http_client=cast(httpx2.AsyncClient, object()),
-        config=config.kakao,
+    router = create_router(
+        log_in=service.log_in,
+        exchange_authorization_code=service.exchange,
+        get_login_client=get_kakao_client,
+        get_oauth_clients=get_oauth_client_resolver,
     )
+    app = make_identity_app(router, config=config, prefix="/auth")
+    app.dependency_overrides[get_kakao_client] = lambda: create_kakao_client(
+        config.kakao, http_client=cast(httpx2.AsyncClient, object())
+    )
+    app.dependency_overrides[get_oauth_client_resolver] = lambda: lambda provider: None
     return app
 
 
@@ -40,11 +58,11 @@ def test_login_callback_and_token_exchange_flow(
     config: Config,
     monkeypatch,
 ) -> None:
-    service = create_autospec(AuthService, instance=True)
-    service.login.return_value = "one-time-code"
-    service.exchange_authorization_code.return_value = "access-token"
+    service = make_service()
+    service.log_in.execute.return_value = "one-time-code"
+    service.exchange.execute.return_value = "access-token"
     monkeypatch.setattr(
-        "mosemo.auth.router.secrets.token_urlsafe",
+        "mosemo.identity.presentation.auth.router.secrets.token_urlsafe",
         lambda length: "fixed-state",
     )
     app = make_app(config=config, service=service)
@@ -97,19 +115,23 @@ def test_login_callback_and_token_exchange_flow(
     }
     assert token_response.headers["cache-control"] == "no-store"
     assert token_response.headers["pragma"] == "no-cache"
-    service.login.assert_awaited_once_with(
+    service.log_in.execute.assert_awaited_once_with(
+        sentinel.db_session,
+        oauth_clients=ANY,
         provider=AccountProvider.KAKAO,
         code="authorization-code",
         code_challenge=CODE_CHALLENGE,
     )
-    service.exchange_authorization_code.assert_awaited_once_with(
+    service.exchange.execute.assert_awaited_once_with(
+        sentinel.db_session,
         authorization_code="one-time-code",
         code_verifier=CODE_VERIFIER,
+        token_service=ANY,
     )
 
 
 def test_callback_without_state_cookie_returns_bad_request(config: Config) -> None:
-    service = create_autospec(AuthService, instance=True)
+    service = make_service()
     app = make_app(config=config, service=service)
 
     with TestClient(app) as client:
@@ -128,16 +150,16 @@ def test_callback_without_state_cookie_returns_bad_request(config: Config) -> No
             "details": [],
         }
     }
-    service.login.assert_not_awaited()
+    service.log_in.execute.assert_not_awaited()
 
 
 def test_callback_maps_kakao_error_query_without_exposing_description(
     config: Config,
     monkeypatch,
 ) -> None:
-    service = create_autospec(AuthService, instance=True)
+    service = make_service()
     monkeypatch.setattr(
-        "mosemo.auth.router.secrets.token_urlsafe",
+        "mosemo.identity.presentation.auth.router.secrets.token_urlsafe",
         lambda length: "fixed-state",
     )
     app = make_app(config=config, service=service)
@@ -166,16 +188,16 @@ def test_callback_maps_kakao_error_query_without_exposing_description(
         "com.example.mosemo:/auth/callback?error=access_denied"
     )
     assert "sensitive provider description" not in response.text
-    service.login.assert_not_awaited()
+    service.log_in.execute.assert_not_awaited()
 
 
 def test_callback_without_code_redirects_authentication_failure(
     config: Config,
     monkeypatch,
 ) -> None:
-    service = create_autospec(AuthService, instance=True)
+    service = make_service()
     monkeypatch.setattr(
-        "mosemo.auth.router.secrets.token_urlsafe",
+        "mosemo.identity.presentation.auth.router.secrets.token_urlsafe",
         lambda length: "fixed-state",
     )
     app = make_app(config=config, service=service)
@@ -199,12 +221,12 @@ def test_callback_without_code_redirects_authentication_failure(
     assert response.headers["location"] == (
         "com.example.mosemo:/auth/callback?error=authentication_failed"
     )
-    service.login.assert_not_awaited()
+    service.log_in.execute.assert_not_awaited()
 
 
 def test_token_exchange_returns_documented_bad_request(config: Config) -> None:
-    service = create_autospec(AuthService, instance=True)
-    service.exchange_authorization_code.side_effect = InvalidAuthorizationCodeError()
+    service = make_service()
+    service.exchange.execute.side_effect = InvalidAuthorizationCodeError()
     app = make_app(config=config, service=service)
 
     with TestClient(app) as client:
@@ -246,7 +268,7 @@ def test_login_rejects_missing_or_invalid_pkce(
     config: Config,
     params: dict[str, str],
 ) -> None:
-    service = create_autospec(AuthService, instance=True)
+    service = make_service()
     app = make_app(config=config, service=service)
 
     with TestClient(app) as client:
@@ -268,7 +290,7 @@ def test_login_rejects_missing_or_invalid_pkce(
 def test_token_validation_does_not_expose_input_or_framework_metadata(
     config: Config,
 ) -> None:
-    service = create_autospec(AuthService, instance=True)
+    service = make_service()
     app = make_app(config=config, service=service)
 
     with TestClient(app) as client:
@@ -314,7 +336,7 @@ def test_token_body_parsing_errors_follow_framework_detail(
     config: Config,
     body: bytes,
 ) -> None:
-    service = create_autospec(AuthService, instance=True)
+    service = make_service()
     app = make_app(config=config, service=service)
 
     with TestClient(app) as client:
@@ -335,7 +357,7 @@ def test_token_body_parsing_errors_follow_framework_detail(
     assert isinstance(detail["loc"][1], int)
     assert detail["msg"] == "JSON decode error"
     assert detail["type"] == "json_invalid"
-    service.exchange_authorization_code.assert_not_awaited()
+    service.exchange.execute.assert_not_awaited()
 
 
 @pytest.mark.parametrize("body", [b"\xff", b"\xff\xfe{"])
@@ -343,7 +365,7 @@ def test_token_invalid_encoding_uses_server_detail_type(
     config: Config,
     body: bytes,
 ) -> None:
-    service = create_autospec(AuthService, instance=True)
+    service = make_service()
     app = make_app(config=config, service=service)
 
     with TestClient(app) as client:
@@ -368,7 +390,7 @@ def test_token_unexpected_fields_point_to_the_containing_object(
     config: Config,
     include_public_alias: bool,
 ) -> None:
-    service = create_autospec(AuthService, instance=True)
+    service = make_service()
     app = make_app(config=config, service=service)
     body = {
         "grantType": "authorization_code",
@@ -391,4 +413,4 @@ def test_token_unexpected_fields_point_to_the_containing_object(
     assert "code_verifier" in response.text
     assert "secret-code" not in response.text
     assert "secret-verifier" not in response.text
-    service.exchange_authorization_code.assert_not_awaited()
+    service.exchange.execute.assert_not_awaited()

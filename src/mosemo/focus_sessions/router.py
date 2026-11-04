@@ -5,13 +5,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Path, Query
 
 from mosemo.activities.repository import ActivityRepository
-from mosemo.activities.service import (
-    ActivityAccountNotFoundError,
-    ActivityDeviceNotFoundError,
-)
+from mosemo.activities.service import ActivityDeviceNotFoundError
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
-from mosemo.api.dependencies import AuthenticatedAccountDep, ClockDep, SessionDep
-from mosemo.devices.repository import DeviceRepository
+from mosemo.api.dependencies import (
+    AccountDirectoryDep,
+    AuthenticatedAccountDep,
+    ClockDep,
+    DeviceDirectoryDep,
+    SessionDep,
+)
 from mosemo.exceptions import ErrorCode
 from mosemo.focus_sessions.models import (
     FocusSessionConflictError,
@@ -30,6 +32,7 @@ from mosemo.focus_sessions.service import (
     FocusSessionQueries,
     FocusSessionService,
 )
+from mosemo.identity.public import AccountNotFoundError
 from mosemo.shared.errors import ApiException, CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 
@@ -37,7 +40,11 @@ router = APIRouter(prefix="/focus-sessions")
 
 
 def get_focus_session_service(
-    session: SessionDep, clock: ClockDep
+    session: SessionDep,
+    clock: ClockDep,
+    *,
+    devices: DeviceDirectoryDep,
+    accounts: AccountDirectoryDep,
 ) -> FocusSessionService:
     repository = FocusSessionRepository(session)
     activity_repository = ActivityRepository(session)
@@ -45,13 +52,11 @@ def get_focus_session_service(
         session=session,
         commands=FocusSessionCommands(
             repository=repository,
-            device_repository=DeviceRepository(session),
+            devices=devices,
             label_catalog_repository=LabelCatalogRepository(session),
             activity_repository=activity_repository,
         ),
-        queries=FocusSessionQueries(
-            repository=repository, activity_repository=activity_repository
-        ),
+        queries=FocusSessionQueries(repository=repository, accounts=accounts),
         clock=clock,
     )
 
@@ -135,5 +140,5 @@ async def list_focus_sessions(
 ) -> list[FocusSessionResponse]:
     try:
         return await service.list_completed(account.account_id, date)
-    except ActivityAccountNotFoundError as exc:
+    except AccountNotFoundError as exc:
         raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc

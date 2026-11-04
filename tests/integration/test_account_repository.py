@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.infrastructure.accounts import AccountRepository
 from mosemo.shared.domain.timezones import Timezone
 
 
@@ -14,21 +14,15 @@ async def test_repository_saves_and_finds_account(
     integration_session: AsyncSession,
 ) -> None:
     provider_subject = f"integration-{uuid4()}"
-    repository = AccountRepository(integration_session)
-
-    assert (
-        await repository.find(
-            provider=AccountProvider.KAKAO,
-            provider_subject=provider_subject,
-        )
-        is None
-    )
-
+    repository = AccountRepository()
     account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=provider_subject,
     )
-    repository.add(account)
+
+    assert await repository.find(integration_session, account.id) is None
+
+    integration_session.add(account)
     await integration_session.flush()
     assert account.timezone is Timezone.ASIA_SEOUL
 
@@ -37,10 +31,7 @@ async def test_repository_saves_and_finds_account(
     await integration_session.refresh(account, ["timezone"])
     assert account.timezone is Timezone.AMERICA_NEW_YORK
 
-    found = await repository.find(
-        provider=AccountProvider.KAKAO,
-        provider_subject=provider_subject,
-    )
+    found = await repository.find(integration_session, account.id)
     assert found is account
     await integration_session.commit()
 
@@ -50,15 +41,14 @@ async def test_repository_enforces_provider_subject_uniqueness(
     integration_session: AsyncSession,
 ) -> None:
     provider_subject = f"integration-{uuid4()}"
-    repository = AccountRepository(integration_session)
 
-    repository.add(
+    integration_session.add(
         Account(
             provider=AccountProvider.KAKAO,
             provider_subject=provider_subject,
         )
     )
-    repository.add(
+    integration_session.add(
         Account(
             provider=AccountProvider.KAKAO,
             provider_subject=provider_subject,
@@ -70,33 +60,29 @@ async def test_repository_enforces_provider_subject_uniqueness(
 
 
 @pytest.mark.asyncio
-async def test_repository_adds_account_only_if_absent(
+async def test_repository_gets_or_creates_account_by_provider_identity(
     integration_session: AsyncSession,
 ) -> None:
     provider_subject = f"integration-{uuid4()}"
-    repository = AccountRepository(integration_session)
+    repository = AccountRepository()
 
-    account = await repository.add_if_absent(
-        provider=AccountProvider.KAKAO,
-        provider_subject=provider_subject,
+    account, created = await repository.get_or_create(
+        integration_session,
+        Account(provider=AccountProvider.KAKAO, provider_subject=provider_subject),
     )
 
-    assert account is not None
-    assert account.account_id is not None
+    assert created is True
+    assert account.id is not None
     assert account.provider is AccountProvider.KAKAO
     assert account.provider_subject == provider_subject
     assert account.timezone is Timezone.ASIA_SEOUL
-    assert (
-        await repository.find(
-            provider=AccountProvider.KAKAO,
-            provider_subject=provider_subject,
-        )
-        is account
+    assert account in integration_session
+    assert await repository.find(integration_session, account.id) is account
+
+    retried, created_again = await repository.get_or_create(
+        integration_session,
+        Account(provider=AccountProvider.KAKAO, provider_subject=provider_subject),
     )
-    assert (
-        await repository.add_if_absent(
-            provider=AccountProvider.KAKAO,
-            provider_subject=provider_subject,
-        )
-        is None
-    )
+
+    assert created_again is False
+    assert retried is account

@@ -84,9 +84,6 @@ forbidden_modules = [
     "mosemo.observation",
     "mosemo.labeling",
     # Feature packages that have not moved to a bounded context yet.
-    "mosemo.accounts",
-    "mosemo.auth",
-    "mosemo.devices",
     "mosemo.activities",
     "mosemo.focus_sessions",
     "mosemo.activity_labels",
@@ -138,6 +135,122 @@ source_modules = ["mosemo"]
 forbidden_modules = ["faststream", "aiokafka"]
 ignore_imports = ["mosemo.infra.** -> faststream", "mosemo.infra.** -> aiokafka"]
 allow_indirect_imports = true
+
+# identity bounded context (ADR 0011 「강제 방법」).
+[[tool.importlinter.contracts]]
+name = "identity layers: presentation > application > infrastructure > domain"
+type = "layers"
+containers = ["mosemo.identity"]
+layers = ["presentation", "application", "infrastructure", "domain"]
+
+[[tool.importlinter.contracts]]
+name = "identity presentation does not import its infrastructure directly"
+type = "forbidden"
+source_modules = ["mosemo.identity.presentation"]
+forbidden_modules = ["mosemo.identity.infrastructure"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "identity layers are imported only by identity"
+type = "protected"
+protected_modules = [
+    "mosemo.identity.presentation",
+    "mosemo.identity.application",
+    "mosemo.identity.domain",
+    "mosemo.identity.infrastructure",
+]
+allowed_importers = ["mosemo.identity"]
+
+[[tool.importlinter.contracts]]
+name = "identity bootstrap is imported only by assembly roots"
+type = "protected"
+protected_modules = ["mosemo.identity.bootstrap"]
+allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
+
+[[tool.importlinter.contracts]]
+name = "identity presentation imports only infra.providers from infra"
+type = "forbidden"
+source_modules = ["mosemo.identity.presentation"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.persistence",
+    "mosemo.infra.scheduling",
+    "mosemo.infra.transactions",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "identity application imports only infra.transactions from infra"
+type = "forbidden"
+source_modules = ["mosemo.identity.application"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.persistence",
+    "mosemo.infra.providers",
+    "mosemo.infra.scheduling",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "identity infrastructure imports only infra.persistence from infra"
+type = "forbidden"
+source_modules = ["mosemo.identity.infrastructure"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.providers",
+    "mosemo.infra.scheduling",
+    "mosemo.infra.transactions",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "identity domain does not import infra"
+type = "forbidden"
+source_modules = ["mosemo.identity.domain"]
+forbidden_modules = ["mosemo.infra"]
+
+[[tool.importlinter.contracts]]
+name = "identity domain does not import sqlalchemy, fastapi or pydantic"
+type = "forbidden"
+source_modules = ["mosemo.identity.domain"]
+forbidden_modules = ["sqlalchemy", "fastapi", "pydantic"]
+
+[[tool.importlinter.contracts]]
+name = "identity application does not import fastapi directly"
+type = "forbidden"
+source_modules = ["mosemo.identity.application"]
+forbidden_modules = ["fastapi"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "identity domain imports only shared.domain from shared"
+type = "forbidden"
+source_modules = ["mosemo.identity.domain"]
+forbidden_modules = ["mosemo.shared.application", "mosemo.shared.presentation"]
+
+[[tool.importlinter.contracts]]
+name = "identity application and infrastructure do not import shared.presentation"
+type = "forbidden"
+source_modules = [
+    "mosemo.identity.application",
+    "mosemo.identity.infrastructure",
+]
+forbidden_modules = ["mosemo.shared.presentation"]
 
 [tool.ruff]
 line-length = 88

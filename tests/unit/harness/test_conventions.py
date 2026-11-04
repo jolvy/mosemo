@@ -596,9 +596,13 @@ ALLOWED_BROAD_EXCEPTS = {
         "        except Exception as error:\n"
         "            raise error\n"
     ),
-    "src/mosemo/auth/router.py": (
-        "async def callback():\n    try:\n        pass\n    except Exception:\n"
-        "        return redirect()\n"
+    "src/mosemo/identity/presentation/auth/router.py": (
+        "def create_router():\n"
+        "    async def callback():\n"
+        "        try:\n"
+        "            pass\n"
+        "        except Exception:\n"
+        "            return redirect()\n"
     ),
     "src/mosemo/activity_labels/proposals/processing.py": (
         "class ProposalProcessor:\n"
@@ -693,11 +697,17 @@ def test_broad_excepts_reject_listed_function_without_handler(
     conventions_validator: ModuleType,
 ) -> None:
     trees = broad_except_trees(
-        **{"src/mosemo/auth/router.py": "async def callback():\n    pass\n"}
+        **{
+            "src/mosemo/identity/presentation/auth/router.py": (
+                "def create_router():\n    async def callback():\n        pass\n"
+            )
+        }
     )
     errors = conventions_validator.check_broad_excepts(trees)
     assert len(errors) == 1
-    assert errors[0].startswith("src/mosemo/auth/router.py: CS-P18")
+    assert errors[0].startswith(
+        "src/mosemo/identity/presentation/auth/router.py: CS-P18"
+    )
 
 
 def test_complexity_snapshot_rejects_existing_file(

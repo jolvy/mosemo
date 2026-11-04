@@ -5,11 +5,11 @@ from urllib.parse import parse_qs, urlsplit
 import httpx2
 import pytest
 
-from mosemo.auth.kakao_client import (
+from mosemo.identity.bootstrap import create_kakao_client
+from mosemo.identity.infrastructure.kakao_client import (
     KAKAO_AUTHORIZE_URL,
     KAKAO_TOKEN_URL,
     KAKAO_USER_INFO_URL,
-    KakaoClient,
     KakaoClientError,
 )
 from mosemo.infra.config import Config
@@ -30,7 +30,7 @@ def test_get_user_id_exchanges_code_and_fetches_user(config: Config) -> None:
         async with httpx2.AsyncClient(
             transport=httpx2.MockTransport(handle_request)
         ) as http_client:
-            client = KakaoClient(http_client=http_client, config=config.kakao)
+            client = create_kakao_client(config.kakao, http_client=http_client)
             return await client.get_user_id(code="authorization-code")
 
     provider_subject = asyncio.run(run())
@@ -66,7 +66,7 @@ def test_get_user_id_converts_token_failure(
         async with httpx2.AsyncClient(
             transport=httpx2.MockTransport(handle_request)
         ) as http_client:
-            client = KakaoClient(http_client=http_client, config=config.kakao)
+            client = create_kakao_client(config.kakao, http_client=http_client)
             with pytest.raises(KakaoClientError):
                 await client.get_user_id(code="authorization-code")
 
@@ -83,7 +83,7 @@ def test_get_user_id_converts_user_endpoint_failure(config: Config) -> None:
         async with httpx2.AsyncClient(
             transport=httpx2.MockTransport(handle_request)
         ) as http_client:
-            client = KakaoClient(http_client=http_client, config=config.kakao)
+            client = create_kakao_client(config.kakao, http_client=http_client)
             with pytest.raises(KakaoClientError):
                 await client.get_user_id(code="authorization-code")
 
@@ -91,9 +91,8 @@ def test_get_user_id_converts_user_endpoint_failure(config: Config) -> None:
 
 
 def test_create_authorization_url_uses_config_and_state(config: Config) -> None:
-    client = KakaoClient(
-        http_client=cast(httpx2.AsyncClient, object()),
-        config=config.kakao,
+    client = create_kakao_client(
+        config.kakao, http_client=cast(httpx2.AsyncClient, object())
     )
 
     location = urlsplit(client.create_authorization_url(state="fixed-state"))

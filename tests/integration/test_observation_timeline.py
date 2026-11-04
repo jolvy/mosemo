@@ -7,8 +7,6 @@ from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.enums import SegmentType
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.models import ActivityTimelineSegment
@@ -19,11 +17,16 @@ from mosemo.activities.schemas import (
     CaptureGapResponse,
 )
 from mosemo.activities.service import ActivityService
-from mosemo.devices.models import Device
-from mosemo.devices.repository import DeviceRepository
+from mosemo.identity.bootstrap import (
+    create_account_directory,
+    create_device_directory,
+)
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.domain.devices import Device
 from mosemo.infra.clock import utc_now
 from mosemo.shared.domain.timezones import Timezone
 from tests.clock_support import FakeClock
+from tests.identity_support import delete_accounts
 
 record_adapter = TypeAdapter(ActivityRecord)
 
@@ -33,13 +36,13 @@ async def account_with_devices(session: AsyncSession) -> tuple[UUID, UUID, UUID]
         provider=AccountProvider.KAKAO,
         provider_subject=f"timeline-{uuid4()}",
     )
-    AccountRepository(session).add(account)
+    session.add(account)
     await session.flush()
-    first = Device(account_id=account.account_id, idempotency_key=uuid4())
-    second = Device(account_id=account.account_id, idempotency_key=uuid4())
+    first = Device(account_id=account.id, idempotency_key=uuid4())
+    second = Device(account_id=account.id, idempotency_key=uuid4())
     session.add_all([first, second])
     await session.flush()
-    return account.account_id, first.device_id, second.device_id
+    return account.id, first.id, second.id
 
 
 def observation(
@@ -108,7 +111,8 @@ async def test_activity_projection_merges_devices_and_keeps_instant_switch(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     detailed = detailed_context()
@@ -175,7 +179,8 @@ async def test_silence_closes_at_last_observation_without_synthetic_gap(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     records = [
@@ -222,7 +227,8 @@ async def test_old_open_activity_is_closed_on_read_and_next_write(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     record = observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"})
@@ -278,7 +284,8 @@ async def test_local_day_boundary_uses_dst_length(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     await service.create_activity(
@@ -303,7 +310,8 @@ async def test_earliest_valid_date_returns_empty_with_positive_account_offset(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
 
@@ -320,7 +328,8 @@ async def test_stale_midnight_observation_matches_materialized_closed_span(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     before_midnight = observation(
@@ -353,7 +362,8 @@ async def test_cross_midnight_segment_is_unclipped_on_both_dates(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     first = observation(device_id, 1, "2026-09-14T14:59:59Z", {"kind": "opaque"})
@@ -382,7 +392,8 @@ async def test_instant_switch_at_local_midnight_belongs_to_new_date(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     first = observation(device_id, 1, "2026-09-14T15:00:00Z", {"kind": "opaque"})
@@ -414,7 +425,8 @@ async def test_explicit_gap_ignores_active_and_closes_on_next_observation(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     records = [
@@ -461,7 +473,8 @@ async def test_old_activity_ends_before_suspended_without_inferred_gap(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     activity = observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"})
@@ -493,7 +506,8 @@ async def test_open_gap_reaches_today_but_not_future(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     await service.create_activity(
@@ -522,7 +536,8 @@ async def test_far_future_date_is_empty_even_with_activity(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     record = observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"})
@@ -548,7 +563,8 @@ async def test_late_observation_matches_chronological_timeline(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     detailed = detailed_context()
@@ -601,7 +617,8 @@ async def test_late_bridge_merges_and_keeps_earliest_segment_id(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     first = observation(device_id, 1, "2026-09-14T00:00:00Z", {"kind": "opaque"})
@@ -628,7 +645,8 @@ async def test_late_split_stops_at_unchanged_downstream_segment(
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=fake_clock,
     )
     observations = [
@@ -691,7 +709,8 @@ async def test_projection_database_rejects_wrong_kind_fields(
     await ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=FakeClock(datetime(2026, 9, 14, 0, 0, tzinfo=UTC)),
     ).create_activity(account_id=account_id, record=record)
     values: dict[str, object] = {
@@ -722,7 +741,8 @@ async def test_projection_database_rejects_unsupported_segment_type(
     await ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=FakeClock(datetime(2026, 9, 14, 0, 0, tzinfo=UTC)),
     ).create_activity(account_id=account_id, record=record)
 
@@ -755,13 +775,12 @@ async def test_account_delete_cascades_raw_and_projection(
     await ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=FakeClock(datetime(2026, 9, 14, 0, 0, tzinfo=UTC)),
     ).create_activity(account_id=account_id, record=record)
 
-    await integration_session.execute(
-        delete(Account).where(Account.account_id == account_id)
-    )
+    await integration_session.execute(delete_accounts(account_id))
     await integration_session.commit()
     raw_count = await integration_session.scalar(
         select(func.count())
@@ -786,7 +805,8 @@ async def test_referenced_raw_event_cannot_be_deleted_without_projection_change(
     await ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=FakeClock(datetime(2026, 9, 14, 0, 0, tzinfo=UTC)),
     ).create_activity(account_id=account_id, record=record)
     await integration_session.execute(

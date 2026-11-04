@@ -4,14 +4,6 @@ from mosemo.shared.errors import ApiErrorCode, ErrorSpec
 class ErrorCode(ApiErrorCode):
     """Central error codes kept until each bounded context moves its own members."""
 
-    AUTH_INVALID_AUTHORIZATION_CODE = ErrorSpec(
-        code=400,
-        message="Invalid or expired authorization code",
-    )
-    AUTH_INVALID_OAUTH_CONTEXT = ErrorSpec(
-        code=400,
-        message="Invalid or expired OAuth login context",
-    )
     FOCUS_SESSION_NOT_FOUND = ErrorSpec(code=404, message="Focus session not found")
     FOCUS_SESSION_CONFLICT = ErrorSpec(
         code=409, message="Focus session conflicts with stored data"

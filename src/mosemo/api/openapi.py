@@ -6,6 +6,8 @@ from fastapi.openapi.utils import get_openapi
 
 from mosemo.api.error_docs import ERROR_DOCS as CENTRAL_ERROR_DOCS
 from mosemo.exceptions import ErrorCode
+from mosemo.identity import bootstrap as identity_bootstrap
+from mosemo.identity.public import IdentityErrorCode
 from mosemo.shared.error_docs import ERROR_DOCS as COMMON_ERROR_DOCS
 from mosemo.shared.errors import ApiErrorCode, CommonErrorCode
 from mosemo.shared.openapi import ErrorDocs, error_example
@@ -13,6 +15,7 @@ from mosemo.shared.openapi import ErrorDocs, error_example
 # Every public error code enum and the ERROR_DOCS that documents it.
 REGISTERED_ERROR_DOCS: Mapping[type[ApiErrorCode], Mapping[ApiErrorCode, ErrorDocs]] = {
     CommonErrorCode: COMMON_ERROR_DOCS,
+    IdentityErrorCode: identity_bootstrap.ERROR_DOCS,
     ErrorCode: CENTRAL_ERROR_DOCS,
 }
 

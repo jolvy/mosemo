@@ -6,20 +6,20 @@ import httpx2
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.models import ActivityRecord
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
-from mosemo.auth.tokens import TokenService
-from mosemo.devices.models import Device
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.domain.devices import Device
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.database import get_session
 from tests.batch_support import batch_client, post_activity, receipt_for
+from tests.identity_support import delete_accounts
 
 TIMELINE_URL = "/api/v1/activities/timeline?date=2026-09-14"
 
@@ -51,9 +51,7 @@ async def activity_api(
     finally:
         if account_ids:
             async with session_factory() as session:
-                await session.execute(
-                    delete(Account).where(Account.account_id.in_(account_ids))
-                )
+                await session.execute(delete_accounts(*account_ids))
                 await session.commit()
         await engine.dispose()
 
@@ -69,23 +67,23 @@ async def create_account_with_devices(
             provider=AccountProvider.KAKAO,
             provider_subject=f"offline-replay-{uuid4()}",
         )
-        AccountRepository(session).add(account)
+        session.add(account)
         await session.flush()
         devices = [
-            Device(account_id=account.account_id, idempotency_key=uuid4())
+            Device(account_id=account.id, idempotency_key=uuid4())
             for _ in range(device_count)
         ]
         session.add_all(devices)
         await session.flush()
-        account_id = account.account_id
-        device_ids = [device.device_id for device in devices]
+        account_id = account.id
+        device_ids = [device.id for device in devices]
         await session.commit()
     account_ids.append(account_id)
     return account_id, device_ids
 
 
 def auth_headers(config: Config, account_id: UUID) -> dict[str, str]:
-    token = TokenService(config.auth).issue_access_token(account_id, now=utc_now())
+    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
     return {"Authorization": f"Bearer {token}"}
 
 

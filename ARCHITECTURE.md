@@ -9,9 +9,7 @@
 ├── openapi/
 │   └── openapi.json        # 공개 API 스냅샷
 └── src/mosemo/
-    ├── accounts/          # 계정
-    ├── auth/              # 로그인·인증
-    ├── devices/           # 계정에 등록된 앱 설치
+    ├── identity/          # BC: 계정, 로그인·토큰, 계정에 등록된 앱 설치(Device)
     ├── activities/        # 활동 관찰 원본과 관찰 타임라인
     ├── activity_labels/   # 관찰에 대한 개인 라벨 해석
     │   ├── catalog/       # 라벨 목록

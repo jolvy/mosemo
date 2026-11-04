@@ -10,28 +10,92 @@ import pytest
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
 from mosemo.activity_labels.catalog.models import Label, default_labels
-from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
-from mosemo.auth.kakao_client import KakaoClient
-from mosemo.auth.models import NativeAuthCode
-from mosemo.auth.pkce import create_code_challenge
-from mosemo.auth.repository import NativeAuthCodeRepository
-from mosemo.auth.service import (
-    AccountProvisioner,
-    AuthService,
+from mosemo.identity.application.ports import OAuthClient
+from mosemo.identity.application.sign_in import (
+    ExchangeAuthorizationCode,
     InvalidAuthorizationCodeError,
-    NativeAuthCodeService,
+    LogIn,
 )
-from mosemo.auth.tokens import TokenService
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.domain.authorization_codes import NativeAuthCode
+from mosemo.identity.domain.pkce import create_code_challenge
+from mosemo.identity.infrastructure.accounts import AccountRepository
+from mosemo.identity.infrastructure.authorization_codes import (
+    NativeAuthCodeRepository,
+)
+from mosemo.identity.infrastructure.kakao_client import KakaoClient
+from mosemo.identity.infrastructure.tables import accounts as account_table
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config
 from mosemo.shared.application.clock import Clock
 from tests.clock_support import FakeClock
+from tests.identity_support import delete_accounts, sign_up_dispatcher
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
+
+
+class SignIn:
+    """The sign-in use cases bound to one session, as the API calls them."""
+
+    def __init__(
+        self,
+        *,
+        session: AsyncSession,
+        oauth_client: OAuthClient,
+        auth_codes: NativeAuthCodeRepository,
+        config: Config,
+        clock: Clock,
+    ) -> None:
+        self._session = session
+        self._oauth_client = oauth_client
+        self._config = config
+        # The same temporary default label handler as the API (AccountCreated).
+        dispatcher = sign_up_dispatcher()
+        self._log_in = LogIn(
+            accounts=AccountRepository(),
+            auth_codes=auth_codes,
+            dispatcher=dispatcher,
+            clock=clock,
+            authorization_code_ttl=timedelta(
+                seconds=config.auth.authorization_code_ttl_seconds
+            ),
+        )
+        self._exchange = ExchangeAuthorizationCode(
+            auth_codes=auth_codes, dispatcher=dispatcher, clock=clock
+        )
+
+    async def login(
+        self, *, provider: AccountProvider, code: str, code_challenge: str
+    ) -> str:
+        return await self._log_in.execute(
+            self._session,
+            oauth_clients=lambda _provider: self._oauth_client,
+            provider=provider,
+            code=code,
+            code_challenge=code_challenge,
+        )
+
+    async def exchange_authorization_code(
+        self, *, authorization_code: str, code_verifier: str
+    ) -> str:
+        return await self._exchange.execute(
+            self._session,
+            authorization_code=authorization_code,
+            code_verifier=code_verifier,
+            token_service=get_token_service(self._config),
+        )
+
+
+async def find_account(session: AsyncSession, provider_subject: str) -> Account | None:
+    return await session.scalar(
+        select(Account).where(
+            account_table.c.provider == AccountProvider.KAKAO,
+            account_table.c.provider_subject == provider_subject,
+        )
+    )
 
 
 def make_service(
@@ -39,19 +103,12 @@ def make_service(
     session: AsyncSession,
     config: Config,
     clock: Clock,
-) -> AuthService:
-    return AuthService(
+) -> SignIn:
+    return SignIn(
         session=session,
-        get_oauth_client=Mock(return_value=create_autospec(KakaoClient, instance=True)),
-        account_provisioner=AccountProvisioner(
-            account_repository=AccountRepository(session),
-            label_catalog_repository=LabelCatalogRepository(session),
-        ),
-        native_auth_codes=NativeAuthCodeService(
-            repository=NativeAuthCodeRepository(session),
-            token_service=TokenService(config.auth),
-            config=config.auth,
-        ),
+        oauth_client=create_autospec(KakaoClient, instance=True),
+        auth_codes=NativeAuthCodeRepository(),
+        config=config,
         clock=clock,
     )
 
@@ -69,19 +126,11 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
         instance=True,
     )
     auth_code_repository.add.side_effect = RuntimeError("code storage failed")
-    account_repository = AccountRepository(integration_session)
-    service = AuthService(
+    service = SignIn(
         session=integration_session,
-        get_oauth_client=Mock(return_value=kakao_client),
-        account_provisioner=AccountProvisioner(
-            account_repository=account_repository,
-            label_catalog_repository=LabelCatalogRepository(integration_session),
-        ),
-        native_auth_codes=NativeAuthCodeService(
-            repository=auth_code_repository,
-            token_service=TokenService(config.auth),
-            config=config.auth,
-        ),
+        oauth_client=kakao_client,
+        auth_codes=auth_code_repository,
+        config=config,
         clock=FakeClock(utc_now()),
     )
 
@@ -92,13 +141,7 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
             code_challenge=CODE_CHALLENGE,
         )
 
-    assert (
-        await account_repository.find(
-            provider=AccountProvider.KAKAO,
-            provider_subject=provider_subject,
-        )
-        is None
-    )
+    assert await find_account(integration_session, provider_subject) is None
     assert (await integration_session.scalars(select(Label))).all() == []
 
 
@@ -110,18 +153,11 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
     provider_subject = f"integration-{secrets.token_hex(8)}"
     kakao_client = create_autospec(KakaoClient, instance=True)
     kakao_client.get_user_id.return_value = provider_subject
-    service = AuthService(
+    service = SignIn(
         session=integration_session,
-        get_oauth_client=Mock(return_value=kakao_client),
-        account_provisioner=AccountProvisioner(
-            account_repository=AccountRepository(integration_session),
-            label_catalog_repository=LabelCatalogRepository(integration_session),
-        ),
-        native_auth_codes=NativeAuthCodeService(
-            repository=NativeAuthCodeRepository(integration_session),
-            token_service=TokenService(config.auth),
-            config=config.auth,
-        ),
+        oauth_client=kakao_client,
+        auth_codes=NativeAuthCodeRepository(),
+        config=config,
         clock=FakeClock(utc_now()),
     )
 
@@ -130,15 +166,12 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
         code="authorization-code",
         code_challenge=CODE_CHALLENGE,
     )
-    account = await AccountRepository(integration_session).find(
-        provider=AccountProvider.KAKAO,
-        provider_subject=provider_subject,
-    )
+    account = await find_account(integration_session, provider_subject)
     assert account is not None
     first_labels = (
         await integration_session.scalars(
             select(Label)
-            .where(Label.account_id == account.account_id)
+            .where(Label.account_id == account.id)
             .order_by(Label.display_name)
         )
     ).all()
@@ -157,7 +190,7 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
     second_labels = (
         await integration_session.scalars(
             select(Label)
-            .where(Label.account_id == account.account_id)
+            .where(Label.account_id == account.id)
             .order_by(Label.display_name)
         )
     ).all()
@@ -182,34 +215,27 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
             account = Account(
                 provider=AccountProvider.KAKAO,
                 provider_subject=provider_subject,
-                last_authenticated_at=initial_last_authenticated_at,
             )
+            account.last_authenticated_at = initial_last_authenticated_at
             session.add(account)
             await session.commit()
             await session.refresh(account)
-            account_id = account.account_id
+            account_id = account.id
             initial_last_authenticated_at = account.last_authenticated_at
 
         async with session_factory() as session:
             kakao_client = create_autospec(KakaoClient, instance=True)
             kakao_client.get_user_id.return_value = provider_subject
-            auth_code_repository = NativeAuthCodeRepository(session)
+            auth_code_repository = NativeAuthCodeRepository()
             add_auth_code = Mock(
                 side_effect=RuntimeError("code storage failed"),
             )
             monkeypatch.setattr(auth_code_repository, "add", add_auth_code)
-            service = AuthService(
+            service = SignIn(
                 session=session,
-                get_oauth_client=Mock(return_value=kakao_client),
-                account_provisioner=AccountProvisioner(
-                    account_repository=AccountRepository(session),
-                    label_catalog_repository=LabelCatalogRepository(session),
-                ),
-                native_auth_codes=NativeAuthCodeService(
-                    repository=auth_code_repository,
-                    token_service=TokenService(config.auth),
-                    config=config.auth,
-                ),
+                oauth_client=kakao_client,
+                auth_codes=auth_code_repository,
+                config=config,
                 clock=FakeClock(utc_now()),
             )
 
@@ -223,19 +249,16 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
             add_auth_code.assert_called_once()
 
         async with session_factory() as session:
-            stored_account = await AccountRepository(session).find(
-                provider=AccountProvider.KAKAO,
-                provider_subject=provider_subject,
-            )
+            stored_account = await find_account(session, provider_subject)
             assert stored_account is not None
-            assert stored_account.account_id == account_id
+            assert stored_account.id == account_id
             assert stored_account.last_authenticated_at == initial_last_authenticated_at
     finally:
         async with session_factory() as session:
             await session.execute(
-                delete(Account).where(
-                    Account.provider == AccountProvider.KAKAO,
-                    Account.provider_subject == provider_subject,
+                delete(account_table).where(
+                    account_table.c.provider == AccountProvider.KAKAO,
+                    account_table.c.provider_subject == provider_subject,
                 )
             )
             await session.commit()
@@ -264,9 +287,9 @@ async def test_authorization_code_is_hashed_and_consumed_once_concurrently(
             session.add(account)
             await session.commit()
             await session.refresh(account)
-            account_id = account.account_id
+            account_id = account.id
 
-            NativeAuthCodeRepository(session).add(
+            session.add(
                 NativeAuthCode(
                     code_digest=code_digest,
                     account_id=account_id,
@@ -300,15 +323,13 @@ async def test_authorization_code_is_hashed_and_consumed_once_concurrently(
 
         tokens = [result for result in results if result is not None]
         assert len(tokens) == 1
-        assert TokenService(config.auth).decode_access_token(tokens[0]) == account_id
+        assert get_token_service(config).decode_access_token(tokens[0]) == account_id
         async with session_factory() as session:
             assert await session.get(NativeAuthCode, code_digest) is None
     finally:
         if account_id is not None:
             async with session_factory() as session:
-                await session.execute(
-                    delete(Account).where(Account.account_id == account_id)
-                )
+                await session.execute(delete_accounts(account_id))
                 await session.commit()
         await engine.dispose()
 
@@ -335,9 +356,9 @@ async def test_expired_authorization_code_is_deleted(
             session.add(account)
             await session.commit()
             await session.refresh(account)
-            account_id = account.account_id
+            account_id = account.id
 
-            NativeAuthCodeRepository(session).add(
+            session.add(
                 NativeAuthCode(
                     code_digest=code_digest,
                     account_id=account_id,
@@ -363,9 +384,7 @@ async def test_expired_authorization_code_is_deleted(
     finally:
         if account_id is not None:
             async with session_factory() as session:
-                await session.execute(
-                    delete(Account).where(Account.account_id == account_id)
-                )
+                await session.execute(delete_accounts(account_id))
                 await session.commit()
         await engine.dispose()
 
@@ -388,18 +407,11 @@ async def test_concurrent_first_login_uses_account_created_by_other_request(
         async with session_factory() as session:
             kakao_client = create_autospec(KakaoClient, instance=True)
             kakao_client.get_user_id.return_value = provider_subject
-            service = AuthService(
+            service = SignIn(
                 session=session,
-                get_oauth_client=Mock(return_value=kakao_client),
-                account_provisioner=AccountProvisioner(
-                    account_repository=AccountRepository(session),
-                    label_catalog_repository=LabelCatalogRepository(session),
-                ),
-                native_auth_codes=NativeAuthCodeService(
-                    repository=NativeAuthCodeRepository(session),
-                    token_service=TokenService(config.auth),
-                    config=config.auth,
-                ),
+                oauth_client=kakao_client,
+                auth_codes=NativeAuthCodeRepository(),
+                config=config,
                 clock=FakeClock(login_time),
             )
             return await service.login(
@@ -416,7 +428,7 @@ async def test_concurrent_first_login_uses_account_created_by_other_request(
         )
         winner.add(winner_account)
         await winner.flush()
-        winner_labels = default_labels(winner_account.account_id)
+        winner_labels = default_labels(winner_account.id)
         winner.add_all(winner_labels)
         await winner.flush()
         winner_xid = await winner.scalar(text("SELECT pg_current_xact_id()::text"))
@@ -444,8 +456,8 @@ async def test_concurrent_first_login_uses_account_created_by_other_request(
             accounts = (
                 await session.scalars(
                     select(Account).where(
-                        Account.provider == AccountProvider.KAKAO,
-                        Account.provider_subject == provider_subject,
+                        account_table.c.provider == AccountProvider.KAKAO,
+                        account_table.c.provider_subject == provider_subject,
                     )
                 )
             ).all()
@@ -453,7 +465,7 @@ async def test_concurrent_first_login_uses_account_created_by_other_request(
             (account,) = accounts
             labels = (
                 await session.scalars(
-                    select(Label).where(Label.account_id == account.account_id)
+                    select(Label).where(Label.account_id == account.id)
                 )
             ).all()
             assert len(labels) == 5
@@ -462,15 +474,15 @@ async def test_concurrent_first_login_uses_account_created_by_other_request(
                 hashlib.sha256(authorization_code.encode()).hexdigest(),
             )
             assert stored_code is not None
-            assert stored_code.account_id == account.account_id
+            assert stored_code.account_id == account.id
             if first_login_commits:
-                assert account.account_id == winner_account.account_id
+                assert account.id == winner_account.id
                 assert {label.label_id for label in labels} == {
                     label.label_id for label in winner_labels
                 }
                 assert account.last_authenticated_at == login_time
             else:
-                assert account.account_id != winner_account.account_id
+                assert account.id != winner_account.id
     finally:
         await winner.rollback()
         await winner.close()
@@ -480,9 +492,9 @@ async def test_concurrent_first_login_uses_account_created_by_other_request(
                 await login_task
         async with session_factory() as session:
             await session.execute(
-                delete(Account).where(
-                    Account.provider == AccountProvider.KAKAO,
-                    Account.provider_subject == provider_subject,
+                delete(account_table).where(
+                    account_table.c.provider == AccountProvider.KAKAO,
+                    account_table.c.provider_subject == provider_subject,
                 )
             )
             await session.commit()

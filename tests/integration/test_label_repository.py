@@ -5,33 +5,31 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
 from mosemo.activity_labels.catalog.models import Label, default_labels
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
+from mosemo.identity.domain.accounts import Account, AccountProvider
 
 
 @pytest.mark.asyncio
 async def test_label_constraints_are_account_scoped_and_cascade(
     integration_session: AsyncSession,
 ) -> None:
-    account_repository = AccountRepository(integration_session)
     first_account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"label-{uuid4()}",
     )
-    account_repository.add(first_account)
+    integration_session.add(first_account)
     second_account = Account(
         provider=AccountProvider.KAKAO,
         provider_subject=f"label-{uuid4()}",
     )
-    account_repository.add(second_account)
+    integration_session.add(second_account)
     await integration_session.flush()
 
     label_repository = LabelCatalogRepository(integration_session)
-    first_labels = default_labels(first_account.account_id)
+    first_labels = default_labels(first_account.id)
     label_repository.add_all(first_labels)
-    second_labels = default_labels(second_account.account_id)
+    second_labels = default_labels(second_account.id)
     label_repository.add_all(second_labels)
     await integration_session.flush()
     assert len(first_labels) == 5
@@ -40,7 +38,7 @@ async def test_label_constraints_are_account_scoped_and_cascade(
     savepoint = await integration_session.begin_nested()
     integration_session.add(
         Label(
-            account_id=first_account.account_id,
+            account_id=first_account.id,
             display_name="코딩",
         )
     )
@@ -54,7 +52,7 @@ async def test_label_constraints_are_account_scoped_and_cascade(
     savepoint = await integration_session.begin_nested()
     integration_session.add(
         Label(
-            account_id=first_account.account_id,
+            account_id=first_account.id,
             display_name="코딩",
         )
     )
@@ -77,7 +75,7 @@ async def test_label_constraints_are_account_scoped_and_cascade(
     await integration_session.flush()
     remaining_labels = (
         await integration_session.scalars(
-            select(Label).where(Label.account_id == second_account.account_id)
+            select(Label).where(Label.account_id == second_account.id)
         )
     ).all()
     assert remaining_labels == []

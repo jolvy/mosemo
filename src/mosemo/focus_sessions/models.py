@@ -45,10 +45,10 @@ class FocusSession(Base):
     )
     session_id: Mapped[UUID] = mapped_column(primary_key=True)
     account_id: Mapped[UUID] = mapped_column(
-        ForeignKey("accounts.account_id", ondelete="CASCADE")
+        ForeignKey("accounts.id", ondelete="CASCADE")
     )
     device_id: Mapped[UUID] = mapped_column(
-        ForeignKey("devices.device_id", ondelete="CASCADE")
+        ForeignKey("devices.id", ondelete="CASCADE")
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(

@@ -1,49 +1,39 @@
 from datetime import UTC, datetime, timedelta, timezone
-from unittest.mock import create_autospec
+from unittest.mock import create_autospec, sentinel
 from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.service import AccountNotFoundError, AccountService
-from mosemo.api.dependencies import get_account_service, get_auth_service
-from mosemo.api.exception_handlers import register_exception_handlers
-from mosemo.api.routes import v1_api_router
-from mosemo.auth.service import AuthService
-from mosemo.auth.tokens import TokenService
+from mosemo.identity.application.accounts import AccountNotFoundError, GetAccount
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.presentation.accounts.router import create_router
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config, get_config
+from mosemo.infra.config import Config
 from mosemo.shared.domain.timezones import Timezone
+from tests.component.identity_app import make_identity_app
 
 
 def make_account() -> Account:
     now = datetime(2026, 9, 1, tzinfo=UTC)
-    return Account(
-        account_id=uuid4(),
+    account = Account(
+        id=uuid4(),
         provider=AccountProvider.KAKAO,
         provider_subject="123456789",
-        timezone=Timezone.ASIA_SEOUL,
-        created_at=now,
-        last_authenticated_at=now,
     )
+    account.timezone = Timezone.ASIA_SEOUL
+    account.created_at = now
+    account.last_authenticated_at = now
+    return account
 
 
 def make_app(
     *,
     config: Config,
-    account_service: AccountService,
+    account_service: GetAccount,
 ) -> FastAPI:
-    app = FastAPI()
-    register_exception_handlers(app)
-    app.include_router(v1_api_router)
-    app.dependency_overrides[get_config] = lambda: config
-    app.dependency_overrides[get_auth_service] = lambda: create_autospec(
-        AuthService,
-        instance=True,
-    )
-    app.dependency_overrides[get_account_service] = lambda: account_service
-    return app
+    return make_identity_app(create_router(get_account=account_service), config=config)
 
 
 def test_accounts_me_returns_authenticated_account(config: Config) -> None:
@@ -69,11 +59,11 @@ def test_accounts_me_returns_authenticated_account(config: Config) -> None:
         987654,
         tzinfo=korean_standard_time,
     )
-    account_service = create_autospec(AccountService, instance=True)
-    account_service.get_account.return_value = account
+    account_service = create_autospec(GetAccount, instance=True)
+    account_service.execute.return_value = account
     app = make_app(config=config, account_service=account_service)
-    access_token = TokenService(config.auth).issue_access_token(
-        account.account_id, now=utc_now()
+    access_token = get_token_service(config).issue_access_token(
+        account.id, now=utc_now()
     )
 
     with TestClient(app) as client:
@@ -85,18 +75,18 @@ def test_accounts_me_returns_authenticated_account(config: Config) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
     assert response.json() == {
-        "accountId": str(account.account_id),
+        "accountId": str(account.id),
         "provider": "KAKAO",
         "timezone": "Asia/Seoul",
         "createdAt": "2026-09-05T01:02:03Z",
         "lastAuthenticatedAt": "2026-09-05T01:02:04Z",
     }
     assert "provider_subject" not in response.json()
-    account_service.get_account.assert_awaited_once_with(account.account_id)
+    account_service.execute.assert_awaited_once_with(sentinel.db_session, account.id)
 
 
 def test_accounts_me_rejects_missing_or_invalid_bearer(config: Config) -> None:
-    account_service = create_autospec(AccountService, instance=True)
+    account_service = create_autospec(GetAccount, instance=True)
     app = make_app(config=config, account_service=account_service)
 
     with TestClient(app) as client:
@@ -117,15 +107,15 @@ def test_accounts_me_rejects_missing_or_invalid_bearer(config: Config) -> None:
             }
         }
         assert response.headers["www-authenticate"] == "Bearer"
-    account_service.get_account.assert_not_awaited()
+    account_service.execute.assert_not_awaited()
 
 
 def test_accounts_me_rejects_deleted_account(config: Config) -> None:
     account_id = uuid4()
-    account_service = create_autospec(AccountService, instance=True)
-    account_service.get_account.side_effect = AccountNotFoundError()
+    account_service = create_autospec(GetAccount, instance=True)
+    account_service.execute.side_effect = AccountNotFoundError()
     app = make_app(config=config, account_service=account_service)
-    access_token = TokenService(config.auth).issue_access_token(
+    access_token = get_token_service(config).issue_access_token(
         account_id, now=utc_now()
     )
 
@@ -145,4 +135,4 @@ def test_accounts_me_rejects_deleted_account(config: Config) -> None:
         }
     }
     assert response.headers["www-authenticate"] == "Bearer"
-    account_service.get_account.assert_awaited_once_with(account_id)
+    account_service.execute.assert_awaited_once_with(sentinel.db_session, account_id)

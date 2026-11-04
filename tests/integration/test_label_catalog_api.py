@@ -10,16 +10,15 @@ import pytest_asyncio
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
 from mosemo.activity_labels.catalog.models import Label, default_labels
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
-from mosemo.api.dependencies import get_kakao_client, get_oauth_client_resolver
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
-from mosemo.auth.kakao_client import KakaoClient
-from mosemo.auth.pkce import create_code_challenge
-from mosemo.auth.tokens import TokenService
+from mosemo.identity.bootstrap import get_kakao_client, get_oauth_client_resolver
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.domain.pkce import create_code_challenge
+from mosemo.identity.infrastructure.kakao_client import KakaoClient
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.database import get_session
@@ -140,21 +139,21 @@ async def test_label_catalog_returns_owned_active_and_archived_labels(
             provider=AccountProvider.KAKAO,
             provider_subject=f"label-catalog-{uuid4()}",
         )
-        AccountRepository(session).add(owner)
+        session.add(owner)
         other = Account(
             provider=AccountProvider.KAKAO,
             provider_subject=f"label-catalog-{uuid4()}",
         )
-        AccountRepository(session).add(other)
+        session.add(other)
         await session.flush()
-        defaults = default_labels(owner.account_id)
+        defaults = default_labels(owner.id)
         LabelCatalogRepository(session).add_all(defaults)
         defaults[0].created_at = created_at
         defaults[0].updated_at = updated_at
         defaults[0].archived_at = archived_at
-        custom_active = Label(account_id=owner.account_id, display_name="독서")
+        custom_active = Label(account_id=owner.id, display_name="독서")
         custom_archived = Label(
-            account_id=owner.account_id,
+            account_id=owner.id,
             display_name="산책",
             created_at=created_at,
             updated_at=updated_at,
@@ -164,18 +163,18 @@ async def test_label_catalog_returns_owned_active_and_archived_labels(
             [
                 custom_active,
                 custom_archived,
-                Label(account_id=other.account_id, display_name="다른 계정의 라벨"),
+                Label(account_id=other.id, display_name="다른 계정의 라벨"),
             ]
         )
         await session.flush()
-        owner_id = owner.account_id
+        owner_id = owner.id
         expected_ids = {
             label.display_name: str(label.label_id)
             for label in [*defaults, custom_active, custom_archived]
         }
         await session.commit()
 
-    token = TokenService(config.auth).issue_access_token(owner_id, now=utc_now())
+    token = get_token_service(config).issue_access_token(owner_id, now=utc_now())
     response = await client.get(
         "/api/v1/labels",
         headers={"Authorization": f"Bearer {token}"},
@@ -220,12 +219,12 @@ async def test_label_catalog_returns_empty_array_for_account_without_labels(
             provider=AccountProvider.KAKAO,
             provider_subject=f"label-catalog-empty-{uuid4()}",
         )
-        AccountRepository(session).add(account)
+        session.add(account)
         await session.flush()
-        account_id = account.account_id
+        account_id = account.id
         await session.commit()
 
-    token = TokenService(config.auth).issue_access_token(account_id, now=utc_now())
+    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
     response = await client.get(
         "/api/v1/labels",
         headers={"Authorization": f"Bearer {token}"},
@@ -272,11 +271,9 @@ async def test_label_catalog_rejects_token_for_deleted_account(
             provider=AccountProvider.KAKAO,
             provider_subject=f"label-catalog-deleted-{uuid4()}",
         )
-        AccountRepository(session).add(account)
+        session.add(account)
         await session.flush()
-        token = TokenService(config.auth).issue_access_token(
-            account.account_id, now=utc_now()
-        )
+        token = get_token_service(config).issue_access_token(account.id, now=utc_now())
         await session.delete(account)
         await session.commit()
 
