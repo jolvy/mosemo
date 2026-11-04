@@ -588,8 +588,8 @@ ALLOWED_BROAD_EXCEPTS = {
         "    except Exception, asyncio.CancelledError:\n"
         "        exit(1)\n"
     ),
-    "src/mosemo/infra/batch_consumer.py": (
-        "class ActivityBatchConsumer:\n"
+    "src/mosemo/infra/messaging/subscriber.py": (
+        "class MessageConsumer:\n"
         "    async def handle(self):\n"
         "        try:\n"
         "            pass\n"
@@ -679,14 +679,14 @@ def test_broad_excepts_use_enclosing_class_and_function_names(
         "    def handle(self):\n"
         "        try:\n            pass\n        except Exception:\n            pass\n"
     )
-    trees = broad_except_trees(**{"src/mosemo/infra/batch_consumer.py": source})
+    trees = broad_except_trees(**{"src/mosemo/infra/messaging/subscriber.py": source})
     errors = conventions_validator.check_broad_excepts(trees)
     assert [error.split(": ", 2)[:2] for error in errors] == [
-        ["src/mosemo/infra/batch_consumer.py:5", "CS-P18"],
-        ["src/mosemo/infra/batch_consumer.py", "CS-P18"],
+        ["src/mosemo/infra/messaging/subscriber.py:5", "CS-P18"],
+        ["src/mosemo/infra/messaging/subscriber.py", "CS-P18"],
     ]
     assert "`Other.handle`" in errors[0]
-    assert "`ActivityBatchConsumer.handle`" in errors[1]
+    assert "`MessageConsumer.handle`" in errors[1]
 
 
 def test_broad_excepts_reject_listed_function_without_handler(

@@ -31,7 +31,7 @@ BROAD_EXCEPT_ALLOWED = {
     # 프로세스 경계
     ("src/mosemo/batch/__main__.py", "main"): 1,
     # 오류를 runtime supervisor로 넘김
-    ("src/mosemo/infra/batch_consumer.py", "ActivityBatchConsumer.handle"): 1,
+    ("src/mosemo/infra/messaging/subscriber.py", "MessageConsumer.handle"): 1,
     # 어떤 오류든 앱으로 실패 리다이렉트
     ("src/mosemo/auth/router.py", "callback"): 1,
     # 후보 하나의 제안 생성 실패는 시도 실패로 기록하고 스캐너를 멈추지 않음

@@ -1,44 +1,35 @@
 """Supervise registered FastStream execution and partition ownership cleanup."""
 
 import asyncio
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable
+from dataclasses import dataclass
 from typing import override
 
-from faststream import BaseMiddleware
+from faststream import AckPolicy, BaseMiddleware
 from faststream.kafka import KafkaBroker, KafkaMessage
 
-from mosemo.activities.executor import BatchProcessingExecutor
-from mosemo.activities.handler import register_activity_handler
-from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.infra.kafka_compat import BatchPartition, BatchRebalanceAdapter
 
 
-class InvalidBatchMessageError(ValueError):
-    """Safe diagnostic only; do not expose message contents."""
+@dataclass(frozen=True)
+class RawMessage:
+    key: bytes | None
+    value: bytes | None
 
 
-def decode_batch(
-    key: bytes | None, value: bytes | None
-) -> ActivityRegistrationRequested:
-    try:
-        message = ActivityRegistrationRequested.model_validate_json(value or b"")
-        if key != str(message.account_id).encode("utf-8"):
-            raise ValueError("account key mismatch")
-    except ValueError:
-        raise InvalidBatchMessageError("invalid_activity_batch_message") from None
-    return message
+type MessageProcessor = Callable[[RawMessage], Awaitable[None]]
 
 
-class ActivityBatchConsumer:
+class MessageConsumer:
     def __init__(
         self,
         broker: KafkaBroker,
-        executor: BatchProcessingExecutor,
+        process: MessageProcessor,
         *,
         shutdown_timeout: float = 30.0,
     ):
         self.broker = broker
-        self.executor = executor
+        self.process = process
         self.shutdown_timeout = shutdown_timeout
         self._closing = False
         self._stop: asyncio.Event | None = None
@@ -50,6 +41,22 @@ class ActivityBatchConsumer:
         self._closing = True
         if self._failure is not None and not self._failure.done():
             self._failure.set_exception(error)
+
+    def _subscribe(self, topic: str, *, group_id: str) -> None:
+        subscriber = self.broker.subscriber(
+            topic,
+            group_id=group_id,
+            auto_offset_reset="earliest",
+            ack_policy=AckPolicy.MANUAL,
+            max_workers=2,
+            listener=BatchRebalanceAdapter(self),
+            decoder=lambda message: message.body,
+            no_reply=True,
+        )
+
+        @subscriber
+        async def receive(message: KafkaMessage) -> None:
+            await self.handle(message)
 
     async def run(self, topic: str, stop: asyncio.Event, *, group_id: str) -> None:
         self._stop = stop
@@ -65,13 +72,7 @@ class ActivityBatchConsumer:
                 return False
 
         self.broker.add_middleware(ObserveErrors)
-        register_activity_handler(
-            self.broker,
-            self.handle,
-            topic=topic,
-            group_id=group_id,
-            listener=BatchRebalanceAdapter(self),
-        )
+        self._subscribe(topic, group_id=group_id)
         stopped = asyncio.create_task(stop.wait())
         startup = asyncio.create_task(self.broker.start())
         try:
@@ -121,7 +122,7 @@ class ActivityBatchConsumer:
             if current is not None and current.cancelling():
                 raise
             if task not in self._revoked and not self._closing:
-                self._fail(RuntimeError("activity_batch_execution_cancelled"))
+                self._fail(RuntimeError("message_execution_cancelled"))
         except Exception as error:  # propagate through runtime supervisor
             self._fail(error)
         finally:
@@ -132,8 +133,7 @@ class ActivityBatchConsumer:
     async def _execute(self, message: KafkaMessage) -> None:
         raw = message.raw_message
         assert not isinstance(raw, tuple)
-        batch = decode_batch(raw.key, raw.value)
-        await self.executor.execute(batch)
+        await self.process(RawMessage(raw.key, raw.value))
         # FastStream manual mode disables auto-commit; each native worker
         # handles one message at a time and ACKs before reading its next one.
         await message.ack()

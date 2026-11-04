@@ -14,9 +14,9 @@ from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.middleware import BatchBodyLimitMiddleware
 from mosemo.api.routes import v1_api_router
 from mosemo.auth.tokens import TokenService
-from mosemo.infra.batch_delivery import DeliveryUnavailableError
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
+from mosemo.infra.messaging.publisher import DeliveryUnavailableError
 
 
 def activity_request():

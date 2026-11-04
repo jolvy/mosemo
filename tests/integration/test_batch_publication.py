@@ -47,7 +47,7 @@ async def test_http_waits_for_real_publication_ack_without_running_db_processing
                 transport=httpx2.ASGITransport(app=manager.app), base_url="http://test"
             ) as client,
         ):
-            producer = app.state.batch_publisher.broker
+            producer = app.state.batch_publisher.publisher.broker
             real_send = producer.publish
 
             async def held_send(*args, **kwargs):

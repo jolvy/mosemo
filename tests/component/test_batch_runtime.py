@@ -9,11 +9,11 @@ from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
 
 from mosemo.activities.executor import LegacyBatchExecutor
+from mosemo.api.activity_batches import compose_messaging_app
 from mosemo.api.dependencies import get_device_repository
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
 from mosemo.auth.tokens import TokenService
-from mosemo.infra.batch_runtime import compose_messaging_app
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import BatchDeliveryConfig, Config, get_config
 from tests.component.test_activities_api import activity_request as payload
@@ -56,14 +56,14 @@ async def test_api_lifecycle_closes_producer_and_preserves_inner_state(
     if failure == "startup":
         producer.start.side_effect = RuntimeError("startup")
     constructor = Mock(return_value=producer)
-    monkeypatch.setattr("mosemo.infra.batch_runtime.KafkaBroker", constructor)
+    monkeypatch.setattr("mosemo.infra.messaging.runtime.KafkaBroker", constructor)
     config = BatchDeliveryConfig(bootstrap_servers="test:9092", topic="custom")
     app = compose_messaging_app(FastAPI(lifespan=inner), config)
     try:
         async with app.router.lifespan_context(app) as state:
             assert state is not None
             assert state["http_client"] == "preserved"
-            assert app.state.batch_publisher.topic == "custom"
+            assert app.state.batch_publisher.publisher.topic == "custom"
             producer.start.assert_awaited_once()
             if failure == "cancel":
                 raise asyncio.CancelledError
@@ -90,7 +90,7 @@ async def test_cancel_during_producer_start_closes_connection(monkeypatch):
 
     producer.start.side_effect = held
     monkeypatch.setattr(
-        "mosemo.infra.batch_runtime.KafkaBroker", Mock(return_value=producer)
+        "mosemo.infra.messaging.runtime.KafkaBroker", Mock(return_value=producer)
     )
     app = compose_messaging_app(FastAPI(), BatchDeliveryConfig())
 
@@ -112,7 +112,7 @@ async def test_disabled_publication_still_runs_api_lifecycle(config, monkeypatch
     config.batch_delivery.enabled = False
     app, _, _, headers = make_app(config)
     constructor = Mock(side_effect=AssertionError("must not connect"))
-    monkeypatch.setattr("mosemo.infra.batch_runtime.KafkaBroker", constructor)
+    monkeypatch.setattr("mosemo.infra.messaging.runtime.KafkaBroker", constructor)
     async with (
         LifespanManager(app) as manager,
         httpx2.AsyncClient(
@@ -243,7 +243,8 @@ async def test_legacy_processing_errors(config, monkeypatch, error, expected):
 async def test_http_maps_publisher_failure_to_retryable_503(config, failure):
     from aiokafka.errors import KafkaConnectionError
 
-    from mosemo.infra.batch_delivery import ActivityBatchPublisher
+    from mosemo.api.activity_batches import ActivityBatchPublisher
+    from mosemo.infra.messaging.publisher import KafkaPublisher
 
     app, _, _, headers = make_app(config)
     producer = AsyncMock()
@@ -259,7 +260,7 @@ async def test_http_maps_publisher_failure_to_retryable_503(config, failure):
         KafkaConnectionError() if failure == "connection" else stalled
     )
     app.state.batch_publisher = ActivityBatchPublisher(
-        producer, topic="test", acknowledgment_timeout=0.02
+        KafkaPublisher(producer, topic="test", acknowledgment_timeout=0.02)
     )
     async with httpx2.AsyncClient(
         transport=httpx2.ASGITransport(app=app), base_url="http://test"
