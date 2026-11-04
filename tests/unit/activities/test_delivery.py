@@ -7,10 +7,10 @@ import pytest
 from aiokafka.errors import KafkaConnectionError, MessageSizeTooLargeError
 from pydantic import ValidationError
 
-from mosemo.activities.messages import ActivityRegistrationRequested
-from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.api.activity_batches import ActivityBatchPublisher
 from mosemo.infra.messaging.publisher import DeliveryUnavailableError, KafkaPublisher
+from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
+from mosemo.observation.presentation.messages import ActivityRegistrationRequested
 from tests.component.test_activities_api import activity_request
 
 

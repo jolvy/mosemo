@@ -11,7 +11,7 @@ from mosemo.api.exception_handlers import (
     _validation_details,
     register_exception_handlers,
 )
-from mosemo.exceptions import ErrorCode
+from mosemo.observation.public import ObservationErrorCode
 from mosemo.shared.errors import ApiErrorCode, ApiException, CommonErrorCode
 from mosemo.shared.presentation.schemas import ValidationDetail
 
@@ -105,9 +105,9 @@ def test_validation_details_rejects_empty_framework_errors() -> None:
     ("spec", "headers"),
     [
         (CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN, {"www-authenticate": "Bearer"}),
-        (ErrorCode.ACTIVITY_TIMELINE_BUSY, {"retry-after": "1"}),
-        (ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE, {"retry-after": "1"}),
-        (ErrorCode.ACTIVITY_DEVICE_NOT_FOUND, {}),
+        (ObservationErrorCode.ACTIVITY_TIMELINE_BUSY, {"retry-after": "1"}),
+        (ObservationErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE, {"retry-after": "1"}),
+        (ObservationErrorCode.ACTIVITY_DEVICE_NOT_FOUND, {}),
     ],
 )
 def test_api_exception_handler_owns_error_header_policy(

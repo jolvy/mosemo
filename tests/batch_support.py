@@ -11,9 +11,10 @@ from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from mosemo.activities.models import ActivityBatchReceipt
 from mosemo.api.activity_batches import compose_messaging_app
 from mosemo.infra.config import BatchDeliveryConfig
+from mosemo.observation.domain.activities import ActivityBatchReceipt
+from mosemo.observation.infrastructure.tables import activity_batch_receipts
 
 
 class BatchClient(httpx2.AsyncClient):
@@ -45,7 +46,7 @@ async def receipt_for(
     async with test_client.session_factory() as session:
         receipt = await session.scalar(
             select(ActivityBatchReceipt).where(
-                ActivityBatchReceipt.batch_id == UUID(response.json()["batchId"])
+                activity_batch_receipts.c.batch_id == UUID(response.json()["batchId"])
             )
         )
     assert receipt is not None

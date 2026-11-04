@@ -3,9 +3,9 @@ from uuid import uuid4
 
 import pytest
 
-from mosemo.activities.enums import RecordType
-from mosemo.activities.models import ActivityRecord
-from mosemo.activities.timeline import ProjectionError, project_events
+from mosemo.observation.domain.activities import ActivityRecord, RecordType
+from mosemo.observation.domain.timeline import ProjectionError, project_events
+from mosemo.shared.domain.timezones import Timezone
 
 
 def record(second, sequence=0, device=None):
@@ -15,6 +15,8 @@ def record(second, sequence=0, device=None):
         sequence=sequence,
         record_type=RecordType.ACTIVITY_OBSERVATION,
         observed_at=datetime(2026, 9, 14, 0, 0, second, tzinfo=UTC),
+        timezone_id=Timezone.ASIA_SEOUL,
+        utc_offset_minutes=540,
         payload={"context": {"kind": "opaque"}},
     )
 
@@ -30,10 +32,13 @@ def test_incremental_last_state_matches_full_replay_across_mixed_records(seed):
     from datetime import timedelta
     from random import Random
 
-    from mosemo.activities.batch_processing import segment_seed
-    from mosemo.activities.enums import SegmentType
-    from mosemo.activities.models import ActivityTimelineSegment
-    from mosemo.activities.timeline import ProjectedActivity, TimelineProjection
+    from mosemo.observation.application.batches import segment_seed
+    from mosemo.observation.domain.timeline import (
+        ActivityTimelineSegment,
+        ProjectedActivity,
+        SegmentType,
+        TimelineProjection,
+    )
 
     random = Random(seed)
     device = uuid4()
@@ -48,6 +53,8 @@ def test_incremental_last_state_matches_full_replay_across_mixed_records(seed):
                 device_id=device,
                 sequence=sequence * 10,
                 observed_at=time,
+                timezone_id=Timezone.ASIA_SEOUL,
+                utc_offset_minutes=540,
                 record_type=RecordType.ACTIVITY_OBSERVATION
                 if state == "observation"
                 else RecordType.COLLECTION_STATE_CHANGED,
@@ -66,7 +73,8 @@ def test_incremental_last_state_matches_full_replay_across_mixed_records(seed):
         if incremental:
             last = incremental[-1]
             stored = ActivityTimelineSegment(
-                segment_id=uuid4(),
+                id=uuid4(),
+                account_id=uuid4(),
                 started_at=last.started_at,
                 ended_at=last.ended_at,
                 first_event_id=last.first_event_id,

@@ -3,9 +3,9 @@ from uuid import uuid4
 
 from pydantic import TypeAdapter
 
-from mosemo.activities.enums import RecordType
-from mosemo.activities.mappers import ActivityRecordMapper
-from mosemo.activities.schemas import ActivityRecord
+from mosemo.observation.domain.activities import RecordType
+from mosemo.observation.presentation.activities.mappers import ActivityRecordMapper
+from mosemo.observation.presentation.activities.schemas import ActivityRecord
 from mosemo.shared.domain.timezones import Timezone
 
 activity_record_adapter = TypeAdapter(ActivityRecord)

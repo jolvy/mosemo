@@ -1,8 +1,10 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from mosemo.focus_sessions.mappers import FocusSessionMapper
-from mosemo.focus_sessions.schemas import FocusSessionCreateRequest
+from mosemo.observation.presentation.focus_sessions.mappers import FocusSessionMapper
+from mosemo.observation.presentation.focus_sessions.schemas import (
+    FocusSessionCreateRequest,
+)
 
 
 def test_to_entity_copies_request_values_and_account_id() -> None:
@@ -18,7 +20,7 @@ def test_to_entity_copies_request_values_and_account_id() -> None:
 
     entity = FocusSessionMapper().to_entity(request, account_id=account_id)
 
-    assert entity.session_id == request.session_id
+    assert entity.id == request.session_id
     assert entity.account_id == account_id
     assert entity.device_id == request.device_id
     assert entity.started_at == datetime(2026, 9, 14, 9, tzinfo=UTC)

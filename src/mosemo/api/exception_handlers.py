@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from mosemo.exceptions import ErrorCode
+from mosemo.observation.public import ObservationErrorCode
 from mosemo.shared.errors import ApiException, CommonErrorCode
 from mosemo.shared.presentation.responses import error_response
 from mosemo.shared.presentation.schemas import ValidationDetail
@@ -45,8 +45,8 @@ async def api_exception_handler(
     if exc.spec is CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN:
         headers = {"WWW-Authenticate": "Bearer"}
     elif exc.spec in {
-        ErrorCode.ACTIVITY_TIMELINE_BUSY,
-        ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
+        ObservationErrorCode.ACTIVITY_TIMELINE_BUSY,
+        ObservationErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
     }:
         headers = {"Retry-After": "1"}
     return error_response(exc.spec, details=exc.details, headers=headers)

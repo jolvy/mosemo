@@ -11,18 +11,31 @@ from asgi_lifespan import LifespanManager
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.activities.batch_processing import batch_fingerprint
-from mosemo.activities.mappers import ActivityRecordMapper
-from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
-from mosemo.activities.repository import ActivityRepository
-from mosemo.activities.schemas import ActivityBatchRequest
-from mosemo.activities.timeline import ProjectedActivity, project_events
 from mosemo.identity.bootstrap import create_device_directory
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
 from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config
+from mosemo.observation.domain.activities import ActivityBatchReceipt, ActivityRecord
+from mosemo.observation.domain.timeline import ProjectedActivity, project_events
+from mosemo.observation.infrastructure.activity_records import (
+    ActivityRecordRepository,
+)
+from mosemo.observation.infrastructure.tables import (
+    activity_batch_receipts,
+    activity_records,
+    activity_timeline_segments,
+)
+from mosemo.observation.infrastructure.timeline_segments import (
+    TimelineSegmentRepository,
+)
+from mosemo.observation.presentation.activities.mappers import (
+    ActivityRecordMapper,
+    batch_fingerprint,
+)
+from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
+from mosemo.shared.application.events import EventDispatcher
 from tests.clock_support import FakeClock
 from tests.identity_support import delete_accounts
 
@@ -132,10 +145,10 @@ async def counts(factory, device):
             [
                 await session.scalar(
                     select(func.count())
-                    .select_from(model)
-                    .where(model.device_id == device)
+                    .select_from(table)
+                    .where(table.c.device_id == device)
                 )
-                for model in (ActivityRecord, ActivityBatchReceipt)
+                for table in (activity_records, activity_batch_receipts)
             ]
         )
 
@@ -207,15 +220,15 @@ async def test_postgres_projection_failure_rolls_back_whole_batch_and_other_acco
     real_batch_app, monkeypatch
 ):
     _app, client, factory, _, devices, headers, _ = real_batch_app
-    original = ActivityRepository.replace_account_segments
+    original = TimelineSegmentRepository.replace_account_segments
 
-    async def fail_after_flush(self, **kwargs):
-        await original(self, **kwargs)
+    async def fail_after_flush(self, db_session, **kwargs):
+        await original(self, db_session, **kwargs)
         if kwargs["account_id"] == real_batch_app[3][0]:
-            await self._session.execute(text("SELECT 1/0"))
+            await db_session.execute(text("SELECT 1/0"))
 
     monkeypatch.setattr(
-        ActivityRepository, "replace_account_segments", fail_after_flush
+        TimelineSegmentRepository, "replace_account_segments", fail_after_flush
     )
     payload = batch(devices[0], [record(0, 0), record(20, 20)])
     assert (
@@ -226,8 +239,8 @@ async def test_postgres_projection_failure_rolls_back_whole_batch_and_other_acco
     assert await counts(factory, devices[0]) == (0, 0)
     async with factory() as session:
         assert (
-            await ActivityRepository(session).list_account_segments(
-                real_batch_app[3][0]
+            await TimelineSegmentRepository().list_account_segments(
+                session, real_batch_app[3][0]
             )
             == []
         )
@@ -271,14 +284,14 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
             )
         ).status_code == 200
     pages = []
-    original = ActivityRepository.list_record_page
+    original = ActivityRecordRepository.list_record_page
 
     async def counted(self, *args, **kwargs):
         page = await original(self, *args, **kwargs)
         pages.append(len(page))
         return page
 
-    monkeypatch.setattr(ActivityRepository, "list_record_page", counted)
+    monkeypatch.setattr(ActivityRecordRepository, "list_record_page", counted)
     appended = batch(devices[0], [record(4000, 400, context=context(400))])
     assert (
         await client.post(
@@ -287,7 +300,9 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
     ).status_code == 200
     assert pages == []
     async with factory() as session:
-        before = await ActivityRepository(session).list_account_segments(accounts[0])
+        before = await TimelineSegmentRepository().list_account_segments(
+            session, accounts[0]
+        )
     late = batch(
         devices[0],
         [
@@ -302,12 +317,14 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
     ).status_code == 200
     assert pages == [128]
     async with factory() as session:
-        repo = ActivityRepository(session)
-        source = await repo.list_account_records(
+        source = await ActivityRecordRepository().list_account_records(
+            session,
             await create_device_directory().list_device_ids(session, accounts[0]),
             from_observed_at=datetime(2026, 9, 14, tzinfo=UTC),
         )
-        segments = await repo.list_account_segments(accounts[0])
+        segments = await TimelineSegmentRepository().list_account_segments(
+            session, accounts[0]
+        )
     reference = project_events(source, now=fake_clock.now)
     for stored, expected in zip(segments, reference, strict=True):
         assert (stored.started_at, stored.ended_at, stored.first_event_id) == (
@@ -319,11 +336,9 @@ async def test_append_and_past_replay_match_full_reference_and_stop_reading_suff
         assert stored.last_observed_at == expected.last_observed_at
         assert stored.last_event_id == expected.last_event_id
         assert stored.context == expected.context
-    unchanged = {
-        s.first_event_id: s.segment_id for s in before if s.started_at.second > 15
-    }
+    unchanged = {s.first_event_id: s.id for s in before if s.started_at.second > 15}
     assert all(
-        s.segment_id == unchanged[s.first_event_id]
+        s.id == unchanged[s.first_event_id]
         for s in segments
         if s.first_event_id in unchanged
     )
@@ -356,18 +371,18 @@ async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
     entered = asyncio.Event()
     release = asyncio.Event()
     arrivals = 0
-    original = ActivityRepository.add_if_absent
+    original = ActivityRecordRepository.get_or_create
     shared_event = uuid4()
 
-    async def simultaneous(self, source):
+    async def simultaneous(self, db_session, source):
         nonlocal arrivals
         arrivals += 1
         if arrivals == 2:
             entered.set()
         await release.wait()
-        return await original(self, source)
+        return await original(self, db_session, source)
 
-    monkeypatch.setattr(ActivityRepository, "add_if_absent", simultaneous)
+    monkeypatch.setattr(ActivityRecordRepository, "get_or_create", simultaneous)
     first_source = batch(devices[0], [record(0, 0, event_id=shared_event)])
     second_source = batch(devices[1], [record(0, 1, event_id=shared_event)])
     async with (
@@ -448,24 +463,26 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
         )
     )
     async with factory() as session:
-        repo = ActivityRepository(session)
+        records = ActivityRecordRepository()
+        segments = TimelineSegmentRepository()
         stored: list[ActivityRecord] = []
         for source in legacy.activity_records():
-            inserted = await repo.add_if_absent(
-                ActivityRecordMapper().to_entity(source)
+            inserted, created = await records.get_or_create(
+                session, ActivityRecordMapper().to_entity(source)
             )
-            assert inserted is not None
+            assert created
             stored.append(inserted)
         # Legacy ties followed received_at: B before A, and F before E.
-        await repo.replace_account_segments(
+        await segments.replace_account_segments(
+            session,
             account_id=accounts[0],
             projected=project_events(stored, now=fake_clock.now),
             existing=[],
             event_observed_at=stored[-1].observed_at,
         )
         await session.commit()
-        original = await repo.list_account_segments(accounts[0])
-        unchanged_id = next(s.segment_id for s in original if s.context == context("C"))
+        original = await segments.list_account_segments(session, accounts[0])
+        unchanged_id = next(s.id for s in original if s.context == context("C"))
 
     def shape(segment):
         return (
@@ -479,18 +496,17 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
 
     async def assert_matches_full_replay():
         async with factory() as session:
-            repo = ActivityRepository(session)
-            source = await repo.list_account_records(
+            source = await ActivityRecordRepository().list_account_records(
+                session,
                 await create_device_directory().list_device_ids(session, accounts[0]),
                 from_observed_at=stored[0].observed_at,
             )
-            segments = await repo.list_account_segments(accounts[0])
+            segments = await TimelineSegmentRepository().list_account_segments(
+                session, accounts[0]
+            )
         reference = project_events(source, now=fake_clock.now)
         assert [shape(s) for s in segments] == [shape(s) for s in reference]
-        assert (
-            next(s.segment_id for s in segments if s.context == context("C"))
-            == unchanged_id
-        )
+        assert next(s.id for s in segments if s.context == context("C")) == unchanged_id
 
     first = {
         "append": record(70, 220, context=context("E")),
@@ -499,13 +515,13 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
         "rollback": record(70, 220, context=context("E")),
     }[first_batch]
     payload = batch(devices[0], [first])
-    original_insert = ActivityRepository.add_if_absent
+    original_insert = ActivityRecordRepository.get_or_create
     if first_batch == "rollback":
 
-        async def fail_insert(self, source):
+        async def fail_insert(self, db_session, source):
             raise RuntimeError("controlled failure after legacy rebuild")
 
-        monkeypatch.setattr(ActivityRepository, "add_if_absent", fail_insert)
+        monkeypatch.setattr(ActivityRecordRepository, "get_or_create", fail_insert)
     assert (
         await client.post(
             "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
@@ -514,13 +530,13 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
     if first_batch == "rollback":
         assert await counts(factory, devices[0]) == (len(stored), 0)
         async with factory() as session:
-            rolled_back = await ActivityRepository(session).list_account_segments(
-                accounts[0]
+            rolled_back = await TimelineSegmentRepository().list_account_segments(
+                session, accounts[0]
             )
-        assert [(s.segment_id, shape(s)) for s in rolled_back] == [
-            (s.segment_id, shape(s)) for s in original
+        assert [(s.id, shape(s)) for s in rolled_back] == [
+            (s.id, shape(s)) for s in original
         ]
-        monkeypatch.setattr(ActivityRepository, "add_if_absent", original_insert)
+        monkeypatch.setattr(ActivityRecordRepository, "get_or_create", original_insert)
         response = await client.post(
             "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
         )
@@ -532,13 +548,13 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
     await assert_matches_full_replay()
 
     pages = []
-    original_page = ActivityRepository.list_record_page
+    original_page = ActivityRecordRepository.list_record_page
 
     async def counted(self, *args, **kwargs):
         pages.append(kwargs)
         return await original_page(self, *args, **kwargs)
 
-    monkeypatch.setattr(ActivityRepository, "list_record_page", counted)
+    monkeypatch.setattr(ActivityRecordRepository, "list_record_page", counted)
     for following in [
         payload,
         batch(devices[0], [record(80, 230, context=context("E"))]),
@@ -556,7 +572,7 @@ async def test_first_receipt_rebuilds_legacy_tie_order_before_incremental_proces
 async def test_first_receipt_detects_legacy_clock_regression_without_rewriting_raw(
     real_batch_app,
 ):
-    from mosemo.activities.enums import RecordType
+    from mosemo.observation.domain.activities import RecordType
     from mosemo.shared.domain.timezones import Timezone
 
     _app, client, factory, _, devices, headers, _ = real_batch_app
@@ -599,8 +615,8 @@ async def test_legacy_commits_projection_retries_and_rolls_back_invalid_batch(
     ]
     assert await counts(factory, devices[0]) == (2, 1)
     async with factory() as session:
-        segments = await ActivityRepository(session).list_segment_range(
-            accounts[0], start=datetime.min.replace(tzinfo=UTC)
+        segments = await TimelineSegmentRepository().list_segment_range(
+            session, accounts[0], start=datetime.min.replace(tzinfo=UTC)
         )
         assert segments
     retry = await client.post(path, headers=headers[0], json=source)
@@ -632,14 +648,14 @@ async def test_normalized_retry_and_conflict_preserve_receipt_and_timeline(
                 ActivityBatchReceipt,
                 (accounts[0], devices[0], UUID(payload["batchId"])),
             )
-            segments = await ActivityRepository(session).list_account_segments(
-                accounts[0]
+            segments = await TimelineSegmentRepository().list_account_segments(
+                session, accounts[0]
             )
             return (
                 receipt.fingerprint,
                 receipt.results,
                 receipt.processed_at,
-                [(s.segment_id, s.started_at, s.ended_at) for s in segments],
+                [(s.id, s.started_at, s.ended_at) for s in segments],
             )
 
     first = await client.post(path, headers=headers[0], json=payload)
@@ -674,8 +690,10 @@ async def test_normalized_retry_and_conflict_preserve_receipt_and_timeline(
 async def test_legacy_serializes_until_commit_or_rollback(
     real_batch_app, monkeypatch, fail_first
 ):
-    from mosemo.activities.batch_processing import ActivityBatchProcessor
-    from mosemo.activities.repository import activity_timeline_lock_key
+    from mosemo.observation.application.batches import ActivityBatchProcessor
+    from mosemo.observation.infrastructure.timeline_segments import (
+        activity_timeline_lock_key,
+    )
 
     _, client, factory, accounts, devices, headers, _ = real_batch_app
     entered, release = asyncio.Event(), asyncio.Event()
@@ -734,12 +752,11 @@ async def test_legacy_serializes_until_commit_or_rollback(
 async def test_legacy_lock_timeout_keeps_http_contract_and_releases_transaction(
     real_batch_app,
 ):
-    from mosemo.activities.repository import ActivityRepository
 
     _, client, factory, accounts, devices, headers, _ = real_batch_app
     payload = batch(devices[0], [record(0, 0)])
     async with factory() as holder, holder.begin():
-        await ActivityRepository(holder).lock_timeline(accounts[0])
+        await TimelineSegmentRepository().lock_timeline(holder, accounts[0])
         response = await asyncio.wait_for(
             client.post(
                 "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
@@ -764,10 +781,11 @@ async def test_executors_rollback_raw_projection_and_receipt(
 ):
     from sqlalchemy import event
 
-    from mosemo.activities.batch_processing import ActivityBatchProcessor
-    from mosemo.activities.executor import BatchProcessingExecutor
-    from mosemo.activities.messages import ActivityRegistrationRequested
-    from mosemo.activities.models import ActivityTimelineSegment
+    from mosemo.consumer.activity_batches import BatchProcessingExecutor
+    from mosemo.observation.application.batches import ActivityBatchProcessor
+    from mosemo.observation.bootstrap import create_process_activity_batch
+    from mosemo.observation.domain.timeline import ActivityTimelineSegment
+    from mosemo.observation.presentation.messages import ActivityRegistrationRequested
 
     _, client, factory, accounts, devices, headers, _ = real_batch_app
     payload = ActivityBatchRequest.model_validate(batch(devices[0], [record(0, 0)]))
@@ -795,7 +813,12 @@ async def test_executors_rollback_raw_projection_and_receipt(
         else:
             with pytest.raises(RuntimeError, match=f"injected {failure} failure"):
                 await BatchProcessingExecutor(
-                    factory, clock=fake_clock, devices=create_device_directory()
+                    factory,
+                    process_batch=create_process_activity_batch(
+                        devices=create_device_directory(),
+                        dispatcher=EventDispatcher(),
+                        clock=fake_clock,
+                    ),
                 ).execute(
                     ActivityRegistrationRequested.from_batch(accounts[0], payload)
                 )
@@ -805,7 +828,7 @@ async def test_executors_rollback_raw_projection_and_receipt(
                 await session.scalar(
                     select(func.count())
                     .select_from(ActivityTimelineSegment)
-                    .where(ActivityTimelineSegment.account_id == accounts[0])
+                    .where(activity_timeline_segments.c.account_id == accounts[0])
                 )
                 == 0
             )

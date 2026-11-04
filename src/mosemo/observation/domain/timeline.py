@@ -1,16 +1,117 @@
+import json
 from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import StrEnum
+from hashlib import sha256
 from typing import cast
-from uuid import UUID
+from uuid import UUID, uuid7
 
-from mosemo.activities.constants import MAX_OBSERVATION_GAP
-from mosemo.activities.enums import CollectionState, RecordType, SegmentType
-from mosemo.activities.models import ActivityRecord, ActivityTimelineSegment
+from mosemo.observation.domain.activities import (
+    MAX_OBSERVATION_GAP,
+    ActivityRecord,
+    CollectionState,
+    RecordType,
+)
+from mosemo.shared.domain.aggregates import AggregateRoot
+
+
+class SegmentType(StrEnum):
+    ACTIVITY = "activity"
+    CAPTURE_GAP = "capture_gap"
+
+
+class ActivityTimelineKind(StrEnum):
+    CAPTURE_GAP = "capture_gap"
+    OPAQUE_ACTIVITY = "opaque_activity"
+    IN_PROGRESS_ACTIVITY = "in_progress_activity"
+    CLOSED_DETAILED_ACTIVITY = "closed_detailed_activity"
+
+
+class ActivityTimelineBusyError(Exception):
+    pass
 
 
 class ProjectionError(Exception):
     pass
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class ActivityTimelineSegment(AggregateRoot):
+    id: UUID = field(default_factory=uuid7)
+    account_id: UUID
+    segment_type: SegmentType
+    started_at: datetime
+    ended_at: datetime | None = None
+    first_event_id: UUID
+    last_event_id: UUID | None = None
+    last_observed_at: datetime | None = None
+    context: dict[str, object] | None = None
+    reason: str | None = None
+
+    def effective_ended_at(self, now: datetime) -> datetime | None:
+        if self.segment_type is SegmentType.CAPTURE_GAP or self.ended_at is not None:
+            return self.ended_at
+
+        assert self.last_observed_at is not None
+        if now - self.last_observed_at > MAX_OBSERVATION_GAP:
+            return self.last_observed_at
+        return None
+
+    def overlaps_window(
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        now: datetime,
+    ) -> bool:
+        ended_at = self.effective_ended_at(now)
+        if ended_at is None:
+            if self.segment_type is SegmentType.ACTIVITY:
+                assert self.last_observed_at is not None
+                return self.started_at < end and self.last_observed_at >= start
+            return self.started_at < end
+        if ended_at == self.started_at:
+            return start <= self.started_at < end
+        return self.started_at < end and ended_at > start
+
+    def timeline_kind_at(self, now: datetime) -> ActivityTimelineKind:
+        if self.segment_type is SegmentType.CAPTURE_GAP:
+            return ActivityTimelineKind.CAPTURE_GAP
+
+        assert self.context is not None
+        context_kind = self.context.get("kind")
+        if context_kind == "opaque":
+            return ActivityTimelineKind.OPAQUE_ACTIVITY
+        if context_kind != "detailed":
+            raise ValueError(f"unsupported activity context kind: {context_kind!r}")
+        if self.effective_ended_at(now) is None:
+            return ActivityTimelineKind.IN_PROGRESS_ACTIVITY
+        return ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
+
+
+def segment_version(
+    segment: ActivityTimelineSegment,
+    *,
+    ended_at: datetime,
+) -> str:
+    assert segment.last_event_id is not None
+    assert segment.last_observed_at is not None
+    assert segment.context is not None
+    canonical = json.dumps(
+        {
+            "context": segment.context,
+            "endedAt": ended_at.astimezone(UTC).isoformat(),
+            "firstEventId": str(segment.first_event_id),
+            "lastEventId": str(segment.last_event_id),
+            "lastObservedAt": segment.last_observed_at.astimezone(UTC).isoformat(),
+            "startedAt": segment.started_at.astimezone(UTC).isoformat(),
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return sha256(canonical.encode("utf-8")).hexdigest()
 
 
 @dataclass(slots=True)
@@ -66,7 +167,7 @@ class ProjectedActivity:
             reason=None,
         )
         if segment_id is not None:
-            segment.segment_id = segment_id
+            segment.id = segment_id
         return segment
 
     def close_at(self, observed_at: datetime) -> None:
@@ -123,7 +224,7 @@ class ProjectedGap:
             reason=self.reason,
         )
         if segment_id is not None:
-            segment.segment_id = segment_id
+            segment.id = segment_id
         return segment
 
 

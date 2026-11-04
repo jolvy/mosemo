@@ -10,6 +10,7 @@ from mosemo.api.openapi import (
 from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import IdentityErrorCode
 from mosemo.labels.public import LabelErrorCode
+from mosemo.observation.public import ObservationErrorCode
 from mosemo.shared.error_docs import ERROR_DOCS as COMMON_ERROR_DOCS
 from mosemo.shared.errors import ApiErrorCode, CommonErrorCode
 from mosemo.shared.openapi import ErrorDocs
@@ -22,6 +23,7 @@ ALLOWED_NAMES: dict[type[ApiErrorCode], tuple[tuple[str, ...], frozenset[str]]] 
     ),
     IdentityErrorCode: (("AUTH_",), frozenset()),
     LabelErrorCode: (("LABEL_",), frozenset()),
+    ObservationErrorCode: (("ACTIVITY_", "FOCUS_SESSION_"), frozenset()),
     # Temporary central enum: union of the BC prefixes until each BC moves out.
     ErrorCode: (
         ("ACTIVITY_", "FOCUS_SESSION_", "LABELING_"),

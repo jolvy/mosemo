@@ -8,10 +8,9 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from mosemo.activities.models import ActivityRecord
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
-from mosemo.focus_sessions.models import FocusSession
+from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
 from mosemo.identity.presentation.auth.router import get_token_service
@@ -20,6 +19,10 @@ from mosemo.infra.config import Config, get_config
 from mosemo.infra.database import get_session
 from mosemo.labels.domain.labels import Label
 from mosemo.labels.infrastructure.tables import labels as label_table
+from mosemo.observation.domain.activities import ActivityRecord
+from mosemo.observation.domain.focus_sessions import FocusSession
+from mosemo.observation.infrastructure.tables import activity_records, focus_sessions
+from mosemo.shared.presentation.current_account import get_current_account
 from tests.batch_support import batch_client, post_activity
 from tests.identity_support import delete_accounts
 
@@ -32,6 +35,7 @@ async def focus_client(integration_database_url: str, config: Config) -> AsyncIt
     register_exception_handlers(app)
     app.include_router(v1_api_router)
     app.dependency_overrides[get_config] = lambda: config
+    app.dependency_overrides[get_current_account] = get_token_current_account
 
     async def session_override():
         async with factory() as session:
@@ -69,11 +73,11 @@ async def focus_client(integration_database_url: str, config: Config) -> AsyncIt
         )
     async with factory() as session:
         await session.execute(
-            delete(ActivityRecord).where(ActivityRecord.device_id == device.id)
+            delete(ActivityRecord).where(activity_records.c.device_id == device.id)
         )
         await session.execute(
             delete(FocusSession).where(
-                FocusSession.account_id.in_([account.id, other.id])
+                focus_sessions.c.account_id.in_([account.id, other.id])
             )
         )
         await session.execute(delete_accounts(account.id, other.id))
@@ -129,7 +133,9 @@ async def test_start_observe_complete_retry_and_list(focus_client):
     ).status_code == 200
     async with factory() as session:
         stored = await session.scalar(
-            select(ActivityRecord).where(ActivityRecord.event_id == activity["eventId"])
+            select(ActivityRecord).where(
+                activity_records.c.event_id == activity["eventId"]
+            )
         )
         assert str(stored.focus_session_id) == request["sessionId"]
     complete_url = url + "/" + request["sessionId"] + "/completion"
@@ -250,7 +256,7 @@ async def test_suspended_collection_record_rejects_focus_link(focus_client):
         assert (
             await session.scalar(
                 select(ActivityRecord).where(
-                    ActivityRecord.event_id == activity["eventId"]
+                    activity_records.c.event_id == activity["eventId"]
                 )
             )
             is None

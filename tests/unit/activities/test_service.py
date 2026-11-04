@@ -7,20 +7,30 @@ import pytest
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.mappers import ActivityRecordMapper
-from mosemo.activities.models import ActivityRecord as StoredActivityRecord
-from mosemo.activities.repository import ActivityRepository
-from mosemo.activities.schemas import ActivityRecord
-from mosemo.activities.service import (
+from mosemo.identity.public import DeviceDirectory
+from mosemo.infra.clock import utc_now
+from mosemo.observation.application.activities import RecordActivity
+from mosemo.observation.domain.activities import (
     ActivityDeviceNotFoundError,
     ActivityEventIdConflictError,
     ActivitySequenceConflictError,
-    ActivityService,
 )
-from mosemo.identity.public import AccountDirectory, DeviceDirectory
-from mosemo.infra.clock import utc_now
+from mosemo.observation.domain.activities import ActivityRecord as StoredActivityRecord
+from mosemo.observation.infrastructure.activity_records import (
+    ActivityRecordRepository,
+)
+from mosemo.observation.infrastructure.timeline_segments import (
+    TimelineSegmentRepository,
+)
+from mosemo.observation.presentation.activities.mappers import ActivityRecordMapper
+from mosemo.observation.presentation.activities.schemas import (
+    ActivityCreateResponse,
+    ActivityRecord,
+)
+from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.domain.timezones import Timezone
 from tests.clock_support import FakeClock
+from tests.use_case_support import record_transactions
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 RECEIVED_AT = datetime(2026, 9, 14, 1, 2, 3, tzinfo=UTC)
@@ -54,136 +64,159 @@ def stored_record(record: ActivityRecord, **changes: object) -> StoredActivityRe
     return stored
 
 
-def make_service():
-    session = create_autospec(AsyncSession, instance=True)
-    repository = create_autospec(ActivityRepository, instance=True)
-    device_repository = create_autospec(DeviceDirectory, instance=True)
-    service = ActivityService(
-        session=session,
-        repository=repository,
-        devices=device_repository,
-        accounts=create_autospec(AccountDirectory, instance=True),
-        clock=FakeClock(utc_now()),
+@pytest.fixture
+def make_service(monkeypatch: pytest.MonkeyPatch):
+    def make():
+        transactions = record_transactions(
+            monkeypatch, "mosemo.observation.application.activities", "unit_of_work"
+        )
+        session = create_autospec(AsyncSession, instance=True)
+        repository = create_autospec(ActivityRecordRepository, instance=True)
+        segments = create_autospec(TimelineSegmentRepository, instance=True)
+        segments.find_replay_start.return_value = datetime(2026, 9, 14, tzinfo=UTC)
+        segments.list_account_segments.return_value = []
+        repository.list_account_records.return_value = []
+        device_repository = create_autospec(DeviceDirectory, instance=True)
+        use_case = RecordActivity(
+            devices=device_repository,
+            dispatcher=EventDispatcher(),
+            clock=FakeClock(utc_now()),
+        )
+        monkeypatch.setattr(use_case, "_records", repository)
+        monkeypatch.setattr(use_case, "_segments", segments)
+        return use_case, session, repository, device_repository, transactions
+
+    return make
+
+
+def create_activity(
+    use_case: RecordActivity,
+    session: AsyncSession,
+    *,
+    account_id: UUID,
+    record: ActivityRecord,
+) -> ActivityCreateResponse:
+    stored = asyncio.run(
+        use_case.execute(
+            session,
+            account_id=account_id,
+            record=ActivityRecordMapper().to_entity(record),
+        )
     )
-    return service, session, repository, device_repository
+    return ActivityCreateResponse.from_record(stored)
 
 
-def test_create_activity_commits_new_record() -> None:
-    service, session, repository, device_repository = make_service()
+def test_create_activity_commits_new_record(make_service) -> None:
+    use_case, session, repository, device_repository, transactions = make_service()
     account_id = uuid4()
     record = make_record(sequence=2)
     stored = stored_record(record)
     device_repository.find_owned.return_value = record.device_id
-    repository.add_if_absent.return_value = stored
+    repository.get_or_create.return_value = (stored, True)
 
-    result = asyncio.run(service.create_activity(account_id=account_id, record=record))
+    result = create_activity(use_case, session, account_id=account_id, record=record)
 
     assert result.event_id == record.event_id
     assert result.status == "accepted"
     assert result.received_at == RECEIVED_AT
-    repository.add_if_absent.assert_awaited_once()
-    candidate = repository.add_if_absent.await_args.args[0]
+    repository.get_or_create.assert_awaited_once()
+    candidate = repository.get_or_create.await_args.args[1]
     assert isinstance(candidate, StoredActivityRecord)
     assert candidate.has_same_content(ActivityRecordMapper().to_entity(record))
-    session.begin.assert_called_once_with()
+    assert (transactions.entered, transactions.committed) == (1, 1)
     session.commit.assert_not_awaited()
     session.rollback.assert_not_awaited()
 
 
-def test_create_activity_returns_original_result_for_identical_retry() -> None:
-    service, session, repository, device_repository = make_service()
+def test_create_activity_returns_original_result_for_identical_retry(
+    make_service,
+) -> None:
+    use_case, session, repository, device_repository, transactions = make_service()
     account_id = uuid4()
     record = make_record(sequence=5)
     existing = stored_record(record)
     device_repository.find_owned.return_value = record.device_id
-    repository.add_if_absent.return_value = None
-    repository.find_by_event_id.return_value = existing
+    repository.get_or_create.return_value = (existing, False)
 
-    result = asyncio.run(service.create_activity(account_id=account_id, record=record))
+    result = create_activity(use_case, session, account_id=account_id, record=record)
 
     assert result.event_id == record.event_id
     assert result.received_at == RECEIVED_AT
-    repository.find_by_device_sequence.assert_not_awaited()
-    session.begin.assert_called_once_with()
+    assert (transactions.entered, transactions.committed) == (1, 1)
     session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()
 
 
-def test_create_activity_rejects_changed_content_for_existing_event_id() -> None:
-    service, session, repository, device_repository = make_service()
+def test_create_activity_rejects_changed_content_for_existing_event_id(
+    make_service,
+) -> None:
+    use_case, session, repository, device_repository, transactions = make_service()
     account_id = uuid4()
     record = make_record()
     device_repository.find_owned.return_value = record.device_id
-    repository.add_if_absent.return_value = None
-    repository.find_by_event_id.return_value = stored_record(
-        record,
-        timezone_id=Timezone.UTC,
+    repository.get_or_create.return_value = (
+        stored_record(record, timezone_id=Timezone.UTC),
+        False,
     )
 
     with pytest.raises(ActivityEventIdConflictError):
-        asyncio.run(service.create_activity(account_id=account_id, record=record))
+        create_activity(use_case, session, account_id=account_id, record=record)
 
-    repository.find_by_device_sequence.assert_not_awaited()
-    session.begin.assert_called_once_with()
+    assert (transactions.entered, transactions.committed) == (1, 0)
     session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()
 
 
-def test_create_activity_rejects_sequence_used_by_another_event() -> None:
-    service, session, repository, device_repository = make_service()
+def test_create_activity_rejects_sequence_used_by_another_event(
+    make_service,
+) -> None:
+    use_case, session, repository, device_repository, transactions = make_service()
     account_id = uuid4()
     record = make_record()
     device_repository.find_owned.return_value = record.device_id
-    repository.add_if_absent.return_value = None
-    repository.find_by_event_id.return_value = None
-    repository.find_by_device_sequence.return_value = stored_record(
-        record,
-        event_id=uuid4(),
+    repository.get_or_create.return_value = (
+        stored_record(record, event_id=uuid4()),
+        False,
     )
 
     with pytest.raises(ActivitySequenceConflictError):
-        asyncio.run(service.create_activity(account_id=account_id, record=record))
+        create_activity(use_case, session, account_id=account_id, record=record)
 
-    repository.find_by_device_sequence.assert_awaited_once_with(
-        device_id=record.device_id,
-        sequence=record.sequence,
-    )
-    session.begin.assert_called_once_with()
+    assert (transactions.entered, transactions.committed) == (1, 0)
     session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()
 
 
-def test_create_activity_allows_an_unused_lower_sequence() -> None:
-    service, session, repository, device_repository = make_service()
+def test_create_activity_allows_an_unused_lower_sequence(make_service) -> None:
+    use_case, session, repository, device_repository, transactions = make_service()
     account_id = uuid4()
     record = make_record(sequence=2)
     device_repository.find_owned.return_value = record.device_id
-    repository.add_if_absent.return_value = stored_record(record)
+    repository.get_or_create.return_value = (stored_record(record), True)
 
-    result = asyncio.run(service.create_activity(account_id=account_id, record=record))
+    result = create_activity(use_case, session, account_id=account_id, record=record)
 
     assert result.status == "accepted"
-    repository.find_by_device_sequence.assert_not_awaited()
-    session.begin.assert_called_once_with()
+    assert (transactions.entered, transactions.committed) == (1, 1)
     session.commit.assert_not_awaited()
     session.rollback.assert_not_awaited()
 
 
-def test_create_activity_hides_missing_and_unowned_devices() -> None:
-    service, session, repository, device_repository = make_service()
+def test_create_activity_hides_missing_and_unowned_devices(make_service) -> None:
+    use_case, session, repository, device_repository, transactions = make_service()
     account_id = uuid4()
     record = make_record()
     device_repository.find_owned.return_value = None
 
     with pytest.raises(ActivityDeviceNotFoundError):
-        asyncio.run(service.create_activity(account_id=account_id, record=record))
+        create_activity(use_case, session, account_id=account_id, record=record)
 
     device_repository.find_owned.assert_awaited_once_with(
         session,
         account_id=account_id,
         device_id=record.device_id,
     )
-    repository.add_if_absent.assert_not_awaited()
-    session.begin.assert_called_once_with()
+    repository.get_or_create.assert_not_awaited()
+    assert (transactions.entered, transactions.committed) == (1, 0)
     session.rollback.assert_not_awaited()
     session.commit.assert_not_awaited()

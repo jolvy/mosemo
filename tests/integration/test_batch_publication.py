@@ -6,11 +6,12 @@ import httpx2
 import pytest
 from asgi_lifespan import LifespanManager
 
-from mosemo.activities.batch_processing import ActivityBatchProcessor
-from mosemo.activities.messages import ActivityRegistrationRequested
+from mosemo.observation.application.batches import ActivityBatchProcessor
+from mosemo.observation.presentation.messages import ActivityRegistrationRequested
 from tests.component.test_activities_api import activity_request
 from tests.component.test_batch_runtime import make_app
 from tests.kafka_support import capture_records
+from tests.use_case_support import record_transactions
 
 
 @pytest.mark.asyncio
@@ -19,6 +20,10 @@ async def test_http_waits_for_real_publication_ack_without_running_db_processing
     integration_kafka, config, monkeypatch, maximum_body
 ):
     config.batch_delivery = integration_kafka.config
+    # make_app checks devices on a mocked directory, without a database.
+    record_transactions(
+        monkeypatch, "mosemo.observation.application.batches", "read_snapshot"
+    )
     app, _, owner, headers = make_app(config)
     process = AsyncMock(side_effect=AssertionError("API must not run consumer"))
     monkeypatch.setattr(ActivityBatchProcessor, "process", process)

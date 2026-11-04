@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, create_autospec, sentinel
 from uuid import uuid4
 
 import httpx2
@@ -8,24 +8,53 @@ import pytest
 from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
 
-from mosemo.activities.executor import LegacyBatchExecutor
-from mosemo.api.activity_batches import compose_messaging_app
-from mosemo.api.dependencies import get_device_directory
+from mosemo.api.activity_batches import compose_messaging_app, get_batch_publisher
 from mosemo.api.exception_handlers import register_exception_handlers
-from mosemo.api.routes import v1_api_router
+from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import BatchDeliveryConfig, Config, get_config
+from mosemo.infra.providers import get_session
+from mosemo.observation.application.activities import GetObservationTimeline
+from mosemo.observation.application.batches import (
+    AcceptActivityBatch,
+    ProcessLegacyActivityBatch,
+)
+from mosemo.observation.presentation.activities.router import create_router
+from mosemo.shared.application.events import EventDispatcher
+from mosemo.shared.presentation.current_account import get_current_account
 from tests.component.test_activities_api import activity_request as payload
+from tests.use_case_support import record_transactions
+
+
+@pytest.fixture(autouse=True)
+def no_database_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The device check runs on the mocked directory; no database is involved.
+    record_transactions(
+        monkeypatch, "mosemo.observation.application.batches", "read_snapshot"
+    )
 
 
 def make_app(config: Config):
     api = FastAPI()
-    api.include_router(v1_api_router)
+    devices = AsyncMock()
+    api.include_router(
+        create_router(
+            accept_activity_batch=AcceptActivityBatch(devices=devices),
+            process_legacy_activity_batch=ProcessLegacyActivityBatch(
+                devices=devices, dispatcher=EventDispatcher(), clock=utc_now
+            ),
+            get_observation_timeline=create_autospec(
+                GetObservationTimeline, instance=True
+            ),
+            get_batch_publisher=get_batch_publisher,
+        ),
+        prefix="/api/v1",
+    )
     register_exception_handlers(api)
     api.dependency_overrides[get_config] = lambda: config
-    devices = AsyncMock()
-    api.dependency_overrides[get_device_directory] = lambda: devices
+    api.dependency_overrides[get_session] = lambda: sentinel.db_session
+    api.dependency_overrides[get_current_account] = get_token_current_account
     app = compose_messaging_app(api, config.batch_delivery)
     account_id = uuid4()
     headers = {
@@ -140,15 +169,15 @@ async def test_legacy_waits_for_processing_without_admission_or_publish(
     entered, release = asyncio.Event(), asyncio.Event()
     source = payload()
 
-    async def held_process(self, account_id, batch):
-        assert self.session is session
+    async def held_process(self, db_session, *, account_id, batch):
+        assert db_session is session
         assert account_id == owner
         assert str(batch.batch_id) == source["batchId"]
         entered.set()
         await release.wait()
         return [{"eventId": source["records"][0]["eventId"], "status": "stored"}]
 
-    monkeypatch.setattr(LegacyBatchExecutor, "execute", held_process)
+    monkeypatch.setattr(ProcessLegacyActivityBatch, "execute", held_process)
     publish = AsyncMock(side_effect=AssertionError("must not publish"))
     monkeypatch.setattr(app.state, "batch_publisher", AsyncMock(publish=publish))
     async with (
@@ -189,7 +218,7 @@ async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
     app, _, _, headers = make_app(config)
     app.dependency_overrides[get_session] = object
     process = AsyncMock()
-    monkeypatch.setattr(LegacyBatchExecutor, "execute", process)
+    monkeypatch.setattr(ProcessLegacyActivityBatch, "execute", process)
     async with httpx2.AsyncClient(
         transport=httpx2.ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -217,16 +246,18 @@ async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
     ],
 )
 async def test_legacy_processing_errors(config, monkeypatch, error, expected):
-    from mosemo.activities.messages import TerminalBatchError
-    from mosemo.activities.repository import ActivityTimelineBusyError
     from mosemo.infra.database import get_session
+    from mosemo.observation.application.batches import TerminalBatchError
+    from mosemo.observation.domain.timeline import ActivityTimelineBusyError
 
     app, _, _, headers = make_app(config)
     app.dependency_overrides[get_session] = object
     failure = (
         ActivityTimelineBusyError() if error == "busy" else TerminalBatchError(error)
     )
-    monkeypatch.setattr(LegacyBatchExecutor, "execute", AsyncMock(side_effect=failure))
+    monkeypatch.setattr(
+        ProcessLegacyActivityBatch, "execute", AsyncMock(side_effect=failure)
+    )
     async with httpx2.AsyncClient(
         transport=httpx2.ASGITransport(app=app), base_url="http://test"
     ) as client:

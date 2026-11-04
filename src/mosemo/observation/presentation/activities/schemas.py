@@ -10,7 +10,9 @@ from pydantic import (
     model_validator,
 )
 
-from mosemo.activities.enums import CollectionState, RecordType, SegmentType
+from mosemo.observation.domain.activities import ActivityRecord as StoredActivityRecord
+from mosemo.observation.domain.activities import CollectionState, RecordType
+from mosemo.observation.domain.timeline import SegmentType
 from mosemo.shared.domain.timezones import Timezone
 from mosemo.shared.presentation.schemas import (
     OBSERVATION_TIMESTAMP_PATTERN,
@@ -352,6 +354,14 @@ class ActivityCreateResponse(ApiResponseModel):
     received_at: PublicTimestamp = Field(
         description="활동 레코드가 서버에 최초 저장된 시각입니다."
     )
+
+    @classmethod
+    def from_record(cls, record: StoredActivityRecord) -> ActivityCreateResponse:
+        return cls(
+            event_id=record.event_id,
+            status="accepted",
+            received_at=record.received_at,
+        )
 
 
 def _timeline_timestamp(value: datetime) -> datetime:

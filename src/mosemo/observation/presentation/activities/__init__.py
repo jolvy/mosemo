@@ -1,0 +1,1 @@
+"""Activity routes and schemas."""

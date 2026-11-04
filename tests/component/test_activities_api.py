@@ -1,22 +1,38 @@
 from datetime import UTC, date, datetime
-from unittest.mock import AsyncMock, create_autospec
+from unittest.mock import AsyncMock, create_autospec, sentinel
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mosemo.activities.enums import SegmentType
-from mosemo.activities.schemas import ActivitySegmentResponse, CaptureGapResponse
-from mosemo.activities.service import ActivityService
-from mosemo.api.dependencies import get_activity_service, get_device_directory
+from mosemo.api.activity_batches import get_batch_publisher
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.middleware import BatchBodyLimitMiddleware
-from mosemo.api.routes import v1_api_router
+from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.messaging.publisher import DeliveryUnavailableError
+from mosemo.infra.providers import get_session
+from mosemo.observation.application.activities import GetObservationTimeline
+from mosemo.observation.application.batches import (
+    AcceptActivityBatch,
+    ProcessLegacyActivityBatch,
+)
+from mosemo.observation.application.timeline import ObservedSegment
+from mosemo.observation.domain.timeline import ActivityTimelineKind
+from mosemo.observation.presentation.activities.router import create_router
+from mosemo.shared.presentation.current_account import get_current_account
+from tests.use_case_support import record_transactions
+
+
+@pytest.fixture(autouse=True)
+def no_database_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The device check runs on the mocked directory; no database is involved.
+    record_transactions(
+        monkeypatch, "mosemo.observation.application.batches", "read_snapshot"
+    )
 
 
 def activity_request():
@@ -37,16 +53,26 @@ def activity_request():
     }
 
 
-def make_app(*, config: Config, account_id: UUID, service: ActivityService):
+def make_app(*, config: Config, account_id: UUID, service: GetObservationTimeline):
     app = FastAPI()
     register_exception_handlers(app)
     app.add_middleware(BatchBodyLimitMiddleware)
-    app.include_router(v1_api_router)
-    app.dependency_overrides[get_config] = lambda: config
-    app.dependency_overrides[get_activity_service] = lambda: service
     app.state.devices = AsyncMock()
     app.state.batch_publisher = AsyncMock()
-    app.dependency_overrides[get_device_directory] = lambda: app.state.devices
+    app.include_router(
+        create_router(
+            accept_activity_batch=AcceptActivityBatch(devices=app.state.devices),
+            process_legacy_activity_batch=create_autospec(
+                ProcessLegacyActivityBatch, instance=True
+            ),
+            get_observation_timeline=service,
+            get_batch_publisher=get_batch_publisher,
+        ),
+        prefix="/api/v1",
+    )
+    app.dependency_overrides[get_config] = lambda: config
+    app.dependency_overrides[get_session] = lambda: sentinel.db_session
+    app.dependency_overrides[get_current_account] = get_token_current_account
     token = get_token_service(config).issue_access_token(account_id, now=utc_now())
     return app, token
 
@@ -56,7 +82,7 @@ def test_batch_response_preserves_camel_case_and_server_account(config):
     app, token = make_app(
         config=config,
         account_id=account_id,
-        service=create_autospec(ActivityService, instance=True),
+        service=create_autospec(GetObservationTimeline, instance=True),
     )
     payload = activity_request()
     with TestClient(app) as client:
@@ -77,7 +103,7 @@ def test_batch_admission_hides_missing_and_foreign_devices(config):
     app, token = make_app(
         config=config,
         account_id=uuid4(),
-        service=create_autospec(ActivityService, instance=True),
+        service=create_autospec(GetObservationTimeline, instance=True),
     )
     app.state.devices.find_owned.return_value = None
     with TestClient(app) as client:
@@ -99,7 +125,7 @@ def test_batch_rejects_invalid_record_before_admission(config, invalid):
     app, token = make_app(
         config=config,
         account_id=uuid4(),
-        service=create_autospec(ActivityService, instance=True),
+        service=create_autospec(GetObservationTimeline, instance=True),
     )
     payload = activity_request()
     record = payload["records"][0]
@@ -133,7 +159,7 @@ def test_batch_admission_returns_common_retryable_delivery_error(config):
     app, token = make_app(
         config=config,
         account_id=uuid4(),
-        service=create_autospec(ActivityService, instance=True),
+        service=create_autospec(GetObservationTimeline, instance=True),
     )
     app.state.batch_publisher.publish.side_effect = DeliveryUnavailableError()
     with TestClient(app) as client:
@@ -149,24 +175,33 @@ def test_batch_admission_returns_common_retryable_delivery_error(config):
 
 def test_timeline_returns_direct_discriminated_union_array(config: Config) -> None:
     account_id = uuid4()
-    service = create_autospec(ActivityService, instance=True)
+    service = create_autospec(GetObservationTimeline, instance=True)
     activity_id = uuid4()
     gap_id = uuid4()
-    service.get_timeline.return_value = [
-        ActivitySegmentResponse(
-            segment_id=activity_id,
-            segment_type=SegmentType.ACTIVITY,
+    service.execute.return_value = [
+        ObservedSegment(
+            id=activity_id,
+            account_id=account_id,
+            first_event_id=uuid4(),
             started_at=datetime(2026, 9, 14, 0, 0, 0, 123456, tzinfo=UTC),
             ended_at=datetime(2026, 9, 14, 0, 0, 30, tzinfo=UTC),
             last_observed_at=datetime(2026, 9, 14, 0, 0, 20, tzinfo=UTC),
             context={"kind": "opaque"},
+            reason=None,
+            kind=ActivityTimelineKind.OPAQUE_ACTIVITY,
+            version=None,
         ),
-        CaptureGapResponse(
-            segment_id=gap_id,
-            segment_type=SegmentType.CAPTURE_GAP,
+        ObservedSegment(
+            id=gap_id,
+            account_id=account_id,
+            first_event_id=uuid4(),
             started_at=datetime(2026, 9, 14, 0, 0, 30, tzinfo=UTC),
             ended_at=None,
+            last_observed_at=None,
+            context=None,
             reason="screen_locked",
+            kind=ActivityTimelineKind.CAPTURE_GAP,
+            version=None,
         ),
     ]
     app, token = make_app(config=config, account_id=account_id, service=service)
@@ -195,15 +230,16 @@ def test_timeline_returns_direct_discriminated_union_array(config: Config) -> No
             "reason": "screen_locked",
         },
     ]
-    service.get_timeline.assert_awaited_once_with(
+    service.execute.assert_awaited_once_with(
+        sentinel.db_session,
         account_id=account_id,
-        date=date(2026, 9, 14),
+        day=date(2026, 9, 14),
     )
 
 
 def test_timeline_requires_bearer_and_date(config: Config) -> None:
     account_id = uuid4()
-    service = create_autospec(ActivityService, instance=True)
+    service = create_autospec(GetObservationTimeline, instance=True)
     app, token = make_app(config=config, account_id=account_id, service=service)
 
     with TestClient(app) as client:
@@ -222,7 +258,7 @@ def test_timeline_requires_bearer_and_date(config: Config) -> None:
     for response in (missing_date, invalid_date):
         assert response.status_code == 422
         assert response.json()["error"]["status"] == "INVALID_ARGUMENT"
-    service.get_timeline.assert_not_awaited()
+    service.execute.assert_not_awaited()
 
 
 def test_batch_body_limit_counts_complete_utf8_envelope_including_whitespace(config):
@@ -231,7 +267,7 @@ def test_batch_body_limit_counts_complete_utf8_envelope_including_whitespace(con
     app, token = make_app(
         config=config,
         account_id=uuid4(),
-        service=create_autospec(ActivityService, instance=True),
+        service=create_autospec(GetObservationTimeline, instance=True),
     )
     encoded = json.dumps(activity_request(), ensure_ascii=False).encode()
     bounded = encoded + b" " * (512 * 1024 - len(encoded))

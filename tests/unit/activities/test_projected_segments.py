@@ -3,10 +3,14 @@ from uuid import uuid4
 
 import pytest
 
-from mosemo.activities.constants import MAX_OBSERVATION_GAP
-from mosemo.activities.enums import SegmentType
-from mosemo.activities.models import ActivityTimelineSegment
-from mosemo.activities.timeline import ProjectedActivity, ProjectedGap, ProjectionError
+from mosemo.observation.domain.activities import MAX_OBSERVATION_GAP
+from mosemo.observation.domain.timeline import (
+    ActivityTimelineSegment,
+    ProjectedActivity,
+    ProjectedGap,
+    ProjectionError,
+    SegmentType,
+)
 
 START = datetime(2026, 9, 14, 0, 0, tzinfo=UTC)
 CONTEXT: dict[str, object] = {"kind": "opaque"}
@@ -105,10 +109,12 @@ def test_can_inherit_rejects_other_segment_type():
 
 @pytest.mark.parametrize("factory", [activity, gap])
 def test_to_segment_without_id_leaves_id_to_model_default(factory):
-    segment = factory().to_segment(account_id=uuid4(), segment_id=None)
+    first = factory().to_segment(account_id=uuid4(), segment_id=None)
+    second = factory().to_segment(account_id=uuid4(), segment_id=None)
 
-    assert isinstance(segment, ActivityTimelineSegment)
-    assert segment.segment_id is None
+    assert isinstance(first, ActivityTimelineSegment)
+    # The entity default (uuid7) assigns a fresh ID on construction (ADR 0013).
+    assert first.id != second.id
 
 
 def test_close_at_within_gap_ends_at_observed_time():

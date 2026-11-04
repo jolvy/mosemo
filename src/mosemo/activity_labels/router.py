@@ -25,7 +25,7 @@ from mosemo.api.dependencies import ActivityLabelServiceDep, AuthenticatedAccoun
 from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import AccountNotFoundError
 from mosemo.labels.public import LabelErrorCode
-from mosemo.observation.public import ActivityTimelineBusyError
+from mosemo.observation.public import ActivityTimelineBusyError, ObservationErrorCode
 from mosemo.shared.errors import ApiErrorCode, ApiException, CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 from mosemo.shared.presentation.schemas import ValidationDetail
@@ -78,7 +78,7 @@ def _batch_failure_response(exc: BatchLabelConfirmationError) -> ApiException:
         ErrorCode.ACTIVITY_SEGMENT_CHANGED,
         ErrorCode.ACTIVITY_LABEL_CONFIRMATION_CONFLICT,
         LabelErrorCode.LABEL_NOT_AVAILABLE,
-        ErrorCode.ACTIVITY_TIMELINE_BUSY,
+        ObservationErrorCode.ACTIVITY_TIMELINE_BUSY,
         CommonErrorCode.INVALID_ARGUMENT,
         headers={
             503: {
@@ -104,7 +104,7 @@ async def confirm_segment_labels(
     except BatchLabelConfirmationError as exc:
         raise _batch_failure_response(exc) from exc
     except ActivityTimelineBusyError as exc:
-        raise ApiException(ErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
+        raise ApiException(ObservationErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
 
 
 @router.get(
@@ -201,7 +201,7 @@ async def get_segment_label_state(
         ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
         ErrorCode.ACTIVITY_SEGMENT_CHANGED,
         LabelErrorCode.LABEL_NOT_AVAILABLE,
-        ErrorCode.ACTIVITY_TIMELINE_BUSY,
+        ObservationErrorCode.ACTIVITY_TIMELINE_BUSY,
         CommonErrorCode.INVALID_ARGUMENT,
         headers={
             503: {
@@ -238,4 +238,4 @@ async def put_segment_label_confirmation(
     except ActivityLabelUnavailableError as exc:
         raise ApiException(LabelErrorCode.LABEL_NOT_AVAILABLE) from exc
     except ActivityTimelineBusyError as exc:
-        raise ApiException(ErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
+        raise ApiException(ObservationErrorCode.ACTIVITY_TIMELINE_BUSY) from exc

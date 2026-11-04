@@ -1,11 +1,19 @@
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 import pytest
 
-from mosemo.activities.constants import MAX_OBSERVATION_GAP
-from mosemo.activities.enums import ActivityTimelineKind, RecordType, SegmentType
-from mosemo.activities.models import ActivityRecord, ActivityTimelineSegment
+from mosemo.observation.domain.activities import (
+    MAX_OBSERVATION_GAP,
+    ActivityRecord,
+    RecordType,
+)
+from mosemo.observation.domain.timeline import (
+    ActivityTimelineKind,
+    ActivityTimelineSegment,
+    SegmentType,
+)
 from mosemo.shared.domain.timezones import Timezone
 
 
@@ -123,7 +131,8 @@ DEVICE_ID = uuid4()
 
 
 def activity_record(**changes: object) -> ActivityRecord:
-    values: dict[str, object] = {
+    received_at: Any = changes.pop("received_at", OBSERVED_AT)
+    values: dict[str, Any] = {
         "event_id": EVENT_ID,
         "device_id": DEVICE_ID,
         "focus_session_id": None,
@@ -133,10 +142,11 @@ def activity_record(**changes: object) -> ActivityRecord:
         "timezone_id": Timezone.ASIA_SEOUL,
         "utc_offset_minutes": 540,
         "payload": {"context": {"kind": "opaque"}},
-        "received_at": OBSERVED_AT,
         **changes,
     }
-    return ActivityRecord(**values)
+    record = ActivityRecord(**values)
+    record.received_at = received_at
+    return record
 
 
 @pytest.mark.parametrize(

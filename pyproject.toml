@@ -84,8 +84,6 @@ forbidden_modules = [
     "mosemo.observation",
     "mosemo.labeling",
     # Feature packages that have not moved to a bounded context yet.
-    "mosemo.activities",
-    "mosemo.focus_sessions",
     "mosemo.activity_labels",
     "mosemo.api",
     "mosemo.consumer",
@@ -377,15 +375,130 @@ type = "forbidden"
 source_modules = ["mosemo.identity"]
 forbidden_modules = ["mosemo.labels"]
 
-# observation public boundary (#151). Temporary: the old activity_labels code
-# reaches activities only through observation.public until #152 replaces this
-# with observation `protected` contracts.
+# observation bounded context (ADR 0011 「강제 방법」).
 [[tool.importlinter.contracts]]
-name = "old activity_labels does not import activities directly"
+name = "observation layers: presentation > application > infrastructure > domain"
+type = "layers"
+containers = ["mosemo.observation"]
+layers = ["presentation", "application", "infrastructure", "domain"]
+
+[[tool.importlinter.contracts]]
+name = "observation presentation does not import its infrastructure directly"
 type = "forbidden"
-source_modules = ["mosemo.activity_labels"]
-forbidden_modules = ["mosemo.activities"]
+source_modules = ["mosemo.observation.presentation"]
+forbidden_modules = ["mosemo.observation.infrastructure"]
 allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "observation layers are imported only by observation"
+type = "protected"
+protected_modules = [
+    "mosemo.observation.presentation",
+    "mosemo.observation.application",
+    "mosemo.observation.domain",
+    "mosemo.observation.infrastructure",
+]
+allowed_importers = ["mosemo.observation"]
+
+[[tool.importlinter.contracts]]
+name = "observation bootstrap is imported only by assembly roots"
+type = "protected"
+protected_modules = ["mosemo.observation.bootstrap"]
+allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
+
+[[tool.importlinter.contracts]]
+name = "observation presentation imports only infra.providers from infra"
+type = "forbidden"
+source_modules = ["mosemo.observation.presentation"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.persistence",
+    "mosemo.infra.scheduling",
+    "mosemo.infra.transactions",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "observation application imports only infra.transactions from infra"
+type = "forbidden"
+source_modules = ["mosemo.observation.application"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.persistence",
+    "mosemo.infra.providers",
+    "mosemo.infra.scheduling",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "observation infrastructure imports only infra.persistence from infra"
+type = "forbidden"
+source_modules = ["mosemo.observation.infrastructure"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.providers",
+    "mosemo.infra.scheduling",
+    "mosemo.infra.transactions",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "observation domain does not import infra"
+type = "forbidden"
+source_modules = ["mosemo.observation.domain"]
+forbidden_modules = ["mosemo.infra"]
+
+[[tool.importlinter.contracts]]
+name = "observation domain does not import sqlalchemy, fastapi or pydantic"
+type = "forbidden"
+source_modules = ["mosemo.observation.domain"]
+forbidden_modules = ["sqlalchemy", "fastapi", "pydantic"]
+
+[[tool.importlinter.contracts]]
+name = "observation application does not import fastapi directly"
+type = "forbidden"
+source_modules = ["mosemo.observation.application"]
+forbidden_modules = ["fastapi"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "observation domain imports only shared.domain from shared"
+type = "forbidden"
+source_modules = ["mosemo.observation.domain"]
+forbidden_modules = ["mosemo.shared.application", "mosemo.shared.presentation"]
+
+# Direct imports only: identity.public and labels.public re-export their error
+# codes, whose presentation modules reach shared.presentation through shared.errors.
+[[tool.importlinter.contracts]]
+name = "observation application and infrastructure do not import shared.presentation"
+type = "forbidden"
+source_modules = [
+    "mosemo.observation.application",
+    "mosemo.observation.infrastructure",
+]
+forbidden_modules = ["mosemo.shared.presentation"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "identity and labels do not import observation (observation -> labels, identity)"
+type = "forbidden"
+source_modules = ["mosemo.identity", "mosemo.labels"]
+forbidden_modules = ["mosemo.observation"]
 
 [tool.ruff]
 line-length = 88
