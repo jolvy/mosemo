@@ -37,6 +37,13 @@ NATURAL_PRIMARY_KEYS = {
     ("native_auth_codes", "code_digest"),  # 인가 코드 해시인 자연 키
 }
 ROLE_FOREIGN_KEYS = {"first_event_id"}  # 역할이 붙은 참조
+# 기존 컬럼 이름을 유지하는 FK(Plan #142 FK 유지 원칙, 이슈 #148 사후 정정).
+COLUMN_FOREIGN_KEYS = {
+    # 구간의 마지막 활동 레코드(`activity_records.event_id`)를 가리키는 역할 참조
+    ("activity_timeline_segments", "last_event_id"),
+    # AI가 제안한 라벨(`labels`)을 가리키는 역할 참조
+    ("activity_label_proposals", "suggested_label_id"),
+}
 # ADR 0011: 현재 계정 provider를 받지 않는 공개 엔드포인트(로그인 전 호출).
 PUBLIC_ENDPOINTS = {
     ("GET", "/api/v1/auth/kakao/login"),
@@ -122,7 +129,11 @@ def check_identifier_columns(tables: Iterable[Table]) -> list[str]:
         for key in table.foreign_keys:
             column = key.parent.name
             expected = f"{singular(key.target_fullname.split('.')[-2])}_id"
-            if column != expected and column not in ROLE_FOREIGN_KEYS:
+            if (
+                column != expected
+                and column not in ROLE_FOREIGN_KEYS
+                and (table.name, column) not in COLUMN_FOREIGN_KEYS
+            ):
                 errors.append(
                     f"{table.name}.{column}: ADR 0013: FK 컬럼 이름은 "
                     f"`{expected}`로 한다"
@@ -475,6 +486,21 @@ def identifier_tables() -> MetaData:
         Column("id", Integer, primary_key=True),
         Column("first_event_id", ForeignKey("activity_records.event_id")),
     )
+    Table("labels", metadata, Column("id", Integer, primary_key=True))
+    Table(
+        "activity_timeline_segments",
+        metadata,
+        Column("id", Integer, primary_key=True),
+        Column("first_event_id", ForeignKey("activity_records.event_id")),
+        Column("last_event_id", ForeignKey("activity_records.event_id")),
+    )
+    Table(
+        "activity_label_proposals",
+        metadata,
+        Column("id", Integer, primary_key=True),
+        Column("label_id", ForeignKey("labels.id")),
+        Column("suggested_label_id", ForeignKey("labels.id")),
+    )
     return metadata
 
 
@@ -508,6 +534,13 @@ def test_identifier_columns_allow_rule_and_exceptions() -> None:
                 Column("last_event_id", ForeignKey("activity_records.event_id")),
             ],
             "devices.last_event_id",
+        ),
+        (
+            [
+                Column("id", Integer, primary_key=True),
+                Column("suggested_label_id", ForeignKey("labels.id")),
+            ],
+            "devices.suggested_label_id",
         ),
     ],
 )
