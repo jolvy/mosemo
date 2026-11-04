@@ -404,6 +404,19 @@ def check_transaction_boundaries(tree: ast.AST) -> list[str]:
     ]
 
 
+def check_context_transaction_calls(tree: ast.AST) -> list[str]:
+    """(h) BC 패키지에서 트랜잭션을 직접 열거나 확정하는 호출을 찾는다."""
+    return [
+        f"{node.lineno}: CS-P13: BC 패키지에서는 `begin`·`begin_nested`·`commit`·"
+        "`rollback`을 직접 호출하지 않는다. 트랜잭션은 UseCase가 `infra.transactions`의 "
+        "`unit_of_work`·`read_snapshot`으로 연다"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in TRANSACTION_BOUNDARY_METHODS
+    ]
+
+
 def check_sql_imports(tree: ast.AST) -> list[str]:
     """(h) repository·models 밖에서 SQL 구문 import와 `import sqlalchemy`를 찾는다."""
     errors = []
@@ -743,11 +756,16 @@ def check_model_argument_counts(tree: ast.AST) -> list[str]:
     return errors
 
 
-def check_role_rules(relative: Path, tree: ast.AST) -> list[str]:
-    """`src` 파일에 역할 규칙(CS-P27~CS-P30)을 파일 이름에 따라 적용한다."""
+def check_role_rules(relative: Path, tree: ast.AST, *, in_context: bool) -> list[str]:
+    """`src` 파일에 역할 규칙(CS-P27~CS-P30)을 파일 이름에 따라 적용한다.
+
+    파일 이름 역할 규칙(CS-P28~CS-P30)은 BC 패키지 밖의 옛 경로에만 둔다.
+    """
     module = module_name(relative)
     package = module if relative.name == "__init__.py" else module[:-1]
     errors = check_dependency_bundles(tree)
+    if in_context:
+        return errors
     if is_repository_file(relative) or relative.name == "models.py":
         errors += check_schema_imports(tree, package)
     if relative.name == "mappers.py":
@@ -875,8 +893,40 @@ def parse_python_files(root: Path) -> tuple[dict[Path, ast.AST], list[str]]:
     return trees, errors
 
 
+def context_dirs(root: Path) -> list[Path]:
+    """BC 패키지(`src/mosemo/{bc}/public.py`가 있는 패키지)를 저장소 기준 경로로 돌려준다."""
+    return sorted(
+        path.parent.relative_to(root)
+        for path in (root / "src" / "mosemo").glob("*/public.py")
+    )
+
+
+def check_src_rules(relative: Path, tree: ast.AST, *, in_context: bool) -> list[str]:
+    """`src` 파일 규칙. 옛 역할 파일 규칙(CS-P10·CS-P25·CS-P26의 `add_if_absent`)과
+    CS-P13의 파일 이름 허용은 BC 패키지 밖의 옛 경로에만 적용한다."""
+    errors = check_role_rules(relative, tree, in_context=in_context)
+    errors += check_init_clock(tree) + check_integrity_error_handling(tree)
+    if in_context:
+        return errors + check_context_transaction_calls(tree)
+    if (
+        relative.name not in TRANSACTION_BOUNDARY_FILES
+        and relative.as_posix() != TRANSACTION_HELPER_FILE
+    ):
+        errors += check_transaction_boundaries(tree)
+    if is_repository_file(relative):
+        errors += check_repository_method_names(tree) + check_add_if_absent_conflict(
+            tree
+        )
+    else:
+        errors += check_session_calls(tree)
+        if relative.name != "models.py":
+            errors += check_sql_imports(tree)
+    return errors
+
+
 def validate(root: Path = ROOT) -> list[str]:
     trees, errors = parse_python_files(root)
+    contexts = context_dirs(root)
     exceptions_tree = trees.get(Path(EXCEPTIONS_FILE))
     api_names = (
         api_exception_names(exceptions_tree) if exceptions_tree else {API_EXCEPTION}
@@ -892,21 +942,11 @@ def validate(root: Path = ROOT) -> list[str]:
         if relative.parts[0] == "tests":
             file_errors += check_test_clock_lambdas(tree)
         if relative.parts[0] == "src":
-            file_errors += check_role_rules(relative, tree)
-            file_errors += check_init_clock(tree) + check_integrity_error_handling(tree)
-            if (
-                relative.name not in TRANSACTION_BOUNDARY_FILES
-                and relative.as_posix() != TRANSACTION_HELPER_FILE
-            ):
-                file_errors += check_transaction_boundaries(tree)
-            if is_repository_file(relative):
-                file_errors += check_repository_method_names(
-                    tree
-                ) + check_add_if_absent_conflict(tree)
-            else:
-                file_errors += check_session_calls(tree)
-                if relative.name != "models.py":
-                    file_errors += check_sql_imports(tree)
+            file_errors += check_src_rules(
+                relative,
+                tree,
+                in_context=any(relative.is_relative_to(c) for c in contexts),
+            )
             if (
                 relative.name != "router.py"
                 and relative.as_posix() not in API_EXCEPTION_FILES

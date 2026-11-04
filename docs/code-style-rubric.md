@@ -68,7 +68,7 @@
 | CS-P07 | 이름 | Python 이름 표기 규칙을 어기거나, `...Exception` 이름과 `ApiException`을 HTTP 계층 밖에서 쓰는가? | Ruff `N`, 검사기 | clean-code Naming, #102 |
 | CS-P10 | 이름 | repository 메서드가 허용 동사 밖의 이름을 쓰는가? | 검사기 | 저장소 관례, #91 |
 | CS-P12 | 계층·경계 | `exception_handlers.py` 밖에서 `HTTPException`을 쓰는가? | 검사기 | [ADR 0001](adr/0001-public-api-error-boundary.md) |
-| CS-P13 | 계층·경계 | `service.py`·`executor.py`·`processing.py` 밖에서 트랜잭션을 열거나 확정하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), 저장소 관례 |
+| CS-P13 | 계층·경계 | `service.py`·`executor.py`·`processing.py` 밖에서 트랜잭션을 열거나 확정하는가? BC 패키지에서 `begin`·`commit`·`rollback`을 직접 호출하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), [ADR 0012](adr/0012-notify-cross-context-changes-with-in-process-domain-events.md), 저장소 관례 |
 | CS-P15 | 저장소 관용구 | `src/mosemo/infra/clock.py` 밖에서 현재 시각 API를 호출하거나 `clock`을 키워드 전용 필수 인자로 받지 않는가? | Ruff `TID251`, 검사기 | #86 |
 | CS-P17 | 저장소 관용구 | FastAPI 의존성을 `Annotated` 없이 선언하는가? | Ruff `FAST002` | architecture FastAPI Request Boundaries |
 | CS-P18 | 오류 처리 | 넓은 `except`를 허용 위치 밖에서 쓰거나 예외를 조용히 삼키는가? | 검사기(`src`), Ruff `BLE001`(`src` 밖), `S110` | [ADR 0001](adr/0001-public-api-error-boundary.md), #102 |
@@ -135,6 +135,12 @@
   - 허용은 경로가 아니라 파일 이름(`service.py`·`executor.py`·`processing.py`)으로 판정한다.
   - 예외로 트랜잭션 헬퍼 `src/mosemo/infra/transactions.py`(`unit_of_work`·`read_snapshot`, ADR 0012)는
     경로로 허용한다. 다른 경로의 `transactions.py`는 허용하지 않는다.
+  - BC 패키지(`src/mosemo/{bc}/public.py`가 있는 패키지)에는 파일 이름 허용을 적용하지 않는다. BC의 모든
+    파일에서 `begin`·`begin_nested`·`commit`·`rollback` 호출은 위반이고, 트랜잭션은 UseCase가
+    `infra.transactions`의 `unit_of_work`·`read_snapshot`으로 연다(ADR 0012). 파일 이름으로 역할을 정하는 옛
+    규칙(CS-P10, CS-P25, CS-P26의 `add_if_absent`, CS-P28~CS-P30, CS-P32)은 BC 밖의 옛 경로에만 적용하고,
+    BC 패키지는 ADR 0011~0013 「강제 방법」의 규칙(`validate_architecture.py`,
+    `tests/unit/harness/test_context_introspection.py`)으로 검사한다.
   - CS-P25의 허용 메서드에는 `begin_nested`가 없으므로, 수신 객체가 `session`·`_session`인
     `begin_nested()`는 repository가 아닌 파일에서 CS-P13 허용 파일이라도 CS-P25로 실패한다. CS-P13에
     `begin_nested`를 넣은 것은 CS-P25가 보지 않는 repository 파일과 session이 아닌 수신 객체(session
