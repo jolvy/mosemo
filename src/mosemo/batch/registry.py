@@ -9,6 +9,7 @@ from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.infra.config import Config
 from mosemo.infra.scheduling import BatchJob
 from mosemo.labels import bootstrap as labels_bootstrap
+from mosemo.observation.public import ObservationTimeline
 
 
 def ensure_unique_names(jobs: Sequence[BatchJob]) -> None:
@@ -31,6 +32,7 @@ def build_jobs(
             session_factory,
             model=config.label_model,
             labels=labels_bootstrap.create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
     ]
     ensure_unique_names(jobs)

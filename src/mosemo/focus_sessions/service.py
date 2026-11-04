@@ -4,10 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.repository import ActivityRepository
-from mosemo.activities.service import (
-    ActivityDeviceNotFoundError,
-    timeline_date_window,
-)
+from mosemo.activities.service import ActivityDeviceNotFoundError
 from mosemo.focus_sessions.mappers import FocusSessionMapper
 from mosemo.focus_sessions.models import (
     FocusSession,
@@ -23,6 +20,7 @@ from mosemo.focus_sessions.schemas import (
 from mosemo.identity.public import AccountDirectory, DeviceDirectory
 from mosemo.labels.public import LabelCatalog
 from mosemo.shared.application.clock import Clock
+from mosemo.shared.domain.timezones import timeline_date_window
 
 
 class FocusSessionLabelNotAvailableError(Exception):

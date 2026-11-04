@@ -3,7 +3,6 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.repository import ActivityRepository
 from mosemo.activity_labels.confirmations.service import ConfirmationService
 from mosemo.activity_labels.queries.service import LabelQueries
 from mosemo.activity_labels.schemas import (
@@ -14,6 +13,7 @@ from mosemo.activity_labels.schemas import (
     ConfirmedActivityLabelStateResponse,
     LabelTimelineItemResponse,
 )
+from mosemo.observation.public import ObservationTimeline
 from mosemo.shared.application.clock import Clock
 
 
@@ -22,13 +22,13 @@ class ActivityLabelService:
         self,
         *,
         session: AsyncSession,
-        activity_repository: ActivityRepository,
+        timeline: ObservationTimeline,
         confirmations: ConfirmationService,
         queries: LabelQueries,
         clock: Clock,
     ) -> None:
         self._session = session
-        self._activity_repository = activity_repository
+        self._timeline = timeline
         self._confirmations = confirmations
         self._queries = queries
         self._clock = clock
@@ -48,7 +48,7 @@ class ActivityLabelService:
         now = self._clock()
         async with self._session.begin():
             return await self._queries.get_state(
-                account_id=account_id, segment_id=segment_id, now=now
+                self._session, account_id=account_id, segment_id=segment_id, now=now
             )
 
     async def confirm(
@@ -60,7 +60,7 @@ class ActivityLabelService:
     ) -> ConfirmedActivityLabelStateResponse:
         now = self._clock()
         async with self._session.begin():
-            await self._activity_repository.lock_timeline(account_id)
+            await self._timeline.lock(self._session, account_id)
             saved = await self._confirmations.confirm(
                 account_id=account_id,
                 segment_id=segment_id,
@@ -80,7 +80,7 @@ class ActivityLabelService:
         self._confirmations.reject_duplicate_segments(request)
         now = self._clock()
         async with self._session.begin():
-            await self._activity_repository.lock_timeline(account_id)
+            await self._timeline.lock(self._session, account_id)
             saved = await self._confirmations.confirm_batch(
                 account_id=account_id, request=request, now=now
             )

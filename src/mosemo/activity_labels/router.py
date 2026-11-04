@@ -4,7 +4,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, status
 
-from mosemo.activities.repository import ActivityTimelineBusyError
 from mosemo.activity_labels.confirmations.service import (
     ActivityLabelConfirmationConflictError,
     ActivityLabelSegmentChangedError,
@@ -26,6 +25,7 @@ from mosemo.api.dependencies import ActivityLabelServiceDep, AuthenticatedAccoun
 from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import AccountNotFoundError
 from mosemo.labels.public import LabelErrorCode
+from mosemo.observation.public import ActivityTimelineBusyError
 from mosemo.shared.errors import ApiErrorCode, ApiException, CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 from mosemo.shared.presentation.schemas import ValidationDetail

@@ -3,9 +3,9 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
 from mosemo.activity_labels.queries.service import LabelTimelineEntry
+from mosemo.observation.public import ActivityTimelineKind, ObservedSegment
 
 START = datetime(2026, 9, 14, tzinfo=UTC)
 CODING_ID = uuid4()
@@ -30,7 +30,18 @@ def make_entry(
     *, started_at: datetime, ended_at: datetime, label: object
 ) -> LabelTimelineEntry:
     return LabelTimelineEntry(
-        segment=ActivityTimelineSegment(started_at=started_at),
+        segment=ObservedSegment(
+            id=uuid4(),
+            account_id=uuid4(),
+            first_event_id=uuid4(),
+            started_at=started_at,
+            last_observed_at=ended_at,
+            reason=None,
+            context={"kind": "detailed"},
+            ended_at=ended_at,
+            kind=ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY,
+            version="version",
+        ),
         version="version",
         ended_at=ended_at,
         confirmation=(

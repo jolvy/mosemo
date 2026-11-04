@@ -4,10 +4,6 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.enums import ActivityTimelineKind
-from mosemo.activities.models import ActivityTimelineSegment
-from mosemo.activities.repository import ActivityRepository
-from mosemo.activities.versions import segment_version
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
 from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.schemas import (
@@ -16,6 +12,11 @@ from mosemo.activity_labels.schemas import (
     SegmentLabelConfirmationItemRequest,
 )
 from mosemo.labels.public import LabelCatalog
+from mosemo.observation.public import (
+    ActivityTimelineKind,
+    ObservationTimeline,
+    ObservedSegment,
+)
 
 
 class ActivityLabelSegmentNotFoundError(Exception):
@@ -58,14 +59,14 @@ class BatchLabelConfirmationError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class ConfirmationTarget:
-    segment: ActivityTimelineSegment
+    segment: ObservedSegment
     version: str
     label_id: UUID | None
 
 
 @dataclass(frozen=True, slots=True)
 class SavedConfirmation:
-    segment: ActivityTimelineSegment
+    segment: ObservedSegment
     version: str
     confirmation: ActivityLabelConfirmation
 
@@ -75,12 +76,12 @@ class ConfirmationService:
         self,
         *,
         session: AsyncSession,
-        activity_repository: ActivityRepository,
+        timeline: ObservationTimeline,
         confirmation_repository: ConfirmationRepository,
         labels: LabelCatalog,
     ) -> None:
         self._session = session
-        self._activity_repository = activity_repository
+        self._timeline = timeline
         self._confirmation_repository = confirmation_repository
         self._labels = labels
 
@@ -93,14 +94,14 @@ class ConfirmationService:
         now: datetime,
     ) -> SavedConfirmation:
         segment = await find_labelable_segment(
-            self._activity_repository,
+            self._timeline,
+            self._session,
             account_id=account_id,
             segment_id=segment_id,
             now=now,
         )
-        ended_at = segment.effective_ended_at(now)
-        assert ended_at is not None
-        version = segment_version(segment, ended_at=ended_at)
+        version = segment.version
+        assert version is not None
         if request.segment_version != version:
             raise ActivityLabelSegmentChangedError
 
@@ -190,7 +191,6 @@ class ConfirmationService:
             item=item,
             item_index=item_index,
             segment=segment,
-            now=now,
         )
         label_id = getattr(item.selection, "label_id", None)
         confirmation = await self._find_batch_confirmation(
@@ -217,10 +217,11 @@ class ConfirmationService:
         item: SegmentLabelConfirmationItemRequest,
         item_index: int,
         now: datetime,
-    ) -> ActivityTimelineSegment:
+    ) -> ObservedSegment:
         try:
             return await find_labelable_segment(
-                self._activity_repository,
+                self._timeline,
+                self._session,
                 account_id=account_id,
                 segment_id=item.segment_id,
                 now=now,
@@ -238,12 +239,10 @@ class ConfirmationService:
         *,
         item: SegmentLabelConfirmationItemRequest,
         item_index: int,
-        segment: ActivityTimelineSegment,
-        now: datetime,
+        segment: ObservedSegment,
     ) -> str:
-        ended_at = segment.effective_ended_at(now)
-        assert ended_at is not None
-        version = segment_version(segment, ended_at=ended_at)
+        version = segment.version
+        assert version is not None
         if item.segment_version != version:
             raise ConfirmationService._batch_failure(
                 item_index=item_index,
@@ -253,7 +252,7 @@ class ConfirmationService:
         return version
 
     async def _find_batch_confirmation(
-        self, *, account_id: UUID, segment: ActivityTimelineSegment
+        self, *, account_id: UUID, segment: ObservedSegment
     ) -> ActivityLabelConfirmation | None:
         return await self._confirmation_repository.find_confirmation(
             account_id=account_id,
@@ -337,21 +336,18 @@ class ConfirmationService:
 
 
 async def find_labelable_segment(
-    activity_repository: ActivityRepository,
+    timeline: ObservationTimeline,
+    db_session: AsyncSession,
     *,
     account_id: UUID,
     segment_id: UUID,
     now: datetime,
-) -> ActivityTimelineSegment:
-    segment = await activity_repository.find_account_segment(
-        account_id=account_id,
-        segment_id=segment_id,
+) -> ObservedSegment:
+    segment = await timeline.find_segment(
+        db_session, account_id=account_id, segment_id=segment_id, now=now
     )
     if segment is None:
         raise ActivityLabelSegmentNotFoundError
-    if (
-        segment.timeline_kind_at(now)
-        is not ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
-    ):
+    if segment.kind is not ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY:
         raise ActivityLabelSegmentNotLabelableError
     return segment
