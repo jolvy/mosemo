@@ -113,6 +113,7 @@ SESSION_NAMES = {"session", "_session"}
 TRANSACTION_METHODS = {"begin", "commit", "rollback", "flush"}
 TRANSACTION_BOUNDARY_METHODS = {"begin", "begin_nested", "commit", "rollback"}
 TRANSACTION_BOUNDARY_FILES = {"service.py", "executor.py", "processing.py"}
+TRANSACTION_HELPER_FILE = "src/mosemo/infra/transactions.py"
 SQL_MODULES = {"sqlalchemy", "sqlalchemy.dialects.postgresql"}
 SQL_CONSTRUCTS = {
     "select",
@@ -893,7 +894,10 @@ def validate(root: Path = ROOT) -> list[str]:
         if relative.parts[0] == "src":
             file_errors += check_role_rules(relative, tree)
             file_errors += check_init_clock(tree) + check_integrity_error_handling(tree)
-            if relative.name not in TRANSACTION_BOUNDARY_FILES:
+            if (
+                relative.name not in TRANSACTION_BOUNDARY_FILES
+                and relative.as_posix() != TRANSACTION_HELPER_FILE
+            ):
                 file_errors += check_transaction_boundaries(tree)
             if is_repository_file(relative):
                 file_errors += check_repository_method_names(

@@ -537,6 +537,8 @@ def test_validate_rejects_transaction_calls_outside_boundary_files(
         "src/mosemo/x/service.py": transaction,
         "src/mosemo/x/executor.py": transaction,
         "src/mosemo/x/processing.py": transaction,
+        "src/mosemo/infra/transactions.py": transaction,
+        "src/mosemo/y/transactions.py": transaction,
         "src/mosemo/y/repository.py": "async def run(session):\n    await session.flush()\n",
         "scripts/x.py": "session.commit()\n",
         "tests/x.py": "session.commit()\n",
@@ -550,6 +552,9 @@ def test_validate_rejects_transaction_calls_outside_boundary_files(
         ["src/mosemo/x/queries.py:2", "CS-P13"],
         ["src/mosemo/x/repository.py:2", "CS-P13"],
         ["src/mosemo/x/router.py:2", "CS-P13"],
+        ["src/mosemo/y/transactions.py:2", "CS-P13"],
+        ["src/mosemo/y/transactions.py:4", "CS-P13"],
+        ["src/mosemo/y/transactions.py:5", "CS-P13"],
     ]
     assert "`service.py`·`executor.py`·`processing.py`에서만 연다" in errors[0]
 
