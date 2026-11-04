@@ -5,10 +5,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mosemo.api.dependencies import get_token_current_account
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.main import app as api_app
-from mosemo.auth.tokens import TokenService
+from mosemo.identity.bootstrap import get_token_current_account
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config
 from mosemo.infra.providers import (
@@ -39,7 +39,7 @@ def test_get_event_dispatcher_returns_one_shared_dispatcher() -> None:
 @pytest.mark.asyncio
 async def test_declared_current_account_provider_requires_override() -> None:
     with pytest.raises(NotImplementedError):
-        await get_current_account()
+        await get_current_account(None)
 
 
 def test_api_app_overrides_current_account_with_token_verification() -> None:
@@ -70,7 +70,7 @@ def test_current_account_comes_from_valid_token_without_session(
     config: Config,
 ) -> None:
     account_id = uuid4()
-    token = TokenService(config.auth).issue_access_token(account_id, now=utc_now())
+    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
 
     response = make_client(config).get(
         "/me", headers={"Authorization": f"Bearer {token}"}
@@ -86,7 +86,7 @@ def test_current_account_rejects_missing_invalid_or_expired_token(
 ) -> None:
     if authorization == "expired":
         issued_at = datetime(2020, 1, 1, tzinfo=UTC) - timedelta(days=1)
-        token = TokenService(config.auth).issue_access_token(uuid4(), now=issued_at)
+        token = get_token_service(config).issue_access_token(uuid4(), now=issued_at)
         authorization = f"Bearer {token}"
     headers = {} if authorization is None else {"Authorization": authorization}
 

@@ -4,7 +4,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from mosemo.exceptions import ErrorCode
+from mosemo.identity.public import IdentityErrorCode
 from mosemo.shared.errors import CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 from mosemo.shared.presentation.responses import error_response
@@ -43,8 +43,8 @@ def test_response_builder_serializes_details() -> None:
 
 def test_api_error_responses_groups_same_status_with_common_schema() -> None:
     responses = api_error_responses(
-        ErrorCode.AUTH_INVALID_AUTHORIZATION_CODE,
-        ErrorCode.AUTH_INVALID_OAUTH_CONTEXT,
+        IdentityErrorCode.AUTH_INVALID_AUTHORIZATION_CODE,
+        IdentityErrorCode.AUTH_INVALID_OAUTH_CONTEXT,
     )
 
     assert set(responses) == {400}

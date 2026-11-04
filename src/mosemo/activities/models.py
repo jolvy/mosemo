@@ -47,7 +47,7 @@ class ActivityRecord(Base):
 
     event_id: Mapped[UUID] = mapped_column(primary_key=True)
     device_id: Mapped[UUID] = mapped_column(
-        ForeignKey("devices.device_id", ondelete="CASCADE")
+        ForeignKey("devices.id", ondelete="CASCADE")
     )
     focus_session_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("focus_sessions.session_id", ondelete="RESTRICT"),
@@ -139,7 +139,7 @@ class ActivityTimelineSegment(Base):
 
     segment_id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
     account_id: Mapped[UUID] = mapped_column(
-        ForeignKey("accounts.account_id", ondelete="CASCADE")
+        ForeignKey("accounts.id", ondelete="CASCADE")
     )
     segment_type: Mapped[SegmentType] = mapped_column(
         Enum(
@@ -220,10 +220,10 @@ class ActivityBatchReceipt(Base):
     __tablename__ = "activity_batch_receipts"
 
     account_id: Mapped[UUID] = mapped_column(
-        ForeignKey("accounts.account_id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True
     )
     device_id: Mapped[UUID] = mapped_column(
-        ForeignKey("devices.device_id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("devices.id", ondelete="CASCADE"), primary_key=True
     )
     batch_id: Mapped[UUID] = mapped_column(primary_key=True)
     fingerprint: Mapped[str] = mapped_column(Text)

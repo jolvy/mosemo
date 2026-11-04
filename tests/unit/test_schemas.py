@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
 
-from mosemo.auth.schemas import TokenRequest
+from mosemo.identity.presentation.auth.schemas import TokenRequest
 from mosemo.shared.presentation.schemas import (
     OBSERVATION_TIMESTAMP_PATTERN,
     PUBLIC_TIMESTAMP_PATTERN,

@@ -1,45 +1,96 @@
 import asyncio
 import json
 from http.cookies import SimpleCookie
+from types import SimpleNamespace
 from typing import cast
-from unittest.mock import create_autospec
+from unittest.mock import Mock, create_autospec, sentinel
 from urllib.parse import parse_qs, urlsplit
 
 import httpx2
 import pytest
 from fastapi import Response
+from fastapi.routing import APIRoute
 
-from mosemo.accounts.models import AccountProvider
-from mosemo.auth.kakao_client import KAKAO_AUTHORIZE_URL, KakaoClient
-from mosemo.auth.pkce import create_code_challenge
-from mosemo.auth.router import (
-    PKCE_CHALLENGE_COOKIE,
-    STATE_COOKIE,
-    callback,
-    exchange_token,
-    login,
-)
-from mosemo.auth.schemas import KakaoCallback, TokenRequest
-from mosemo.auth.service import (
-    AuthService,
+from mosemo.identity.application.sign_in import (
+    ExchangeAuthorizationCode,
     InvalidAuthorizationCodeError,
+    LogIn,
     OAuthAuthenticationError,
 )
+from mosemo.identity.application.tokens import TokenService
+from mosemo.identity.bootstrap import create_kakao_client
+from mosemo.identity.domain.accounts import AccountProvider
+from mosemo.identity.domain.pkce import create_code_challenge
+from mosemo.identity.infrastructure.kakao_client import KAKAO_AUTHORIZE_URL
+from mosemo.identity.presentation.auth.router import (
+    PKCE_CHALLENGE_COOKIE,
+    STATE_COOKIE,
+    OAuthCookies,
+    create_router,
+)
+from mosemo.identity.presentation.auth.schemas import KakaoCallback, TokenRequest
 from mosemo.infra.config import Config
 from mosemo.shared.errors import ApiException
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
+OAUTH_CLIENTS = Mock()
+TOKENS = create_autospec(TokenService, instance=True)
 
 
 def make_service():
-    return create_autospec(AuthService, instance=True)
+    return SimpleNamespace(
+        log_in=create_autospec(LogIn, instance=True),
+        exchange=create_autospec(ExchangeAuthorizationCode, instance=True),
+    )
 
 
-def make_kakao_client(config: Config) -> KakaoClient:
-    return KakaoClient(
-        http_client=cast(httpx2.AsyncClient, object()),
-        config=config.kakao,
+def endpoints(service):
+    router = create_router(
+        log_in=service.log_in,
+        exchange_authorization_code=service.exchange,
+        get_login_client=Mock(),
+        get_oauth_clients=Mock(),
+    )
+    return {
+        route.name: route.endpoint
+        for route in router.routes
+        if isinstance(route, APIRoute)
+    }
+
+
+def login(config, kakao_client, *, code_challenge, code_challenge_method):
+    return endpoints(make_service())["login"](
+        config,
+        kakao_client,
+        code_challenge=code_challenge,
+        code_challenge_method=code_challenge_method,
+    )
+
+
+def callback(*, service, config, kakao_callback, state_cookie, pkce_challenge_cookie):
+    return endpoints(service)["callback"](
+        sentinel.db_session,
+        config,
+        oauth_clients=OAUTH_CLIENTS,
+        kakao_callback=kakao_callback,
+        cookies=OAuthCookies(state_cookie, pkce_challenge_cookie),
+    )
+
+
+def exchange_token(request, service, *, config, response):
+    return endpoints(service)["exchange_token"](
+        request,
+        sentinel.db_session,
+        config=config,
+        token_service=TOKENS,
+        response=response,
+    )
+
+
+def make_kakao_client(config: Config):
+    return create_kakao_client(
+        config.kakao, http_client=cast(httpx2.AsyncClient, object())
     )
 
 
@@ -55,7 +106,7 @@ def test_login_redirects_to_kakao_and_sets_oauth_cookies(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "mosemo.auth.router.secrets.token_urlsafe",
+        "mosemo.identity.presentation.auth.router.secrets.token_urlsafe",
         lambda length: "fixed-state",
     )
 
@@ -94,7 +145,7 @@ def test_login_uses_secure_cookies_in_production(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "mosemo.auth.router.secrets.token_urlsafe",
+        "mosemo.identity.presentation.auth.router.secrets.token_urlsafe",
         lambda length: "fixed-state",
     )
     production_config = config.model_copy(update={"app_env": "prod"})
@@ -153,14 +204,14 @@ def test_callback_rejects_invalid_state_and_clears_cookies(
     cookies = response_cookies(response)
     assert cookies[STATE_COOKIE]["max-age"] == "0"
     assert cookies[PKCE_CHALLENGE_COOKIE]["max-age"] == "0"
-    service.login.assert_not_awaited()
+    service.log_in.execute.assert_not_awaited()
 
 
 def test_callback_redirects_authorization_code_to_macos_app(
     config: Config,
 ) -> None:
     service = make_service()
-    service.login.return_value = "one-time-code"
+    service.log_in.execute.return_value = "one-time-code"
 
     response = asyncio.run(
         callback(
@@ -181,7 +232,9 @@ def test_callback_redirects_authorization_code_to_macos_app(
     assert parse_qs(location.query) == {"code": ["one-time-code"]}
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["pragma"] == "no-cache"
-    service.login.assert_awaited_once_with(
+    service.log_in.execute.assert_awaited_once_with(
+        sentinel.db_session,
+        oauth_clients=OAUTH_CLIENTS,
         provider=AccountProvider.KAKAO,
         code="authorization-code",
         code_challenge=CODE_CHALLENGE,
@@ -195,7 +248,7 @@ def test_callback_redirects_authentication_failure_to_macos_app(
     config: Config,
 ) -> None:
     service = make_service()
-    service.login.side_effect = OAuthAuthenticationError()
+    service.log_in.execute.side_effect = OAuthAuthenticationError()
 
     response = asyncio.run(
         callback(
@@ -212,7 +265,9 @@ def test_callback_redirects_authentication_failure_to_macos_app(
     assert parse_qs(urlsplit(response.headers["location"]).query) == {
         "error": ["authentication_failed"]
     }
-    service.login.assert_awaited_once_with(
+    service.log_in.execute.assert_awaited_once_with(
+        sentinel.db_session,
+        oauth_clients=OAUTH_CLIENTS,
         provider=AccountProvider.KAKAO,
         code="authorization-code",
         code_challenge=CODE_CHALLENGE,
@@ -250,12 +305,12 @@ def test_callback_maps_provider_error_without_authenticating(
     assert parse_qs(urlsplit(response.headers["location"]).query) == {
         "error": [public_error]
     }
-    service.login.assert_not_awaited()
+    service.log_in.execute.assert_not_awaited()
 
 
 def test_exchange_token_returns_bearer_response(config: Config) -> None:
     service = make_service()
-    service.exchange_authorization_code.return_value = "access-token"
+    service.exchange.execute.return_value = "access-token"
 
     result = asyncio.run(
         exchange_token(
@@ -277,15 +332,17 @@ def test_exchange_token_returns_bearer_response(config: Config) -> None:
         "tokenType": "Bearer",
         "expiresIn": 86_400,
     }
-    service.exchange_authorization_code.assert_awaited_once_with(
+    service.exchange.execute.assert_awaited_once_with(
+        sentinel.db_session,
         authorization_code="one-time-code",
         code_verifier=CODE_VERIFIER,
+        token_service=TOKENS,
     )
 
 
 def test_exchange_token_returns_fixed_error(config: Config) -> None:
     service = make_service()
-    service.exchange_authorization_code.side_effect = InvalidAuthorizationCodeError()
+    service.exchange.execute.side_effect = InvalidAuthorizationCodeError()
 
     with pytest.raises(ApiException) as exc_info:
         asyncio.run(
@@ -307,7 +364,9 @@ def test_exchange_token_returns_fixed_error(config: Config) -> None:
     assert exc_info.value.spec.code == 400
     assert exc_info.value.spec.message == "Invalid or expired authorization code"
     assert isinstance(exc_info.value.__cause__, InvalidAuthorizationCodeError)
-    service.exchange_authorization_code.assert_awaited_once_with(
+    service.exchange.execute.assert_awaited_once_with(
+        sentinel.db_session,
         authorization_code="invalid-code",
         code_verifier=CODE_VERIFIER,
+        token_service=TOKENS,
     )

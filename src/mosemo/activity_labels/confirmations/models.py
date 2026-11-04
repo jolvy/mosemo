@@ -25,7 +25,7 @@ class ActivityLabelConfirmation(Base):
 
     confirmation_id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
     account_id: Mapped[UUID] = mapped_column(
-        ForeignKey("accounts.account_id", ondelete="CASCADE"),
+        ForeignKey("accounts.id", ondelete="CASCADE"),
     )
     first_event_id: Mapped[UUID] = mapped_column(
         ForeignKey("activity_records.event_id", ondelete="CASCADE")

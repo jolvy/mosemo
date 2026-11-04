@@ -9,11 +9,11 @@ from fastapi.testclient import TestClient
 from mosemo.activities.enums import SegmentType
 from mosemo.activities.schemas import ActivitySegmentResponse, CaptureGapResponse
 from mosemo.activities.service import ActivityService
-from mosemo.api.dependencies import get_activity_service, get_device_repository
+from mosemo.api.dependencies import get_activity_service, get_device_directory
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.middleware import BatchBodyLimitMiddleware
 from mosemo.api.routes import v1_api_router
-from mosemo.auth.tokens import TokenService
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.messaging.publisher import DeliveryUnavailableError
@@ -46,8 +46,8 @@ def make_app(*, config: Config, account_id: UUID, service: ActivityService):
     app.dependency_overrides[get_activity_service] = lambda: service
     app.state.devices = AsyncMock()
     app.state.batch_publisher = AsyncMock()
-    app.dependency_overrides[get_device_repository] = lambda: app.state.devices
-    token = TokenService(config.auth).issue_access_token(account_id, now=utc_now())
+    app.dependency_overrides[get_device_directory] = lambda: app.state.devices
+    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
     return app, token
 
 
@@ -79,7 +79,7 @@ def test_batch_admission_hides_missing_and_foreign_devices(config):
         account_id=uuid4(),
         service=create_autospec(ActivityService, instance=True),
     )
-    app.state.devices.find_owned_by_id.return_value = None
+    app.state.devices.find_owned.return_value = None
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/activities/batches",

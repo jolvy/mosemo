@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mosemo.activities.executor import BatchProcessingExecutor
 from mosemo.activities.messages import ActivityRegistrationRequested
+from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import BatchDeliveryConfig
 from mosemo.infra.messaging.runtime import consumer_broker
@@ -47,7 +48,11 @@ async def run_consumer(
 ) -> None:
     if not config.enabled:
         raise ValueError("Activity Consumer requires BATCH_ENABLED=true")
+    identity_bootstrap.map_tables()
+    executor = BatchProcessingExecutor(
+        sessions, clock=utc_now, devices=identity_bootstrap.create_device_directory()
+    )
     await MessageConsumer(
         consumer_broker(config.bootstrap_servers),
-        activity_batch_handler(BatchProcessingExecutor(sessions, clock=utc_now)),
+        activity_batch_handler(executor),
     ).run(config.topic, stop, group_id=config.group_id)

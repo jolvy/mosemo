@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from pydantic import TypeAdapter
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -12,8 +12,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.enums import RecordType
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.repository import (
@@ -28,11 +26,16 @@ from mosemo.activities.service import (
     ActivitySequenceConflictError,
     ActivityService,
 )
-from mosemo.devices.models import Device
-from mosemo.devices.repository import DeviceRepository
+from mosemo.identity.bootstrap import (
+    create_account_directory,
+    create_device_directory,
+)
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.domain.devices import Device
 from mosemo.infra.clock import utc_now
 from mosemo.shared.domain.timezones import Timezone
 from tests.clock_support import FakeClock
+from tests.identity_support import delete_accounts
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 
@@ -84,10 +87,10 @@ async def create_account_and_device(
         provider=AccountProvider.KAKAO,
         provider_subject=f"activity-integration-{uuid4()}",
     )
-    AccountRepository(session).add(account)
+    session.add(account)
     await session.flush()
     device = Device(
-        account_id=account.account_id,
+        account_id=account.id,
         idempotency_key=uuid4(),
     )
     session.add(device)
@@ -104,18 +107,19 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
         provider=AccountProvider.KAKAO,
         provider_subject=f"activity-other-{uuid4()}",
     )
-    AccountRepository(integration_session).add(other_account)
+    integration_session.add(other_account)
     await integration_session.flush()
-    account_id = account.account_id
-    other_account_id = other_account.account_id
-    device_id = device.device_id
+    account_id = account.id
+    other_account_id = other_account.id
+    device_id = device.id
     await integration_session.commit()
     repository = ActivityRepository(integration_session)
-    device_repository = DeviceRepository(integration_session)
+    device_repository = create_device_directory()
     service = ActivityService(
         session=integration_session,
         repository=repository,
-        device_repository=device_repository,
+        devices=device_repository,
+        accounts=create_account_directory(),
         clock=FakeClock(utc_now()),
     )
     observation = activity_observation(
@@ -171,14 +175,16 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
     assert state_response.status == "accepted"
     assert retry_response == observation_response
     assert (
-        await device_repository.find_owned_by_id(
+        await device_repository.find_owned(
+            integration_session,
             account_id=account_id,
             device_id=device_id,
         )
         is not None
     )
     assert (
-        await device_repository.find_owned_by_id(
+        await device_repository.find_owned(
+            integration_session,
             account_id=other_account_id,
             device_id=device_id,
         )
@@ -207,7 +213,7 @@ async def test_activity_record_database_constraints(
 ) -> None:
     _, device = await create_account_and_device(integration_session)
     common_values = {
-        "device_id": device.device_id,
+        "device_id": device.id,
         "observed_at": datetime(2026, 9, 14, tzinfo=UTC),
         "timezone_id": Timezone.ASIA_SEOUL,
         "utc_offset_minutes": 540,
@@ -254,7 +260,7 @@ async def test_activity_record_database_rejects_unsupported_type(
             ),
             {
                 "event_id": uuid4(),
-                "device_id": device.device_id,
+                "device_id": device.id,
                 "record_type": "unsupported",
                 "observed_at": datetime(2026, 9, 14, tzinfo=UTC),
                 "timezone_id": Timezone.ASIA_SEOUL.value,
@@ -272,15 +278,16 @@ async def test_activity_service_hides_missing_and_unowned_devices(
         provider=AccountProvider.KAKAO,
         provider_subject=f"activity-unowned-{uuid4()}",
     )
-    AccountRepository(integration_session).add(other_account)
+    integration_session.add(other_account)
     await integration_session.commit()
-    owner_id = owner.account_id
-    other_account_id = other_account.account_id
-    device_id = device.device_id
+    owner_id = owner.id
+    other_account_id = other_account.id
+    device_id = device.id
     service = ActivityService(
         session=integration_session,
         repository=ActivityRepository(integration_session),
-        device_repository=DeviceRepository(integration_session),
+        devices=create_device_directory(),
+        accounts=create_account_directory(),
         clock=FakeClock(utc_now()),
     )
 
@@ -307,8 +314,8 @@ async def test_concurrent_identical_requests_store_one_record(
     try:
         async with session_factory() as setup_session:
             account, device = await create_account_and_device(setup_session)
-            account_id = account.account_id
-            device_id = device.device_id
+            account_id = account.id
+            device_id = device.id
             await setup_session.commit()
 
         record = activity_observation(
@@ -323,9 +330,10 @@ async def test_concurrent_identical_requests_store_one_record(
                 return await ActivityService(
                     session=session,
                     repository=ActivityRepository(session),
-                    device_repository=DeviceRepository(session),
+                    devices=create_device_directory(),
+                    accounts=create_account_directory(),
                     clock=fake_clock,
-                ).create_activity(account_id=account.account_id, record=record)
+                ).create_activity(account_id=account.id, record=record)
 
         first, second = await asyncio.gather(ingest(), ingest())
 
@@ -340,9 +348,7 @@ async def test_concurrent_identical_requests_store_one_record(
     finally:
         if account_id is not None:
             async with session_factory() as cleanup_session:
-                await cleanup_session.execute(
-                    delete(Account).where(Account.account_id == account_id)
-                )
+                await cleanup_session.execute(delete_accounts(account_id))
                 await cleanup_session.commit()
         await engine.dispose()
 
@@ -360,15 +366,15 @@ async def test_account_lock_timeout_rolls_back_without_blocking_other_account(
                 setup_session
             )
             other_account, other_device = await create_account_and_device(setup_session)
-            account_ids = [locked_account.account_id, other_account.account_id]
+            account_ids = [locked_account.id, other_account.id]
             await setup_session.commit()
 
         locked_record = activity_observation(
-            device_id=locked_device.device_id,
+            device_id=locked_device.id,
             sequence=1,
         )
         other_record = activity_observation(
-            device_id=other_device.device_id,
+            device_id=other_device.id,
             sequence=1,
         )
 
@@ -379,20 +385,19 @@ async def test_account_lock_timeout_rolls_back_without_blocking_other_account(
                 return await ActivityService(
                     session=session,
                     repository=ActivityRepository(session),
-                    device_repository=DeviceRepository(session),
+                    devices=create_device_directory(),
+                    accounts=create_account_directory(),
                     clock=fake_clock,
                 ).create_activity(account_id=account_id, record=record)
 
         async with session_factory() as holder, holder.begin():
             await holder.execute(
                 text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": activity_timeline_lock_key(locked_account.account_id)},
+                {"key": activity_timeline_lock_key(locked_account.id)},
             )
-            assert (
-                await ingest(other_account.account_id, other_record)
-            ).status == "accepted"
+            assert (await ingest(other_account.id, other_record)).status == "accepted"
             with pytest.raises(ActivityTimelineBusyError):
-                await ingest(locked_account.account_id, locked_record)
+                await ingest(locked_account.id, locked_record)
 
         async with session_factory() as verification_session:
             count = await verification_session.scalar(
@@ -402,14 +407,10 @@ async def test_account_lock_timeout_rolls_back_without_blocking_other_account(
             )
             assert count == 0
 
-        assert (
-            await ingest(locked_account.account_id, locked_record)
-        ).status == "accepted"
+        assert (await ingest(locked_account.id, locked_record)).status == "accepted"
     finally:
         if account_ids:
             async with session_factory() as cleanup_session:
-                await cleanup_session.execute(
-                    delete(Account).where(Account.account_id.in_(account_ids))
-                )
+                await cleanup_session.execute(delete_accounts(*account_ids))
                 await cleanup_session.commit()
         await engine.dispose()

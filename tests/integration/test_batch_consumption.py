@@ -6,20 +6,22 @@ import pytest
 import pytest_asyncio
 from faststream.kafka import KafkaBroker
 from faststream.kafka.message import KafkaAckableMessage
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from mosemo.accounts.models import Account, AccountProvider
 from mosemo.activities.executor import BatchProcessingExecutor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
 from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.consumer.activity_batches import activity_batch_handler
-from mosemo.devices.models import Device
+from mosemo.identity.bootstrap import create_device_directory
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.domain.devices import Device
 from mosemo.infra.clock import utc_now
 from mosemo.infra.kafka_compat import BatchPartition
 from mosemo.infra.messaging.subscriber import MessageConsumer
 from tests.clock_support import FakeClock
+from tests.identity_support import delete_accounts
 from tests.integration.test_activity_batches import batch, record
 from tests.kafka_support import GroupOffsets, KafkaTestAdmin
 
@@ -42,7 +44,7 @@ async def consumption_db(integration_database_url):
                 owner = uuid4()
             session.add(
                 Account(
-                    account_id=owner,
+                    id=owner,
                     provider=AccountProvider.KAKAO,
                     provider_subject=str(owner),
                 )
@@ -52,13 +54,13 @@ async def consumption_db(integration_database_url):
             session.add(device)
             await session.flush()
             owners.append(owner)
-            devices.append(device.device_id)
+            devices.append(device.id)
         await session.commit()
     try:
         yield sessions, owners, devices
     finally:
         async with sessions() as session:
-            await session.execute(delete(Account).where(Account.account_id.in_(owners)))
+            await session.execute(delete_accounts(*owners))
             await session.commit()
         await engine.dispose()
 
@@ -130,7 +132,9 @@ async def test_real_partitions_parallel_but_next_batch_waits_for_db_and_offset_a
     entered = asyncio.Queue()
     release = {owner: asyncio.Event() for owner in owners}
     before_commit, allow_commit = asyncio.Event(), asyncio.Event()
-    real_executor = BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+    real_executor = BatchProcessingExecutor(
+        sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
+    )
 
     class Executor:
         async def execute(self, msg):
@@ -181,7 +185,9 @@ async def test_valid_offsets_resume_and_new_group_uses_earliest(
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
     seen = []
-    real = BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+    real = BatchProcessingExecutor(
+        sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
+    )
 
     class Executor:
         async def execute(self, msg):
@@ -229,7 +235,9 @@ async def test_rebalance_between_group_members_cancels_old_session_before_replay
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
     entered, cancelled = asyncio.Event(), asyncio.Event()
-    real = BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+    real = BatchProcessingExecutor(
+        sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
+    )
     seen = []
 
     class HeldExecutor:
@@ -300,7 +308,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
     import httpx2
 
     from mosemo.activities.models import ActivityTimelineSegment
-    from mosemo.auth.tokens import TokenService
+    from mosemo.identity.presentation.auth.router import get_token_service
 
     delivery = integration_kafka.config
     sessions, owners, devices = consumption_db
@@ -363,7 +371,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 await eventually(api_ready)
                 headers = {
                     "Authorization": "Bearer "
-                    + TokenService(config.auth).issue_access_token(
+                    + get_token_service(config).issue_access_token(
                         owners[0], now=utc_now()
                     )
                 }
@@ -553,7 +561,10 @@ async def test_kafka_commits_and_acks_while_account_advisory_lock_is_held(
         await ActivityRepository(holder).lock_timeline(owners[0])
         await publish(config, owners[:1], devices[:1], 1)
         async with running(
-            config, BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+            config,
+            BatchProcessingExecutor(
+                sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
+            ),
         ) as (
             consumer,
             _,
@@ -583,7 +594,9 @@ async def test_real_kafka_commit_failure_rolls_back_every_write_without_ack(
     worker = MessageConsumer(
         broker,
         activity_batch_handler(
-            BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+            BatchProcessingExecutor(
+                sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
+            )
         ),
     )
 

@@ -13,15 +13,15 @@ from mosemo.activities.schemas import (
     ActivityBatchResponse,
     TimelineSegmentResponse,
 )
-from mosemo.activities.service import ActivityAccountNotFoundError
 from mosemo.api.dependencies import (
     ActivityServiceDep,
     AuthenticatedAccountDep,
     ClockDep,
-    DeviceRepositoryDep,
+    DeviceDirectoryDep,
     SessionDep,
 )
 from mosemo.exceptions import ErrorCode
+from mosemo.identity.public import AccountNotFoundError
 from mosemo.infra.messaging.publisher import DeliveryUnavailableError
 from mosemo.shared.errors import ApiException, CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
@@ -59,13 +59,14 @@ async def accept_batch(
     request: Request,
     *,
     authenticated_account: AuthenticatedAccountDep,
-    devices: DeviceRepositoryDep,
+    devices: DeviceDirectoryDep,
+    session: SessionDep,
 ) -> ActivityBatchResponse:
     account_id = authenticated_account.account_id
-    device = await devices.find_owned_by_id(
-        account_id=account_id, device_id=batch.device_id
+    owned = await devices.find_owned(
+        session, account_id=account_id, device_id=batch.device_id
     )
-    if device is None:
+    if owned is None:
         raise ApiException(ErrorCode.ACTIVITY_DEVICE_NOT_FOUND)
     publisher = getattr(request.app.state, "batch_publisher", None)
     if publisher is None:
@@ -109,11 +110,12 @@ async def process_batch_legacy(
     *,
     session: SessionDep,
     clock: ClockDep,
+    devices: DeviceDirectoryDep,
 ) -> ActivityBatchProcessedResponse:
     try:
-        results = await LegacyBatchExecutor(session, clock=clock).execute(
-            authenticated_account.account_id, batch
-        )
+        results = await LegacyBatchExecutor(
+            session, clock=clock, devices=devices
+        ).execute(authenticated_account.account_id, batch)
     except ActivityTimelineBusyError as exc:
         raise ApiException(ErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
     except TerminalBatchError as exc:
@@ -165,5 +167,5 @@ async def get_timeline(
             account_id=authenticated_account.account_id,
             date=date,
         )
-    except ActivityAccountNotFoundError as exc:
+    except AccountNotFoundError as exc:
         raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc

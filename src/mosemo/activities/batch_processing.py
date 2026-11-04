@@ -1,6 +1,7 @@
 """Batch processing within a transaction owned by the calling Executor."""
 
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from hashlib import sha256
 from uuid import UUID
@@ -24,12 +25,12 @@ from mosemo.activities.timeline import (
     TimelineProjection,
     observation_key,
 )
-from mosemo.devices.repository import DeviceRepository
 from mosemo.focus_sessions.models import (
     FocusSessionInvalidTimeError,
     FocusSessionNotFoundError,
 )
 from mosemo.focus_sessions.repository import FocusSessionRepository
+from mosemo.identity.public import DeviceDirectory
 from mosemo.shared.application.clock import Clock
 
 
@@ -61,9 +62,12 @@ def segment_seed(segment: ActivityTimelineSegment) -> ProjectedSegment:
 
 
 class ActivityBatchProcessor:
-    def __init__(self, session: AsyncSession, *, clock: Clock):
+    def __init__(
+        self, session: AsyncSession, *, clock: Clock, devices: DeviceDirectory
+    ):
         self.session = session
         self._clock = clock
+        self._devices = devices
         self.repository = ActivityRepository(session)
         self.receipts = BatchReceiptRepository(session)
         self._mapper = ActivityRecordMapper()
@@ -87,14 +91,17 @@ class ActivityBatchProcessor:
             return await self._winner_results(
                 account_id, batch, fingerprint=fingerprint
             )
+        device_ids = await self._devices.list_device_ids(self.session, account_id)
         latest = await self._initialize_account(
-            account_id, initialized=initialized, now=now
+            account_id, device_ids, initialized=initialized, now=now
         )
         adopted, results = await self._store_records(account_id, batch)
         await self._ensure_device_order(adopted)
         if adopted:
             try:
-                await self._project(account_id, adopted, latest=latest, now=now)
+                await self._project(
+                    account_id, adopted, device_ids=device_ids, latest=latest, now=now
+                )
             except ProjectionError:
                 raise TerminalBatchError("projection_time_regression") from None
         claimed.results = results
@@ -102,10 +109,10 @@ class ActivityBatchProcessor:
         return results
 
     async def _ensure_device_owned(self, account_id: UUID, device_id: UUID) -> None:
-        device = await DeviceRepository(self.session).find_owned_by_id(
-            account_id=account_id, device_id=device_id
+        owned = await self._devices.find_owned(
+            self.session, account_id=account_id, device_id=device_id
         )
-        if device is None:
+        if owned is None:
             raise TerminalBatchError("device_not_owned")
 
     async def _winner_results(
@@ -123,15 +130,22 @@ class ActivityBatchProcessor:
         return winner.results
 
     async def _initialize_account(
-        self, account_id: UUID, *, initialized: bool, now: datetime
+        self,
+        account_id: UUID,
+        device_ids: Sequence[UUID],
+        *,
+        initialized: bool,
+        now: datetime,
     ) -> StoredActivityRecord | None:
         if not initialized and not await self.repository.is_account_clock_monotone(
-            account_id
+            device_ids
         ):
             raise TerminalBatchError("projection_time_regression")
-        latest = await self.repository.find_latest_account_record(account_id)
+        latest = await self.repository.find_latest_account_record(device_ids)
         if not initialized and latest is not None:
-            await self._rebuild_legacy_projection(account_id, latest, now=now)
+            await self._rebuild_legacy_projection(
+                account_id, latest, device_ids=device_ids, now=now
+            )
         return latest
 
     async def _store_records(
@@ -206,7 +220,12 @@ class ActivityBatchProcessor:
                 raise TerminalBatchError("projection_time_regression")
 
     async def _rebuild_legacy_projection(
-        self, account_id: UUID, latest: StoredActivityRecord, *, now: datetime
+        self,
+        account_id: UUID,
+        latest: StoredActivityRecord,
+        *,
+        device_ids: Sequence[UUID],
+        now: datetime,
     ) -> None:
         # The first receipt marks an atomic transition from received_at tie order.
         # Rebuild even for duplicate-only batches; an unchanged prefix does not
@@ -215,7 +234,7 @@ class ActivityBatchProcessor:
         projection = TimelineProjection()
         after = None
         while page := await self.repository.list_record_page(
-            account_id, start=start, after=after
+            device_ids, start=start, after=after
         ):
             for record in page:
                 projection.feed(record)
@@ -234,6 +253,7 @@ class ActivityBatchProcessor:
         account_id: UUID,
         adopted: list[StoredActivityRecord],
         *,
+        device_ids: Sequence[UUID],
         latest: StoredActivityRecord | None,
         now: datetime,
     ) -> None:
@@ -245,7 +265,7 @@ class ActivityBatchProcessor:
                     account_id, ordered, last_segment=last_segment, now=now
                 )
                 return
-        await self._replay(account_id, ordered, now=now)
+        await self._replay(account_id, ordered, device_ids=device_ids, now=now)
 
     async def _append(
         self,
@@ -270,6 +290,7 @@ class ActivityBatchProcessor:
         account_id: UUID,
         ordered: list[StoredActivityRecord],
         *,
+        device_ids: Sequence[UUID],
         now: datetime,
     ) -> None:
         observed_at = ordered[-1].observed_at
@@ -282,7 +303,7 @@ class ActivityBatchProcessor:
         convergence = None
         while convergence is None and (
             page := await self.repository.list_record_page(
-                account_id, start=start, after=after
+                device_ids, start=start, after=after
             )
         ):
             for record in page:

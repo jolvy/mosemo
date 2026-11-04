@@ -8,14 +8,6 @@ from mosemo.shared.presentation.schemas import ValidationDetail
 # Temporary home of the central ErrorCode docs. Each bounded context move takes
 # its members to that context's presentation/error_docs.py.
 ERROR_DOCS: Mapping[ApiErrorCode, ErrorDocs] = {
-    ErrorCode.AUTH_INVALID_AUTHORIZATION_CODE: ErrorDocs(
-        summary="Invalid authorization code",
-        description="authorization code 또는 PKCE 검증에 실패했습니다.",
-    ),
-    ErrorCode.AUTH_INVALID_OAUTH_CONTEXT: ErrorDocs(
-        summary="Invalid OAuth context",
-        description="OAuth login context가 유효하지 않습니다.",
-    ),
     ErrorCode.FOCUS_SESSION_NOT_FOUND: ErrorDocs(
         summary="Focus session not found",
         description="집중 세션을 찾을 수 없거나 요청 계정 또는 기기에 속하지 않습니다.",

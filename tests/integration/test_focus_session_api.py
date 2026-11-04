@@ -8,19 +8,19 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.models import ActivityRecord
 from mosemo.activity_labels.catalog.models import Label
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
-from mosemo.auth.tokens import TokenService
-from mosemo.devices.models import Device
 from mosemo.focus_sessions.models import FocusSession
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.domain.devices import Device
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.database import get_session
 from tests.batch_support import batch_client, post_activity
+from tests.identity_support import delete_accounts
 
 
 @pytest_asyncio.fixture
@@ -39,26 +39,22 @@ async def focus_client(integration_database_url: str, config: Config) -> AsyncIt
     app.dependency_overrides[get_session] = session_override
     async with factory() as session:
         account = Account(provider=AccountProvider.KAKAO, provider_subject=str(uuid4()))
-        AccountRepository(session).add(account)
+        session.add(account)
         other = Account(provider=AccountProvider.KAKAO, provider_subject=str(uuid4()))
-        AccountRepository(session).add(other)
+        session.add(other)
         await session.flush()
-        device = Device(account_id=account.account_id, idempotency_key=uuid4())
-        label = Label(account_id=account.account_id, display_name="집중 테스트")
-        other_label = Label(account_id=other.account_id, display_name="다른 계정")
+        device = Device(account_id=account.id, idempotency_key=uuid4())
+        label = Label(account_id=account.id, display_name="집중 테스트")
+        other_label = Label(account_id=other.id, display_name="다른 계정")
         session.add_all([device, label, other_label])
         await session.commit()
         headers = {
             "Authorization": "Bearer "
-            + TokenService(config.auth).issue_access_token(
-                account.account_id, now=utc_now()
-            )
+            + get_token_service(config).issue_access_token(account.id, now=utc_now())
         }
         other_headers = {
             "Authorization": "Bearer "
-            + TokenService(config.auth).issue_access_token(
-                other.account_id, now=utc_now()
-            )
+            + get_token_service(config).issue_access_token(other.id, now=utc_now())
         }
     async with batch_client(app, factory) as client:
         yield (
@@ -66,24 +62,20 @@ async def focus_client(integration_database_url: str, config: Config) -> AsyncIt
             factory,
             headers,
             other_headers,
-            device.device_id,
+            device.id,
             label.label_id,
             other_label.label_id,
         )
     async with factory() as session:
         await session.execute(
-            delete(ActivityRecord).where(ActivityRecord.device_id == device.device_id)
+            delete(ActivityRecord).where(ActivityRecord.device_id == device.id)
         )
         await session.execute(
             delete(FocusSession).where(
-                FocusSession.account_id.in_([account.account_id, other.account_id])
+                FocusSession.account_id.in_([account.id, other.id])
             )
         )
-        await session.execute(
-            delete(Account).where(
-                Account.account_id.in_([account.account_id, other.account_id])
-            )
-        )
+        await session.execute(delete_accounts(account.id, other.id))
         await session.commit()
     await engine.dispose()
 
@@ -290,7 +282,7 @@ async def test_completed_session_blocks_label_deletion_but_allows_account_cascad
         with pytest.raises(IntegrityError):
             async with session.begin_nested():
                 await session.execute(delete(Label).where(Label.label_id == label_id))
-        await session.execute(delete(Account).where(Account.account_id == account_id))
+        await session.execute(delete_accounts(account_id))
         await session.commit()
         assert await session.get(Label, label_id, populate_existing=True) is None
         assert await session.get(FocusSession, request["sessionId"]) is None

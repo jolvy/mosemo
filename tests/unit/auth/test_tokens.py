@@ -4,13 +4,14 @@ from uuid import uuid4
 import jwt
 import pytest
 
-from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
+from mosemo.identity.application.tokens import InvalidAccessTokenError
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config
 
 
 def test_issue_and_decode_access_token(config: Config) -> None:
-    service = TokenService(config.auth)
+    service = get_token_service(config)
     account_id = uuid4()
 
     token = service.issue_access_token(account_id, now=utc_now())
@@ -60,7 +61,7 @@ def test_decode_rejects_malformed_or_forged_token(
     token: str,
 ) -> None:
     with pytest.raises(InvalidAccessTokenError):
-        TokenService(config.auth).decode_access_token(token)
+        get_token_service(config).decode_access_token(token)
 
 
 @pytest.mark.parametrize(
@@ -77,7 +78,7 @@ def test_decode_rejects_invalid_claims(config: Config, overrides: dict) -> None:
     token = encode_token(config, **overrides)
 
     with pytest.raises(InvalidAccessTokenError):
-        TokenService(config.auth).decode_access_token(token)
+        get_token_service(config).decode_access_token(token)
 
 
 def test_decode_rejects_missing_required_claim(config: Config) -> None:
@@ -91,4 +92,4 @@ def test_decode_rejects_missing_required_claim(config: Config) -> None:
     )
 
     with pytest.raises(InvalidAccessTokenError):
-        TokenService(config.auth).decode_access_token(token)
+        get_token_service(config).decode_access_token(token)

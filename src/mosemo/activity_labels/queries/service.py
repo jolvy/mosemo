@@ -5,12 +5,13 @@ from hashlib import sha256
 from uuid import UUID
 
 from pydantic import TypeAdapter
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.enums import ActivityTimelineKind
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityContext
-from mosemo.activities.service import ActivityAccountNotFoundError, timeline_date_window
+from mosemo.activities.service import timeline_date_window
 from mosemo.activities.versions import segment_version
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
 from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
@@ -46,6 +47,7 @@ from mosemo.activity_labels.schemas import (
     UnclassifiedSelectionResponse,
     WaitingLabelProposalResponse,
 )
+from mosemo.identity.public import AccountDirectory
 
 activity_context_adapter = TypeAdapter(ActivityContext)
 
@@ -107,20 +109,23 @@ class LabelQueries:
         confirmation_repository: ConfirmationRepository,
         proposal_repository: ProposalRepository,
         label_query_repository: LabelQueryRepository,
+        accounts: AccountDirectory,
     ) -> None:
         self._activity_repository = activity_repository
         self._confirmation_repository = confirmation_repository
         self._proposal_repository = proposal_repository
         self._label_query_repository = label_query_repository
+        self._accounts = accounts
 
     async def get_timeline(
-        self, *, account_id: UUID, date: date | None, now: datetime
+        self,
+        db_session: AsyncSession,
+        *,
+        account_id: UUID,
+        date: date | None,
+        now: datetime,
     ) -> list[LabelTimelineItemResponse]:
-        account_timezone = await self._activity_repository.find_account_timezone(
-            account_id
-        )
-        if account_timezone is None:
-            raise ActivityAccountNotFoundError
+        account_timezone = await self._accounts.get_timezone(db_session, account_id)
         window = timeline_date_window(
             account_timezone=account_timezone,
             requested_date=date,

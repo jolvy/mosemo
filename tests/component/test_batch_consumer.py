@@ -18,6 +18,7 @@ from mosemo.consumer.activity_batches import (
     decode_batch,
     run_consumer,
 )
+from mosemo.identity.bootstrap import create_device_directory
 from mosemo.infra.clock import utc_now
 from mosemo.infra.kafka_compat import BatchPartition
 from mosemo.infra.messaging.subscriber import MessageConsumer
@@ -77,7 +78,9 @@ async def test_executor_owns_fresh_session_for_each_attempt(monkeypatch, failure
     monkeypatch.setattr(
         "mosemo.activities.executor.ActivityBatchProcessor.process", process
     )
-    executor = BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+    executor = BatchProcessingExecutor(
+        sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
+    )
     for _ in range(2):
         if failure:
             with pytest.raises(
@@ -437,7 +440,9 @@ async def test_consumer_waits_for_executor_commit_and_never_acks_failed_commit(
     worker = MessageConsumer(
         cast(KafkaBroker, broker),
         activity_batch_handler(
-            BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+            BatchProcessingExecutor(
+                sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
+            )
         ),
     )
     stop = asyncio.Event()

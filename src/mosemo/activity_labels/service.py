@@ -39,7 +39,7 @@ class ActivityLabelService:
         now = self._clock()
         async with self._session.begin():
             return await self._queries.get_timeline(
-                account_id=account_id, date=date, now=now
+                self._session, account_id=account_id, date=date, now=now
             )
 
     async def get_state(

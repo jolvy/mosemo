@@ -18,9 +18,9 @@ from mosemo.activities.schemas import (
     TimelineSegmentResponse,
 )
 from mosemo.activities.timeline import project_events
-from mosemo.devices.repository import DeviceRepository
 from mosemo.focus_sessions.models import FocusSessionNotFoundError
 from mosemo.focus_sessions.repository import FocusSessionRepository
+from mosemo.identity.public import AccountDirectory, DeviceDirectory
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.domain.timezones import Timezone
 
@@ -34,10 +34,6 @@ class ActivityEventIdConflictError(Exception):
 
 
 class ActivitySequenceConflictError(Exception):
-    pass
-
-
-class ActivityAccountNotFoundError(Exception):
     pass
 
 
@@ -106,12 +102,14 @@ class ActivityService:
         *,
         session: AsyncSession,
         repository: ActivityRepository,
-        device_repository: DeviceRepository,
+        devices: DeviceDirectory,
+        accounts: AccountDirectory,
         clock: Clock,
     ) -> None:
         self._session = session
         self._repository = repository
-        self._device_repository = device_repository
+        self._devices = devices
+        self._accounts = accounts
         self._clock = clock
         self._mapper = ActivityRecordMapper()
 
@@ -125,11 +123,12 @@ class ActivityService:
         async with self._session.begin():
             await self._repository.lock_timeline(account_id)
 
-            device = await self._device_repository.find_owned_by_id(
+            owned = await self._devices.find_owned(
+                self._session,
                 account_id=account_id,
                 device_id=record.device_id,
             )
-            if device is None:
+            if owned is None:
                 raise ActivityDeviceNotFoundError
 
             if record.focus_session_id is not None:
@@ -154,7 +153,8 @@ class ActivityService:
                     account_id, from_started_at=replay_start
                 )
                 records = await self._repository.list_account_records(
-                    account_id, from_observed_at=replay_start
+                    await self._devices.list_device_ids(self._session, account_id),
+                    from_observed_at=replay_start,
                 )
                 await self._repository.replace_account_segments(
                     account_id=account_id,
@@ -206,9 +206,9 @@ class ActivityService:
     ) -> list[TimelineSegmentResponse]:
         now = self._clock()
         async with self._session.begin():
-            account_timezone = await self._repository.find_account_timezone(account_id)
-            if account_timezone is None:
-                raise ActivityAccountNotFoundError
+            account_timezone = await self._accounts.get_timezone(
+                self._session, account_id
+            )
             window = timeline_date_window(
                 account_timezone=account_timezone,
                 requested_date=date,

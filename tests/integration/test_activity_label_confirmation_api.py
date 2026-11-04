@@ -14,8 +14,6 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.accounts.models import Account, AccountProvider
-from mosemo.accounts.repository import AccountRepository
 from mosemo.activities.repository import activity_timeline_lock_key
 from mosemo.activity_labels.catalog.models import Label, default_labels
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
@@ -40,14 +38,16 @@ from mosemo.activity_labels.schemas import SEGMENT_VERSION_PATTERN
 from mosemo.api.dependencies import get_clock
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
-from mosemo.auth.tokens import TokenService
-from mosemo.devices.models import Device
+from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.identity.domain.devices import Device
+from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.database import get_session
 from mosemo.shared.application.clock import Clock
 from tests.batch_support import batch_client, post_activity, receipt_for
 from tests.clock_support import FakeClock
+from tests.identity_support import delete_accounts
 
 ARCHIVED_AT = datetime(2026, 9, 14, 2, tzinfo=UTC)
 
@@ -112,7 +112,7 @@ def state_change_request(
 
 
 def auth_headers(config: Config, account_id: UUID) -> dict[str, str]:
-    token = TokenService(config.auth).issue_access_token(account_id, now=utc_now())
+    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -201,15 +201,15 @@ async def create_account_with_labels(
         provider=AccountProvider.KAKAO,
         provider_subject=f"label-confirmation-{uuid4()}",
     )
-    AccountRepository(session).add(account)
+    session.add(account)
     await session.flush()
-    device = Device(account_id=account.account_id, idempotency_key=uuid4())
+    device = Device(account_id=account.id, idempotency_key=uuid4())
     session.add(device)
     await session.flush()
-    labels = default_labels(account.account_id)
+    labels = default_labels(account.id)
     LabelCatalogRepository(session).add_all(labels)
     await session.flush()
-    return account.account_id, device, labels[0].label_id, labels[1].label_id
+    return account.id, device, labels[0].label_id, labels[1].label_id
 
 
 @pytest_asyncio.fixture
@@ -255,7 +255,7 @@ async def test_known_segment_version_survives_proposal_and_confirmation(
     )
     try:
         observation = activity_request(
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             observed_at="2026-09-14T00:00:00Z",
             context=detailed_context("편집기"),
@@ -267,7 +267,7 @@ async def test_known_segment_version_survives_proposal_and_confirmation(
             client,
             headers=headers,
             json=state_change_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=2,
                 observed_at="2026-09-14T00:00:30Z",
             ),
@@ -313,9 +313,7 @@ async def test_known_segment_version_survives_proposal_and_confirmation(
         assert confirmed.json()["proposal"]["status"] == "ready"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -340,7 +338,7 @@ async def test_label_state_can_be_confirmed_and_corrected_over_http(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=1,
                 observed_at="2026-09-14T00:00:00Z",
                 context=detailed_context("Editor"),
@@ -351,7 +349,7 @@ async def test_label_state_can_be_confirmed_and_corrected_over_http(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=2,
                 observed_at="2026-09-14T00:00:30Z",
                 context={"kind": "opaque"},
@@ -429,9 +427,7 @@ async def test_label_state_can_be_confirmed_and_corrected_over_http(
         }
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -458,7 +454,7 @@ async def test_confirming_a_label_group_applies_to_every_member(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at,
                     context=context,
@@ -504,9 +500,7 @@ async def test_confirming_a_label_group_applies_to_every_member(
         assert updated.json()[1]["itemType"] == "opaque_activity"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -533,7 +527,7 @@ async def test_batch_confirms_each_segment_in_a_group_with_its_own_selection(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at,
                     context=context,
@@ -581,9 +575,7 @@ async def test_batch_confirms_each_segment_in_a_group_with_its_own_selection(
         ]
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -604,7 +596,7 @@ async def test_batch_confirms_different_choices_and_retries_without_changing_tim
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -613,7 +605,7 @@ async def test_batch_confirms_different_choices_and_retries_without_changing_tim
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=3,
             started_at="2026-09-14T00:02:00Z",
             ended_at="2026-09-14T00:02:30Z",
@@ -652,9 +644,7 @@ async def test_batch_confirms_different_choices_and_retries_without_changing_tim
         assert confirmed.json()["items"][1]["selection"] == {"kind": "unclassified"}
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -677,7 +667,7 @@ async def test_delayed_batch_retry_conflicts_after_a_put_correction(
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -736,9 +726,7 @@ async def test_delayed_batch_retry_conflicts_after_a_put_correction(
         assert latest.json()[0]["groupVersion"] != refreshed.json()[0]["groupVersion"]
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -761,7 +749,7 @@ async def test_batch_conflict_does_not_apply_earlier_items(
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -770,7 +758,7 @@ async def test_batch_conflict_does_not_apply_earlier_items(
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=3,
             started_at="2026-09-14T00:02:00Z",
             ended_at="2026-09-14T00:02:30Z",
@@ -840,9 +828,7 @@ async def test_batch_conflict_does_not_apply_earlier_items(
         )
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -863,7 +849,7 @@ async def test_batch_with_stale_member_rolls_back_every_group_and_identifies_fai
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -872,7 +858,7 @@ async def test_batch_with_stale_member_rolls_back_every_group_and_identifies_fai
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=3,
             started_at="2026-09-14T00:02:00Z",
             ended_at="2026-09-14T00:02:30Z",
@@ -897,7 +883,7 @@ async def test_batch_with_stale_member_rolls_back_every_group_and_identifies_fai
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=5,
                 observed_at="2026-09-14T00:02:15Z",
                 context=detailed_context("Late change"),
@@ -928,9 +914,7 @@ async def test_batch_with_stale_member_rolls_back_every_group_and_identifies_fai
         )
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -957,7 +941,7 @@ async def test_batch_accepts_one_segment_from_a_timeline_group(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at,
                     context=context,
@@ -1002,9 +986,7 @@ async def test_batch_accepts_one_segment_from_a_timeline_group(
         }
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1025,7 +1007,7 @@ async def test_batch_rejects_duplicate_member_targets_before_any_write(
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1065,9 +1047,7 @@ async def test_batch_rejects_duplicate_member_targets_before_any_write(
         assert current.json()[0]["state"] == "pending"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1088,7 +1068,7 @@ async def test_batch_and_late_observation_never_attach_label_to_changed_activity
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1112,7 +1092,7 @@ async def test_batch_and_late_observation_never_attach_label_to_changed_activity
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=3,
                     observed_at="2026-09-14T00:00:15Z",
                     context=detailed_context("Late change"),
@@ -1134,9 +1114,7 @@ async def test_batch_and_late_observation_never_attach_label_to_changed_activity
         )
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1159,7 +1137,7 @@ async def test_batch_rejects_foreign_segment_without_confirming_own_group(
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1168,7 +1146,7 @@ async def test_batch_rejects_foreign_segment_without_confirming_own_group(
         await upload_closed_detail(
             client,
             headers=other_headers,
-            device_id=other_device.device_id,
+            device_id=other_device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1211,9 +1189,7 @@ async def test_batch_rejects_foreign_segment_without_confirming_own_group(
         assert current.json()[0]["state"] == "pending"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id.in_((account_id, other_id)))
-            )
+            await session.execute(delete_accounts(account_id, other_id))
             await session.commit()
 
 
@@ -1234,7 +1210,7 @@ async def test_batch_rejects_archived_label(
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1269,9 +1245,7 @@ async def test_batch_rejects_archived_label(
         ]
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1292,7 +1266,7 @@ async def test_batch_rejects_opaque_segment(
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1323,9 +1297,7 @@ async def test_batch_rejects_opaque_segment(
         )
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1417,9 +1389,7 @@ async def test_batch_lock_contention_returns_retry_after(
         assert response.headers["Retry-After"] == "1"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1442,7 +1412,7 @@ async def test_batch_uses_user_choices_with_ready_and_waiting_proposals(
         first_event_id, _, _ = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1451,7 +1421,7 @@ async def test_batch_uses_user_choices_with_ready_and_waiting_proposals(
         await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=3,
             started_at="2026-09-14T00:02:00Z",
             ended_at="2026-09-14T00:02:30Z",
@@ -1494,9 +1464,7 @@ async def test_batch_uses_user_choices_with_ready_and_waiting_proposals(
         assert second["proposal"] is None
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1610,7 +1578,7 @@ async def test_worker_proposal_is_visible_but_not_confirmed_over_http(
         event_id, segment_id, version = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1651,9 +1619,7 @@ async def test_worker_proposal_is_visible_but_not_confirmed_over_http(
         assert corrected.json()["proposal"]["selection"]["labelId"] == str(coding_id)
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1673,7 +1639,7 @@ async def test_user_can_confirm_unclassified_after_proposal_failure(
         event_id, segment_id, version = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1704,9 +1670,7 @@ async def test_user_can_confirm_unclassified_after_proposal_failure(
         assert state.json() == confirmed.json()
     finally:
         async with session_factory() as session, session.begin():
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
 
 
 @pytest.mark.asyncio
@@ -1725,7 +1689,7 @@ async def test_failed_proposal_stays_pending_then_retries_as_unclassified(
         event_id, segment_id, _ = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1754,9 +1718,7 @@ async def test_failed_proposal_stays_pending_then_retries_as_unclassified(
         assert suggester.calls == 2
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1776,7 +1738,7 @@ async def test_three_failed_attempts_leave_the_proposal_pending_for_review(
         event_id, segment_id, _ = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1818,9 +1780,7 @@ async def test_three_failed_attempts_leave_the_proposal_pending_for_review(
         assert state.json()["proposal"] == {"status": "failed"}
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1840,7 +1800,7 @@ async def test_claim_without_work_raises_and_commits_expired_final_lease(
         event_id, _, _ = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -1887,9 +1847,7 @@ async def test_claim_without_work_raises_and_commits_expired_final_lease(
             assert proposal.attempt_count == 3
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -1917,7 +1875,7 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at,
                     context=context,
@@ -1928,7 +1886,7 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
             client,
             headers=headers,
             json=state_change_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=3,
                 observed_at="2026-09-14T00:01:00Z",
             ),
@@ -1938,7 +1896,7 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=4,
                 observed_at="2026-09-14T00:02:00Z",
                 context=detailed_context("Silence"),
@@ -1949,7 +1907,7 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
             client,
             headers=open_headers,
             json=activity_request(
-                device_id=open_device.device_id,
+                device_id=open_device.id,
                 sequence=1,
                 observed_at=clock.now.isoformat().replace("+00:00", "Z"),
                 context=detailed_context("Open"),
@@ -1976,11 +1934,7 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
                 assert state.json()["proposal"]["status"] == "ready"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(
-                    Account.account_id.in_((account_id, open_account_id))
-                )
-            )
+            await session.execute(delete_accounts(account_id, open_account_id))
             await session.commit()
 
 
@@ -2004,7 +1958,7 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
             event_id, segment_id, version = await upload_closed_detail(
                 client,
                 headers=headers,
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=index * 2 + 1,
                 started_at=f"2026-09-14T00:{minute:02d}:00Z",
                 ended_at=f"2026-09-14T00:{minute:02d}:30Z",
@@ -2033,7 +1987,7 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=13,
                 observed_at="2026-09-14T00:00:15Z",
                 context=detailed_context("Rebuilt Editor"),
@@ -2084,9 +2038,7 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
         assert len(scanner_suggester.inputs) == prior_calls
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -2109,7 +2061,7 @@ async def test_scanner_sweep_processes_every_page_until_complete(
             event_id, _, _ = await upload_closed_detail(
                 client,
                 headers=headers,
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=index * 2 + 1,
                 started_at=f"2026-09-14T00:{index:02d}:00Z",
                 ended_at=f"2026-09-14T00:{index:02d}:30Z",
@@ -2156,9 +2108,7 @@ async def test_scanner_sweep_processes_every_page_until_complete(
         assert len(suggester.inputs) == prior_calls
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -2184,7 +2134,7 @@ async def test_next_proposal_uses_only_owners_latest_confirmation_and_stays_stab
         _, first_segment_id, first_version = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -2212,7 +2162,7 @@ async def test_next_proposal_uses_only_owners_latest_confirmation_and_stays_stab
         _, other_segment_id, other_version = await upload_closed_detail(
             client,
             headers=other_headers,
-            device_id=other_device.device_id,
+            device_id=other_device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -2231,7 +2181,7 @@ async def test_next_proposal_uses_only_owners_latest_confirmation_and_stays_stab
         event_id, second_segment_id, _ = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=3,
             started_at="2026-09-14T00:02:00Z",
             ended_at="2026-09-14T00:02:30Z",
@@ -2266,9 +2216,7 @@ async def test_next_proposal_uses_only_owners_latest_confirmation_and_stays_stab
         assert state.json()["state"] == "pending"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id.in_((account_id, other_id)))
-            )
+            await session.execute(delete_accounts(account_id, other_id))
             await session.commit()
 
 
@@ -2294,7 +2242,7 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
         target = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -2304,7 +2252,7 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
             "active": await upload_closed_detail(
                 client,
                 headers=headers,
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=3,
                 started_at="2026-09-14T00:02:00Z",
                 ended_at="2026-09-14T00:02:30Z",
@@ -2313,7 +2261,7 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
             "unclassified": await upload_closed_detail(
                 client,
                 headers=headers,
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=5,
                 started_at="2026-09-14T00:04:00Z",
                 ended_at="2026-09-14T00:04:30Z",
@@ -2322,7 +2270,7 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
             "archived": await upload_closed_detail(
                 client,
                 headers=headers,
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=7,
                 started_at="2026-09-14T00:06:00Z",
                 ended_at="2026-09-14T00:06:30Z",
@@ -2331,7 +2279,7 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
             "stale": await upload_closed_detail(
                 client,
                 headers=headers,
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=9,
                 started_at="2026-09-14T00:08:00Z",
                 ended_at="2026-09-14T00:08:30Z",
@@ -2392,9 +2340,7 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
         assert [example.label_id for example in actual] == [None, active_label_id]
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -2414,7 +2360,7 @@ async def test_archived_suggestion_is_retained_and_blocks_label_deletion(
         event_id, segment_id, version = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -2456,9 +2402,7 @@ async def test_archived_suggestion_is_retained_and_blocks_label_deletion(
         assert unavailable.json()["error"]["status"] == "LABEL_NOT_AVAILABLE"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -2478,7 +2422,7 @@ async def test_confirmation_during_model_call_does_not_publish_a_proposal(
         event_id, segment_id, version = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -2510,9 +2454,7 @@ async def test_confirmation_during_model_call_does_not_publish_a_proposal(
         assert state.json()["proposal"] is None
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -2533,7 +2475,7 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
         event_id, segment_id, version = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -2590,7 +2532,7 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
                     client,
                     headers=headers,
                     json=activity_request(
-                        device_id=device.device_id,
+                        device_id=device.id,
                         sequence=3,
                         observed_at="2026-09-14T00:00:45Z",
                         context=detailed_context("Editor"),
@@ -2615,9 +2557,7 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
             assert proposal.status is ActivityLabelProposalStatus.SUPERSEDED
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -2637,7 +2577,7 @@ async def test_projection_change_during_model_call_discards_stale_result(
         event_id, segment_id, version = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -2649,7 +2589,7 @@ async def test_projection_change_during_model_call_discards_stale_result(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=3,
                     observed_at="2026-09-14T00:00:15Z",
                     context=detailed_context("Different"),
@@ -2683,9 +2623,7 @@ async def test_projection_change_during_model_call_discards_stale_result(
         assert current.json()["proposal"]["status"] == "ready"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -2710,7 +2648,7 @@ async def test_expired_worker_lease_cannot_overwrite_newer_proposal(
         event_id, segment_id, _ = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -2749,9 +2687,7 @@ async def test_expired_worker_lease_cannot_overwrite_newer_proposal(
         assert ready.json()["proposal"]["selection"]["labelId"] == str(second_label_id)
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -2794,7 +2730,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=1,
                 observed_at="2026-09-14T00:00:00Z",
                 context=detailed_context("Detailed"),
@@ -2804,7 +2740,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=2,
                 observed_at="2026-09-14T00:00:30Z",
                 context={"kind": "opaque"},
@@ -2855,7 +2791,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             client,
             headers=other_headers,
             json=activity_request(
-                device_id=other_device.device_id,
+                device_id=other_device.id,
                 sequence=1,
                 observed_at=now.isoformat().replace("+00:00", "Z"),
                 context=detailed_context("Open"),
@@ -2882,7 +2818,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             client,
             headers=other_headers,
             json=activity_request(
-                device_id=other_device.device_id,
+                device_id=other_device.id,
                 sequence=2,
                 observed_at="2026-09-14T00:00:30Z",
                 context={"kind": "opaque"},
@@ -2909,7 +2845,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             client,
             headers=other_headers,
             json=state_change_request(
-                device_id=other_device.device_id,
+                device_id=other_device.id,
                 sequence=3,
                 observed_at="2026-09-14T00:01:00Z",
             ),
@@ -2932,9 +2868,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
         await reject_batch_segment(gap_id)
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id.in_(account_ids))
-            )
+            await session.execute(delete_accounts(*account_ids))
             await session.commit()
 
 
@@ -2964,7 +2898,7 @@ async def test_label_timeline_groups_adjacent_segments_with_same_confirmation(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at,
                     context=context,
@@ -3047,9 +2981,7 @@ async def test_label_timeline_groups_adjacent_segments_with_same_confirmation(
         ]
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -3092,7 +3024,7 @@ async def test_label_timeline_preserves_state_and_label_boundaries(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at_values[sequence - 1],
                     context=detailed_context(name),
@@ -3103,7 +3035,7 @@ async def test_label_timeline_preserves_state_and_label_boundaries(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=8,
                 observed_at="2026-09-14T00:04:01Z",
                 context={"kind": "opaque"},
@@ -3184,9 +3116,7 @@ async def test_label_timeline_preserves_state_and_label_boundaries(
         ] == ["Editor", "Browser"]
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -3214,7 +3144,7 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at,
                     context=context,
@@ -3225,7 +3155,7 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
             client,
             headers=headers,
             json=state_change_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=4,
                 observed_at="2026-09-14T00:01:00Z",
             ),
@@ -3235,7 +3165,7 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=5,
                 observed_at="2026-09-14T00:02:00Z",
                 context=detailed_context("Terminal"),
@@ -3305,9 +3235,7 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
         assert body[3]["endedAt"] == "2026-09-14T00:02:00Z"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -3327,24 +3255,24 @@ async def test_label_timeline_splits_same_label_at_zero_duration_capture_gap(
     try:
         requests = [
             activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=1,
                 observed_at="2026-09-14T00:00:00Z",
                 context=detailed_context("Editor"),
             ),
             state_change_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=2,
                 observed_at="2026-09-14T00:01:00Z",
             ),
             activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=3,
                 observed_at="2026-09-14T00:01:00Z",
                 context=detailed_context("Editor"),
             ),
             activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=4,
                 observed_at="2026-09-14T00:02:00Z",
                 context=detailed_context("Browser"),
@@ -3403,9 +3331,7 @@ async def test_label_timeline_splits_same_label_at_zero_duration_capture_gap(
         assert body[0]["endedAt"] == body[2]["startedAt"]
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -3438,7 +3364,7 @@ async def test_label_timeline_defaults_to_account_local_today(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at,
                     context=context,
@@ -3494,9 +3420,7 @@ async def test_label_timeline_defaults_to_account_local_today(
     finally:
         app.dependency_overrides.pop(get_clock, None)
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id.in_(account_ids))
-            )
+            await session.execute(delete_accounts(*account_ids))
             await session.commit()
 
 
@@ -3521,7 +3445,7 @@ async def test_label_timeline_returns_open_detailed_activity_separately(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=1,
                 observed_at=observed_at,
                 context=detailed_context("Current editor"),
@@ -3540,9 +3464,7 @@ async def test_label_timeline_returns_open_detailed_activity_separately(
         assert response.json()[0]["context"] == detailed_context("Current editor")
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -3569,7 +3491,7 @@ async def test_label_timeline_reopens_confirmation_after_late_observation(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at,
                     context=context,
@@ -3612,7 +3534,7 @@ async def test_label_timeline_reopens_confirmation_after_late_observation(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=4,
                 observed_at="2026-09-14T00:00:15Z",
                 context=detailed_context("Editor"),
@@ -3631,9 +3553,7 @@ async def test_label_timeline_reopens_confirmation_after_late_observation(
         assert current.json()[0]["segments"][0]["context"] == detailed_context("Editor")
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -3659,7 +3579,7 @@ async def test_projection_version_invalidates_only_changed_segments(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at,
                     context=context,
@@ -3695,7 +3615,7 @@ async def test_projection_version_invalidates_only_changed_segments(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=3,
                 observed_at="2026-09-14T00:00:15Z",
                 context=detailed_context("Late different context"),
@@ -3722,9 +3642,7 @@ async def test_projection_version_invalidates_only_changed_segments(
         assert stale.json()["error"]["status"] == "ACTIVITY_SEGMENT_CHANGED"
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -3751,7 +3669,7 @@ async def test_projection_version_survives_same_result_recalculation(
                 client,
                 headers=headers,
                 json=activity_request(
-                    device_id=device.device_id,
+                    device_id=device.id,
                     sequence=sequence,
                     observed_at=observed_at,
                     context=context,
@@ -3787,7 +3705,7 @@ async def test_projection_version_survives_same_result_recalculation(
             client,
             headers=headers,
             json=activity_request(
-                device_id=device.device_id,
+                device_id=device.id,
                 sequence=4,
                 observed_at="2026-09-14T00:00:15Z",
                 context=detailed_context("Same"),
@@ -3803,9 +3721,7 @@ async def test_projection_version_survives_same_result_recalculation(
         assert after.json()["segmentVersion"] == old_version
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
             await session.commit()
 
 
@@ -3835,7 +3751,7 @@ async def test_new_label_selection_rejects_foreign_and_archived_catalog_labels(
         _, segment_id, version = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -3871,9 +3787,7 @@ async def test_new_label_selection_rejects_foreign_and_archived_catalog_labels(
         assert state.json()["state"] == "pending"
     finally:
         async with session_factory() as session, session.begin():
-            await session.execute(
-                delete(Account).where(Account.account_id.in_((account_id, other_id)))
-            )
+            await session.execute(delete_accounts(account_id, other_id))
 
 
 @pytest.mark.asyncio
@@ -3892,7 +3806,7 @@ async def test_past_confirmation_keeps_archived_label_and_displays_current_name(
         _, segment_id, version = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -3948,9 +3862,7 @@ async def test_past_confirmation_keeps_archived_label_and_displays_current_name(
         assert archived["archivedAt"] is not None
     finally:
         async with session_factory() as session, session.begin():
-            await session.execute(
-                delete(Account).where(Account.account_id == account_id)
-            )
+            await session.execute(delete_accounts(account_id))
 
 
 @pytest.mark.asyncio
@@ -3979,7 +3891,7 @@ async def test_worker_uses_owned_active_catalog_and_revalidates_suggestion(
         event_id, segment_id, _ = await upload_closed_detail(
             client,
             headers=headers,
-            device_id=device.device_id,
+            device_id=device.id,
             sequence=1,
             started_at="2026-09-14T00:00:00Z",
             ended_at="2026-09-14T00:00:30Z",
@@ -4038,6 +3950,4 @@ async def test_worker_uses_owned_active_catalog_and_revalidates_suggestion(
             assert "selection" not in state.json()["proposal"]
     finally:
         async with session_factory() as session, session.begin():
-            await session.execute(
-                delete(Account).where(Account.account_id.in_((account_id, other_id)))
-            )
+            await session.execute(delete_accounts(account_id, other_id))

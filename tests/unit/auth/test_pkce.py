@@ -1,6 +1,6 @@
 import pytest
 
-from mosemo.auth.pkce import create_code_challenge, is_valid_code_challenge
+from mosemo.identity.domain.pkce import create_code_challenge, is_valid_code_challenge
 
 
 def test_create_code_challenge_uses_s256() -> None:

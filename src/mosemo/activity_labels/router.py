@@ -5,7 +5,6 @@ from uuid import UUID
 from fastapi import APIRouter, Path, Query, status
 
 from mosemo.activities.repository import ActivityTimelineBusyError
-from mosemo.activities.service import ActivityAccountNotFoundError
 from mosemo.activity_labels.confirmations.service import (
     ActivityLabelConfirmationConflictError,
     ActivityLabelSegmentChangedError,
@@ -25,6 +24,7 @@ from mosemo.activity_labels.schemas import (
 )
 from mosemo.api.dependencies import ActivityLabelServiceDep, AuthenticatedAccountDep
 from mosemo.exceptions import ErrorCode
+from mosemo.identity.public import AccountNotFoundError
 from mosemo.shared.errors import ApiErrorCode, ApiException, CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 from mosemo.shared.presentation.schemas import ValidationDetail
@@ -141,7 +141,7 @@ async def get_label_timeline(
             account_id=authenticated_account.account_id,
             date=date,
         )
-    except ActivityAccountNotFoundError as exc:
+    except AccountNotFoundError as exc:
         raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
 
 

@@ -1,13 +1,8 @@
-from typing import Annotated, cast
+from typing import Annotated
 
-import httpx2
-from fastapi import Depends, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.accounts.models import AccountProvider
-from mosemo.accounts.repository import AccountRepository
-from mosemo.accounts.service import AccountService
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import ActivityService
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
@@ -17,63 +12,25 @@ from mosemo.activity_labels.proposals.repository import ProposalRepository
 from mosemo.activity_labels.queries.repository import LabelQueryRepository
 from mosemo.activity_labels.queries.service import LabelQueries
 from mosemo.activity_labels.service import ActivityLabelService
-from mosemo.auth.context import AuthenticatedAccount
-from mosemo.auth.kakao_client import KakaoClient
-from mosemo.auth.oauth_client import OAuthClient
-from mosemo.auth.repository import NativeAuthCodeRepository
-from mosemo.auth.service import (
-    AccountProvisioner,
-    AuthService,
-    NativeAuthCodeService,
-    OAuthClientResolver,
-)
-from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
-from mosemo.devices.repository import DeviceRepository
-from mosemo.devices.service import DeviceService
+from mosemo.api.contexts import IDENTITY
+from mosemo.identity import bootstrap as identity_bootstrap
+from mosemo.identity.public import AccountDirectory, DeviceDirectory
 from mosemo.infra.config import Config
 from mosemo.infra.providers import get_clock, get_config, get_session
 from mosemo.shared.application.clock import Clock
-from mosemo.shared.errors import ApiException, CommonErrorCode
 from mosemo.shared.presentation.current_account import CurrentAccount
 
-
-def get_http_client(request: Request) -> httpx2.AsyncClient:
-    return cast(
-        httpx2.AsyncClient,
-        request.state.http_client,
-    )
-
-
-HttpClientDep = Annotated[
-    httpx2.AsyncClient,
-    Depends(get_http_client),
-]
 ConfigDep = Annotated[Config, Depends(get_config)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 ClockDep = Annotated[Clock, Depends(get_clock)]
 
 
-def get_account_repository(session: SessionDep) -> AccountRepository:
-    return AccountRepository(session)
+def get_account_directory() -> AccountDirectory:
+    return IDENTITY.account_directory
 
 
-AccountRepositoryDep = Annotated[
-    AccountRepository,
-    Depends(get_account_repository),
-]
-
-
-def get_account_service(
-    account_repository: AccountRepositoryDep,
-) -> AccountService:
-    return AccountService(account_repository=account_repository)
-
-
-AccountServiceDep = Annotated[
-    AccountService,
-    Depends(get_account_service),
-]
+AccountDirectoryDep = Annotated[AccountDirectory, Depends(get_account_directory)]
 
 
 def get_activity_repository(session: SessionDep) -> ActivityRepository:
@@ -86,40 +43,26 @@ ActivityRepositoryDep = Annotated[
 ]
 
 
-def get_device_repository(session: SessionDep) -> DeviceRepository:
-    return DeviceRepository(session)
+def get_device_directory() -> DeviceDirectory:
+    return IDENTITY.device_directory
 
 
-DeviceRepositoryDep = Annotated[
-    DeviceRepository,
-    Depends(get_device_repository),
-]
-
-
-def get_device_service(
-    session: SessionDep,
-    repository: DeviceRepositoryDep,
-) -> DeviceService:
-    return DeviceService(session=session, repository=repository)
-
-
-DeviceServiceDep = Annotated[
-    DeviceService,
-    Depends(get_device_service),
-]
+DeviceDirectoryDep = Annotated[DeviceDirectory, Depends(get_device_directory)]
 
 
 def get_activity_service(
     session: SessionDep,
     repository: ActivityRepositoryDep,
     *,
-    device_repository: DeviceRepositoryDep,
+    devices: DeviceDirectoryDep,
+    accounts: AccountDirectoryDep,
     clock: ClockDep,
 ) -> ActivityService:
     return ActivityService(
         session=session,
         repository=repository,
-        device_repository=device_repository,
+        devices=devices,
+        accounts=accounts,
         clock=clock,
     )
 
@@ -127,18 +70,6 @@ def get_activity_service(
 ActivityServiceDep = Annotated[
     ActivityService,
     Depends(get_activity_service),
-]
-
-
-def get_native_auth_code_repository(
-    session: SessionDep,
-) -> NativeAuthCodeRepository:
-    return NativeAuthCodeRepository(session)
-
-
-NativeAuthCodeRepositoryDep = Annotated[
-    NativeAuthCodeRepository,
-    Depends(get_native_auth_code_repository),
 ]
 
 
@@ -209,12 +140,14 @@ def get_label_queries(
     *,
     proposal_repository: ProposalRepositoryDep,
     label_query_repository: LabelQueryRepositoryDep,
+    accounts: AccountDirectoryDep,
 ) -> LabelQueries:
     return LabelQueries(
         activity_repository=activity_repository,
         confirmation_repository=confirmation_repository,
         proposal_repository=proposal_repository,
         label_query_repository=label_query_repository,
+        accounts=accounts,
     )
 
 
@@ -244,146 +177,9 @@ ActivityLabelServiceDep = Annotated[
 ]
 
 
-def get_token_service(config: ConfigDep) -> TokenService:
-    return TokenService(config.auth)
-
-
-TokenServiceDep = Annotated[TokenService, Depends(get_token_service)]
-
-
-def get_kakao_client(
-    config: ConfigDep,
-    http_client: HttpClientDep,
-) -> KakaoClient:
-    return KakaoClient(
-        http_client=http_client,
-        config=config.kakao,
-    )
-
-
-KakaoClientDep = Annotated[
-    KakaoClient,
-    Depends(get_kakao_client),
-]
-
-
-def get_oauth_client(
-    provider: AccountProvider,
-    config: Config,
-    *,
-    http_client: httpx2.AsyncClient,
-) -> OAuthClient:
-    assert isinstance(provider, AccountProvider)
-    if provider is AccountProvider.KAKAO:
-        return get_kakao_client(config, http_client)
-
-
-def get_oauth_client_resolver(
-    config: ConfigDep,
-    http_client: HttpClientDep,
-) -> OAuthClientResolver:
-    def resolve(provider: AccountProvider) -> OAuthClient:
-        return get_oauth_client(provider, config, http_client=http_client)
-
-    return resolve
-
-
-OAuthClientResolverDep = Annotated[
-    OAuthClientResolver,
-    Depends(get_oauth_client_resolver),
-]
-
-
-def get_account_provisioner(
-    account_repository: AccountRepositoryDep,
-    label_catalog_repository: LabelCatalogRepositoryDep,
-) -> AccountProvisioner:
-    return AccountProvisioner(
-        account_repository=account_repository,
-        label_catalog_repository=label_catalog_repository,
-    )
-
-
-AccountProvisionerDep = Annotated[
-    AccountProvisioner,
-    Depends(get_account_provisioner),
-]
-
-
-def get_native_auth_code_service(
-    native_auth_code_repository: NativeAuthCodeRepositoryDep,
-    token_service: TokenServiceDep,
-    *,
-    config: ConfigDep,
-) -> NativeAuthCodeService:
-    return NativeAuthCodeService(
-        repository=native_auth_code_repository,
-        token_service=token_service,
-        config=config.auth,
-    )
-
-
-NativeAuthCodeServiceDep = Annotated[
-    NativeAuthCodeService,
-    Depends(get_native_auth_code_service),
-]
-
-
-def get_auth_service(
-    session: SessionDep,
-    get_oauth_client: OAuthClientResolverDep,
-    *,
-    account_provisioner: AccountProvisionerDep,
-    native_auth_codes: NativeAuthCodeServiceDep,
-    clock: ClockDep,
-) -> AuthService:
-    return AuthService(
-        session=session,
-        get_oauth_client=get_oauth_client,
-        account_provisioner=account_provisioner,
-        native_auth_codes=native_auth_codes,
-        clock=clock,
-    )
-
-
-AuthServiceDep = Annotated[
-    AuthService,
-    Depends(get_auth_service),
-]
-
-
-bearer_scheme = HTTPBearer(
-    auto_error=False,
-    description="Mosemo가 발급한 Bearer 액세스 토큰입니다.",
-)
-BearerCredentialsDep = Annotated[
-    HTTPAuthorizationCredentials | None,
-    Depends(bearer_scheme),
-]
-
-
-async def get_authenticated_account(
-    credentials: BearerCredentialsDep,
-    token_service: TokenServiceDep,
-) -> AuthenticatedAccount:
-    if credentials is None:
-        raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN)
-
-    try:
-        account_id = token_service.decode_access_token(credentials.credentials)
-    except InvalidAccessTokenError as exc:
-        raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
-
-    return AuthenticatedAccount(account_id=account_id)
-
-
+# Old routers keep verifying the token directly; routes of moved contexts take
+# the declared current account provider that the assembly root overrides.
 AuthenticatedAccountDep = Annotated[
-    AuthenticatedAccount,
-    Depends(get_authenticated_account),
+    CurrentAccount,
+    Depends(identity_bootstrap.get_token_current_account),
 ]
-
-
-async def get_token_current_account(
-    account: AuthenticatedAccountDep,
-) -> CurrentAccount:
-    return CurrentAccount(account_id=account.account_id)

@@ -4,6 +4,7 @@ from typing import Any, cast
 import pytest
 
 from mosemo.exceptions import ErrorCode
+from mosemo.identity.public import IdentityErrorCode
 from mosemo.shared.errors import (
     ApiErrorCode,
     ApiException,
@@ -13,11 +14,9 @@ from mosemo.shared.errors import (
 from mosemo.shared.presentation.schemas import ValidationDetail
 
 
-def test_public_error_registry_contains_the_public_specs() -> None:
-    public_members = tuple(ErrorCode)
-    assert all(isinstance(member.value, ErrorSpec) for member in public_members)
+def test_identity_error_codes_keep_their_public_specs() -> None:
     assert [
-        (member.status, member.code, member.message) for member in public_members
+        (member.status, member.code, member.message) for member in IdentityErrorCode
     ] == [
         (
             "AUTH_INVALID_AUTHORIZATION_CODE",
@@ -29,6 +28,15 @@ def test_public_error_registry_contains_the_public_specs() -> None:
             400,
             "Invalid or expired OAuth login context",
         ),
+    ]
+
+
+def test_public_error_registry_contains_the_public_specs() -> None:
+    public_members = tuple(ErrorCode)
+    assert all(isinstance(member.value, ErrorSpec) for member in public_members)
+    assert [
+        (member.status, member.code, member.message) for member in public_members
+    ] == [
         ("FOCUS_SESSION_NOT_FOUND", 404, "Focus session not found"),
         ("FOCUS_SESSION_CONFLICT", 409, "Focus session conflicts with stored data"),
         (
@@ -72,7 +80,7 @@ def test_public_error_registry_contains_the_public_specs() -> None:
         ),
         ("LABEL_NOT_AVAILABLE", 404, "Label not found or inactive"),
     ]
-    assert len({member.status for member in public_members}) == 16
+    assert len({member.status for member in public_members}) == 14
 
 
 def test_common_error_codes_contain_the_shared_specs() -> None:
@@ -128,6 +136,8 @@ def test_api_exception_accepts_error_codes_and_validation_details() -> None:
 
 
 def test_error_codes_are_enum_members_with_error_specs_as_values() -> None:
-    assert isinstance(ErrorCode.AUTH_INVALID_AUTHORIZATION_CODE, ErrorCode)
-    assert isinstance(ErrorCode.AUTH_INVALID_OAUTH_CONTEXT, ErrorCode)
+    assert isinstance(
+        IdentityErrorCode.AUTH_INVALID_AUTHORIZATION_CODE, IdentityErrorCode
+    )
+    assert isinstance(IdentityErrorCode.AUTH_INVALID_OAUTH_CONTEXT, IdentityErrorCode)
     assert isinstance(CommonErrorCode.INTERNAL_SERVER_ERROR, CommonErrorCode)

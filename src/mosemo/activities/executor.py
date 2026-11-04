@@ -10,6 +10,7 @@ from mosemo.activities.batch_processing import ActivityBatchProcessor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityBatchRequest
+from mosemo.identity.public import DeviceDirectory
 from mosemo.shared.application.clock import Clock
 
 
@@ -19,9 +20,11 @@ class BatchProcessingExecutor:
         sessions: Callable[[], AbstractAsyncContextManager[AsyncSession]],
         *,
         clock: Clock,
+        devices: DeviceDirectory,
     ):
         self.sessions = sessions
         self._clock = clock
+        self._devices = devices
 
     async def execute(self, message: ActivityRegistrationRequested) -> None:
         batch = ActivityBatchRequest.model_validate(
@@ -32,15 +35,18 @@ class BatchProcessingExecutor:
             }
         )
         async with self.sessions() as session, session.begin():
-            await ActivityBatchProcessor(session, clock=self._clock).process(
-                message.account_id, batch
-            )
+            await ActivityBatchProcessor(
+                session, clock=self._clock, devices=self._devices
+            ).process(message.account_id, batch)
 
 
 class LegacyBatchExecutor:
-    def __init__(self, session: AsyncSession, *, clock: Clock):
+    def __init__(
+        self, session: AsyncSession, *, clock: Clock, devices: DeviceDirectory
+    ):
         self.session = session
         self._clock = clock
+        self._devices = devices
 
     async def execute(
         self, account_id: UUID, batch: ActivityBatchRequest
@@ -48,7 +54,7 @@ class LegacyBatchExecutor:
         async with self.session.begin():
             await ActivityRepository(self.session).lock_timeline(account_id)
             return await ActivityBatchProcessor(
-                self.session, clock=self._clock
+                self.session, clock=self._clock, devices=self._devices
             ).process(account_id, batch)
 
 

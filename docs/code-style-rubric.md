@@ -154,7 +154,7 @@
   위반이다. 이유 주석은 모델이 스스로 붙여 통과할 수 있으므로 허용 근거로 쓰지 않는다. 새 경계는 이유와 함께
   목록에 추가하며 리뷰 대상이다. 현재 허용 위치는 프로세스 경계 2(`consumer.main`,
   `batch_jobs.__main__.main`), supervisor 전달 1(`MessageConsumer.handle`), 로그인 콜백
-  1(`auth/router.callback`), 처리 단위 격리 2(`ProposalProcessor.process_candidate`, `execute_job`)다.
+  1(`identity/presentation/auth/router.create_router.callback`), 처리 단위 격리 2(`ProposalProcessor.process_candidate`, `execute_job`)다.
   Ruff `BLE001`은 로그만 남기는 넓은 `except`를 통과시켜 더 약하므로 `src`에서는 끄고 그 밖의 경로에서 쓴다.
 - **CS-P22**: 인라인 억제 주석(`noqa`, `ruff: noqa`, `type: ignore`, `ty: ignore`, `pyright: ignore`,
   `complexipy: ignore`, `isort:`, `fmt:`, `pragma: no cover`)은 모두 금지한다. 경로별 예외는

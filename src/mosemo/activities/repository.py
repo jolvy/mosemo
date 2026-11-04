@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import datetime
 from hashlib import blake2b
 from uuid import UUID
@@ -7,14 +8,11 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.accounts.models import Account
 from mosemo.activities.constants import MAX_OBSERVATION_GAP
 from mosemo.activities.enums import SegmentType
 from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.timeline import ProjectedSegment
-from mosemo.devices.models import Device
-from mosemo.shared.domain.timezones import Timezone
 
 
 class ActivityTimelineBusyError(Exception):
@@ -94,11 +92,6 @@ class ActivityRepository:
             )
         )
 
-    async def find_account_timezone(self, account_id: UUID) -> Timezone | None:
-        return await self._session.scalar(
-            select(Account.timezone).where(Account.account_id == account_id)
-        )
-
     async def find_replay_start(
         self, account_id: UUID, observed_at: datetime
     ) -> datetime:
@@ -111,13 +104,12 @@ class ActivityRepository:
         return previous_start or observed_at
 
     async def list_account_records(
-        self, account_id: UUID, *, from_observed_at: datetime
+        self, device_ids: Sequence[UUID], *, from_observed_at: datetime
     ) -> list[StoredActivityRecord]:
         result = await self._session.scalars(
             select(StoredActivityRecord)
-            .join(Device, StoredActivityRecord.device_id == Device.device_id)
             .where(
-                Device.account_id == account_id,
+                StoredActivityRecord.device_id.in_(device_ids),
                 StoredActivityRecord.observed_at >= from_observed_at,
             )
             .order_by(
@@ -130,13 +122,12 @@ class ActivityRepository:
         return list(result.all())
 
     async def find_latest_account_record(
-        self, account_id: UUID
+        self, device_ids: Sequence[UUID]
     ) -> StoredActivityRecord | None:
         record = StoredActivityRecord
         return await self._session.scalar(
             select(record)
-            .join(Device, record.device_id == Device.device_id)
-            .where(Device.account_id == account_id)
+            .where(record.device_id.in_(device_ids))
             .order_by(
                 record.observed_at.desc(),
                 record.device_id.desc(),
@@ -148,17 +139,15 @@ class ActivityRepository:
 
     async def list_record_page(
         self,
-        account_id: UUID,
+        device_ids: Sequence[UUID],
         *,
         start: datetime,
         after: tuple[datetime, UUID, int, UUID] | None,
         limit: int = 128,
     ) -> list[StoredActivityRecord]:
         record = StoredActivityRecord
-        statement = (
-            select(record)
-            .join(Device, record.device_id == Device.device_id)
-            .where(Device.account_id == account_id, record.observed_at >= start)
+        statement = select(record).where(
+            record.device_id.in_(device_ids), record.observed_at >= start
         )
         if after is not None:
             statement = statement.where(
@@ -183,7 +172,7 @@ class ActivityRepository:
             ).all()
         )
 
-    async def is_account_clock_monotone(self, account_id: UUID) -> bool:
+    async def is_account_clock_monotone(self, device_ids: Sequence[UUID]) -> bool:
         # One-time validation of legacy source before this account's first receipt.
         # Subsequent consumer inserts preserve the invariant through neighbor checks.
         record = StoredActivityRecord
@@ -194,8 +183,7 @@ class ActivityRepository:
                 .over(partition_by=record.device_id, order_by=record.sequence)
                 .label("previous_time"),
             )
-            .join(Device, record.device_id == Device.device_id)
-            .where(Device.account_id == account_id)
+            .where(record.device_id.in_(device_ids))
             .subquery()
         )
         regression = await self._session.scalar(
