@@ -1,8 +1,7 @@
-from datetime import UTC, timedelta
+from datetime import timedelta
 from unittest.mock import Mock
 
 import pytest
-from apscheduler.triggers.interval import IntervalTrigger
 
 from mosemo.batch.registry import build_jobs, ensure_unique_names
 from mosemo.infra.config import Config
@@ -21,10 +20,7 @@ def test_registry_includes_the_label_proposal_job(config: Config) -> None:
     assert job.name == "label-proposals"
     assert job.schedule is not None
     assert job.schedule.run_on_start is True
-    trigger = job.schedule.trigger
-    assert isinstance(trigger, IntervalTrigger)
-    assert trigger.interval == timedelta(minutes=5)
-    assert trigger.timezone == UTC
+    assert job.schedule.interval == timedelta(minutes=5)
 
 
 @pytest.mark.parametrize(

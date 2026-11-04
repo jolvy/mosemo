@@ -1,13 +1,12 @@
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from mosemo.infra.clock import utc_now
-from mosemo.infra.scheduling import BatchJob, Schedule, build_scheduler, serve
+from mosemo.infra.scheduling import BatchJob, build_scheduler, every, serve
 
 
 async def noop() -> None:
@@ -16,11 +15,9 @@ async def noop() -> None:
 
 @pytest.mark.asyncio
 async def test_only_scheduled_jobs_are_registered_without_overlap() -> None:
-    interval = IntervalTrigger(minutes=5, timezone=UTC)
-    cron = CronTrigger(hour=3, timezone=UTC)
     jobs = [
-        BatchJob("interval", noop, Schedule(interval, run_on_start=True)),
-        BatchJob("cron", noop, Schedule(cron)),
+        BatchJob("on-start", noop, every(timedelta(minutes=5), run_on_start=True)),
+        BatchJob("later", noop, every(timedelta(hours=1))),
         BatchJob("manual", noop),
     ]
 
@@ -33,15 +30,23 @@ async def test_only_scheduled_jobs_are_registered_without_overlap() -> None:
     finally:
         scheduler.shutdown(wait=False)
 
-    assert set(registered) == {"interval", "cron"}
-    assert registered["interval"].trigger is interval
-    assert registered["cron"].trigger is cron
-    for job in registered.values():
+    assert set(registered) == {"on-start", "later"}
+    intervals = {"on-start": timedelta(minutes=5), "later": timedelta(hours=1)}
+    for name, job in registered.items():
+        assert isinstance(job.trigger, IntervalTrigger)
+        assert job.trigger.interval == intervals[name]
+        assert job.trigger.timezone == UTC
         assert job.max_instances == 1
         assert job.coalesce is True
         assert job.misfire_grace_time is None
-    assert registered["interval"].next_run_time == now
-    assert registered["cron"].next_run_time > after
+    assert registered["on-start"].next_run_time == now
+    assert registered["later"].next_run_time > after
+
+
+@pytest.mark.parametrize("interval", [timedelta(0), timedelta(seconds=-1)])
+def test_every_rejects_non_positive_interval(interval: timedelta) -> None:
+    with pytest.raises(ValueError, match="positive"):
+        every(interval)
 
 
 @pytest.mark.asyncio
@@ -60,11 +65,10 @@ async def test_stop_cancels_running_job_and_waits_for_cleanup(
             await asyncio.sleep(0)
             cleaned_up.set()
 
-    trigger = IntervalTrigger(minutes=5, timezone=UTC)
     caplog.set_level(logging.INFO, logger="mosemo.infra.scheduling")
     server = asyncio.create_task(
         serve(
-            [BatchJob("hold", hold, Schedule(trigger, run_on_start=True))],
+            [BatchJob("hold", hold, every(timedelta(minutes=5), run_on_start=True))],
             stop,
             clock=utc_now,
         )
@@ -106,10 +110,13 @@ async def test_stop_gives_up_on_a_job_that_ignores_cancellation(
             except asyncio.CancelledError:
                 continue
 
-    trigger = IntervalTrigger(minutes=5, timezone=UTC)
     server = asyncio.create_task(
         serve(
-            [BatchJob("stubborn", stubborn, Schedule(trigger, run_on_start=True))],
+            [
+                BatchJob(
+                    "stubborn", stubborn, every(timedelta(minutes=5), run_on_start=True)
+                )
+            ],
             stop,
             clock=utc_now,
             shutdown_timeout=0.1,
