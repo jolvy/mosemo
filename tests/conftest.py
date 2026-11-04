@@ -2,11 +2,13 @@ import pytest
 
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.infra.config import Config
+from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.shared.application.events import EventDispatcher
 from tests.identity_support import sign_up_dispatcher
 
 # Tests use the entities without an assembly root, so map them as the roots do.
 identity_bootstrap.map_tables()
+labels_bootstrap.map_tables()
 
 
 @pytest.fixture

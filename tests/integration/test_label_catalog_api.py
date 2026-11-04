@@ -10,11 +10,13 @@ import pytest_asyncio
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.activity_labels.catalog.models import Label, default_labels
-from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
-from mosemo.identity.bootstrap import get_kakao_client, get_oauth_client_resolver
+from mosemo.identity.bootstrap import (
+    get_kakao_client,
+    get_oauth_client_resolver,
+    get_token_current_account,
+)
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.pkce import create_code_challenge
 from mosemo.identity.infrastructure.kakao_client import KakaoClient
@@ -22,6 +24,9 @@ from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.database import get_session
+from mosemo.labels.domain.labels import Label, default_labels
+from mosemo.labels.infrastructure.labels import LabelRepository
+from mosemo.shared.presentation.current_account import get_current_account
 
 
 @pytest_asyncio.fixture
@@ -43,6 +48,7 @@ async def label_catalog_client(
             register_exception_handlers(app)
             app.include_router(v1_api_router)
             app.dependency_overrides[get_config] = lambda: config
+            app.dependency_overrides[get_current_account] = get_token_current_account
 
             async def override_session() -> AsyncIterator[AsyncSession]:
                 async with session_factory() as session:
@@ -147,7 +153,7 @@ async def test_label_catalog_returns_owned_active_and_archived_labels(
         session.add(other)
         await session.flush()
         defaults = default_labels(owner.id)
-        LabelCatalogRepository(session).add_all(defaults)
+        LabelRepository().add_all(session, defaults)
         defaults[0].created_at = created_at
         defaults[0].updated_at = updated_at
         defaults[0].archived_at = archived_at
@@ -155,10 +161,10 @@ async def test_label_catalog_returns_owned_active_and_archived_labels(
         custom_archived = Label(
             account_id=owner.id,
             display_name="산책",
-            created_at=created_at,
-            updated_at=updated_at,
             archived_at=archived_at,
         )
+        custom_archived.created_at = created_at
+        custom_archived.updated_at = updated_at
         session.add_all(
             [
                 custom_active,
@@ -169,7 +175,7 @@ async def test_label_catalog_returns_owned_active_and_archived_labels(
         await session.flush()
         owner_id = owner.id
         expected_ids = {
-            label.display_name: str(label.label_id)
+            label.display_name: str(label.id)
             for label in [*defaults, custom_active, custom_archived]
         }
         await session.commit()

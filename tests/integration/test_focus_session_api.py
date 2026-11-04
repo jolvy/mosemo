@@ -9,7 +9,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from mosemo.activities.models import ActivityRecord
-from mosemo.activity_labels.catalog.models import Label
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
 from mosemo.focus_sessions.models import FocusSession
@@ -19,6 +18,8 @@ from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.database import get_session
+from mosemo.labels.domain.labels import Label
+from mosemo.labels.infrastructure.tables import labels as label_table
 from tests.batch_support import batch_client, post_activity
 from tests.identity_support import delete_accounts
 
@@ -63,8 +64,8 @@ async def focus_client(integration_database_url: str, config: Config) -> AsyncIt
             headers,
             other_headers,
             device.id,
-            label.label_id,
-            other_label.label_id,
+            label.id,
+            other_label.id,
         )
     async with factory() as session:
         await session.execute(
@@ -281,7 +282,7 @@ async def test_completed_session_blocks_label_deletion_but_allows_account_cascad
         account_id = label.account_id
         with pytest.raises(IntegrityError):
             async with session.begin_nested():
-                await session.execute(delete(Label).where(Label.label_id == label_id))
+                await session.execute(delete(Label).where(label_table.c.id == label_id))
         await session.execute(delete_accounts(account_id))
         await session.commit()
         assert await session.get(Label, label_id, populate_existing=True) is None

@@ -3,17 +3,17 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activity_labels.catalog.models import DEFAULT_LABEL_NAMES, default_labels
-from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
+from mosemo.labels.domain.labels import DEFAULT_LABEL_NAMES, default_labels
+from mosemo.labels.infrastructure.labels import LabelRepository
 
 
 def test_add_all_adds_the_default_catalog_for_an_account() -> None:
     session = create_autospec(AsyncSession, instance=True)
-    repository = LabelCatalogRepository(session)
+    repository = LabelRepository()
     account_id = uuid4()
 
     labels = default_labels(account_id)
-    repository.add_all(labels)
+    repository.add_all(session, labels)
 
     assert [label.display_name for label in labels] == list(DEFAULT_LABEL_NAMES)
     assert all(not hasattr(label, "name_key") for label in labels)

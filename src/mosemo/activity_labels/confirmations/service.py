@@ -8,7 +8,6 @@ from mosemo.activities.enums import ActivityTimelineKind
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.versions import segment_version
-from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
 from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.schemas import (
@@ -16,6 +15,7 @@ from mosemo.activity_labels.schemas import (
     BatchLabelConfirmationRequest,
     SegmentLabelConfirmationItemRequest,
 )
+from mosemo.labels.public import LabelCatalog
 
 
 class ActivityLabelSegmentNotFoundError(Exception):
@@ -77,12 +77,12 @@ class ConfirmationService:
         session: AsyncSession,
         activity_repository: ActivityRepository,
         confirmation_repository: ConfirmationRepository,
-        label_catalog_repository: LabelCatalogRepository,
+        labels: LabelCatalog,
     ) -> None:
         self._session = session
         self._activity_repository = activity_repository
         self._confirmation_repository = confirmation_repository
-        self._label_catalog_repository = label_catalog_repository
+        self._labels = labels
 
     async def confirm(
         self,
@@ -105,13 +105,10 @@ class ConfirmationService:
             raise ActivityLabelSegmentChangedError
 
         label_id = getattr(request.selection, "label_id", None)
-        if label_id is not None:
-            label = await self._label_catalog_repository.find_active_owned(
-                account_id=account_id,
-                label_id=label_id,
-            )
-            if label is None:
-                raise ActivityLabelUnavailableError
+        if label_id is not None and not await self._labels.is_active(
+            self._session, account_id=account_id, label_id=label_id
+        ):
+            raise ActivityLabelUnavailableError
 
         return await self._save_confirmation(
             account_id=account_id,
@@ -296,11 +293,9 @@ class ConfirmationService:
     ) -> None:
         if label_id is None or is_idempotent:
             return
-        label = await self._label_catalog_repository.find_active_owned(
-            account_id=account_id,
-            label_id=label_id,
-        )
-        if label is None:
+        if not await self._labels.is_active(
+            self._session, account_id=account_id, label_id=label_id
+        ):
             raise self._batch_failure(
                 item_index=item_index,
                 reason=ActivityLabelUnavailableError(),

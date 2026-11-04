@@ -77,7 +77,7 @@ class ActivityLabelProposal(Base):
         )
     )
     suggested_label_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("labels.label_id", ondelete="NO ACTION"), nullable=True
+        ForeignKey("labels.id", ondelete="NO ACTION"), nullable=True
     )
     attempt_count: Mapped[int] = mapped_column(Integer, default=0)
     lease_token: Mapped[UUID | None] = mapped_column(nullable=True)

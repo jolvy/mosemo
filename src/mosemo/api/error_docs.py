@@ -71,8 +71,4 @@ ERROR_DOCS: Mapping[ApiErrorCode, ErrorDocs] = {
             ),
         ),
     ),
-    ErrorCode.LABEL_NOT_AVAILABLE: ErrorDocs(
-        summary="Label not available",
-        description="라벨을 찾을 수 없거나 현재 선택할 수 없는 상태입니다.",
-    ),
 }

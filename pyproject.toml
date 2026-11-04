@@ -252,6 +252,131 @@ source_modules = [
 ]
 forbidden_modules = ["mosemo.shared.presentation"]
 
+# labels bounded context (ADR 0011 「강제 방법」).
+[[tool.importlinter.contracts]]
+name = "labels layers: presentation > application > infrastructure > domain"
+type = "layers"
+containers = ["mosemo.labels"]
+layers = ["presentation", "application", "infrastructure", "domain"]
+
+[[tool.importlinter.contracts]]
+name = "labels presentation does not import its infrastructure directly"
+type = "forbidden"
+source_modules = ["mosemo.labels.presentation"]
+forbidden_modules = ["mosemo.labels.infrastructure"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "labels layers are imported only by labels"
+type = "protected"
+protected_modules = [
+    "mosemo.labels.presentation",
+    "mosemo.labels.application",
+    "mosemo.labels.domain",
+    "mosemo.labels.infrastructure",
+]
+allowed_importers = ["mosemo.labels"]
+
+[[tool.importlinter.contracts]]
+name = "labels bootstrap is imported only by assembly roots"
+type = "protected"
+protected_modules = ["mosemo.labels.bootstrap"]
+allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
+
+[[tool.importlinter.contracts]]
+name = "labels presentation imports only infra.providers from infra"
+type = "forbidden"
+source_modules = ["mosemo.labels.presentation"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.persistence",
+    "mosemo.infra.scheduling",
+    "mosemo.infra.transactions",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "labels application imports only infra.transactions from infra"
+type = "forbidden"
+source_modules = ["mosemo.labels.application"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.persistence",
+    "mosemo.infra.providers",
+    "mosemo.infra.scheduling",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "labels infrastructure imports only infra.persistence from infra"
+type = "forbidden"
+source_modules = ["mosemo.labels.infrastructure"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.providers",
+    "mosemo.infra.scheduling",
+    "mosemo.infra.transactions",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "labels domain does not import infra"
+type = "forbidden"
+source_modules = ["mosemo.labels.domain"]
+forbidden_modules = ["mosemo.infra"]
+
+[[tool.importlinter.contracts]]
+name = "labels domain does not import sqlalchemy, fastapi or pydantic"
+type = "forbidden"
+source_modules = ["mosemo.labels.domain"]
+forbidden_modules = ["sqlalchemy", "fastapi", "pydantic"]
+
+[[tool.importlinter.contracts]]
+name = "labels application does not import fastapi directly"
+type = "forbidden"
+source_modules = ["mosemo.labels.application"]
+forbidden_modules = ["fastapi"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "labels domain imports only shared.domain from shared"
+type = "forbidden"
+source_modules = ["mosemo.labels.domain"]
+forbidden_modules = ["mosemo.shared.application", "mosemo.shared.presentation"]
+
+# Direct imports only: identity.public re-exports IdentityErrorCode, whose
+# presentation module reaches shared.presentation through shared.errors.
+[[tool.importlinter.contracts]]
+name = "labels application and infrastructure do not import shared.presentation"
+type = "forbidden"
+source_modules = [
+    "mosemo.labels.application",
+    "mosemo.labels.infrastructure",
+]
+forbidden_modules = ["mosemo.shared.presentation"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "identity does not import labels (labels -> identity only)"
+type = "forbidden"
+source_modules = ["mosemo.identity"]
+forbidden_modules = ["mosemo.labels"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py314"

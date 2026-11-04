@@ -1,18 +1,18 @@
-"""Identity sign-up events and account checks of other contexts (#149 AC-11, AC-12)."""
+"""Identity sign-up events and account checks of other contexts (#149, #150 AC-11, AC-12)."""
 
 from collections.abc import AsyncIterator
 from datetime import timedelta
 from unittest.mock import create_autospec
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx2
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.activity_labels.catalog.models import DEFAULT_LABEL_NAMES, Label
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
 from mosemo.identity.application.sign_in import LogIn
@@ -30,6 +30,8 @@ from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.providers import get_session
+from mosemo.labels.domain.labels import DEFAULT_LABEL_NAMES, Label
+from mosemo.labels.infrastructure.tables import labels as label_table
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.clock_support import FakeClock
@@ -79,7 +81,7 @@ async def test_sign_up_creates_default_labels_in_the_same_transaction(
     assert account is not None
     labels = (
         await integration_session.scalars(
-            select(Label).where(Label.account_id == account.id)
+            select(Label).where(label_table.c.account_id == account.id)
         )
     ).all()
     assert sorted(label.display_name for label in labels) == sorted(DEFAULT_LABEL_NAMES)
@@ -99,6 +101,30 @@ async def test_sign_up_handler_failure_rolls_back_the_account(
 
     with pytest.raises(RuntimeError, match="default labels failed"):
         await log_in(integration_session, make_log_in(dispatcher), provider_subject)
+
+    assert await find_account(integration_session, provider_subject) is None
+
+
+@pytest.mark.asyncio
+async def test_labels_handler_failure_rolls_back_the_account(
+    integration_session: AsyncSession,
+    sign_up_events: EventDispatcher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider_subject = f"sign-up-labels-failure-{uuid4()}"
+
+    def duplicate_labels(account_id: UUID) -> list[Label]:
+        return [
+            Label(account_id=account_id, display_name="코딩"),
+            Label(account_id=account_id, display_name="코딩"),
+        ]
+
+    monkeypatch.setattr(
+        "mosemo.labels.application.labels.default_labels", duplicate_labels
+    )
+
+    with pytest.raises(IntegrityError):
+        await log_in(integration_session, make_log_in(sign_up_events), provider_subject)
 
     assert await find_account(integration_session, provider_subject) is None
 

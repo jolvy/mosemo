@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 # Coexistence period (ADR 0011): import the models that have not moved yet and,
 # once a bounded context moves, call the mapping function of its bootstrap.py.
 from mosemo.activities import models as activities_models
-from mosemo.activity_labels.catalog import models as label_catalog_models
 from mosemo.activity_labels.confirmations import (
     models as label_confirmations_models,
 )
@@ -20,8 +19,10 @@ from mosemo.focus_sessions import models as focus_session_models
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.infra.config import get_config
 from mosemo.infra.persistence import ORM_METADATA
+from mosemo.labels import bootstrap as labels_bootstrap
 
 identity_bootstrap.map_tables()
+labels_bootstrap.map_tables()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

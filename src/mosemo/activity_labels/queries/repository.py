@@ -4,8 +4,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activity_labels.catalog.models import Label
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
+from mosemo.labels.public import LabelCatalog
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,8 +15,9 @@ class ConfirmationWithLabelName:
 
 
 class LabelQueryRepository:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, labels: LabelCatalog) -> None:
         self._session = session
+        self._labels = labels
 
     async def list_confirmations_with_label_names(
         self,
@@ -24,24 +25,37 @@ class LabelQueryRepository:
         account_id: UUID,
         first_event_ids: set[UUID],
     ) -> dict[UUID, ConfirmationWithLabelName]:
+        """Confirmations with the account's label names from the label catalog.
+
+        A missing label leaves its name `None`, as the outer join it replaces did.
+        """
         if not first_event_ids:
             return {}
 
-        statement = (
-            select(ActivityLabelConfirmation, Label.display_name)
-            .outerjoin(
-                Label,
-                (Label.label_id == ActivityLabelConfirmation.label_id)
-                & (Label.account_id == account_id),
+        confirmations = (
+            await self._session.scalars(
+                select(ActivityLabelConfirmation)
+                .where(ActivityLabelConfirmation.account_id == account_id)
+                .where(ActivityLabelConfirmation.first_event_id.in_(first_event_ids))
             )
-            .where(ActivityLabelConfirmation.account_id == account_id)
-            .where(ActivityLabelConfirmation.first_event_id.in_(first_event_ids))
+        ).all()
+        names = await self._labels.find_names(
+            self._session,
+            account_id=account_id,
+            label_ids={
+                confirmation.label_id
+                for confirmation in confirmations
+                if confirmation.label_id is not None
+            },
         )
-        rows = (await self._session.execute(statement)).all()
         return {
             confirmation.first_event_id: ConfirmationWithLabelName(
                 confirmation=confirmation,
-                display_name=display_name,
+                display_name=(
+                    None
+                    if confirmation.label_id is None
+                    else names.get(confirmation.label_id)
+                ),
             )
-            for confirmation, display_name in rows
+            for confirmation in confirmations
         }
