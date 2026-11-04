@@ -6,8 +6,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# Coexistence period (ADR 0011): import the models that have not moved yet and,
-# once a bounded context moves, call the mapping function of its bootstrap.py.
+# ADR 0011: table metadata comes only from the mapping function of each
+# bounded context's bootstrap.py.
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.infra.config import get_config
 from mosemo.infra.persistence import ORM_METADATA

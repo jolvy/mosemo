@@ -1,6 +1,6 @@
 # 코드 스타일 평가 기준
 
-> 상태: [프로그램 판정 항목](#프로그램-판정-항목)은 검사기·Ruff·complexipy가 강제한다. 강제의 기준은
+> 상태: [프로그램 판정 항목](#프로그램-판정-항목)은 검사기·Ruff·complexipy·import-linter가 강제한다. 강제의 기준은
 > 검사기와 설정이고, 이 문서는 항목의 정의와 근거를 기록한다.
 > [앞으로 할 일](#앞으로-할-일)의 항목은 아직 강제하지 않는다. 기준 커밋은 `e298365`다.
 
@@ -11,11 +11,15 @@
 
 | 형태 | ID | 판정 주체 |
 | --- | --- | --- |
-| 프로그램 예/아니오 | `CS-P` | 검사기·Ruff·complexipy |
+| 프로그램 예/아니오 | `CS-P` | 검사기·Ruff·complexipy·import-linter |
 | LLM 예/아니오 | `CS-J` | LLM 채점기(앞으로 할 일) |
 | LLM 점수 | `CS-S` | LLM 채점기(앞으로 할 일) |
 
-번호는 다시 쓰지 않는다. 폐기한 번호는 `CS-P02`·`CS-P16`이다.
+번호는 다시 쓰지 않는다. 폐기한 번호는 `CS-P02`·`CS-P16`과, 파일 이름(`service`·`repository`·`models`·`mappers` 등)으로
+역할을 정하던 옛 평평한 패키지용 `CS-P10`·`CS-P25`·`CS-P28`·`CS-P29`·`CS-P30`·`CS-P32`다. 옛 패키지를 모두 Bounded
+Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
+[ADR 0011](adr/0011-split-bounded-contexts-logically-with-layered-packages.md)~[ADR 0014](adr/0014-align-public-identifiers-and-error-codes-with-contexts.md)
+「강제 방법」의 import-linter 계약, AST 검사기(`validate_architecture.py`), 내성 테스트로 검사한다.
 
 ## 항목 선정 기준
 
@@ -33,7 +37,7 @@
 
 ## 강제 방식
 
-- 도구에 있는 규칙은 도구(Ruff, complexipy)로, 없으면 검사기
+- 도구에 있는 규칙은 도구(Ruff, complexipy, import-linter)로, 없으면 검사기
   (`.codex/skills/verification/scripts/validate_conventions.py`)로 강제한다.
 - 모델이 주석이나 설정으로 스스로 피해 갈 수 있는 방식은 쓰지 않는다. 인라인 억제 주석은 금지하고,
   Ruff 설정은 검사기의 고정 목록과 정확히 같아야 하며, complexipy는 고정 명령으로만 실행한다(CS-P01,
@@ -66,9 +70,9 @@
 | CS-P05 | 함수 구성 | bool 값을 위치 인자로 받거나 넘기는가? | Ruff `FBT001`, `FBT003` (`tests` 제외) | 같은 절, #102 |
 | CS-P06 | 함수 구성 | `src`에서 매직 넘버와 비교하는가? | Ruff `PLR2004` (`src`만) | clean-code Searchability, #102 |
 | CS-P07 | 이름 | Python 이름 표기 규칙을 어기거나, `...Exception` 이름과 `ApiException`을 HTTP 계층 밖에서 쓰는가? | Ruff `N`, 검사기 | clean-code Naming, #102 |
-| CS-P10 | 이름 | repository 메서드가 허용 동사 밖의 이름을 쓰는가? | 검사기 | 저장소 관례, #91 |
+| CS-P11 | 계층·경계 | 다른 모듈을 허용되지 않은 방향으로 import하는가? | import-linter(`poe lint-imports`) | [ADR 0011](adr/0011-split-bounded-contexts-logically-with-layered-packages.md) 「강제 방법」 |
 | CS-P12 | 계층·경계 | `exception_handlers.py` 밖에서 `HTTPException`을 쓰는가? | 검사기 | [ADR 0001](adr/0001-public-api-error-boundary.md) |
-| CS-P13 | 계층·경계 | `service.py`·`executor.py`·`processing.py` 밖에서 트랜잭션을 열거나 확정하는가? BC 패키지에서 `begin`·`commit`·`rollback`을 직접 호출하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), [ADR 0012](adr/0012-notify-cross-context-changes-with-in-process-domain-events.md), 저장소 관례 |
+| CS-P13 | 계층·경계 | 트랜잭션 헬퍼(`infra/transactions.py`) 밖에서 `begin`·`commit`·`rollback`을 직접 호출하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), [ADR 0012](adr/0012-notify-cross-context-changes-with-in-process-domain-events.md), 저장소 관례 |
 | CS-P15 | 저장소 관용구 | `src/mosemo/infra/clock.py` 밖에서 현재 시각 API를 호출하거나 `clock`을 키워드 전용 필수 인자로 받지 않는가? | Ruff `TID251`, 검사기 | #86 |
 | CS-P17 | 저장소 관용구 | FastAPI 의존성을 `Annotated` 없이 선언하는가? | Ruff `FAST002` | architecture FastAPI Request Boundaries |
 | CS-P18 | 오류 처리 | 넓은 `except`를 허용 위치 밖에서 쓰거나 예외를 조용히 삼키는가? | 검사기(`src`), Ruff `BLE001`(`src` 밖), `S110` | [ADR 0001](adr/0001-public-api-error-boundary.md), #102 |
@@ -78,14 +82,9 @@
 | CS-P22 | 저장소 관용구 | 인라인 억제 주석을 쓰거나 검사 설정을 바꿔 규칙을 끄는가? | 검사기 | #102 |
 | CS-P23 | 테스트 | 테스트가 시각 공급원(clock 인자, `get_clock` 재정의)을 lambda로 공급하는가? | 검사기 | #86 |
 | CS-P24 | 저장소 관용구 | 시간대 없는 datetime을 만드는가? | Ruff `DTZ` | [ADR 0009](adr/0009-define-public-json-timestamps-and-responses.md) |
-| CS-P25 | 계층·경계 | repository 밖에서 session으로 조회·저장하거나 SQL 구문을 import하는가? | 검사기 | 저장소 관례, #91 |
-| CS-P26 | 저장소 관용구 | `IntegrityError`로 중복을 처리하거나, `add_if_absent`가 `ON CONFLICT DO NOTHING`을 쓰지 않는가? | 검사기 | 저장소 관례, #91 |
+| CS-P26 | 저장소 관용구 | `IntegrityError`로 중복을 처리하는가? | 검사기 | 저장소 관례, #91 |
 | CS-P27 | 함수 구성 | 의존성을 필드로 담은 묶음 객체로 인자 수를 줄이는가? | 검사기 | #118 |
-| CS-P28 | 계층·경계 | repository나 models가 API 스키마를 import하는가? | 검사기 | architecture Dependency Rule, #118 |
-| CS-P29 | 저장소 관용구 | Mapper가 I/O를 하거나 repository·DB·시각에 의존하는가? | 검사기 | #118 |
-| CS-P30 | 함수 구성 | `models.py`의 `__init__`이 아닌 함수가 인자 5개를 넘는가? | 검사기 | #118 |
 | CS-P31 | 저장소 관용구 | 생성자(`__init__`, `__new__`)에 `@override`를 붙여 인자 수 규칙을 피하는가? | 검사기 | #118 |
-| CS-P32 | 계층·경계 | 역할 파일이 바깥 역할을 import하는가? | 검사기 | architecture Dependency Rule |
 
 ### 항목별 정답
 
@@ -97,29 +96,18 @@
 - **CS-P04**: 위치 인자는 2개까지이고 세 번째 인자부터 키워드 전용(`*`)이다. `self`·`cls`는 세지 않는다.
   `tests`(pytest가 fixture를 이름으로 주입)와 `src/mosemo/api/middleware.py`(ASGI 서버가 위치 인자로 호출)는
   제외한다. 라이브러리가 위치 인자로 호출하는 오버라이드는 `@typing.override`를 붙인다.
-  - 전체 인자는 5개까지다(`PLR0913`, `*args`·`**kwargs` 제외). `tests`와 `models.py`의 `__init__`은
-    제외한다. 엔티티의 필드 수는 데이터 자체의 크기이기 때문이다. `models.py`의 다른 함수는 CS-P30이 같은
-    기준으로 판정한다.
+  - 전체 인자는 5개까지다(`PLR0913`, `*args`·`**kwargs` 제외). `tests`는 제외한다.
   - 인자가 많으면 책임 단위로 나눈다. 허용하는 방법은 하위 협력자 추출, 업무 사건의 데이터를 담는 값 객체,
     조립 위치 이동(provider)이다. 의존성을 담은 묶음 객체는 CS-P27이 막는다.
-  - service는 트랜잭션, flush 순서, 현재 시각 읽기, 응답 스키마 변환만 맡고, 업무 처리는 트랜잭션을 열지
-    않고 `now`를 인자로 받는 하위 협력자에게 맡긴다. router는 모듈당 service 하나를 주입받는다. 하위 협력자는
-    FastAPI provider로 주입한다. 역할 규칙은
-    [architecture](../.codex/skills/implementation/references/architecture.md)의 Mosemo 코드 역할 규칙을 따른다.
+  - UseCase·Repository·Query·공개 협력자의 역할과 조립은
+    [ADR 0013](adr/0013-persist-dataclass-aggregates-with-imperative-mapping.md)과
+    [ADR 0011](adr/0011-split-bounded-contexts-logically-with-layered-packages.md) 「조립」을 따른다.
 - **CS-P07**: 예외 이름의 접미사가 계층을 나타낸다. `...Exception`은 HTTP 응답이 되는 `ApiException` 계열
   전용이며 `src/mosemo/shared/errors.py`에서만 정의한다. `ApiException`과 그 하위 클래스는 `router.py`,
-  `dependencies.py`, `exception_handlers.py`, `shared/errors.py`에서만 import·생성한다. 나머지 예외는
+  `api/exception_handlers.py`, `shared/errors.py`에서만 import·생성한다. 나머지 예외는
   `...Error`다. Ruff `N818`은 `*Exception` 이름을 무시하도록 설정하고 이 규칙은 검사기가 판정한다.
-- **CS-P10**: `repository.py`·`*_repository.py`의 클래스 공개 메서드가 대상이다.
-  - 조회는 `find_`(단건, 없으면 `None`), `list_`(여러 건), `has_`(존재 여부 `bool`), `is_`(조건 판정
-    `bool`)로 시작한다.
-  - 신규 저장은 중복 가능성으로 나눈다. 같은 키가 이미 있을 수 있으면 `add_if_absent(...) -> T | None`
-    (`INSERT ... ON CONFLICT DO NOTHING RETURNING`, 이미 있으면 `None`), 없으면 `add(entity) -> None`,
-    여러 건이면 `add_all(entities) -> None`이다. 엔티티는 service나 도메인이 만들고 repository는 저장만 한다.
-  - 삭제는 `delete`·`delete_`, 교체는 `replace_`, 잠금은 `lock_`으로 시작한다.
-  - 업무 의미가 있는 동사는 허용 목록에 등록한다. 현재 `claim` 하나다.
 - **CS-P12**: `HTTPException`은 `src/mosemo/api/exception_handlers.py`에서만 import하거나 참조한다. router도
-  허용하지 않는다. ADR 0001에 따라 공개할 오류는 `ErrorCode`와 `ApiException`으로 명시하고, 내부 오류는
+  허용하지 않는다. ADR 0001·0014에 따라 공개할 오류는 BC 오류 코드 enum과 `ApiException`으로 명시하고, 내부 오류는
   도메인 오류(`...Error`)로 던진다. 판정은 import 경로를 해석하지 않고 이름으로 한다. `ImportFrom`의 가져오는
   이름이나 속성 참조의 `attr`가 `HTTPException`으로 끝나면 위반이며, 허용 파일이 만든 별칭
   (`StarletteHTTPException`)을 다시 가져오는 경로도 막는다. `tests`·`scripts`·`migrations`·`.codex`는 대상이
@@ -127,24 +115,13 @@
   - Ruff `TID251` 대신 검사기로 판정한다. `banned-api`는 금지 항목마다 허용 경로를 줄 수 없어
     `exception_handlers.py`를 허용하려면 `per-file-ignores`에 `TID251`을 넣어야 하고, 그러면 그 파일에서
     CS-P15의 현재 시각 API 금지까지 꺼진다.
-- **CS-P13**: `session.begin()`, `commit()`, `rollback()`은 `service.py`, `executor.py`, worker
-  처리기(`processing.py`)에서만 쓴다. repository와 router는 트랜잭션을 열지 않는다.
-  - 대상은 `src`의 모든 `.py` 파일이고 repository 파일도 포함한다. 메서드 이름이 `begin`·`begin_nested`·
-    `commit`·`rollback`인 속성 호출이면 수신 객체(`session`, `self._session`, session factory, engine)와
-    관계없이 위반이다. `flush`는 대상이 아니며 CS-P25가 맡는다.
-  - 허용은 경로가 아니라 파일 이름(`service.py`·`executor.py`·`processing.py`)으로 판정한다.
-  - 예외로 트랜잭션 헬퍼 `src/mosemo/infra/transactions.py`(`unit_of_work`·`read_snapshot`, ADR 0012)는
-    경로로 허용한다. 다른 경로의 `transactions.py`는 허용하지 않는다.
-  - BC 패키지(`src/mosemo/{bc}/public.py`가 있는 패키지)에는 파일 이름 허용을 적용하지 않는다. BC의 모든
-    파일에서 `begin`·`begin_nested`·`commit`·`rollback` 호출은 위반이고, 트랜잭션은 UseCase가
-    `infra.transactions`의 `unit_of_work`·`read_snapshot`으로 연다(ADR 0012). 파일 이름으로 역할을 정하는 옛
-    규칙(CS-P10, CS-P25, CS-P26의 `add_if_absent`, CS-P28~CS-P30, CS-P32)은 BC 밖의 옛 경로에만 적용하고,
-    BC 패키지는 ADR 0011~0013 「강제 방법」의 규칙(`validate_architecture.py`,
-    `tests/unit/harness/test_context_introspection.py`)으로 검사한다.
-  - CS-P25의 허용 메서드에는 `begin_nested`가 없으므로, 수신 객체가 `session`·`_session`인
-    `begin_nested()`는 repository가 아닌 파일에서 CS-P13 허용 파일이라도 CS-P25로 실패한다. CS-P13에
-    `begin_nested`를 넣은 것은 CS-P25가 보지 않는 repository 파일과 session이 아닌 수신 객체(session
-    factory, engine 등)의 savepoint까지 막기 위해서다.
+- **CS-P13**: 트랜잭션은 UseCase가 `infra.transactions`의 `unit_of_work`·`read_snapshot`으로 연다
+  ([ADR 0012](adr/0012-notify-cross-context-changes-with-in-process-domain-events.md)).
+  - 대상은 `src`의 모든 `.py` 파일이다. 메서드 이름이 `begin`·`begin_nested`·`commit`·`rollback`인 속성 호출이면
+    수신 객체(`db_session`, session factory, engine)와 관계없이 위반이다. `flush`는 대상이 아니다.
+  - 예외는 트랜잭션 헬퍼 `src/mosemo/infra/transactions.py` 하나이며 경로로 허용한다. 다른 경로의
+    `transactions.py`는 허용하지 않는다.
+  - 파일 이름으로 허용하던 옛 규칙(`service.py`·`executor.py`·`processing.py`)은 대상 파일이 없어져 없앴다.
 - **CS-P15**: 시스템 시각은 `mosemo.infra.clock.utc_now`만 읽는다. 금지 API는 `datetime.now`,
   `datetime.utcnow`, `datetime.today`, `date.today`, `time.time`, `time.time_ns`이고 예외 파일은
   `src/mosemo/infra/clock.py` 하나다. 시각을 읽는 객체는 생성자에서 키워드 전용 필수 인자 `clock`을 받고, 트랜잭션
@@ -152,9 +129,9 @@
 - **CS-P18**: `src`의 넓은 `except`(`Exception`, `BaseException`, 이를 포함한 튜플, 맨 `except:`)는 검사기의
   허용 위치 목록 `BROAD_EXCEPT_ALLOWED`(파일, 함수, 개수)에서만 쓴다. 목록에 있지만 코드에서 사라진 항목도
   위반이다. 이유 주석은 모델이 스스로 붙여 통과할 수 있으므로 허용 근거로 쓰지 않는다. 새 경계는 이유와 함께
-  목록에 추가하며 리뷰 대상이다. 현재 허용 위치는 프로세스 경계 2(`consumer.main`,
-  `batch_jobs.__main__.main`), supervisor 전달 1(`MessageConsumer.handle`), 로그인 콜백
-  1(`identity/presentation/auth/router.create_router.callback`), 처리 단위 격리 2(`ProposalProcessor.process_candidate`, `execute_job`)다.
+  목록에 추가하며 리뷰 대상이다. 현재 허용 위치는 프로세스 경계 2(`consumer.__main__.main`,
+  `batch.__main__.main`), supervisor 전달 1(`MessageConsumer.handle`), 로그인 콜백
+  1(`identity/presentation/auth/router.create_router.callback`), 처리 단위 격리 2(`ProposeLabel.execute`, `execute_job`)다.
   Ruff `BLE001`은 로그만 남기는 넓은 `except`를 통과시켜 더 약하므로 `src`에서는 끄고 그 밖의 경로에서 쓴다.
 - **CS-P22**: 인라인 억제 주석(`noqa`, `ruff: noqa`, `type: ignore`, `ty: ignore`, `pyright: ignore`,
   `complexipy: ignore`, `isort:`, `fmt:`, `pragma: no cover`)은 모두 금지한다. 경로별 예외는
@@ -166,11 +143,8 @@
   lambda를 돌려주는 lambda를 넣는 방식은 검사기가 막는다. 도메인 메서드에 고정 `datetime`을 넘기는 것은
   대상이 아니다.
 - **CS-P24**: 직접 만드는 datetime은 `tzinfo=UTC`처럼 시간대를 가진다.
-- **CS-P25**: repository 파일 밖의 `src`에서 session 메서드는 `begin`, `commit`, `rollback`, `flush`만
-  호출한다. `flush`는 흐름 순서를 정하므로 service에서 쓰고, repository 안의 `flush`는 SQL 순서를 맞추는
-  구현 세부로 허용한다. SQL 구문(`select`, `insert`, `update`, `delete`, `text`, `func`, `and_`, `or_`,
-  `tuple_` 등)과 `import sqlalchemy`는 repository 파일과 `models.py`에서만 쓴다.
-- **CS-P26**: 중복 처리는 `add_if_absent`의 `ON CONFLICT DO NOTHING`으로만 한다. `except IntegrityError`는
+- **CS-P26**: 중복 처리는 Repository `get_or_create`의 `ON CONFLICT DO NOTHING`으로만 한다
+  ([ADR 0013](adr/0013-persist-dataclass-aggregates-with-imperative-mapping.md)). `except IntegrityError`는
   유니크 충돌 외의 FK·NOT NULL·CHECK 위반과 같은 세션의 다른 flush 실패까지 "이미 있음"으로 덮고, PostgreSQL
   트랜잭션을 실패 상태로 만든다.
 - **CS-P27**: `src`의 `@dataclass`(인자 포함 모든 형태)·`NamedTuple` 필드의 타입 주석에서 찾은 이름이
@@ -179,49 +153,10 @@
   `Suggester`로 끝나면 위반이다. 이름은 Name, Attribute의 마지막 이름, `None`과의 합집합·`list[X]` 같은 내부
   이름, 문자열 주석 안의 이름에서 찾는다. `FocusSession` 같은 엔티티 이름과 `TypedDict`는 대상이 아니다.
   목록 밖 이름의 의존성은 리뷰가 맡는다.
-- **CS-P28**: `repository.py`·`*_repository.py`·`models.py`는 `schemas` 모듈을 import하지 않는다. 절대
-  import, `from mosemo.x import schemas`, 상대 import 모두 대상이다. repository의 신규 저장은 API 스키마를
-  받지 않는다. INSERT 값이 충돌 키뿐이면 키를 키워드 인자로 받고(`accounts`, `devices`), 그 밖이면 Mapper가
-  만든 미저장 엔티티 하나를 받는다. INSERT에는 그 테이블에서 명시해 온 컬럼만 넣어 server default·Python
-  default 컬럼을 NULL로 덮지 않는다.
-- **CS-P29**: API 요청 스키마로 엔티티를 만드는 일은 모듈 `mappers.py`의 `XxxMapper.to_entity`가 맡는다.
-  상태 없는 클래스이고 사용하는 쪽이 직접 만들며, 만든 엔티티는 session에 add하지 않고 repository에 넘긴다.
-  `mappers.py`에 `async def`가 있거나 repository·`*_repository` 모듈, `sqlalchemy`, `mosemo.infra.database`,
-  `mosemo.infra.persistence`, `mosemo.infra.clock`, `mosemo.shared.application.clock`을 import하면 위반이다. 응답 방향은 `Response.model_validate(entity, from_attributes=True)`를
-  쓰고 Mapper를 두지 않는다.
-- **CS-P30**: `models.py`의 모듈 함수·메서드·중첩 함수 중 `__init__`이 아닌 것은 인자 5개까지다. 세는 방식은
-  Ruff `PLR0913`과 같다(`self`·`cls`, `*args`·`**kwargs`, `@override` 메서드 제외).
 - **CS-P31**: `__init__`·`__new__`에 import를 해석해 `typing.override`·`typing_extensions.override`로
   연결되는 데코레이터(별칭 포함)를 붙이지 않는다. 대상은 `src`·`tests`·`scripts`·`migrations`·`.codex`다.
   Ruff `PLR0913`·`PLR0917`은 `@override` 메서드를 건너뛰는데, 생성자는 항상 `object`의 메서드를 덮어쓰고
   ty도 생성자 시그니처 호환을 검사하지 않아 우회가 된다. 일반 메서드의 거짓 `@override`는 ty가 잡는다.
-- **CS-P32**: `src/mosemo`에서 파일 이름(확장자 제외)으로 역할이 정해지는 파일은 자기보다 바깥 역할의
-  `mosemo` 모듈을 import하지 않는다. 루트 모듈(`dependencies.py`, `schemas.py`)도 대상이고, 모듈·패키지와
-  무관하게 다른 모듈의 역할 파일도 같은 순위로 본다. 순위(높을수록 바깥)는 다음과 같다.
-
-  | 순위 | 역할(파일 이름) |
-  | --- | --- |
-  | 5 | `router` |
-  | 4 | `dependencies` |
-  | 3 | `service` |
-  | 2 | `mappers` |
-  | 1 | `repository`·`*_repository`, `schemas` |
-  | 0 | `models` |
-
-  - 순위는 architecture.md의 Dependency Rule("Dependencies point INWARD")을 main `95abb4b`의 현행 의존 쌍에
-    맞춰 정했다. 예를 들어 `dependencies` → `service`는 있고 `schemas` → `repository`는 없다. 같은 순위인
-    `schemas`가 `repository`·`*_repository`를 import하는 것도 위반이다.
-  - import 해석은 `imported_modules`를 따른다. 상대 import와 `from mosemo.x import service` 같은 모듈 이름
-    import를 포함하고, 대상 역할은 모듈 경로의 마지막 이름으로 정한다. `mosemo.`로 시작하지 않는 외부
-    패키지(`pydantic_ai.models`, `fastapi.dependencies`)는 이름이 같아도 판정하지 않는다.
-  - 이 규칙은 방향만 정한다. 같은 방향 안의 개별 금지는 각 규칙이 맡고(예: CS-P29의 `mappers` →
-    `repository`), 중복 보고를 피하려고 CS-P28의 `repository`·`*_repository`·`models` → `schemas`와 HTTP 규칙의
-    `models`·`repository`(이름이 정확히 같은 파일) → `router`는 보지 않는다. `*_repository` → `router`는
-    CS-P32가 본다.
-  - 한계: 같은 역할 사이의 import(예: `focus_sessions/service.py` → `activities/service.py`)는 대상이 아니며
-    모듈 사이 방향은 CS-P11이 다룬다. 역할 목록 밖 파일(`executor`, `handler`, `timeline`, `versions`, `enums`,
-    `batch_processing`, `job`, `messages` 등)과 `__init__.py`는 import하는 쪽이든 import되는 쪽이든 판정하지
-    않는다.
 
 ### 넣지 않은 규칙
 
@@ -244,7 +179,9 @@
 - [로깅 규칙](logging.md)
 - [ADR 0001](adr/0001-public-api-error-boundary.md),
   [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md),
-  [ADR 0009](adr/0009-define-public-json-timestamps-and-responses.md)
+  [ADR 0009](adr/0009-define-public-json-timestamps-and-responses.md),
+  [ADR 0011](adr/0011-split-bounded-contexts-logically-with-layered-packages.md),
+  [ADR 0013](adr/0013-persist-dataclass-aggregates-with-imperative-mapping.md)
 
 ## 앞으로 할 일
 
@@ -256,7 +193,6 @@
 | --- | --- | --- | --- | --- | --- |
 | CS-P08 | 이름 | 용어집의 `_Avoid_` 표현을 식별자에 쓰는가? | 검사기 | [용어집](ubiquitous-language.md) | 미측정 |
 | CS-P09 | 이름 | 허용 약어 목록 밖의 약어를 쓰는가? | 검사기 | clean-code Don't Abbreviate | 미측정, 허용 목록 미결정 |
-| CS-P11 | 계층·경계 | 다른 모듈을 허용되지 않은 방향으로 import하는가? | import-linter | [architecture](../.codex/skills/implementation/references/architecture.md) Dependency Rule | 역할 사이 방향은 CS-P32로 분리. 모듈 사이에는 패키지 단위 순환이 있어 정책 미결정 |
 | CS-P14 | 계층·경계 | 역할 목록에 없는 새 파일 이름을 쓰는가? | 미정 | [ARCHITECTURE](../ARCHITECTURE.md) | 처음부터 다시 논의(아래) |
 
 - **CS-P08**: 영어 `_Avoid_` 표현만 대상이다. `Device Registration`은 `device_registration`,

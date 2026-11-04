@@ -222,10 +222,10 @@ Create only files a feature actually needs. An existing repository's structure t
 | service | 트랜잭션, flush 순서, 현재 시각 읽기, 응답 스키마 변환만 맡는다. 업무 처리는 트랜잭션을 열지 않는 하위 협력자에게 맡긴다. router는 모듈당 service 하나를 주입받는다. |
 | 하위 협력자 | 트랜잭션을 열지 않고 시각을 읽지 않으며 `now`를 인자로 받는다. FastAPI provider로 주입한다(provider가 repository를 직접 만드는 기존 모듈은 그 방식을 따른다). |
 | 묶음 객체 금지 | 필드가 의존성(repository, service, session, clock, config, client 등)인 데이터 클래스로 인자 개수를 줄이지 않는다. 업무 사건의 데이터를 담는 값 객체는 허용한다(CS-P27). |
-| Mapper | API 요청 스키마로 엔티티를 만드는 일은 모듈 `mappers.py`의 `XxxMapper.to_entity`가 맡는다. 상태 없는 클래스이고 사용하는 쪽이 직접 만든다. 만든 엔티티는 session에 add하지 않고 repository에 넘긴다. 응답 방향은 기존 `Response.model_validate(entity, from_attributes=True)` 관례를 유지한다. `mappers.py`는 `async def`를 두지 않고 repository·`sqlalchemy`·`mosemo.infra.database`·`mosemo.infra.persistence`·`mosemo.infra.clock`·`mosemo.shared.application.clock`을 import하지 않는다(CS-P29). |
-| repository 신규 저장 인자 | API 스키마를 받지 않는다(CS-P28). INSERT 값이 충돌 키뿐이면 키를 키워드 인자로(`accounts`, `devices` 현행), 그 밖이면 Mapper가 만든 미저장 엔티티 하나를 받는다. INSERT에는 현재 INSERT가 명시하는 컬럼만 넣는다(엔티티에 값이 없는 server default·Python default 컬럼을 NULL로 넣지 않는다). |
+| Mapper | API 요청 스키마로 엔티티를 만드는 일은 모듈 `mappers.py`의 `XxxMapper.to_entity`가 맡는다. 상태 없는 클래스이고 사용하는 쪽이 직접 만든다. 만든 엔티티는 session에 add하지 않고 repository에 넘긴다. 응답 방향은 기존 `Response.model_validate(entity, from_attributes=True)` 관례를 유지한다. `mappers.py`는 `async def`를 두지 않고 repository·`sqlalchemy`·`mosemo.infra.database`·`mosemo.infra.persistence`·`mosemo.infra.clock`·`mosemo.shared.application.clock`을 import하지 않는다. |
+| repository 신규 저장 인자 | API 스키마를 받지 않는다. INSERT 값이 충돌 키뿐이면 키를 키워드 인자로(`accounts`, `devices` 현행), 그 밖이면 Mapper가 만든 미저장 엔티티 하나를 받는다. INSERT에는 현재 INSERT가 명시하는 컬럼만 넣는다(엔티티에 값이 없는 server default·Python default 컬럼을 NULL로 넣지 않는다). |
 | repository의 판단 | 조회한 엔티티·값 객체의 필드를 Python 식으로 비교해 업무 결정을 내리지 않고, 그 결정은 엔티티·값 객체의 메서드를 호출해 얻는다. 조회 조건(SQL), 키 조회, 사용한 ID 집합 같은 순회 관리는 대상이 아니다. |
-| models | API 스키마(`schemas` 모듈)를 import하지 않는다(CS-P28). 생성자를 직접 쓸 수 있고, `models.py`의 `__init__`은 Ruff `PLR0913`에서 제외한다(엔티티의 필드 수는 데이터 자체의 크기). `models.py`의 다른 함수는 인자 5개 제한을 받는다(CS-P30). 생성자 `__init__`·`__new__`에 `@override`를 붙여 인자 수 규칙을 피하지 않는다(CS-P31). |
+| models | API 스키마(`schemas` 모듈)를 import하지 않는다. 생성자 `__init__`·`__new__`에 `@override`를 붙여 인자 수 규칙을 피하지 않는다(CS-P31). |
 | 같은 타입 두 객체 비교 | 저장된 쪽을 주어로 한다(`stored.has_same_start(candidate)`). |
 
 ---

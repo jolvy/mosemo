@@ -1,4 +1,4 @@
-"""현재 시각 처리, 검사 억제, repository 저장에 관한 코드 규칙을 AST·주석 토큰·Ruff 설정으로 검사한다."""
+"""현재 시각 처리, 검사 억제, 트랜잭션·예외 경계에 관한 코드 규칙을 AST·주석 토큰·Ruff 설정으로 검사한다."""
 
 import ast
 import io
@@ -17,7 +17,6 @@ COMPLEXITY_SNAPSHOT = "complexipy-snapshot.json"
 EXCEPTIONS_FILE = "src/mosemo/shared/errors.py"
 API_EXCEPTION = "ApiException"
 API_EXCEPTION_FILES = {
-    "src/mosemo/api/dependencies.py",
     "src/mosemo/api/exception_handlers.py",
     EXCEPTIONS_FILE,
 }
@@ -50,14 +49,12 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
 
 [lint.per-file-ignores]
 "src/mosemo/infra/clock.py" = ["TID251"]
-"migrations/env.py" = ["F401"]
 "src/mosemo/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]
 ".codex/**" = ["PLR2004"]
 "src/**" = ["BLE001"]
-"src/**/models.py" = ["PLR0913"]
 
 [lint.pylint]
 max-positional-args = 2
@@ -72,6 +69,8 @@ extend-ignore-names = ["*Exception"]
 "datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.infra.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
 "time.time".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
 "time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"sqlalchemy.orm.DeclarativeBase".msg = "ADR 0013: 엔티티는 domain dataclass로 두고 BC infrastructure의 `Table`과 imperative mapping으로 매핑한다."
+"sqlalchemy.orm.mapped_column".msg = "ADR 0013: 컬럼은 BC infrastructure의 `Table`에 `Column`으로 정의한다."
 
 [format]
 indent-style = "space"
@@ -95,41 +94,8 @@ DEPENDENCY_SUFFIXES = (
     "Suggester",
 )
 OVERRIDE_MODULES = {"typing", "typing_extensions"}
-MAX_MODEL_ARGUMENTS = 5
-REPOSITORY_METHODS = {"find", "add", "add_all", "add_if_absent", "delete", "claim"}
-REPOSITORY_METHOD_PREFIXES = (
-    "find_",
-    "list_",
-    "has_",
-    "is_",
-    "delete_",
-    "replace_",
-    "lock_",
-)
-SESSION_NAMES = {"session", "_session"}
-TRANSACTION_METHODS = {"begin", "commit", "rollback", "flush"}
 TRANSACTION_BOUNDARY_METHODS = {"begin", "begin_nested", "commit", "rollback"}
-TRANSACTION_BOUNDARY_FILES = {"service.py", "executor.py", "processing.py"}
 TRANSACTION_HELPER_FILE = "src/mosemo/infra/transactions.py"
-SQL_MODULES = {"sqlalchemy", "sqlalchemy.dialects.postgresql"}
-SQL_CONSTRUCTS = {
-    "select",
-    "insert",
-    "update",
-    "delete",
-    "text",
-    "func",
-    "and_",
-    "or_",
-    "not_",
-    "tuple_",
-    "exists",
-    "case",
-    "literal",
-    "literal_column",
-    "union",
-    "union_all",
-}
 
 CLOCK_HINT = (
     "현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻고, "
@@ -293,31 +259,6 @@ def check_init_clock(tree: ast.AST) -> list[str]:
     return errors
 
 
-def is_repository_file(path: Path) -> bool:
-    return path.name == "repository.py" or path.name.endswith("_repository.py")
-
-
-def is_repository_method_name(name: str) -> bool:
-    return name in REPOSITORY_METHODS or name.startswith(REPOSITORY_METHOD_PREFIXES)
-
-
-def check_repository_method_names(tree: ast.AST) -> list[str]:
-    """(f) repository 클래스의 공개 메서드 이름이 허용한 동사인지 확인한다."""
-    return [
-        f"{method.lineno}: CS-P10: repository 메서드 `{method.name}`의 이름을 "
-        "허용한 동사로 바꾼다. 조회는 `find`·`find_`·`list_`, 존재 여부는 `has_`, "
-        "조건 판정은 `is_`, 새 엔티티 저장은 `add`·`add_all`·`add_if_absent`, "
-        "삭제·교체·잠금은 `delete`·`delete_`·`replace_`·`lock_`, "
-        "업무 동사는 `claim`만 쓴다"
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ClassDef)
-        for method in node.body
-        if isinstance(method, ast.FunctionDef | ast.AsyncFunctionDef)
-        and not method.name.startswith("_")
-        and not is_repository_method_name(method.name)
-    ]
-
-
 def integrity_error_aliases(tree: ast.AST) -> set[str]:
     return {"IntegrityError"} | {
         alias.asname
@@ -341,7 +282,7 @@ def check_integrity_error_handling(tree: ast.AST) -> list[str]:
     aliases = integrity_error_aliases(tree)
     return [
         f"{node.lineno}: CS-P26: `IntegrityError`를 잡아 중복을 처리하지 않는다. "
-        "repository의 `add_if_absent`에서 `on_conflict_do_nothing`으로 충돌을 "
+        "Repository의 `get_or_create`에서 `on_conflict_do_nothing`으로 충돌을 "
         "피하고 반환값으로 중복을 판단한다"
         for node in ast.walk(tree)
         if isinstance(node, ast.ExceptHandler)
@@ -350,97 +291,17 @@ def check_integrity_error_handling(tree: ast.AST) -> list[str]:
     ]
 
 
-def check_add_if_absent_conflict(tree: ast.AST) -> list[str]:
-    """(g) repository의 `add_if_absent`가 `on_conflict_do_nothing`을 쓰는지 확인한다."""
+def check_transaction_calls(tree: ast.AST) -> list[str]:
+    """(h) 트랜잭션 헬퍼 밖에서 트랜잭션을 직접 열거나 확정하는 호출을 찾는다."""
     return [
-        f"{node.lineno}: CS-P26: `add_if_absent`는 `insert(...)"
-        ".on_conflict_do_nothing(...)`으로 충돌을 피한다. 먼저 조회하거나 "
-        "`IntegrityError`를 잡는 방식으로 바꾸지 않는다"
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
-        and node.name == "add_if_absent"
-        and not any(
-            isinstance(call, ast.Call)
-            and isinstance(call.func, ast.Attribute)
-            and call.func.attr == "on_conflict_do_nothing"
-            for call in ast.walk(node)
-        )
-    ]
-
-
-def is_session(node: ast.AST) -> bool:
-    return (isinstance(node, ast.Name) and node.id in SESSION_NAMES) or (
-        isinstance(node, ast.Attribute) and node.attr in SESSION_NAMES
-    )
-
-
-def check_session_calls(tree: ast.AST) -> list[str]:
-    """(h) repository 밖에서 session의 트랜잭션 메서드 외 호출을 찾는다."""
-    return [
-        f"{node.lineno}: CS-P25: repository 밖에서 `session.{node.func.attr}`을 "
-        "호출하지 않는다. 조회·저장은 repository 메서드로 옮긴다. service는 "
-        "session의 begin·commit·rollback·flush만 쓴다"
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and is_session(node.func.value)
-        and node.func.attr not in TRANSACTION_METHODS
-    ]
-
-
-def check_transaction_boundaries(tree: ast.AST) -> list[str]:
-    """(h) service·executor·processing 밖에서 트랜잭션을 열거나 확정하는 호출을 찾는다."""
-    return [
-        f"{node.lineno}: CS-P13: 트랜잭션(`begin`·`commit`·`rollback`)은 "
-        "`service.py`·`executor.py`·`processing.py`에서만 연다. repository·하위 "
-        "협력자·router는 호출하는 service의 트랜잭션 안에서 실행되게 한다"
+        f"{node.lineno}: CS-P13: `{TRANSACTION_HELPER_FILE}` 밖에서는 `begin`·"
+        "`begin_nested`·`commit`·`rollback`을 직접 호출하지 않는다. 트랜잭션은 "
+        "UseCase가 `infra.transactions`의 `unit_of_work`·`read_snapshot`으로 연다"
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and node.func.attr in TRANSACTION_BOUNDARY_METHODS
     ]
-
-
-def check_context_transaction_calls(tree: ast.AST) -> list[str]:
-    """(h) BC 패키지에서 트랜잭션을 직접 열거나 확정하는 호출을 찾는다."""
-    return [
-        f"{node.lineno}: CS-P13: BC 패키지에서는 `begin`·`begin_nested`·`commit`·"
-        "`rollback`을 직접 호출하지 않는다. 트랜잭션은 UseCase가 `infra.transactions`의 "
-        "`unit_of_work`·`read_snapshot`으로 연다"
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr in TRANSACTION_BOUNDARY_METHODS
-    ]
-
-
-def check_sql_imports(tree: ast.AST) -> list[str]:
-    """(h) repository·models 밖에서 SQL 구문 import와 `import sqlalchemy`를 찾는다."""
-    errors = []
-    hint = (
-        "SQL 구문은 repository 파일에서만 만든다. 조회·저장은 repository 메서드로 "
-        "옮기고, 이 파일에서는 그 메서드를 호출한다"
-    )
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            errors.extend(
-                f"{node.lineno}: CS-P25: repository 밖에서 `import {alias.name}`를 "
-                f"쓰지 않는다. {hint}"
-                for alias in node.names
-                if alias.name == "sqlalchemy" or alias.name.startswith("sqlalchemy.")
-            )
-        if (
-            isinstance(node, ast.ImportFrom)
-            and node.level == 0
-            and node.module in SQL_MODULES
-        ):
-            errors.extend(
-                f"{node.lineno}: CS-P25: repository 밖에서 `{node.module}`의 "
-                f"`{alias.name}`을 import하지 않는다. {hint}"
-                for alias in node.names
-                if alias.name in SQL_CONSTRUCTS
-            )
-    return errors
 
 
 def is_broad_exception(node: ast.expr | None) -> bool:
@@ -566,92 +427,6 @@ def check_dependency_bundles(tree: ast.AST) -> list[str]:
     ]
 
 
-def module_name(relative: Path) -> list[str]:
-    """`src` 아래 파일의 모듈 이름을 구성 요소 목록으로 돌려준다."""
-    parts = list(relative.with_suffix("").parts[1:])
-    return parts[:-1] if parts[-1] == "__init__" else parts
-
-
-def imported_modules(tree: ast.AST, package: list[str]) -> list[tuple[int, str]]:
-    """import 문이 가리키는 모듈을 상대 import를 해석해 (라인, 모듈)로 모은다.
-
-    `from A import b`는 `A`와 `A.b`를 모두 돌려준다(`b`가 모듈일 수 있다).
-    """
-    found = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            found.extend((node.lineno, alias.name) for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            base = package[: len(package) - node.level + 1] if node.level else []
-            module = ".".join([*base, *(node.module or "").split(".")]).strip(".")
-            found.append((node.lineno, module))
-            found.extend(
-                (node.lineno, f"{module}.{alias.name}".strip("."))
-                for alias in node.names
-            )
-    return found
-
-
-def check_schema_imports(tree: ast.AST, package: list[str]) -> list[str]:
-    """(p) repository·models가 `schemas` 모듈을 import하는지 확인한다."""
-    lines = sorted(
-        {
-            line
-            for line, module in imported_modules(tree, package)
-            if "schemas" in module.split(".")
-        }
-    )
-    return [
-        f"{line}: CS-P28: repository·models에서 API 스키마(`schemas` 모듈)를 "
-        "import하지 않는다. 요청 스키마로 엔티티를 만드는 일은 `mappers.py`의 "
-        "`XxxMapper.to_entity`에 맡기고, repository에는 키 인자나 미저장 엔티티를 넘긴다"
-        for line in lines
-    ]
-
-
-def is_mapper_forbidden_module(module: str) -> bool:
-    parts = module.split(".")
-    return (
-        any(part == "repository" or part.endswith("_repository") for part in parts)
-        or parts[0] == "sqlalchemy"
-        or parts[:3]
-        in (
-            ["mosemo", "infra", "database"],
-            ["mosemo", "infra", "persistence"],
-            ["mosemo", "infra", "clock"],
-        )
-        or parts[:4] == ["mosemo", "shared", "application", "clock"]
-    )
-
-
-def check_mapper_purity(tree: ast.AST, package: list[str]) -> list[str]:
-    """(q) `mappers.py`가 비동기 함수와 저장·시각 모듈 import 없이 순수한지 확인한다."""
-    hint = (
-        "Mapper는 요청 스키마로 미저장 엔티티를 만드는 상태 없는 변환만 맡는다. "
-        "조회·저장은 repository, 현재 시각은 service가 맡고 Mapper에는 값으로 넘긴다"
-    )
-    errors = [
-        f"{node.lineno}: CS-P29: `mappers.py`에 `async def {node.name}`을 두지 "
-        f"않는다. {hint}"
-        for node in ast.walk(tree)
-        if isinstance(node, ast.AsyncFunctionDef)
-    ]
-    lines = sorted(
-        {
-            line
-            for line, module in imported_modules(tree, package)
-            if is_mapper_forbidden_module(module)
-        }
-    )
-    errors.extend(
-        f"{line}: CS-P29: `mappers.py`에서 repository·`sqlalchemy`·"
-        f"`mosemo.infra.database`·`mosemo.infra.persistence`·`mosemo.infra.clock`·"
-        f"`mosemo.shared.application.clock`을 import하지 않는다. {hint}"
-        for line in lines
-    )
-    return errors
-
-
 def override_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
     """`override` 데코레이터 이름과 `typing`·`typing_extensions` 모듈 별칭을 모은다."""
     names = {"override"}
@@ -701,75 +476,6 @@ def check_constructor_override(tree: ast.AST) -> list[str]:
         and node.name in {"__init__", "__new__"}
         and is_override(node, aliases)
     ]
-
-
-def argument_count(
-    function: ast.FunctionDef | ast.AsyncFunctionDef, *, is_method: bool
-) -> int:
-    """Ruff `PLR0913`과 같이 `self`·`cls`와 `*args`·`**kwargs`를 빼고 인자를 센다."""
-    arguments = function.args
-    positional = [*arguments.posonlyargs, *arguments.args]
-    bound = (
-        is_method
-        and positional
-        and not any(
-            is_named(item, {"staticmethod"}) for item in function.decorator_list
-        )
-    )
-    return len(positional) + len(arguments.kwonlyargs) - bool(bound)
-
-
-def model_functions(
-    node: ast.AST, *, in_class: bool = False
-) -> list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, bool]]:
-    """모든 함수를 클래스 스코프에 정의된 메서드인지와 함께 모은다."""
-    found = []
-    for child in ast.iter_child_nodes(node):
-        is_function = isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef)
-        if is_function:
-            found.append((child, in_class))
-        found += model_functions(
-            child,
-            in_class=isinstance(child, ast.ClassDef) or (in_class and not is_function),
-        )
-    return found
-
-
-def check_model_argument_counts(tree: ast.AST) -> list[str]:
-    """(s) `models.py`의 `__init__` 밖 함수가 인자 5개 이하인지 확인한다."""
-    aliases = override_aliases(tree)
-    errors = []
-    for function, is_method in model_functions(tree):
-        if function.name == "__init__" or is_override(function, aliases):
-            continue
-        count = argument_count(function, is_method=is_method)
-        if count > MAX_MODEL_ARGUMENTS:
-            errors.append(
-                f"{function.lineno}: CS-P30: `models.py`의 `{function.name}` 인자 "
-                f"{count}개가 {MAX_MODEL_ARGUMENTS}개를 넘는다. `models.py`에서 "
-                "인자 수 제한을 받지 않는 것은 엔티티 생성자 `__init__`뿐이다. "
-                "책임을 나누거나 값 객체를 인자로 받는다"
-            )
-    return errors
-
-
-def check_role_rules(relative: Path, tree: ast.AST, *, in_context: bool) -> list[str]:
-    """`src` 파일에 역할 규칙(CS-P27~CS-P30)을 파일 이름에 따라 적용한다.
-
-    파일 이름 역할 규칙(CS-P28~CS-P30)은 BC 패키지 밖의 옛 경로에만 둔다.
-    """
-    module = module_name(relative)
-    package = module if relative.name == "__init__.py" else module[:-1]
-    errors = check_dependency_bundles(tree)
-    if in_context:
-        return errors
-    if is_repository_file(relative) or relative.name == "models.py":
-        errors += check_schema_imports(tree, package)
-    if relative.name == "mappers.py":
-        errors += check_mapper_purity(tree, package)
-    if relative.name == "models.py":
-        errors += check_model_argument_counts(tree)
-    return errors
 
 
 def base_names(node: ast.ClassDef) -> set[str]:
@@ -826,9 +532,9 @@ def check_api_exception_usage(tree: ast.AST, names: set[str]) -> list[str]:
         or (isinstance(node, ast.Raise) and is_named(node.exc, names))
     ]
     return [
-        f"{line}: CS-P07: `ApiException`은 `router.py`와 `dependencies.py`·"
+        f"{line}: CS-P07: `ApiException`은 `router.py`와 "
         "`exception_handlers.py`·`shared/errors.py`에서만 import하거나 만든다. "
-        "service·repository는 도메인 오류(`...Error`)를 던지고, router에서 "
+        "UseCase·Repository는 도메인 오류(`...Error`)를 던지고, router에서 "
         "`ApiException`으로 바꾼다"
         for line in lines
     ]
@@ -847,7 +553,7 @@ def check_http_exception_usage(tree: ast.AST) -> list[str]:
     ]
     return [
         f"{line}: CS-P12: `HTTPException`은 `exception_handlers.py`에서만 다룬다. "
-        "공개할 오류는 `ErrorCode`와 `ApiException`으로, 내부 오류는 도메인 "
+        "공개할 오류는 BC 오류 코드와 `ApiException`으로, 내부 오류는 도메인 "
         "오류(`...Error`)로 던진다"
         for line in lines
     ]
@@ -890,40 +596,20 @@ def parse_python_files(root: Path) -> tuple[dict[Path, ast.AST], list[str]]:
     return trees, errors
 
 
-def context_dirs(root: Path) -> list[Path]:
-    """BC 패키지(`src/mosemo/{bc}/public.py`가 있는 패키지)를 저장소 기준 경로로 돌려준다."""
-    return sorted(
-        path.parent.relative_to(root)
-        for path in (root / "src" / "mosemo").glob("*/public.py")
+def check_src_rules(relative: Path, tree: ast.AST) -> list[str]:
+    """`src` 파일 규칙. 파일 이름으로 역할을 정하는 규칙은 두지 않는다."""
+    errors = (
+        check_dependency_bundles(tree)
+        + check_init_clock(tree)
+        + check_integrity_error_handling(tree)
     )
-
-
-def check_src_rules(relative: Path, tree: ast.AST, *, in_context: bool) -> list[str]:
-    """`src` 파일 규칙. 옛 역할 파일 규칙(CS-P10·CS-P25·CS-P26의 `add_if_absent`)과
-    CS-P13의 파일 이름 허용은 BC 패키지 밖의 옛 경로에만 적용한다."""
-    errors = check_role_rules(relative, tree, in_context=in_context)
-    errors += check_init_clock(tree) + check_integrity_error_handling(tree)
-    if in_context:
-        return errors + check_context_transaction_calls(tree)
-    if (
-        relative.name not in TRANSACTION_BOUNDARY_FILES
-        and relative.as_posix() != TRANSACTION_HELPER_FILE
-    ):
-        errors += check_transaction_boundaries(tree)
-    if is_repository_file(relative):
-        errors += check_repository_method_names(tree) + check_add_if_absent_conflict(
-            tree
-        )
-    else:
-        errors += check_session_calls(tree)
-        if relative.name != "models.py":
-            errors += check_sql_imports(tree)
+    if relative.as_posix() != TRANSACTION_HELPER_FILE:
+        errors += check_transaction_calls(tree)
     return errors
 
 
 def validate(root: Path = ROOT) -> list[str]:
     trees, errors = parse_python_files(root)
-    contexts = context_dirs(root)
     exceptions_tree = trees.get(Path(EXCEPTIONS_FILE))
     api_names = (
         api_exception_names(exceptions_tree) if exceptions_tree else {API_EXCEPTION}
@@ -939,11 +625,7 @@ def validate(root: Path = ROOT) -> list[str]:
         if relative.parts[0] == "tests":
             file_errors += check_test_clock_lambdas(tree)
         if relative.parts[0] == "src":
-            file_errors += check_src_rules(
-                relative,
-                tree,
-                in_context=any(relative.is_relative_to(c) for c in contexts),
-            )
+            file_errors += check_src_rules(relative, tree)
             if (
                 relative.name != "router.py"
                 and relative.as_posix() not in API_EXCEPTION_FILES
