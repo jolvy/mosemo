@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mosemo.activities.models import ActivityBatchReceipt
-from mosemo.infra.batch_runtime import compose_messaging_app
+from mosemo.api.activity_batches import compose_messaging_app
 from mosemo.infra.config import BatchDeliveryConfig
 
 

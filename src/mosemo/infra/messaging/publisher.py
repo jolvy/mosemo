@@ -1,12 +1,9 @@
 """Kafka publication boundary; HTTP acceptance requires the broker ACK."""
 
 import asyncio
-from uuid import UUID
 
 from faststream.kafka import KafkaBroker
 
-from mosemo.activities.messages import ActivityRegistrationRequested
-from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.infra.kafka_compat import KafkaPublicationError
 
 
@@ -14,7 +11,7 @@ class DeliveryUnavailableError(Exception):
     pass
 
 
-class ActivityBatchPublisher:
+class KafkaPublisher:
     def __init__(
         self,
         broker: KafkaBroker,
@@ -28,10 +25,7 @@ class ActivityBatchPublisher:
         self.topic = topic
         self.acknowledgment_timeout = acknowledgment_timeout
 
-    async def publish(self, account_id: UUID, batch: ActivityBatchRequest) -> None:
-        message = ActivityRegistrationRequested.from_batch(account_id, batch)
-        value = message.model_dump_json(by_alias=True).encode("utf-8")
-        key = str(account_id).encode("utf-8")
+    async def publish(self, *, key: bytes, value: bytes) -> None:
         try:
             async with asyncio.timeout(self.acknowledgment_timeout):
                 await self.broker.publish(
@@ -41,5 +35,5 @@ class ActivityBatchPublisher:
                     no_confirm=False,
                 )
         except (KafkaPublicationError, ConnectionError, TimeoutError) as exc:
-            # Timeout does not establish non-publication; retry the same batch.
+            # Timeout does not establish non-publication; retry the same message.
             raise DeliveryUnavailableError from exc

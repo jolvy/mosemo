@@ -14,10 +14,11 @@ from mosemo.activities.executor import BatchProcessingExecutor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
 from mosemo.activities.schemas import ActivityBatchRequest
+from mosemo.consumer.activity_batches import activity_batch_handler
 from mosemo.devices.models import Device
-from mosemo.infra.batch_consumer import ActivityBatchConsumer
 from mosemo.infra.clock import utc_now
 from mosemo.infra.kafka_compat import BatchPartition
+from mosemo.infra.messaging.subscriber import MessageConsumer
 from tests.clock_support import FakeClock
 from tests.integration.test_activity_batches import batch, record
 from tests.kafka_support import GroupOffsets, KafkaTestAdmin
@@ -67,7 +68,7 @@ async def running(config, executor):
     broker = KafkaBroker(
         config.bootstrap_servers, logger=None, graceful_timeout=0, consumer_only=True
     )
-    worker = ActivityBatchConsumer(broker, executor)
+    worker = MessageConsumer(broker, activity_batch_handler(executor))
     stop = asyncio.Event()
     task = asyncio.create_task(worker.run(config.topic, stop, group_id=config.group_id))
     admin = KafkaTestAdmin(config.bootstrap_servers)
@@ -495,13 +496,13 @@ async def test_registered_faststream_handler_rejects_invalid_message_without_pro
 ):
     from unittest.mock import AsyncMock
 
-    from mosemo.infra.batch_consumer import InvalidBatchMessageError
+    from mosemo.consumer.activity_batches import InvalidBatchMessageError
 
     config = integration_kafka.config
     _, owners, devices = consumption_db
     broker = KafkaBroker(config.bootstrap_servers, logger=None, graceful_timeout=0)
     executor = AsyncMock()
-    worker = ActivityBatchConsumer(broker, executor)
+    worker = MessageConsumer(broker, activity_batch_handler(executor))
     pending = asyncio.create_task(
         worker.run(config.topic, asyncio.Event(), group_id=config.group_id)
     )
@@ -579,8 +580,11 @@ async def test_real_kafka_commit_failure_rolls_back_every_write_without_ack(
     sessions, owners, devices = consumption_db
     await publish(config, owners[:1], devices[:1], 1)
     broker = KafkaBroker(config.bootstrap_servers, logger=None, graceful_timeout=0)
-    worker = ActivityBatchConsumer(
-        broker, BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+    worker = MessageConsumer(
+        broker,
+        activity_batch_handler(
+            BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+        ),
     )
 
     def fail_commit(session):

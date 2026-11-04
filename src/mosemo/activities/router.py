@@ -22,10 +22,7 @@ from mosemo.api.dependencies import (
     SessionDep,
 )
 from mosemo.exceptions import ApiException, ErrorCode
-from mosemo.infra.batch_delivery import (
-    ActivityBatchPublisher,
-    DeliveryUnavailableError,
-)
+from mosemo.infra.messaging.publisher import DeliveryUnavailableError
 from mosemo.openapi import api_error_responses
 
 router = APIRouter(prefix="/activities")
@@ -69,9 +66,7 @@ async def accept_batch(
     )
     if device is None:
         raise ApiException(ErrorCode.ACTIVITY_DEVICE_NOT_FOUND)
-    publisher: ActivityBatchPublisher | None = getattr(
-        request.app.state, "batch_publisher", None
-    )
+    publisher = getattr(request.app.state, "batch_publisher", None)
     if publisher is None:
         raise ApiException(ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE)
     try:

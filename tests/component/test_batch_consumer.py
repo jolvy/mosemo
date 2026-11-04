@@ -12,14 +12,15 @@ from faststream.kafka import KafkaBroker
 from mosemo.activities.executor import BatchProcessingExecutor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.schemas import ActivityBatchRequest
-from mosemo.infra.batch_consumer import (
-    ActivityBatchConsumer,
+from mosemo.consumer.activity_batches import (
     InvalidBatchMessageError,
+    activity_batch_handler,
     decode_batch,
+    run_consumer,
 )
-from mosemo.infra.batch_runtime import MessagingRuntime
 from mosemo.infra.clock import utc_now
 from mosemo.infra.kafka_compat import BatchPartition
+from mosemo.infra.messaging.subscriber import MessageConsumer
 from tests.clock_support import FakeClock
 from tests.component.test_activities_api import activity_request
 
@@ -154,9 +155,9 @@ async def test_shutdown_drains_only_inflight_and_cancels_after_deadline(timeout)
             cleaned.append(msg)
 
     executor = AsyncMock(execute=execute)
-    worker = ActivityBatchConsumer(
+    worker = MessageConsumer(
         cast(KafkaBroker, broker),
-        executor,
+        activity_batch_handler(executor),
         shutdown_timeout=0.02 if timeout else 1,
     )
     stop = asyncio.Event()
@@ -201,9 +202,9 @@ async def test_revoke_cancels_session_and_does_not_commit_unprocessed_offset():
         finally:
             cleaned.set()
 
-    worker = ActivityBatchConsumer(
+    worker = MessageConsumer(
         cast(KafkaBroker, broker),
-        AsyncMock(execute=execute),
+        activity_batch_handler(AsyncMock(execute=execute)),
         shutdown_timeout=0.01,
     )
     stop = asyncio.Event()
@@ -225,8 +226,10 @@ async def test_processing_exception_surfaces_without_ack_or_fictitious_recovery(
     broker = Broker()
     executor = AsyncMock()
     executor.execute.side_effect = RuntimeError("failed")
-    worker = ActivityBatchConsumer(
-        cast(KafkaBroker, broker), executor, shutdown_timeout=0.01
+    worker = MessageConsumer(
+        cast(KafkaBroker, broker),
+        activity_batch_handler(executor),
+        shutdown_timeout=0.01,
     )
     broker.put(next(iter(broker.queues)), 0)
     with pytest.raises(RuntimeError, match="failed"):
@@ -240,11 +243,13 @@ async def test_unexpected_execution_cancellation_cannot_skip_to_a_later_ack():
     broker = Broker()
     executor = AsyncMock()
     executor.execute.side_effect = asyncio.CancelledError
-    worker = ActivityBatchConsumer(cast(KafkaBroker, broker), executor)
+    worker = MessageConsumer(
+        cast(KafkaBroker, broker), activity_batch_handler(executor)
+    )
     partition = next(iter(broker.queues))
     broker.put(partition, 0)
     broker.put(partition, 1)
-    with pytest.raises(RuntimeError, match="activity_batch_execution_cancelled"):
+    with pytest.raises(RuntimeError, match="message_execution_cancelled"):
         await asyncio.wait_for(worker.run("test", asyncio.Event(), group_id="group"), 1)
     assert executor.execute.await_count == 1
     broker.commit.assert_not_called()
@@ -257,21 +262,19 @@ async def test_runtime_refuses_to_consume_when_delivery_is_disabled(
 ):
     config.batch_delivery.enabled = False
     constructor = Mock(side_effect=AssertionError("must not connect"))
-    monkeypatch.setattr("mosemo.infra.batch_runtime.KafkaBroker", constructor)
+    monkeypatch.setattr("mosemo.infra.messaging.runtime.KafkaBroker", constructor)
     with pytest.raises(ValueError, match="requires BATCH_ENABLED=true"):
-        await MessagingRuntime.run_consumer(
-            config.batch_delivery, AsyncMock(), stop=asyncio.Event()
-        )
+        await run_consumer(config.batch_delivery, AsyncMock(), stop=asyncio.Event())
 
 
 @pytest.mark.asyncio
 async def test_runtime_configures_manual_offsets_and_earliest(config, monkeypatch):
     broker = Broker()
     constructor = Mock(return_value=broker)
-    monkeypatch.setattr("mosemo.infra.batch_runtime.KafkaBroker", constructor)
+    monkeypatch.setattr("mosemo.infra.messaging.runtime.KafkaBroker", constructor)
     stop = asyncio.Event()
     stop.set()
-    await MessagingRuntime.run_consumer(config.batch_delivery, AsyncMock(), stop=stop)
+    await run_consumer(config.batch_delivery, AsyncMock(), stop=stop)
     constructor.assert_called_once_with(
         config.batch_delivery.bootstrap_servers,
         logger=None,
@@ -300,7 +303,9 @@ async def test_consumer_startup_failure_or_cancellation_always_closes_client(
         await asyncio.Event().wait()
 
     monkeypatch.setattr(broker, "start", start)
-    worker = ActivityBatchConsumer(cast(KafkaBroker, broker), AsyncMock())
+    worker = MessageConsumer(
+        cast(KafkaBroker, broker), activity_batch_handler(AsyncMock())
+    )
     assert worker.shutdown_timeout == 30.0
     pending = asyncio.create_task(worker.run("test", asyncio.Event(), group_id="group"))
     await asyncio.wait_for(entered.wait(), 1)
@@ -323,9 +328,9 @@ async def test_error_during_shutdown_drain_is_not_reported_as_success():
         await release.wait()
         raise RuntimeError("failed during drain")
 
-    worker = ActivityBatchConsumer(
+    worker = MessageConsumer(
         cast(KafkaBroker, broker),
-        AsyncMock(execute=execute),
+        activity_batch_handler(AsyncMock(execute=execute)),
         shutdown_timeout=0.02,
     )
     stop = asyncio.Event()
@@ -356,7 +361,9 @@ async def test_stop_during_startup_cancels_connection_attempt_and_closes_client(
             cleaned.set()
 
     monkeypatch.setattr(broker, "start", start)
-    worker = ActivityBatchConsumer(cast(KafkaBroker, broker), AsyncMock())
+    worker = MessageConsumer(
+        cast(KafkaBroker, broker), activity_batch_handler(AsyncMock())
+    )
     stop = asyncio.Event()
     pending = asyncio.create_task(worker.run("test", stop, group_id="group"))
     await asyncio.wait_for(entered.wait(), 1)
@@ -427,9 +434,11 @@ async def test_consumer_waits_for_executor_commit_and_never_acks_failed_commit(
     )
     broker = Broker()
     broker.commit.side_effect = lambda: acked.set()
-    worker = ActivityBatchConsumer(
+    worker = MessageConsumer(
         cast(KafkaBroker, broker),
-        BatchProcessingExecutor(sessions, clock=FakeClock(utc_now())),
+        activity_batch_handler(
+            BatchProcessingExecutor(sessions, clock=FakeClock(utc_now()))
+        ),
     )
     stop = asyncio.Event()
     pending = asyncio.create_task(worker.run("test", stop, group_id="group"))
@@ -478,8 +487,8 @@ async def test_revocation_waits_for_target_cleanup_and_leaves_other_partition_ru
         else:
             await release_other.wait()
 
-    worker = ActivityBatchConsumer(
-        cast(KafkaBroker, broker), AsyncMock(execute=execute)
+    worker = MessageConsumer(
+        cast(KafkaBroker, broker), activity_batch_handler(AsyncMock(execute=execute))
     )
     stop = asyncio.Event()
     pending = asyncio.create_task(worker.run("test", stop, group_id="group"))

@@ -9,7 +9,8 @@ from pydantic import ValidationError
 
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.schemas import ActivityBatchRequest
-from mosemo.infra.batch_delivery import ActivityBatchPublisher, DeliveryUnavailableError
+from mosemo.api.activity_batches import ActivityBatchPublisher
+from mosemo.infra.messaging.publisher import DeliveryUnavailableError, KafkaPublisher
 from tests.component.test_activities_api import activity_request
 
 
@@ -43,8 +44,10 @@ async def test_publisher_waits_for_ack_with_account_key():
         await release.wait()
 
     producer.publish.side_effect = held
-    publisher = ActivityBatchPublisher(producer, topic="test.activities")
-    assert publisher.acknowledgment_timeout == 5.0
+    publisher = ActivityBatchPublisher(
+        KafkaPublisher(producer, topic="test.activities")
+    )
+    assert publisher.publisher.acknowledgment_timeout == 5.0
     owner = uuid4()
     batch = ActivityBatchRequest.model_validate(activity_request())
     pending = asyncio.create_task(publisher.publish(owner, batch))
@@ -75,7 +78,7 @@ async def test_publisher_translates_transport_failures(failure):
     producer = AsyncMock()
     producer.publish.side_effect = failure
     with pytest.raises(DeliveryUnavailableError):
-        await ActivityBatchPublisher(producer, topic="test").publish(
+        await ActivityBatchPublisher(KafkaPublisher(producer, topic="test")).publish(
             uuid4(), ActivityBatchRequest.model_validate(activity_request())
         )
 
@@ -95,7 +98,9 @@ async def test_ack_deadline_and_external_cancellation_clean_up_waiter(cancel):
 
     producer.publish.side_effect = held
     publisher = ActivityBatchPublisher(
-        producer, topic="test", acknowledgment_timeout=0.02 if not cancel else 5
+        KafkaPublisher(
+            producer, topic="test", acknowledgment_timeout=0.02 if not cancel else 5
+        )
     )
     pending = asyncio.create_task(
         publisher.publish(
@@ -112,7 +117,7 @@ async def test_ack_deadline_and_external_cancellation_clean_up_waiter(cancel):
 
 def test_publisher_requires_positive_acknowledgment_timeout():
     with pytest.raises(ValueError, match="acknowledgment timeout must be positive"):
-        ActivityBatchPublisher(AsyncMock(), topic="test", acknowledgment_timeout=0)
+        KafkaPublisher(AsyncMock(), topic="test", acknowledgment_timeout=0)
 
 
 @pytest.mark.asyncio
@@ -123,7 +128,7 @@ async def test_publisher_does_not_hide_programming_or_configuration_errors(failu
     broker = AsyncMock()
     broker.publish.side_effect = failure
     with pytest.raises(type(failure), match=str(failure)):
-        await ActivityBatchPublisher(broker, topic="test").publish(
+        await ActivityBatchPublisher(KafkaPublisher(broker, topic="test")).publish(
             uuid4(), ActivityBatchRequest.model_validate(activity_request())
         )
 
@@ -137,7 +142,7 @@ async def test_publisher_validates_message_before_transport(monkeypatch):
         lambda *args: (_ for _ in ()).throw(ValueError("invalid message")),
     )
     with pytest.raises(ValueError, match="invalid message"):
-        await ActivityBatchPublisher(broker, topic="test").publish(
+        await ActivityBatchPublisher(KafkaPublisher(broker, topic="test")).publish(
             uuid4(), ActivityBatchRequest.model_validate(activity_request())
         )
     broker.publish.assert_not_called()

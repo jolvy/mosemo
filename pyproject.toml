@@ -94,14 +94,6 @@ forbidden_modules = [
     "mosemo.consumer",
     "mosemo.batch",
 ]
-ignore_imports = [
-    # Temporary until #145 splits the messaging adapters from activity messages
-    # and moves their API and Consumer wiring to the assembly roots.
-    "mosemo.infra.batch_consumer -> mosemo.activities.*",
-    "mosemo.infra.batch_delivery -> mosemo.activities.*",
-    "mosemo.infra.batch_runtime -> mosemo.activities.*",
-    "mosemo.infra.batch_runtime -> mosemo.api.middleware",
-]
 
 [[tool.importlinter.contracts]]
 name = "shared domain does not import sqlalchemy, fastapi or pydantic"
@@ -122,6 +114,14 @@ type = "forbidden"
 source_modules = ["mosemo"]
 forbidden_modules = ["apscheduler"]
 ignore_imports = ["mosemo.infra.scheduling -> apscheduler"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "only infra imports faststream and aiokafka"
+type = "forbidden"
+source_modules = ["mosemo"]
+forbidden_modules = ["faststream", "aiokafka"]
+ignore_imports = ["mosemo.infra.** -> faststream", "mosemo.infra.** -> aiokafka"]
 allow_indirect_imports = true
 
 [tool.ruff]
