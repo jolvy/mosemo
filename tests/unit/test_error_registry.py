@@ -7,7 +7,6 @@ from mosemo.api.openapi import (
     fill_error_examples,
     merge_error_docs,
 )
-from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import IdentityErrorCode
 from mosemo.labeling.public import LabelingErrorCode
 from mosemo.labels.public import LabelErrorCode
@@ -36,11 +35,6 @@ ALLOWED_NAMES: dict[type[ApiErrorCode], tuple[tuple[str, ...], frozenset[str]]] 
                 "ACTIVITY_LABEL_CONFIRMATION_CONFLICT",
             }
         ),
-    ),
-    # Temporary central enum: union of the BC prefixes until each BC moves out.
-    ErrorCode: (
-        ("ACTIVITY_", "FOCUS_SESSION_", "LABELING_"),
-        frozenset(),
     ),
 }
 

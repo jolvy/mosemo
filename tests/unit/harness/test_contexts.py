@@ -779,7 +779,7 @@ def test_context_errors_report_syntax_failures(
     assert [error.split(": ", 1)[0] for error in errors] == [f"{BC}/domain/broken.py"]
 
 
-def test_old_role_rules_stay_on_old_paths(
+def test_file_names_outside_and_inside_contexts_carry_no_role_rules(
     architecture_validator: ModuleType,
     conventions_validator: ModuleType,
     tmp_path: Path,
@@ -802,10 +802,8 @@ def test_old_role_rules_stay_on_old_paths(
         if error.startswith((f"{BC}/", "src/mosemo/old/"))
     ]
 
-    assert locations(architecture) == ["src/mosemo/old/repository.py:1"]
-    assert "CS-P32" in architecture[0]
-    assert locations(conventions) == ["src/mosemo/old/repository.py:4"]
-    assert "CS-P10" in conventions[0]
+    assert architecture == []
+    assert conventions == []
 
 
 @pytest.mark.parametrize(
@@ -835,13 +833,13 @@ def test_context_transaction_calls_are_rejected_regardless_of_file_name(
     assert "`infra.transactions`" in errors[0]
 
 
-def test_old_paths_keep_cs_p13_file_name_allowance(
+def test_transaction_calls_outside_contexts_are_allowed_only_in_helper(
     conventions_validator: ModuleType, tmp_path: Path
 ) -> None:
     files = {
         **MINIMAL_CONTEXT,
         "src/mosemo/old/service.py": "session.begin()\n",
-        "src/mosemo/old/repository.py": "session.commit()\n",
+        "src/mosemo/infra/transactions.py": "session.commit()\n",
     }
     write_files(tmp_path, files)
 
@@ -849,7 +847,7 @@ def test_old_paths_keep_cs_p13_file_name_allowance(
         error for error in conventions_validator.validate(tmp_path) if "CS-P13" in error
     ]
 
-    assert locations(errors) == ["src/mosemo/old/repository.py:1"]
+    assert locations(errors) == ["src/mosemo/old/service.py:1"]
 
 
 @pytest.mark.parametrize(

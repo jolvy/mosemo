@@ -113,7 +113,6 @@ forbidden_modules = [
     "mosemo.shared.openapi",
     "mosemo.shared.error_docs",
     "mosemo.api.openapi",
-    "mosemo.api.error_docs",
 ]
 
 [[tool.importlinter.contracts]]
@@ -131,6 +130,18 @@ source_modules = ["mosemo"]
 forbidden_modules = ["faststream", "aiokafka"]
 ignore_imports = ["mosemo.infra.** -> faststream", "mosemo.infra.** -> aiokafka"]
 allow_indirect_imports = true
+
+# Direction between bounded contexts (ADR 0011 「Context Map」). analytics goes
+# above labeling when it is added.
+[[tool.importlinter.contracts]]
+name = "bounded contexts: labeling > observation > labels > identity"
+type = "layers"
+layers = [
+    "mosemo.labeling",
+    "mosemo.observation",
+    "mosemo.labels",
+    "mosemo.identity",
+]
 
 # identity bounded context (ADR 0011 「강제 방법」).
 [[tool.importlinter.contracts]]
@@ -367,12 +378,6 @@ source_modules = [
 forbidden_modules = ["mosemo.shared.presentation"]
 allow_indirect_imports = true
 
-[[tool.importlinter.contracts]]
-name = "identity does not import labels (labels -> identity only)"
-type = "forbidden"
-source_modules = ["mosemo.identity"]
-forbidden_modules = ["mosemo.labels"]
-
 # observation bounded context (ADR 0011 「강제 방법」).
 [[tool.importlinter.contracts]]
 name = "observation layers: presentation > application > infrastructure > domain"
@@ -491,12 +496,6 @@ source_modules = [
 ]
 forbidden_modules = ["mosemo.shared.presentation"]
 allow_indirect_imports = true
-
-[[tool.importlinter.contracts]]
-name = "identity and labels do not import observation (observation -> labels, identity)"
-type = "forbidden"
-source_modules = ["mosemo.identity", "mosemo.labels"]
-forbidden_modules = ["mosemo.observation"]
 
 # labeling bounded context (ADR 0011 「강제 방법」).
 [[tool.importlinter.contracts]]
@@ -617,12 +616,6 @@ source_modules = [
 forbidden_modules = ["mosemo.shared.presentation"]
 allow_indirect_imports = true
 
-[[tool.importlinter.contracts]]
-name = "identity, labels and observation do not import labeling (labeling -> observation, labels, identity)"
-type = "forbidden"
-source_modules = ["mosemo.identity", "mosemo.labels", "mosemo.observation"]
-forbidden_modules = ["mosemo.labeling"]
-
 [tool.ruff]
 line-length = 88
 target-version = "py314"
@@ -634,14 +627,12 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
 
 [tool.ruff.lint.per-file-ignores]
 "src/mosemo/infra/clock.py" = ["TID251"]
-"migrations/env.py" = ["F401"]
 "src/mosemo/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]
 ".codex/**" = ["PLR2004"]
 "src/**" = ["BLE001"]
-"src/**/models.py" = ["PLR0913"]
 
 [tool.ruff.lint.pylint]
 max-positional-args = 2
@@ -656,6 +647,8 @@ extend-ignore-names = ["*Exception"]
 "datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.infra.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
 "time.time".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
 "time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"sqlalchemy.orm.DeclarativeBase".msg = "ADR 0013: 엔티티는 domain dataclass로 두고 BC infrastructure의 `Table`과 imperative mapping으로 매핑한다."
+"sqlalchemy.orm.mapped_column".msg = "ADR 0013: 컬럼은 BC infrastructure의 `Table`에 `Column`으로 정의한다."
 
 [tool.ruff.format]
 indent-style = "space"

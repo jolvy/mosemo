@@ -92,8 +92,8 @@ async def real_batch_app(
     monkeypatch.setattr(database, "get_session_factory", lambda: factory)
     # Main token config is the explicit non-secret test environment, overridden
     # with the fixture config for matching signing claims.
-    from mosemo.api.dependencies import get_clock
     from mosemo.infra.config import get_config
+    from mosemo.infra.providers import get_clock
 
     app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_clock] = lambda: fake_clock

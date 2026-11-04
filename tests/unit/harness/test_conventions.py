@@ -16,14 +16,12 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
 
 [tool.ruff.lint.per-file-ignores]
 "src/mosemo/infra/clock.py" = ["TID251"]
-"migrations/env.py" = ["F401"]
 "src/mosemo/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]
 ".codex/**" = ["PLR2004"]
 "src/**" = ["BLE001"]
-"src/**/models.py" = ["PLR0913"]
 
 [tool.ruff.lint.pylint]
 max-positional-args = 2
@@ -38,6 +36,8 @@ extend-ignore-names = ["*Exception"]
 "datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.infra.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
 "time.time".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
 "time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"sqlalchemy.orm.DeclarativeBase".msg = "ADR 0013: 엔티티는 domain dataclass로 두고 BC infrastructure의 `Table`과 imperative mapping으로 매핑한다."
+"sqlalchemy.orm.mapped_column".msg = "ADR 0013: 컬럼은 BC infrastructure의 `Table`에 `Column`으로 정의한다."
 
 [tool.ruff.format]
 indent-style = "space"
@@ -184,7 +184,9 @@ def test_ruff_config_allows_exact_config(
         ALLOWED_PYPROJECT.replace('"PT",\n', '"PT", "E501",\n'),
         ALLOWED_PYPROJECT.replace(',\n                 "PLR0913"]', "]"),
         ALLOWED_PYPROJECT.replace('"PLR0917", "PLR0913"]', '"PLR0917"]'),
-        ALLOWED_PYPROJECT.replace('"src/**/models.py" = ["PLR0913"]\n', ""),
+        ALLOWED_PYPROJECT.replace(
+            '"sqlalchemy.orm.mapped_column".msg', '"sqlalchemy.orm.Mapped".msg'
+        ),
         ALLOWED_PYPROJECT.replace("max-positional-args = 2", "max-positional-args = 5"),
         ALLOWED_PYPROJECT.replace(
             "[tool.ruff.lint]\n", '[tool.ruff.lint]\nignore = ["PLR2004"]\n'
@@ -301,52 +303,6 @@ def test_real_repository_satisfies_conventions(
     assert conventions_validator.validate() == []
 
 
-def repository_class(method: str) -> str:
-    return f"class Repo:\n    async def {method}(self):\n        pass\n"
-
-
-@pytest.mark.parametrize("method", ["save", "insert", "get_by_id", "count", "upsert"])
-def test_repository_method_names_reject_unlisted_verbs(
-    conventions_validator: ModuleType, method: str
-) -> None:
-    errors = conventions_validator.check_repository_method_names(
-        ast.parse(repository_class(method))
-    )
-    assert errors
-    assert "CS-P10" in errors[0]
-
-
-@pytest.mark.parametrize(
-    "method",
-    [
-        "find",
-        "find_by_id",
-        "list_owned",
-        "has_device",
-        "is_confirmed",
-        "add",
-        "add_all",
-        "add_if_absent",
-        "delete",
-        "delete_expired",
-        "replace_labels",
-        "lock_timeline",
-        "claim",
-        "_build_query",
-        "__init__",
-    ],
-)
-def test_repository_method_names_allow_listed_verbs_and_private(
-    conventions_validator: ModuleType, method: str
-) -> None:
-    assert (
-        conventions_validator.check_repository_method_names(
-            ast.parse(repository_class(method))
-        )
-        == []
-    )
-
-
 @pytest.mark.parametrize(
     "source",
     [
@@ -381,138 +337,7 @@ def test_other_exception_handlers_are_allowed(
     assert conventions_validator.check_integrity_error_handling(ast.parse(source)) == []
 
 
-def test_add_if_absent_requires_on_conflict_do_nothing(
-    conventions_validator: ModuleType,
-) -> None:
-    source = (
-        "class Repo:\n"
-        "    async def add_if_absent(self, row):\n"
-        "        self._session.add(row)\n"
-    )
-    errors = conventions_validator.check_add_if_absent_conflict(ast.parse(source))
-    assert errors
-    assert "CS-P26" in errors[0]
-
-
-def test_add_if_absent_allows_on_conflict_do_nothing(
-    conventions_validator: ModuleType,
-) -> None:
-    source = (
-        "class Repo:\n"
-        "    async def add_if_absent(self, values):\n"
-        "        statement = insert(Row).values(values).on_conflict_do_nothing()\n"
-        "        return await self._session.scalar(statement)\n"
-    )
-    assert conventions_validator.check_add_if_absent_conflict(ast.parse(source)) == []
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "await self._session.scalar(statement)",
-        "await self.session.execute(statement)",
-        "await session.get(Device, device_id)",
-        "session.add(row)",
-    ],
-)
-def test_session_calls_outside_repository_are_rejected(
-    conventions_validator: ModuleType, source: str
-) -> None:
-    errors = conventions_validator.check_session_calls(ast.parse(source))
-    assert errors
-    assert "CS-P25" in errors[0]
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "self._session.begin()",
-        "await self._session.flush()",
-        "await session.commit()",
-        "await self.session.rollback()",
-        "self._session_factory()",
-        "self.sessions()",
-    ],
-)
-def test_session_transaction_calls_are_allowed(
-    conventions_validator: ModuleType, source: str
-) -> None:
-    assert conventions_validator.check_session_calls(ast.parse(source)) == []
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "from sqlalchemy import select",
-        "from sqlalchemy import MetaData, func",
-        "from sqlalchemy.dialects.postgresql import insert",
-        "import sqlalchemy",
-        "import sqlalchemy as sa",
-    ],
-)
-def test_sql_construct_imports_are_rejected(
-    conventions_validator: ModuleType, source: str
-) -> None:
-    errors = conventions_validator.check_sql_imports(ast.parse(source))
-    assert errors
-    assert "CS-P25" in errors[0]
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker",
-        "from sqlalchemy.exc import DBAPIError",
-        "from sqlalchemy import MetaData",
-        "from sqlalchemy.types import String, TypeDecorator",
-        "from sqlalchemy.dialects.postgresql import JSONB",
-        "from .sqlalchemy import select",
-    ],
-)
-def test_session_types_and_exception_imports_are_allowed(
-    conventions_validator: ModuleType, source: str
-) -> None:
-    assert conventions_validator.check_sql_imports(ast.parse(source)) == []
-
-
-def test_validate_scopes_repository_rules_to_src(
-    conventions_validator: ModuleType, tmp_path: Path
-) -> None:
-    (tmp_path / "pyproject.toml").write_text(ALLOWED_PYPROJECT)
-    service = (
-        "from sqlalchemy import select\n"
-        "async def run(session):\n"
-        "    await session.scalar(select(1))\n"
-    )
-    outside = service + "import sqlalchemy\nsession.add(row)\n"
-    files = {
-        "src/mosemo/x/repository.py": (
-            "from sqlalchemy import select\n"
-            "class XRepository:\n"
-            "    async def find(self):\n"
-            "        return await self._session.scalar(select(1))\n"
-            "    async def save(self, row):\n"
-            "        self._session.add(row)\n"
-        ),
-        "src/mosemo/x/models.py": "from sqlalchemy import func\n",
-        "src/mosemo/x/service.py": service,
-        "tests/integration/test_x_repository.py": outside
-        + "class Repo:\n    def save(self):\n        pass\n",
-        "migrations/versions/x.py": outside,
-        "scripts/x.py": outside,
-    }
-    for name, source in files.items():
-        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / name).write_text(source)
-    errors = rule_errors(conventions_validator.validate(tmp_path), "CS-P10", "CS-P25")
-    assert [error.split(": ", 2)[:2] for error in errors] == [
-        ["src/mosemo/x/repository.py:5", "CS-P10"],
-        ["src/mosemo/x/service.py:3", "CS-P25"],
-        ["src/mosemo/x/service.py:1", "CS-P25"],
-    ]
-
-
-def test_validate_rejects_transaction_calls_outside_boundary_files(
+def test_validate_rejects_transaction_calls_outside_transaction_helper(
     conventions_validator: ModuleType, tmp_path: Path
 ) -> None:
     (tmp_path / "pyproject.toml").write_text(ALLOWED_PYPROJECT)
@@ -524,22 +349,14 @@ def test_validate_rejects_transaction_calls_outside_boundary_files(
         "    await session.rollback()\n"
     )
     files = {
-        "src/mosemo/x/repository.py": (
-            "async def run(self):\n    async with self._session.begin():\n        pass\n"
-        ),
-        "src/mosemo/x/router.py": "async def run(session):\n    await session.commit()\n",
-        "src/mosemo/x/mappers.py": "session.rollback()\n",
-        "src/mosemo/x/queries.py": (
+        "src/mosemo/api/x.py": (
             "async def run(self):\n"
             "    async with self._session_factory.begin_nested():\n"
             "        pass\n"
         ),
         "src/mosemo/x/service.py": transaction,
-        "src/mosemo/x/executor.py": transaction,
-        "src/mosemo/x/processing.py": transaction,
         "src/mosemo/infra/transactions.py": transaction,
-        "src/mosemo/y/transactions.py": transaction,
-        "src/mosemo/y/repository.py": "async def run(session):\n    await session.flush()\n",
+        "src/mosemo/y/transactions.py": "session.commit()\n",
         "scripts/x.py": "session.commit()\n",
         "tests/x.py": "session.commit()\n",
     }
@@ -548,33 +365,13 @@ def test_validate_rejects_transaction_calls_outside_boundary_files(
         (tmp_path / name).write_text(source)
     errors = rule_errors(conventions_validator.validate(tmp_path), "CS-P13")
     assert sorted(error.split(": ", 2)[:2] for error in errors) == [
-        ["src/mosemo/x/mappers.py:1", "CS-P13"],
-        ["src/mosemo/x/queries.py:2", "CS-P13"],
-        ["src/mosemo/x/repository.py:2", "CS-P13"],
-        ["src/mosemo/x/router.py:2", "CS-P13"],
-        ["src/mosemo/y/transactions.py:2", "CS-P13"],
-        ["src/mosemo/y/transactions.py:4", "CS-P13"],
-        ["src/mosemo/y/transactions.py:5", "CS-P13"],
+        ["src/mosemo/api/x.py:2", "CS-P13"],
+        ["src/mosemo/x/service.py:2", "CS-P13"],
+        ["src/mosemo/x/service.py:4", "CS-P13"],
+        ["src/mosemo/x/service.py:5", "CS-P13"],
+        ["src/mosemo/y/transactions.py:1", "CS-P13"],
     ]
-    assert "`service.py`·`executor.py`·`processing.py`에서만 연다" in errors[0]
-
-
-def test_validate_keeps_session_rule_for_nested_transaction_in_service(
-    conventions_validator: ModuleType, tmp_path: Path
-) -> None:
-    (tmp_path / "pyproject.toml").write_text(ALLOWED_PYPROJECT)
-    service = tmp_path / "src/mosemo/x/service.py"
-    service.parent.mkdir(parents=True)
-    service.write_text(
-        "async def run(self):\n"
-        "    async with self._session.begin_nested():\n"
-        "        pass\n"
-    )
-    errors = conventions_validator.validate(tmp_path)
-    assert rule_errors(errors, "CS-P13") == []
-    assert [error.split(": ", 2)[:2] for error in rule_errors(errors, "CS-P25")] == [
-        ["src/mosemo/x/service.py:2", "CS-P25"]
-    ]
+    assert "`unit_of_work`·`read_snapshot`으로 연다" in errors[0]
 
 
 ALLOWED_BROAD_EXCEPTS = {
@@ -784,8 +581,8 @@ def test_exception_classes_reject_names_outside_api_hierarchy(
 @pytest.mark.parametrize(
     "source",
     [
-        "from mosemo.exceptions import ApiException, ErrorCode\n",
-        "from mosemo.exceptions import NotFoundException\n",
+        "from mosemo.shared.errors import ApiException, CommonErrorCode\n",
+        "from mosemo.shared.errors import NotFoundException\n",
         "raise exceptions.ApiException(ErrorCode.X)\n",
         "raise GoneException(ErrorCode.X)\n",
         "raise exceptions.NotFoundException\n",
@@ -803,7 +600,10 @@ def test_api_exception_usage_rejects_import_and_construction(
 def test_api_exception_usage_allows_error_codes_and_domain_errors(
     conventions_validator: ModuleType,
 ) -> None:
-    source = "from mosemo.exceptions import ErrorCode\nraise DomainError(ErrorCode.X)\n"
+    source = (
+        "from mosemo.shared.errors import CommonErrorCode\n"
+        "raise DomainError(CommonErrorCode.X)\n"
+    )
     assert (
         conventions_validator.check_api_exception_usage(
             ast.parse(source), {"ApiException"}
@@ -820,8 +620,8 @@ def test_validate_scopes_exception_rules(
     files = {
         "src/mosemo/shared/errors.py": EXCEPTIONS_SOURCE,
         "src/mosemo/x/router.py": usage,
-        "src/mosemo/api/dependencies.py": usage,
         "src/mosemo/api/exception_handlers.py": usage,
+        "src/mosemo/x/dependencies.py": usage,
         "src/mosemo/x/service.py": "from mosemo.shared.errors import GoneException\n",
         "tests/test_x.py": usage + "class FakeException(Exception):\n    pass\n",
     }
@@ -830,6 +630,8 @@ def test_validate_scopes_exception_rules(
         (tmp_path / name).write_text(source)
     errors = rule_errors(conventions_validator.validate(tmp_path), "CS-P07")
     assert sorted(error.split(": ", 2)[:2] for error in errors) == [
+        ["src/mosemo/x/dependencies.py:1", "CS-P07"],
+        ["src/mosemo/x/dependencies.py:2", "CS-P07"],
         ["src/mosemo/x/service.py:1", "CS-P07"],
         ["tests/test_x.py:3", "CS-P07"],
     ]
@@ -873,117 +675,6 @@ def test_value_objects_and_typed_dicts_are_allowed(
     conventions_validator: ModuleType, source: str
 ) -> None:
     assert conventions_validator.check_dependency_bundles(ast.parse(source)) == []
-
-
-PACKAGE = ["mosemo", "x"]
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "from mosemo.x.schemas import A\n",
-        "import mosemo.x.schemas\n",
-        "from mosemo.x import schemas\n",
-        "from .schemas import A\n",
-        "from . import schemas\n",
-        "from ..y.schemas import A\n",
-        "def f():\n    from mosemo.y import schemas\n",
-    ],
-)
-def test_schema_imports_are_rejected(
-    conventions_validator: ModuleType, source: str
-) -> None:
-    errors = conventions_validator.check_schema_imports(ast.parse(source), PACKAGE)
-    assert len(errors) == 1
-    assert "CS-P28" in errors[0]
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "from mosemo.x.models import A\n",
-        "from .mappers import AMapper\n",
-        "from mosemo.x import models, schemata\n",
-        "import pydantic\n",
-    ],
-)
-def test_other_imports_are_allowed_in_repository(
-    conventions_validator: ModuleType, source: str
-) -> None:
-    assert conventions_validator.check_schema_imports(ast.parse(source), PACKAGE) == []
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "async def to_entity(request):\n    pass\n",
-        "class AMapper:\n    async def to_entity(self, request):\n        pass\n",
-        "from sqlalchemy import select\n",
-        "import sqlalchemy.orm\n",
-        "from mosemo.x.repository import ARepository\n",
-        "from .device_repository import DeviceRepository\n",
-        "from mosemo.x import repository\n",
-        "from mosemo.infra.database import get_session\n",
-        "from mosemo.infra.persistence import Base\n",
-        "from mosemo.infra import clock\n",
-        "from mosemo.shared.application.clock import Clock\n",
-    ],
-)
-def test_impure_mappers_are_rejected(
-    conventions_validator: ModuleType, source: str
-) -> None:
-    errors = conventions_validator.check_mapper_purity(ast.parse(source), PACKAGE)
-    assert len(errors) == 1
-    assert "CS-P29" in errors[0]
-
-
-def test_pure_mapper_is_allowed(conventions_validator: ModuleType) -> None:
-    source = (
-        "from mosemo.x.schemas import ACreate\n"
-        "from .models import A\n"
-        "class AMapper:\n"
-        "    def to_entity(self, request: ACreate) -> A:\n"
-        "        return A(name=request.name)\n"
-    )
-    assert conventions_validator.check_mapper_purity(ast.parse(source), PACKAGE) == []
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "class A:\n    def m(self, a, b, c, d, e, f):\n        pass\n",
-        "def f(a, b, c, /, d, *, e, f):\n    pass\n",
-        "class A:\n    @staticmethod\n    def m(a, b, c, d, e, f):\n        pass\n",
-        "class A:\n    @classmethod\n    async def m(cls, a, b, c, d, e, *, f):\n        pass\n",
-        "class A:\n    def m(self):\n        def inner(a, b, c, d, e, f):\n            pass\n",
-    ],
-)
-def test_model_functions_over_five_arguments_are_rejected(
-    conventions_validator: ModuleType, source: str
-) -> None:
-    errors = conventions_validator.check_model_argument_counts(ast.parse(source))
-    assert len(errors) == 1
-    assert "CS-P30" in errors[0]
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "class A:\n    def __init__(self, a, b, c, d, e, f, g, h, i):\n        pass\n",
-        "class A:\n    def m(self, a, b, c, d, e, *args, **kwargs):\n        pass\n",
-        "def f(a, b, c, d, e, *args, **kwargs):\n    pass\n",
-        "class A:\n    if X:\n        def m(self, a, b, c, d, e):\n            pass\n",
-        (
-            "from typing import override\n"
-            "class A(B):\n    @override\n    def m(self, a, b, c, d, e, f):\n"
-            "        pass\n"
-        ),
-    ],
-)
-def test_model_functions_within_limit_are_allowed(
-    conventions_validator: ModuleType, source: str
-) -> None:
-    assert conventions_validator.check_model_argument_counts(ast.parse(source)) == []
 
 
 def constructor(decorator: str, name: str = "__init__") -> str:
@@ -1031,15 +722,17 @@ def test_validate_scopes_role_rules(
 ) -> None:
     (tmp_path / "pyproject.toml").write_text(ALLOWED_PYPROJECT)
     bundle = "@dataclass\nclass Deps:\n    repository: ActivityRepository\n"
-    schema_import = "from .schemas import A\n"
-    long_method = "class A:\n    def m(self, a, b, c, d, e, f):\n        pass\n"
+    retired = (
+        "from .schemas import A\n"
+        "import sqlalchemy\n"
+        "class A:\n    def save(self, a, b, c, d, e, f):\n        pass\n"
+    )
     init_override = "from typing import override\n" + constructor("@override")
     files = {
-        "src/mosemo/x/service.py": bundle + schema_import + long_method,
-        "src/mosemo/x/repository.py": schema_import,
-        "src/mosemo/x/device_repository.py": schema_import,
-        "src/mosemo/x/models.py": schema_import + long_method,
-        "src/mosemo/x/mappers.py": schema_import + "import sqlalchemy\n",
+        "src/mosemo/x/service.py": bundle,
+        "src/mosemo/x/repository.py": retired,
+        "src/mosemo/x/models.py": retired,
+        "src/mosemo/x/mappers.py": retired,
         "tests/test_x.py": bundle + init_override,
         "scripts/x.py": init_override,
         "migrations/x.py": init_override,
@@ -1050,21 +743,12 @@ def test_validate_scopes_role_rules(
         (tmp_path / name).write_text(source)
     errors = rule_errors(
         conventions_validator.validate(tmp_path),
-        "CS-P27",
-        "CS-P28",
-        "CS-P29",
-        "CS-P30",
-        "CS-P31",
+        *(f"CS-P{number}" for number in (10, 25, 27, 28, 29, 30, 31)),
     )
     assert sorted(error.split(": ", 2)[:2] for error in errors) == [
         [".codex/x.py:4", "CS-P31"],
         ["migrations/x.py:4", "CS-P31"],
         ["scripts/x.py:4", "CS-P31"],
-        ["src/mosemo/x/device_repository.py:1", "CS-P28"],
-        ["src/mosemo/x/mappers.py:2", "CS-P29"],
-        ["src/mosemo/x/models.py:1", "CS-P28"],
-        ["src/mosemo/x/models.py:3", "CS-P30"],
-        ["src/mosemo/x/repository.py:1", "CS-P28"],
         ["src/mosemo/x/service.py:3", "CS-P27"],
         ["tests/test_x.py:7", "CS-P31"],
     ]

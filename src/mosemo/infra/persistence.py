@@ -1,6 +1,6 @@
 from sqlalchemy import MetaData
 from sqlalchemy.engine import Dialect
-from sqlalchemy.orm import DeclarativeBase, registry
+from sqlalchemy.orm import registry
 from sqlalchemy.types import String, TypeDecorator, TypeEngine
 
 from mosemo.shared.domain.timezones import Timezone
@@ -17,13 +17,9 @@ ORM_METADATA = MetaData(
     naming_convention=POSTGRES_NAMING_CONVENTION,
 )
 
-# Imperative mappings of moved bounded contexts and the declarative models that
-# have not moved yet share one MetaData, so foreign keys between them resolve.
+# Every bounded context maps its tables imperatively into this one MetaData,
+# so foreign keys between bounded contexts resolve.
 mapper_registry = registry(metadata=ORM_METADATA)
-
-
-class Base(DeclarativeBase):
-    metadata = ORM_METADATA
 
 
 class TimezoneStorage(TypeDecorator[Timezone]):

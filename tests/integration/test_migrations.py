@@ -706,8 +706,7 @@ def _drift_key(operation: tuple[Any, ...]) -> tuple[str, ...]:
 
 
 async def metadata_drift(database_url: str) -> list[tuple[str, ...]]:
-    # Same model modules as migrations/env.py during the coexistence period.
-
+    # Same mapping functions as migrations/env.py.
     from mosemo.identity import bootstrap as identity_bootstrap
     from mosemo.identity.infrastructure import tables as identity_tables
     from mosemo.infra.persistence import ORM_METADATA

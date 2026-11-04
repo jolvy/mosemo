@@ -3,7 +3,6 @@ from typing import Any, cast
 
 import pytest
 
-from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import IdentityErrorCode
 from mosemo.labeling.public import LabelingErrorCode
 from mosemo.labels.public import LabelErrorCode
@@ -102,7 +101,6 @@ def test_labeling_error_codes_keep_their_public_specs() -> None:
 
 def test_common_error_codes_contain_the_shared_specs() -> None:
     assert issubclass(CommonErrorCode, ApiErrorCode)
-    assert issubclass(ErrorCode, ApiErrorCode)
     assert list(ApiErrorCode) == []
     assert [
         (member.status, member.code, member.message) for member in CommonErrorCode

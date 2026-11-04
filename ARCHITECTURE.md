@@ -1,6 +1,7 @@
 # Mosemo 서버 아키텍처
 
-> 구조 재편이 진행 중이다. Bounded Context로 옮긴 패키지는 [ADR 0011](docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md)을 따른다.
+패키지 구조와 의존 규칙은 [ADR 0011](docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md)을 따르고,
+`pyproject.toml`의 import-linter 계약(`poe lint-imports`)이 강제한다.
 
 ## 주요 영역과 패키지
 
@@ -19,3 +20,9 @@
     ├── consumer/          # 조립 루트: 활동 Consumer 진입점
     └── batch/             # 조립 루트: 배치 job 등록과 진입점
 ```
+
+- Bounded Context 사이 의존은 labeling → observation → labels → identity 방향으로만 둔다.
+- BC마다 루트에 `public.py`(다른 BC용)·`bootstrap.py`(조립 루트용)·`__init__.py`를 두고, 계층은
+  presentation → application → infrastructure → domain 방향으로만 의존한다.
+- 테이블 메타데이터는 각 BC `bootstrap.py`의 매핑 함수가 `infra.persistence`의 `MetaData`에 등록하며,
+  Alembic 환경(`migrations/env.py`)도 이 함수만 호출한다.
