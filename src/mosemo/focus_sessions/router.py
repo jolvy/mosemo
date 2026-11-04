@@ -10,7 +10,7 @@ from mosemo.activities.service import (
     ActivityDeviceNotFoundError,
 )
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
-from mosemo.dependencies import AuthenticatedAccountDep, ClockDep, SessionDep
+from mosemo.api.dependencies import AuthenticatedAccountDep, ClockDep, SessionDep
 from mosemo.devices.repository import DeviceRepository
 from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.focus_sessions.models import (

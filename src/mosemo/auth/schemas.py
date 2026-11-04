@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from mosemo.schemas import ApiRequestModel, ApiResponseModel
+from mosemo.shared.presentation.schemas import ApiRequestModel, ApiResponseModel
 
 
 class KakaoCallback(BaseModel):

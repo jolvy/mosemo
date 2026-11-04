@@ -31,7 +31,7 @@ from mosemo.activity_labels.proposals.suggestions import (
     SuggestionResult,
     summarize_context,
 )
-from mosemo.clock import Clock
+from mosemo.shared.application.clock import Clock
 
 MAX_EXAMPLES = 8
 SCAN_PAGE_SIZE = 100

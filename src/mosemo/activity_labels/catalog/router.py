@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from mosemo.accounts.service import AccountNotFoundError
 from mosemo.activity_labels.schemas import LabelResponse
-from mosemo.dependencies import (
+from mosemo.api.dependencies import (
     AccountServiceDep,
     AuthenticatedAccountDep,
     LabelCatalogRepositoryDep,

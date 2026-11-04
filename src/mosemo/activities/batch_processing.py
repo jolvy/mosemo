@@ -24,13 +24,13 @@ from mosemo.activities.timeline import (
     TimelineProjection,
     observation_key,
 )
-from mosemo.clock import Clock
 from mosemo.devices.repository import DeviceRepository
 from mosemo.focus_sessions.models import (
     FocusSessionInvalidTimeError,
     FocusSessionNotFoundError,
 )
 from mosemo.focus_sessions.repository import FocusSessionRepository
+from mosemo.shared.application.clock import Clock
 
 
 def batch_fingerprint(batch: ActivityBatchRequest) -> str:

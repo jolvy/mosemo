@@ -14,7 +14,7 @@ from mosemo.activities.models import ActivityRecord as StoredActivityRecord
 from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activities.timeline import ProjectedSegment
 from mosemo.devices.models import Device
-from mosemo.timezones import Timezone
+from mosemo.shared.domain.timezones import Timezone
 
 
 class ActivityTimelineBusyError(Exception):

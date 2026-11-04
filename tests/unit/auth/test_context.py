@@ -5,11 +5,11 @@ from uuid import uuid4
 import pytest
 from fastapi.security import HTTPAuthorizationCredentials
 
+from mosemo.api.dependencies import get_authenticated_account
 from mosemo.auth.context import AuthenticatedAccount
 from mosemo.auth.tokens import TokenService
-from mosemo.clock import utc_now
-from mosemo.config import Config
-from mosemo.dependencies import get_authenticated_account
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import Config
 
 
 def test_authenticated_account_is_immutable() -> None:

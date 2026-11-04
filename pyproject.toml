@@ -25,6 +25,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "complexipy==8.3.0",
+    "import-linter>=2.15",
     "poethepoet>=0.48.0",
     "pre-commit>=4.6.2",
     "pytest>=9.1.1",
@@ -44,7 +45,7 @@ requires = ["uv_build>=0.11.21,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.fastapi]
-entrypoint = "mosemo.main:app"
+entrypoint = "mosemo.api.main:app"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
@@ -60,6 +61,69 @@ patch = ["subprocess"]
 show_missing = true
 skip_covered = true
 
+[tool.importlinter]
+root_package = "mosemo"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "shared layers: presentation > application > domain"
+type = "layers"
+layers = [
+    "mosemo.shared.presentation",
+    "mosemo.shared.application",
+    "mosemo.shared.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "shared and infra do not import bounded contexts or assembly roots"
+type = "forbidden"
+source_modules = ["mosemo.shared", "mosemo.infra"]
+forbidden_modules = [
+    "mosemo.identity",
+    "mosemo.labels",
+    "mosemo.observation",
+    "mosemo.labeling",
+    # Feature packages that have not moved to a bounded context yet.
+    "mosemo.accounts",
+    "mosemo.auth",
+    "mosemo.devices",
+    "mosemo.activities",
+    "mosemo.focus_sessions",
+    "mosemo.activity_labels",
+    "mosemo.api",
+    "mosemo.consumer",
+    "mosemo.batch",
+]
+ignore_imports = [
+    # Temporary until #145 splits the messaging adapters from activity messages
+    # and moves their API and Consumer wiring to the assembly roots.
+    "mosemo.infra.batch_consumer -> mosemo.activities.*",
+    "mosemo.infra.batch_delivery -> mosemo.activities.*",
+    "mosemo.infra.batch_runtime -> mosemo.activities.*",
+    "mosemo.infra.batch_runtime -> mosemo.api.middleware",
+]
+
+[[tool.importlinter.contracts]]
+name = "shared domain does not import sqlalchemy, fastapi or pydantic"
+type = "forbidden"
+source_modules = ["mosemo.shared.domain"]
+forbidden_modules = ["sqlalchemy", "fastapi", "pydantic"]
+
+[[tool.importlinter.contracts]]
+name = "shared application does not import fastapi directly"
+type = "forbidden"
+source_modules = ["mosemo.shared.application"]
+forbidden_modules = ["fastapi"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "only infra.scheduling imports apscheduler"
+type = "forbidden"
+source_modules = ["mosemo"]
+forbidden_modules = ["apscheduler"]
+ignore_imports = ["mosemo.infra.scheduling -> apscheduler"]
+allow_indirect_imports = true
+
 [tool.ruff]
 line-length = 88
 target-version = "py314"
@@ -70,9 +134,9 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
                  "PLR0913"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/mosemo/clock.py" = ["TID251"]
+"src/mosemo/infra/clock.py" = ["TID251"]
 "migrations/env.py" = ["F401"]
-"src/mosemo/middleware.py" = ["PLR0917"]
+"src/mosemo/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]
@@ -87,12 +151,12 @@ max-positional-args = 2
 extend-ignore-names = ["*Exception"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
-"time.time".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.infra.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
+"time.time".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
 
 [tool.ruff.format]
 indent-style = "space"
@@ -104,12 +168,12 @@ cmd = "fastapi dev"
 envfile = [".env", ".env.local"]
 
 [tool.poe.tasks.batch-jobs]
-cmd = "python -m mosemo.batch_jobs"
+cmd = "python -m mosemo.batch"
 envfile = [".env", ".env.local"]
 help = "Run batch jobs: serve, or run JOB_NAME once"
 
 [tool.poe.tasks.batch-consumer]
-cmd = "python -m mosemo.activities.consumer"
+cmd = "python -m mosemo.consumer"
 envfile = [".env", ".env.local"]
 help = "Run the separate activity batch Consumer"
 
@@ -130,6 +194,10 @@ envfile = [".env", ".env.prod"]
 
 [tool.poe.tasks.openapi]
 cmd = "python scripts/export_openapi.py"
+
+[tool.poe.tasks.lint-imports]
+cmd = "lint-imports"
+help = "Check import contracts between packages"
 
 [tool.poe.tasks.ci]
 cmd = "act pull_request -j quality"

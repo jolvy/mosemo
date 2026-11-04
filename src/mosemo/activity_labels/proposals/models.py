@@ -18,7 +18,7 @@ from sqlalchemy import Enum as OrmEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mosemo.database import Base
+from mosemo.infra.persistence import Base
 
 PROPOSAL_RETRY_DELAYS = (timedelta(minutes=1), timedelta(minutes=5))
 MAX_PROPOSAL_ATTEMPTS = len(PROPOSAL_RETRY_DELAYS) + 1

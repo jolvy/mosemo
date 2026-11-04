@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 
-from mosemo.schemas import ValidationDetail
+from mosemo.shared.presentation.schemas import ValidationDetail
 
 
 @dataclass(frozen=True, slots=True, eq=False)

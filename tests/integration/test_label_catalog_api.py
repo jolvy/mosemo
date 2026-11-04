@@ -14,15 +14,15 @@ from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
 from mosemo.activity_labels.catalog.models import Label, default_labels
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
-from mosemo.api import v1_api_router
+from mosemo.api.dependencies import get_kakao_client, get_oauth_client_resolver
+from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.api.routes import v1_api_router
 from mosemo.auth.kakao_client import KakaoClient
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.tokens import TokenService
-from mosemo.clock import utc_now
-from mosemo.config import Config, get_config
-from mosemo.database import get_session
-from mosemo.dependencies import get_kakao_client, get_oauth_client_resolver
-from mosemo.exception_handlers import register_exception_handlers
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import Config, get_config
+from mosemo.infra.database import get_session
 
 
 @pytest_asyncio.fixture

@@ -3,7 +3,11 @@ from collections.abc import Mapping, Sequence
 from fastapi.responses import JSONResponse
 
 from mosemo.exceptions import ErrorCode
-from mosemo.schemas import ErrorPayload, ErrorResponse, ValidationDetail
+from mosemo.shared.presentation.schemas import (
+    ErrorPayload,
+    ErrorResponse,
+    ValidationDetail,
+)
 
 
 def error_response(

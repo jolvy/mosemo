@@ -36,6 +36,7 @@ uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked complexipy src --max-complexity-allowed 15 --isolated --no-ignore
 uv run --locked ty check
+uv run --locked poe lint-imports
 uv build
 uv run --locked poe coverage
 git diff --check
@@ -46,6 +47,7 @@ git diff --cached --check
 - `scripts/check_coverage.py`를 단독 실행하면 직전 `--cov` 실행의 `.coverage` 데이터를 읽는다. 데이터나 브랜치 측정이 없으면 실패한다.
 - 테스트 일부만 실행할 때는 커버리지 기준이 적용되지 않는 `poe test` 또는 `pytest`를 쓴다.
 - complexipy는 기준선 없이 `src`의 모든 함수를 검사하고, 인지 복잡도가 15를 초과하는 함수가 있으면 실패한다. 기준선 파일 `complexipy-snapshot.json`을 만들지 않으며, 검사기와 CI는 이 파일이 있으면 실패한다.
+- `poe lint-imports`는 `pyproject.toml`의 `[tool.importlinter]` 계약(ADR 0011 「강제 방법」)으로 패키지 사이 import 방향을 검사한다. 계약은 각 구조 재편 작업이 그 범위의 계약과 함께 추가한다.
 - Ruff 오류는 `uv run --locked ruff check --fix <path>`로 제한된 범위에서 수정한다.
 - 포맷이 필요하면 `uv run --locked ruff format <path>`를 실행한다.
 - 통합 테스트는 Docker에서 PostgreSQL 컨테이너를 실행하므로 Docker가 동작 중이어야 한다.

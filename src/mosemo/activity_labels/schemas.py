@@ -8,7 +8,11 @@ from mosemo.activities.schemas import (
     OpaqueActivityContext,
     TimelineTimestamp,
 )
-from mosemo.schemas import ApiRequestModel, ApiResponseModel, PublicTimestamp
+from mosemo.shared.presentation.schemas import (
+    ApiRequestModel,
+    ApiResponseModel,
+    PublicTimestamp,
+)
 
 SEGMENT_VERSION_PATTERN = r"^[0-9a-f]{64}$"
 
@@ -291,7 +295,7 @@ LabelTimelineItemResponse = Annotated[
 
 from pydantic import ConfigDict, Field
 
-from mosemo.schemas import ApiResponseModel
+from mosemo.shared.presentation.schemas import ApiResponseModel
 
 
 class LabelResponse(ApiResponseModel):

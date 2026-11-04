@@ -6,7 +6,7 @@ from pydantic import TypeAdapter
 from mosemo.activities.enums import RecordType
 from mosemo.activities.mappers import ActivityRecordMapper
 from mosemo.activities.schemas import ActivityRecord
-from mosemo.timezones import Timezone
+from mosemo.shared.domain.timezones import Timezone
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 

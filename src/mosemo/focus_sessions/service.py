@@ -10,7 +10,6 @@ from mosemo.activities.service import (
     timeline_date_window,
 )
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
-from mosemo.clock import Clock
 from mosemo.devices.repository import DeviceRepository
 from mosemo.focus_sessions.mappers import FocusSessionMapper
 from mosemo.focus_sessions.models import (
@@ -24,6 +23,7 @@ from mosemo.focus_sessions.schemas import (
     FocusSessionCreateRequest,
     FocusSessionResponse,
 )
+from mosemo.shared.application.clock import Clock
 
 
 class FocusSessionLabelNotAvailableError(Exception):

@@ -20,7 +20,9 @@ def test_models_reject_http_imports_including_relative_and_nested(
     assert architecture_validator.check_source(source, "mosemo.accounts.models")
 
 
-@pytest.mark.parametrize("module", ["mosemo.exceptions", "mosemo.responses"])
+@pytest.mark.parametrize(
+    "module", ["mosemo.exceptions", "mosemo.shared.presentation.responses"]
+)
 def test_runtime_error_modules_cannot_import_openapi(
     architecture_validator: ModuleType, module: str
 ) -> None:
@@ -52,7 +54,7 @@ def test_real_repository_satisfies_declared_boundaries(
         ("mosemo.x.repository", "from mosemo.x.service import S"),
         ("mosemo.x.models", "from .repository import R"),
         ("mosemo.x.service", "from mosemo.x.router import r"),
-        ("mosemo.x.service", "from mosemo.dependencies import d"),
+        ("mosemo.x.service", "from mosemo.api.dependencies import d"),
         ("mosemo.x.mappers", "from mosemo.y.service import S"),
         ("mosemo.x.schemas", "from mosemo.x.repository import R"),
         ("mosemo.x.service", "from mosemo.x import router"),
@@ -75,7 +77,7 @@ def test_role_files_reject_outward_imports(
         ("mosemo.x.service", "from mosemo.y.service import f"),
         ("mosemo.x.executor", "from mosemo.x.router import r"),
         ("mosemo.x.repository", "from .schemas import Request"),
-        ("mosemo.schemas", "from mosemo.x.models import E"),
+        ("mosemo.shared.presentation.schemas", "from mosemo.x.models import E"),
         ("mosemo.x.repository", "from fastapi import dependencies"),
     ],
 )

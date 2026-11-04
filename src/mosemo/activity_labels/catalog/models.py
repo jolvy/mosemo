@@ -4,7 +4,7 @@ from uuid import UUID, uuid7
 from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mosemo.database import Base
+from mosemo.infra.persistence import Base
 
 DEFAULT_LABEL_NAMES: tuple[str, ...] = ("코딩", "학습", "소통", "쇼핑", "여가")
 

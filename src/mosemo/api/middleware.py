@@ -51,7 +51,7 @@ class BatchBodyLimitMiddleware:
             await self._app(scope, receive, send)
             return
         from mosemo.exceptions import ErrorCode
-        from mosemo.responses import error_response
+        from mosemo.shared.presentation.responses import error_response
 
         if scope["path"] == "/api/v1/activities/batches/legacy":
             await self._bounded_request(scope, receive, send)
@@ -80,7 +80,7 @@ class BatchBodyLimitMiddleware:
         self, scope: Scope, receive: Receive, send: Send
     ) -> None:
         from mosemo.exceptions import ErrorCode
-        from mosemo.responses import error_response
+        from mosemo.shared.presentation.responses import error_response
 
         body = bytearray()
         try:

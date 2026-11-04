@@ -3,15 +3,15 @@ import logging
 
 import pytest
 
-from mosemo.batch_jobs.job import BatchJob, execute_job, run_job_once
-from mosemo.logging import OPTIONAL_FIELDS
+from mosemo.infra.logging import OPTIONAL_FIELDS
+from mosemo.infra.scheduling import BatchJob, execute_job, run_job_once
 
 STANDARD_RECORD_FIELDS = set(vars(logging.makeLogRecord({}))) | {"message"}
 
 
 def job_records(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
     return [
-        record for record in caplog.records if record.name == "mosemo.batch_jobs.job"
+        record for record in caplog.records if record.name == "mosemo.infra.scheduling"
     ]
 
 
@@ -32,7 +32,7 @@ async def test_failed_job_is_isolated_and_the_next_run_succeeds(
             raise RuntimeError("secret detail")
 
     job = BatchJob("flaky", flaky)
-    caplog.set_level(logging.INFO, logger="mosemo.batch_jobs")
+    caplog.set_level(logging.INFO, logger="mosemo.infra.scheduling")
 
     assert await execute_job(job) is False
     assert await execute_job(job) is True
@@ -82,7 +82,7 @@ async def test_run_job_once_cancels_the_job_when_stopped(
         finally:
             cleaned_up.set()
 
-    caplog.set_level(logging.INFO, logger="mosemo.batch_jobs")
+    caplog.set_level(logging.INFO, logger="mosemo.infra.scheduling")
     run = asyncio.create_task(run_job_once(BatchJob("hold", hold), stop))
     await started.wait()
     stop.set()

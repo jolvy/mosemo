@@ -149,7 +149,7 @@ an unsuccessful exit status. Startup task cancellation also propagates to that
 process boundary; the application does not retry startup in the same process.
 An external supervisor owns restarting the process. No supervisor deployment or
 restart configuration is installed by this repository change. Use the single
-worker API entrypoint `uv run --locked uvicorn mosemo.main:app --lifespan on`;
+worker API entrypoint `uv run --locked uvicorn mosemo.api.main:app --lifespan on`;
 a development reloader is a separate parent process, outside this exit contract.
 The Consumer uses FastStream's public `consumer_only=True` option because it
 only consumes and ACKs; it creates no unused Producer/Admin client. A requested

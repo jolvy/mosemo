@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mosemo.api import v1_api_router
-from mosemo.exception_handlers import register_exception_handlers
+from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.api.routes import v1_api_router
 
 
 def make_app() -> FastAPI:

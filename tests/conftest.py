@@ -1,6 +1,6 @@
 import pytest
 
-from mosemo.config import Config
+from mosemo.infra.config import Config
 
 
 @pytest.fixture

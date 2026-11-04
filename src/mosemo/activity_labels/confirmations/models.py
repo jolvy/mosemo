@@ -10,7 +10,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mosemo.database import Base
+from mosemo.infra.persistence import Base
 
 
 class ActivityLabelConfirmation(Base):

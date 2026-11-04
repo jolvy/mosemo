@@ -1,4 +1,4 @@
-The application reads `src/mosemo/logging.json` and configures Python logging
+The application reads `src/mosemo/infra/logging.json` and configures Python logging
 with `dictConfig()` during startup. Logs are emitted as one JSON object per line
 to standard output so a container runtime can forward them to CloudWatch Logs
 without an application file handler or AWS SDK.

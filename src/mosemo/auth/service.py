@@ -16,8 +16,8 @@ from mosemo.auth.oauth_client import OAuthClient, OAuthClientError
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.repository import NativeAuthCodeRepository
 from mosemo.auth.tokens import TokenService
-from mosemo.clock import Clock
-from mosemo.config import AuthConfig
+from mosemo.infra.config import AuthConfig
+from mosemo.shared.application.clock import Clock
 
 
 class OAuthAuthenticationError(Exception):

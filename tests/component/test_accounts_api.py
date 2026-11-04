@@ -7,14 +7,14 @@ from fastapi.testclient import TestClient
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.service import AccountNotFoundError, AccountService
-from mosemo.api import v1_api_router
+from mosemo.api.dependencies import get_account_service, get_auth_service
+from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.api.routes import v1_api_router
 from mosemo.auth.service import AuthService
 from mosemo.auth.tokens import TokenService
-from mosemo.clock import utc_now
-from mosemo.config import Config, get_config
-from mosemo.dependencies import get_account_service, get_auth_service
-from mosemo.exception_handlers import register_exception_handlers
-from mosemo.timezones import Timezone
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import Config, get_config
+from mosemo.shared.domain.timezones import Timezone
 
 
 def make_account() -> Account:

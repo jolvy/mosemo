@@ -3,7 +3,11 @@ from uuid import UUID
 from pydantic import Field
 
 from mosemo.activities.schemas import TimelineTimestamp
-from mosemo.schemas import ApiRequestModel, ApiResponseModel, ObservationTimestamp
+from mosemo.shared.presentation.schemas import (
+    ApiRequestModel,
+    ApiResponseModel,
+    ObservationTimestamp,
+)
 
 
 class FocusSessionCreateRequest(ApiRequestModel):

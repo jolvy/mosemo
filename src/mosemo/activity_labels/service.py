@@ -14,7 +14,7 @@ from mosemo.activity_labels.schemas import (
     ConfirmedActivityLabelStateResponse,
     LabelTimelineItemResponse,
 )
-from mosemo.clock import Clock
+from mosemo.shared.application.clock import Clock
 
 
 class ActivityLabelService:

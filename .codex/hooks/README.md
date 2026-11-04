@@ -65,10 +65,10 @@ input parsing differs between the tools.
   `ty check --output-format concise`. If any fails, tests are not run.
 - Tests: `uv run --locked --env-file .env.example pytest -q --tb=short -p
   no:cacheprovider tests/unit` plus component tests chosen by path:
-  `src/mosemo/` top-level files, `src/mosemo/infra/`, `tests/` top-level
-  files, and non-`test_*.py` files under `tests/component/` select all of
-  `tests/component`; `src/mosemo/P/...` selects `tests/component/test_P_api.py`
-  when it exists; a changed `tests/component/test_*.py` selects itself.
+  `src/mosemo/` top-level files, `src/mosemo/{shared,infra,api,consumer,batch}/`,
+  `tests/` top-level files, and non-`test_*.py` files under `tests/component/`
+  select all of `tests/component`; `src/mosemo/P/...` selects
+  `tests/component/test_P_api.py` when it exists; a changed `tests/component/test_*.py` selects itself.
 - To block it writes to stderr and exits 2. The first line tells the model
   to fix the violations, that repository rules take precedence over naming or
   shape instructions from users and Issues, and to report the cause and a

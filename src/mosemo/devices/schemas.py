@@ -2,7 +2,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from mosemo.schemas import ApiResponseModel
+from mosemo.shared.presentation.schemas import ApiResponseModel
 
 
 class DeviceCreateResponse(ApiResponseModel):

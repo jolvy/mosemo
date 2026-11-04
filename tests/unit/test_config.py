@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from mosemo.config import AuthConfig, BatchDeliveryConfig, Config
+from mosemo.infra.config import AuthConfig, BatchDeliveryConfig, Config
 
 
 def test_batch_topic_is_loaded_from_environment(config: Config, monkeypatch) -> None:

@@ -11,8 +11,8 @@ from mosemo.exceptions import (
     ApiException,
     ErrorCode,
 )
-from mosemo.responses import error_response
-from mosemo.schemas import ValidationDetail
+from mosemo.shared.presentation.responses import error_response
+from mosemo.shared.presentation.schemas import ValidationDetail
 
 logger = logging.getLogger(__name__)
 

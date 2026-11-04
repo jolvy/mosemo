@@ -7,6 +7,7 @@ from fastapi import APIRouter, Cookie, Query, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from mosemo.accounts.models import AccountProvider
+from mosemo.api.dependencies import AuthServiceDep, ConfigDep, KakaoClientDep
 from mosemo.auth.pkce import (
     PKCE_CODE_CHALLENGE_PATTERN,
     is_valid_code_challenge,
@@ -16,13 +17,12 @@ from mosemo.auth.service import (
     InvalidAuthorizationCodeError,
     OAuthAuthenticationError,
 )
-from mosemo.dependencies import AuthServiceDep, ConfigDep, KakaoClientDep
 from mosemo.exceptions import (
     ApiException,
     ErrorCode,
 )
 from mosemo.openapi import api_error_responses
-from mosemo.responses import error_response
+from mosemo.shared.presentation.responses import error_response
 
 logger = logging.getLogger(__name__)
 
