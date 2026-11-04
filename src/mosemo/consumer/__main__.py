@@ -9,15 +9,17 @@ async def run() -> None:
     # protected boundary: validation errors can contain credential input values.
     from mosemo.consumer.activity_batches import run_consumer
     from mosemo.infra.config import get_config
-    from mosemo.infra.database import SessionFactory, engine
+    from mosemo.infra.database import get_engine, get_session_factory
 
+    engine = get_engine()
+    session_factory = get_session_factory()
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     signals = (signal.SIGINT, signal.SIGTERM)
     for sig in signals:
         loop.add_signal_handler(sig, stop.set)
     try:
-        await run_consumer(get_config().batch_delivery, SessionFactory, stop=stop)
+        await run_consumer(get_config().batch_delivery, session_factory, stop=stop)
     finally:
         for sig in signals:
             loop.remove_signal_handler(sig)
