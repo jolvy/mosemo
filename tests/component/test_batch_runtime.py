@@ -9,13 +9,13 @@ from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
 
 from mosemo.activities.executor import LegacyBatchExecutor
-from mosemo.api import v1_api_router
+from mosemo.api.dependencies import get_device_repository
+from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.api.routes import v1_api_router
 from mosemo.auth.tokens import TokenService
-from mosemo.clock import utc_now
-from mosemo.config import BatchDeliveryConfig, Config, get_config
-from mosemo.dependencies import get_device_repository
-from mosemo.exception_handlers import register_exception_handlers
 from mosemo.infra.batch_runtime import compose_messaging_app
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import BatchDeliveryConfig, Config, get_config
 from tests.component.test_activities_api import activity_request as payload
 
 
@@ -131,7 +131,7 @@ async def test_disabled_publication_still_runs_api_lifecycle(config, monkeypatch
 async def test_legacy_waits_for_processing_without_admission_or_publish(
     config, monkeypatch, delivery_enabled
 ):
-    from mosemo.database import get_session
+    from mosemo.infra.database import get_session
 
     config.batch_delivery.enabled = delivery_enabled
     app, _, owner, headers = make_app(config)
@@ -184,7 +184,7 @@ async def test_legacy_waits_for_processing_without_admission_or_publish(
 
 @pytest.mark.asyncio
 async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
-    from mosemo.database import get_session
+    from mosemo.infra.database import get_session
 
     app, _, _, headers = make_app(config)
     app.dependency_overrides[get_session] = object
@@ -219,7 +219,7 @@ async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
 async def test_legacy_processing_errors(config, monkeypatch, error, expected):
     from mosemo.activities.messages import TerminalBatchError
     from mosemo.activities.repository import ActivityTimelineBusyError
-    from mosemo.database import get_session
+    from mosemo.infra.database import get_session
 
     app, _, _, headers = make_app(config)
     app.dependency_overrides[get_session] = object

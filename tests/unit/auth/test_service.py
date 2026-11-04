@@ -23,7 +23,7 @@ from mosemo.auth.service import (
     OAuthAuthenticationError,
 )
 from mosemo.auth.tokens import TokenService
-from mosemo.config import Config
+from mosemo.infra.config import Config
 from tests.clock_support import FakeClock
 
 NOW = datetime(2026, 9, 1, tzinfo=UTC)

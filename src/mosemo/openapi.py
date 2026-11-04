@@ -7,7 +7,11 @@ from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
 from mosemo.exceptions import ErrorCode
-from mosemo.schemas import ErrorPayload, ErrorResponse, ValidationDetail
+from mosemo.shared.presentation.schemas import (
+    ErrorPayload,
+    ErrorResponse,
+    ValidationDetail,
+)
 
 
 @dataclass(frozen=True, slots=True)

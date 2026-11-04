@@ -69,7 +69,7 @@
 | CS-P10 | 이름 | repository 메서드가 허용 동사 밖의 이름을 쓰는가? | 검사기 | 저장소 관례, #91 |
 | CS-P12 | 계층·경계 | `exception_handlers.py` 밖에서 `HTTPException`을 쓰는가? | 검사기 | [ADR 0001](adr/0001-public-api-error-boundary.md) |
 | CS-P13 | 계층·경계 | `service.py`·`executor.py`·`processing.py` 밖에서 트랜잭션을 열거나 확정하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), 저장소 관례 |
-| CS-P15 | 저장소 관용구 | `src/mosemo/clock.py` 밖에서 현재 시각 API를 호출하거나 `clock`을 키워드 전용 필수 인자로 받지 않는가? | Ruff `TID251`, 검사기 | #86 |
+| CS-P15 | 저장소 관용구 | `src/mosemo/infra/clock.py` 밖에서 현재 시각 API를 호출하거나 `clock`을 키워드 전용 필수 인자로 받지 않는가? | Ruff `TID251`, 검사기 | #86 |
 | CS-P17 | 저장소 관용구 | FastAPI 의존성을 `Annotated` 없이 선언하는가? | Ruff `FAST002` | architecture FastAPI Request Boundaries |
 | CS-P18 | 오류 처리 | 넓은 `except`를 허용 위치 밖에서 쓰거나 예외를 조용히 삼키는가? | 검사기(`src`), Ruff `BLE001`(`src` 밖), `S110` | [ADR 0001](adr/0001-public-api-error-boundary.md), #102 |
 | CS-P19 | async 경계 | async 함수에서 블로킹 호출을 하는가? | Ruff `ASYNC` (`tests` 제외) | architecture FastAPI Request Boundaries |
@@ -95,7 +95,7 @@
   `pyproject.toml`의 `[tool.complexipy]`는 위반이다. 기준선을 다시 만들어 고복잡도 함수를 통과시키는 우회를
   막는다.
 - **CS-P04**: 위치 인자는 2개까지이고 세 번째 인자부터 키워드 전용(`*`)이다. `self`·`cls`는 세지 않는다.
-  `tests`(pytest가 fixture를 이름으로 주입)와 `src/mosemo/middleware.py`(ASGI 서버가 위치 인자로 호출)는
+  `tests`(pytest가 fixture를 이름으로 주입)와 `src/mosemo/api/middleware.py`(ASGI 서버가 위치 인자로 호출)는
   제외한다. 라이브러리가 위치 인자로 호출하는 오버라이드는 `@typing.override`를 붙인다.
   - 전체 인자는 5개까지다(`PLR0913`, `*args`·`**kwargs` 제외). `tests`와 `models.py`의 `__init__`은
     제외한다. 엔티티의 필드 수는 데이터 자체의 크기이기 때문이다. `models.py`의 다른 함수는 CS-P30이 같은
@@ -118,7 +118,7 @@
     여러 건이면 `add_all(entities) -> None`이다. 엔티티는 service나 도메인이 만들고 repository는 저장만 한다.
   - 삭제는 `delete`·`delete_`, 교체는 `replace_`, 잠금은 `lock_`으로 시작한다.
   - 업무 의미가 있는 동사는 허용 목록에 등록한다. 현재 `claim` 하나다.
-- **CS-P12**: `HTTPException`은 `src/mosemo/exception_handlers.py`에서만 import하거나 참조한다. router도
+- **CS-P12**: `HTTPException`은 `src/mosemo/api/exception_handlers.py`에서만 import하거나 참조한다. router도
   허용하지 않는다. ADR 0001에 따라 공개할 오류는 `ErrorCode`와 `ApiException`으로 명시하고, 내부 오류는
   도메인 오류(`...Error`)로 던진다. 판정은 import 경로를 해석하지 않고 이름으로 한다. `ImportFrom`의 가져오는
   이름이나 속성 참조의 `attr`가 `HTTPException`으로 끝나면 위반이며, 허용 파일이 만든 별칭
@@ -137,9 +137,9 @@
     `begin_nested()`는 repository가 아닌 파일에서 CS-P13 허용 파일이라도 CS-P25로 실패한다. CS-P13에
     `begin_nested`를 넣은 것은 CS-P25가 보지 않는 repository 파일과 session이 아닌 수신 객체(session
     factory, engine 등)의 savepoint까지 막기 위해서다.
-- **CS-P15**: 시스템 시각은 `mosemo.clock.utc_now`만 읽는다. 금지 API는 `datetime.now`,
+- **CS-P15**: 시스템 시각은 `mosemo.infra.clock.utc_now`만 읽는다. 금지 API는 `datetime.now`,
   `datetime.utcnow`, `datetime.today`, `date.today`, `time.time`, `time.time_ns`이고 예외 파일은
-  `src/mosemo/clock.py` 하나다. 시각을 읽는 객체는 생성자에서 키워드 전용 필수 인자 `clock`을 받고, 트랜잭션
+  `src/mosemo/infra/clock.py` 하나다. 시각을 읽는 객체는 생성자에서 키워드 전용 필수 인자 `clock`을 받고, 트랜잭션
   또는 처리 단계마다 한 번 읽어 하위에 `now`로 넘긴다. 시각을 받기만 하는 객체는 `now` 인자로 받는다.
 - **CS-P18**: `src`의 넓은 `except`(`Exception`, `BaseException`, 이를 포함한 튜플, 맨 `except:`)는 검사기의
   허용 위치 목록 `BROAD_EXCEPT_ALLOWED`(파일, 함수, 개수)에서만 쓴다. 목록에 있지만 코드에서 사라진 항목도
@@ -178,8 +178,8 @@
   default 컬럼을 NULL로 덮지 않는다.
 - **CS-P29**: API 요청 스키마로 엔티티를 만드는 일은 모듈 `mappers.py`의 `XxxMapper.to_entity`가 맡는다.
   상태 없는 클래스이고 사용하는 쪽이 직접 만들며, 만든 엔티티는 session에 add하지 않고 repository에 넘긴다.
-  `mappers.py`에 `async def`가 있거나 repository·`*_repository` 모듈, `sqlalchemy`, `mosemo.database`,
-  `mosemo.clock`을 import하면 위반이다. 응답 방향은 `Response.model_validate(entity, from_attributes=True)`를
+  `mappers.py`에 `async def`가 있거나 repository·`*_repository` 모듈, `sqlalchemy`, `mosemo.infra.database`,
+  `mosemo.infra.persistence`, `mosemo.infra.clock`, `mosemo.shared.application.clock`을 import하면 위반이다. 응답 방향은 `Response.model_validate(entity, from_attributes=True)`를
   쓰고 Mapper를 두지 않는다.
 - **CS-P30**: `models.py`의 모듈 함수·메서드·중첩 함수 중 `__init__`이 아닌 것은 인자 5개까지다. 세는 방식은
   Ruff `PLR0913`과 같다(`self`·`cls`, `*args`·`**kwargs`, `@override` 메서드 제외).

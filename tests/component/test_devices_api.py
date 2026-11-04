@@ -5,14 +5,14 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mosemo.api import v1_api_router
+from mosemo.api.dependencies import get_device_service
+from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.api.routes import v1_api_router
 from mosemo.auth.tokens import TokenService
-from mosemo.clock import utc_now
-from mosemo.config import Config, get_config
-from mosemo.dependencies import get_device_service
 from mosemo.devices.schemas import DeviceCreateResponse
 from mosemo.devices.service import DeviceService
-from mosemo.exception_handlers import register_exception_handlers
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import Config, get_config
 
 
 def make_app(

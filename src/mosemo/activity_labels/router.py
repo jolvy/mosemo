@@ -23,10 +23,10 @@ from mosemo.activity_labels.schemas import (
     ConfirmedActivityLabelStateResponse,
     LabelTimelineItemResponse,
 )
-from mosemo.dependencies import ActivityLabelServiceDep, AuthenticatedAccountDep
+from mosemo.api.dependencies import ActivityLabelServiceDep, AuthenticatedAccountDep
 from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.openapi import api_error_responses
-from mosemo.schemas import ValidationDetail
+from mosemo.shared.presentation.schemas import ValidationDetail
 
 router = APIRouter(prefix="/activities")
 

@@ -17,19 +17,19 @@ COMPLEXITY_SNAPSHOT = "complexipy-snapshot.json"
 EXCEPTIONS_FILE = "src/mosemo/exceptions.py"
 API_EXCEPTION = "ApiException"
 API_EXCEPTION_FILES = {
-    "src/mosemo/dependencies.py",
-    "src/mosemo/exception_handlers.py",
+    "src/mosemo/api/dependencies.py",
+    "src/mosemo/api/exception_handlers.py",
     EXCEPTIONS_FILE,
 }
 HTTP_EXCEPTION = "HTTPException"
-HTTP_EXCEPTION_FILE = "src/mosemo/exception_handlers.py"
+HTTP_EXCEPTION_FILE = "src/mosemo/api/exception_handlers.py"
 BROAD_EXCEPTIONS = {"Exception", "BaseException"}
 # (파일, 감싸는 클래스·함수 이름): 허용 개수. 새 경계는 이유와 함께 추가하고 리뷰한다.
 BROAD_EXCEPT_ALLOWED = {
     # 프로세스 경계: 예외 메시지(payload·비밀값)를 출력하지 않고 종료
-    ("src/mosemo/activities/consumer.py", "main"): 1,
+    ("src/mosemo/consumer/__main__.py", "main"): 1,
     # 프로세스 경계
-    ("src/mosemo/batch_jobs/__main__.py", "main"): 1,
+    ("src/mosemo/batch/__main__.py", "main"): 1,
     # 오류를 runtime supervisor로 넘김
     ("src/mosemo/infra/batch_consumer.py", "ActivityBatchConsumer.handle"): 1,
     # 어떤 오류든 앱으로 실패 리다이렉트
@@ -40,7 +40,7 @@ BROAD_EXCEPT_ALLOWED = {
         "ProposalProcessor.process_candidate",
     ): 1,
     # job 하나의 실패가 스케줄러를 멈추지 않고, 예외 메시지를 로그에 남기지 않음
-    ("src/mosemo/batch_jobs/job.py", "execute_job"): 1,
+    ("src/mosemo/infra/scheduling.py", "execute_job"): 1,
 }
 RUFF_CONFIG = tomllib.loads("""
 line-length = 88
@@ -52,9 +52,9 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
                  "PLR0913"]
 
 [lint.per-file-ignores]
-"src/mosemo/clock.py" = ["TID251"]
+"src/mosemo/infra/clock.py" = ["TID251"]
 "migrations/env.py" = ["F401"]
-"src/mosemo/middleware.py" = ["PLR0917"]
+"src/mosemo/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]
@@ -69,12 +69,12 @@ max-positional-args = 2
 extend-ignore-names = ["*Exception"]
 
 [lint.flake8-tidy-imports.banned-api]
-"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
-"time.time".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.infra.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
+"time.time".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
 
 [format]
 indent-style = "space"
@@ -134,7 +134,7 @@ SQL_CONSTRUCTS = {
 }
 
 CLOCK_HINT = (
-    "현재 시각은 `mosemo.clock`의 clock을 주입받아 얻고, "
+    "현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻고, "
     "Ruff TID251·DTZ 검사를 끄거나 우회하지 않는다"
 )
 SUPPRESSION_DIRECTIVE = re.compile(
@@ -603,7 +603,13 @@ def is_mapper_forbidden_module(module: str) -> bool:
     return (
         any(part == "repository" or part.endswith("_repository") for part in parts)
         or parts[0] == "sqlalchemy"
-        or parts[:2] in (["mosemo", "database"], ["mosemo", "clock"])
+        or parts[:3]
+        in (
+            ["mosemo", "infra", "database"],
+            ["mosemo", "infra", "persistence"],
+            ["mosemo", "infra", "clock"],
+        )
+        or parts[:4] == ["mosemo", "shared", "application", "clock"]
     )
 
 
@@ -628,7 +634,8 @@ def check_mapper_purity(tree: ast.AST, package: list[str]) -> list[str]:
     )
     errors.extend(
         f"{line}: CS-P29: `mappers.py`에서 repository·`sqlalchemy`·"
-        f"`mosemo.database`·`mosemo.clock`을 import하지 않는다. {hint}"
+        f"`mosemo.infra.database`·`mosemo.infra.persistence`·`mosemo.infra.clock`·"
+        f"`mosemo.shared.application.clock`을 import하지 않는다. {hint}"
         for line in lines
     )
     return errors

@@ -7,13 +7,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from mosemo.accounts.models import AccountProvider
-from mosemo.api import v1_api_router
+from mosemo.api.dependencies import get_auth_service, get_kakao_client
+from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.api.routes import v1_api_router
 from mosemo.auth.kakao_client import KAKAO_AUTHORIZE_URL, KakaoClient
 from mosemo.auth.pkce import create_code_challenge
 from mosemo.auth.service import AuthService, InvalidAuthorizationCodeError
-from mosemo.config import Config, get_config
-from mosemo.dependencies import get_auth_service, get_kakao_client
-from mosemo.exception_handlers import register_exception_handlers
+from mosemo.infra.config import Config, get_config
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)

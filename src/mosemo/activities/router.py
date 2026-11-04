@@ -14,7 +14,7 @@ from mosemo.activities.schemas import (
     TimelineSegmentResponse,
 )
 from mosemo.activities.service import ActivityAccountNotFoundError
-from mosemo.dependencies import (
+from mosemo.api.dependencies import (
     ActivityServiceDep,
     AuthenticatedAccountDep,
     ClockDep,

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.accounts.models import Account, AccountProvider
 from mosemo.accounts.repository import AccountRepository
-from mosemo.timezones import Timezone
+from mosemo.shared.domain.timezones import Timezone
 
 
 @pytest.mark.asyncio

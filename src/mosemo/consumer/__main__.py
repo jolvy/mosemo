@@ -1,4 +1,4 @@
-"""Separate activity Consumer process: python -m mosemo.activities.consumer."""
+"""Separate activity Consumer process: python -m mosemo.consumer."""
 
 import asyncio
 import signal
@@ -7,9 +7,9 @@ import signal
 async def run() -> None:
     # Configuration and engine initialization must also stay inside main's
     # protected boundary: validation errors can contain credential input values.
-    from mosemo.config import get_config
-    from mosemo.database import SessionFactory, engine
     from mosemo.infra.batch_runtime import MessagingRuntime
+    from mosemo.infra.config import get_config
+    from mosemo.infra.database import SessionFactory, engine
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

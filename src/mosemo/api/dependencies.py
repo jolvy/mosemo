@@ -28,12 +28,13 @@ from mosemo.auth.service import (
     OAuthClientResolver,
 )
 from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
-from mosemo.clock import Clock, utc_now
-from mosemo.config import Config, get_config
-from mosemo.database import get_session
 from mosemo.devices.repository import DeviceRepository
 from mosemo.devices.service import DeviceService
 from mosemo.exceptions import ApiException, ErrorCode
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import Config, get_config
+from mosemo.infra.database import get_session
+from mosemo.shared.application.clock import Clock
 
 
 def get_http_client(request: Request) -> httpx2.AsyncClient:

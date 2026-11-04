@@ -4,9 +4,9 @@ from unittest.mock import Mock
 import pytest
 from apscheduler.triggers.interval import IntervalTrigger
 
-from mosemo.batch_jobs.job import BatchJob
-from mosemo.batch_jobs.registry import build_jobs, ensure_unique_names
-from mosemo.config import Config
+from mosemo.batch.registry import build_jobs, ensure_unique_names
+from mosemo.infra.config import Config
+from mosemo.infra.scheduling import BatchJob
 
 
 async def noop() -> None:

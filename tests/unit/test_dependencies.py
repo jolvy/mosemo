@@ -6,9 +6,9 @@ import httpx2
 import pytest
 
 from mosemo.accounts.models import AccountProvider
+from mosemo.api.dependencies import get_oauth_client
 from mosemo.auth.kakao_client import KakaoClient
-from mosemo.config import Config
-from mosemo.dependencies import get_oauth_client
+from mosemo.infra.config import Config
 
 
 class OtherProvider(StrEnum):
@@ -32,7 +32,7 @@ def test_get_oauth_client_asserts_account_provider_before_creating_client(
     provider: object,
 ) -> None:
     kakao_client = Mock()
-    monkeypatch.setattr("mosemo.dependencies.KakaoClient", kakao_client)
+    monkeypatch.setattr("mosemo.api.dependencies.KakaoClient", kakao_client)
 
     with pytest.raises(AssertionError):
         get_oauth_client(

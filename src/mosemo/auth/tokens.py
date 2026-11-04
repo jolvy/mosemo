@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 import jwt
 from jwt import InvalidTokenError
 
-from mosemo.config import AuthConfig
+from mosemo.infra.config import AuthConfig
 
 JWT_ALGORITHM = "HS256"
 REQUIRED_ACCESS_TOKEN_CLAIMS = [

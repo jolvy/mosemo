@@ -12,7 +12,7 @@ from mosemo.auth.kakao_client import (
     KakaoClient,
     KakaoClientError,
 )
-from mosemo.config import Config
+from mosemo.infra.config import Config
 
 
 def test_get_user_id_exchanges_code_and_fetches_user(config: Config) -> None:

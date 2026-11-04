@@ -37,14 +37,15 @@ from mosemo.activity_labels.proposals.suggestions import (
     SuggestionResult,
 )
 from mosemo.activity_labels.schemas import SEGMENT_VERSION_PATTERN
-from mosemo.api import v1_api_router
+from mosemo.api.dependencies import get_clock
+from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.api.routes import v1_api_router
 from mosemo.auth.tokens import TokenService
-from mosemo.clock import Clock, utc_now
-from mosemo.config import Config, get_config
-from mosemo.database import get_session
-from mosemo.dependencies import get_clock
 from mosemo.devices.models import Device
-from mosemo.exception_handlers import register_exception_handlers
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import Config, get_config
+from mosemo.infra.database import get_session
+from mosemo.shared.application.clock import Clock
 from tests.batch_support import batch_client, post_activity, receipt_for
 from tests.clock_support import FakeClock
 

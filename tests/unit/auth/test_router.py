@@ -25,8 +25,8 @@ from mosemo.auth.service import (
     InvalidAuthorizationCodeError,
     OAuthAuthenticationError,
 )
-from mosemo.config import Config
 from mosemo.exceptions import ApiException
+from mosemo.infra.config import Config
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)

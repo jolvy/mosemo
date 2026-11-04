@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from mosemo.accounts.schemas import AccountResponse
 from mosemo.accounts.service import AccountNotFoundError
-from mosemo.dependencies import AccountServiceDep, AuthenticatedAccountDep
+from mosemo.api.dependencies import AccountServiceDep, AuthenticatedAccountDep
 from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.openapi import api_error_responses
 

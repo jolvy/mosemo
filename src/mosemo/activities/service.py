@@ -18,11 +18,11 @@ from mosemo.activities.schemas import (
     TimelineSegmentResponse,
 )
 from mosemo.activities.timeline import project_events
-from mosemo.clock import Clock
 from mosemo.devices.repository import DeviceRepository
 from mosemo.focus_sessions.models import FocusSessionNotFoundError
 from mosemo.focus_sessions.repository import FocusSessionRepository
-from mosemo.timezones import Timezone
+from mosemo.shared.application.clock import Clock
+from mosemo.shared.domain.timezones import Timezone
 
 
 class ActivityDeviceNotFoundError(Exception):

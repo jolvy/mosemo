@@ -1,15 +1,29 @@
-from enum import StrEnum
-
+from sqlalchemy import MetaData
 from sqlalchemy.engine import Dialect
+from sqlalchemy.orm import DeclarativeBase, registry
 from sqlalchemy.types import String, TypeDecorator, TypeEngine
 
+from mosemo.shared.domain.timezones import Timezone
 
-class Timezone(StrEnum):
-    """IANA timezones accepted by the public API."""
+POSTGRES_NAMING_CONVENTION = {
+    "ix": "%(column_0_label)s_idx",
+    "uq": "%(table_name)s_%(column_0_N_name)s_key",
+    "ck": "%(table_name)s_%(constraint_name)s_check",
+    "fk": "%(table_name)s_%(column_0_N_name)s_fkey",
+    "pk": "%(table_name)s_pkey",
+}
 
-    ASIA_SEOUL = "Asia/Seoul"
-    AMERICA_NEW_YORK = "America/New_York"
-    UTC = "UTC"
+ORM_METADATA = MetaData(
+    naming_convention=POSTGRES_NAMING_CONVENTION,
+)
+
+# Imperative mappings of moved bounded contexts and the declarative models that
+# have not moved yet share one MetaData, so foreign keys between them resolve.
+mapper_registry = registry(metadata=ORM_METADATA)
+
+
+class Base(DeclarativeBase):
+    metadata = ORM_METADATA
 
 
 class TimezoneStorage(TypeDecorator[Timezone]):

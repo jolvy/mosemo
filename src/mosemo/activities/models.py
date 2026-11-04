@@ -18,8 +18,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from mosemo.activities.constants import MAX_OBSERVATION_GAP
 from mosemo.activities.enums import ActivityTimelineKind, RecordType, SegmentType
-from mosemo.database import Base
-from mosemo.timezones import Timezone, TimezoneStorage
+from mosemo.infra.persistence import Base, TimezoneStorage
+from mosemo.shared.domain.timezones import Timezone
 
 
 class ActivityRecord(Base):

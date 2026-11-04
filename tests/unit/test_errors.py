@@ -4,7 +4,7 @@ from typing import Any, cast
 import pytest
 
 from mosemo.exceptions import ApiException, ErrorCode, ErrorSpec
-from mosemo.schemas import ValidationDetail
+from mosemo.shared.presentation.schemas import ValidationDetail
 
 
 def test_public_error_registry_contains_the_public_specs() -> None:

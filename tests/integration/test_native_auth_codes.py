@@ -25,8 +25,9 @@ from mosemo.auth.service import (
     NativeAuthCodeService,
 )
 from mosemo.auth.tokens import TokenService
-from mosemo.clock import Clock, utc_now
-from mosemo.config import Config
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import Config
+from mosemo.shared.application.clock import Clock
 from tests.clock_support import FakeClock
 
 CODE_VERIFIER = "A" * 43

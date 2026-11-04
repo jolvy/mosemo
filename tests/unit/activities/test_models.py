@@ -6,7 +6,7 @@ import pytest
 from mosemo.activities.constants import MAX_OBSERVATION_GAP
 from mosemo.activities.enums import ActivityTimelineKind, RecordType, SegmentType
 from mosemo.activities.models import ActivityRecord, ActivityTimelineSegment
-from mosemo.timezones import Timezone
+from mosemo.shared.domain.timezones import Timezone
 
 
 def activity_segment(

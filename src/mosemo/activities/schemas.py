@@ -11,14 +11,14 @@ from pydantic import (
 )
 
 from mosemo.activities.enums import CollectionState, RecordType, SegmentType
-from mosemo.schemas import (
+from mosemo.shared.domain.timezones import Timezone
+from mosemo.shared.presentation.schemas import (
     OBSERVATION_TIMESTAMP_PATTERN,
     ApiRequestModel,
     ApiResponseModel,
     ObservationTimestamp,
     PublicTimestamp,
 )
-from mosemo.timezones import Timezone
 
 
 class ActivityRequestModel(ApiRequestModel):

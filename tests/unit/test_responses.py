@@ -6,8 +6,8 @@ from pydantic import ValidationError
 
 from mosemo.exceptions import ErrorCode
 from mosemo.openapi import ERROR_DOCS, api_error_responses
-from mosemo.responses import error_response
-from mosemo.schemas import ErrorResponse, ValidationDetail
+from mosemo.shared.presentation.responses import error_response
+from mosemo.shared.presentation.schemas import ErrorResponse, ValidationDetail
 
 
 def test_error_response_uses_one_spec_for_http_and_body_code() -> None:

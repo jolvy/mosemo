@@ -15,9 +15,9 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
                  "PLR0913"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/mosemo/clock.py" = ["TID251"]
+"src/mosemo/infra/clock.py" = ["TID251"]
 "migrations/env.py" = ["F401"]
-"src/mosemo/middleware.py" = ["PLR0917"]
+"src/mosemo/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]
@@ -32,12 +32,12 @@ max-positional-args = 2
 extend-ignore-names = ["*Exception"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
-"time.time".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
-"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.infra.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
+"time.time".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
 
 [tool.ruff.format]
 indent-style = "space"
@@ -179,7 +179,7 @@ def test_ruff_config_allows_exact_config(
             '"scripts/**" = ["PLR2004"]', '"scripts/**" = ["PLR2004", "N"]'
         ),
         ALLOWED_PYPROJECT.replace('["TID251"]', '["TID251", "DTZ005"]'),
-        ALLOWED_PYPROJECT.replace("src/mosemo/clock.py", "src/mosemo/other.py"),
+        ALLOWED_PYPROJECT.replace("src/mosemo/infra/clock.py", "src/mosemo/other.py"),
         ALLOWED_PYPROJECT.replace('"S110", ', ""),
         ALLOWED_PYPROJECT.replace('"PT",\n', '"PT", "E501",\n'),
         ALLOWED_PYPROJECT.replace(',\n                 "PLR0913"]', "]"),
@@ -573,10 +573,10 @@ def test_validate_keeps_session_rule_for_nested_transaction_in_service(
 
 
 ALLOWED_BROAD_EXCEPTS = {
-    "src/mosemo/activities/consumer.py": (
+    "src/mosemo/consumer/__main__.py": (
         "def main():\n    try:\n        run()\n    except Exception:\n        exit(1)\n"
     ),
-    "src/mosemo/batch_jobs/__main__.py": (
+    "src/mosemo/batch/__main__.py": (
         "def main():\n"
         "    try:\n"
         "        run()\n"
@@ -603,7 +603,7 @@ ALLOWED_BROAD_EXCEPTS = {
         "        except Exception:\n"
         "            record()\n"
     ),
-    "src/mosemo/batch_jobs/job.py": (
+    "src/mosemo/infra/scheduling.py": (
         "async def execute_job():\n    try:\n        pass\n    except Exception:\n"
         "        log()\n"
     ),
@@ -660,10 +660,10 @@ def test_broad_excepts_reject_count_over_limit(
         "    try:\n        pass\n    except Exception:\n        log()\n"
         "    try:\n        pass\n    except Exception:\n        log()\n"
     )
-    trees = broad_except_trees(**{"src/mosemo/batch_jobs/job.py": source})
+    trees = broad_except_trees(**{"src/mosemo/infra/scheduling.py": source})
     errors = conventions_validator.check_broad_excepts(trees)
     assert len(errors) == 1
-    assert errors[0].startswith("src/mosemo/batch_jobs/job.py:8: CS-P18")
+    assert errors[0].startswith("src/mosemo/infra/scheduling.py:8: CS-P18")
 
 
 def test_broad_excepts_use_enclosing_class_and_function_names(
@@ -805,8 +805,8 @@ def test_validate_scopes_exception_rules(
     files = {
         "src/mosemo/exceptions.py": EXCEPTIONS_SOURCE,
         "src/mosemo/x/router.py": usage,
-        "src/mosemo/dependencies.py": usage,
-        "src/mosemo/exception_handlers.py": usage,
+        "src/mosemo/api/dependencies.py": usage,
+        "src/mosemo/api/exception_handlers.py": usage,
         "src/mosemo/x/service.py": "from mosemo.exceptions import GoneException\n",
         "tests/test_x.py": usage + "class FakeException(Exception):\n    pass\n",
     }
@@ -830,7 +830,7 @@ def test_validate_scopes_exception_rules(
         ),
         '@dataclass(slots=True)\nclass Deps:\n    repository: "ActivityRepository"\n',
         "class Deps(NamedTuple):\n    clock: Clock\n",
-        "class Deps(typing.NamedTuple):\n    clock: mosemo.clock.Clock\n",
+        "class Deps(typing.NamedTuple):\n    clock: mosemo.shared.application.clock.Clock\n",
         "@dataclass\nclass Deps:\n    services: list[LabelService]\n",
         "@dataclass\nclass Deps:\n    factory: async_sessionmaker[AsyncSession]\n",
         "@dataclass\nclass Deps:\n    session: Optional[Session] = None\n",
@@ -908,9 +908,10 @@ def test_other_imports_are_allowed_in_repository(
         "from mosemo.x.repository import ARepository\n",
         "from .device_repository import DeviceRepository\n",
         "from mosemo.x import repository\n",
-        "from mosemo.database import get_session\n",
-        "from mosemo import clock\n",
-        "from mosemo.clock import Clock\n",
+        "from mosemo.infra.database import get_session\n",
+        "from mosemo.infra.persistence import Base\n",
+        "from mosemo.infra import clock\n",
+        "from mosemo.shared.application.clock import Clock\n",
     ],
 )
 def test_impure_mappers_are_rejected(
@@ -1085,7 +1086,7 @@ def test_validate_scopes_role_rules(
         ),
         (
             "src/mosemo/x/router.py",
-            "from mosemo.exception_handlers import StarletteHTTPException\n",
+            "from mosemo.api.exception_handlers import StarletteHTTPException\n",
             1,
         ),
         ("src/mosemo/x/repository.py", "from fastapi import HTTPException\n", 1),
@@ -1111,7 +1112,7 @@ def test_http_exception_usage_is_allowed_in_handlers_and_outside_src(
 ) -> None:
     usage = "from fastapi import HTTPException\n"
     files = {
-        "src/mosemo/exception_handlers.py": usage,
+        "src/mosemo/api/exception_handlers.py": usage,
         "tests/x.py": usage,
         "src/mosemo/x/router.py": "import fastapi\nfrom fastapi import Depends\n",
     }

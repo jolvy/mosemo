@@ -3,7 +3,7 @@ from uuid import UUID, uuid7
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mosemo.database import Base
+from mosemo.infra.persistence import Base
 
 
 class Device(Base):

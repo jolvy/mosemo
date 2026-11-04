@@ -6,6 +6,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+# Coexistence period (ADR 0011): import the models that have not moved yet and,
+# once a bounded context moves, call the mapping function of its bootstrap.py.
 from mosemo.accounts import models as accounts_models
 from mosemo.activities import models as activities_models
 from mosemo.activity_labels.catalog import models as label_catalog_models
@@ -16,10 +18,10 @@ from mosemo.activity_labels.proposals import (
     models as label_proposal_models,
 )
 from mosemo.auth import models as auth_models
-from mosemo.config import get_config
-from mosemo.database import Base
 from mosemo.devices import models as devices_models
 from mosemo.focus_sessions import models as focus_session_models
+from mosemo.infra.config import get_config
+from mosemo.infra.persistence import ORM_METADATA
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -37,7 +39,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = Base.metadata
+target_metadata = ORM_METADATA
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

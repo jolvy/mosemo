@@ -41,7 +41,7 @@ def openapi_document(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         if name not in os.environ:
             monkeypatch.setenv(name, value)
 
-    from mosemo.main import app
+    from mosemo.api.main import app
 
     return app.openapi()
 

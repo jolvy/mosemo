@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from starlette.types import Message, Receive, Scope, Send
 
-from mosemo.middleware import (
+from mosemo.api.middleware import (
     BatchBodyLimitMiddleware,
     RedactSensitiveQueryStringMiddleware,
 )

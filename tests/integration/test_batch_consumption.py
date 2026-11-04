@@ -14,9 +14,9 @@ from mosemo.activities.executor import BatchProcessingExecutor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
 from mosemo.activities.schemas import ActivityBatchRequest
-from mosemo.clock import utc_now
 from mosemo.devices.models import Device
 from mosemo.infra.batch_consumer import ActivityBatchConsumer
+from mosemo.infra.clock import utc_now
 from mosemo.infra.kafka_compat import BatchPartition
 from tests.clock_support import FakeClock
 from tests.integration.test_activity_batches import batch, record
@@ -340,7 +340,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                     sys.executable,
                     "-m",
                     "uvicorn",
-                    "mosemo.main:app",
+                    "mosemo.api.main:app",
                     "--host",
                     "127.0.0.1",
                     "--port",
@@ -427,7 +427,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 replay = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "-m",
-                    "mosemo.activities.consumer",
+                    "mosemo.consumer",
                     env=env,
                     stdout=output,
                     stderr=output,

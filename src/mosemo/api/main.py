@@ -6,13 +6,13 @@ from typing import Any, TypedDict, cast
 import httpx2
 from fastapi import FastAPI
 
-from mosemo.api import v1_api_router
-from mosemo.config import get_config
-from mosemo.database import engine
-from mosemo.exception_handlers import register_exception_handlers
+from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.api.middleware import RedactSensitiveQueryStringMiddleware
+from mosemo.api.routes import v1_api_router
 from mosemo.infra.batch_runtime import compose_messaging_app
-from mosemo.logging import configure_logging
-from mosemo.middleware import RedactSensitiveQueryStringMiddleware
+from mosemo.infra.config import get_config
+from mosemo.infra.database import engine
+from mosemo.infra.logging import configure_logging
 from mosemo.openapi import public_openapi
 
 API_DESCRIPTION = """

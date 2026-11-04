@@ -12,13 +12,13 @@ from faststream.kafka import KafkaBroker
 from mosemo.activities.executor import BatchProcessingExecutor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.schemas import ActivityBatchRequest
-from mosemo.clock import utc_now
 from mosemo.infra.batch_consumer import (
     ActivityBatchConsumer,
     InvalidBatchMessageError,
     decode_batch,
 )
 from mosemo.infra.batch_runtime import MessagingRuntime
+from mosemo.infra.clock import utc_now
 from mosemo.infra.kafka_compat import BatchPartition
 from tests.clock_support import FakeClock
 from tests.component.test_activities_api import activity_request
@@ -383,7 +383,7 @@ def test_cli_initialization_errors_never_expose_credentials():
         AUTH_JWT_SECRET_KEY="private-jwt-marker",
     )
     result = subprocess.run(
-        [sys.executable, "-m", "mosemo.activities.consumer"],
+        [sys.executable, "-m", "mosemo.consumer"],
         env=env,
         capture_output=True,
         text=True,

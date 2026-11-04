@@ -20,9 +20,9 @@ from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.activities.timeline import ProjectedActivity, project_events
 from mosemo.auth.tokens import TokenService
-from mosemo.clock import utc_now
-from mosemo.config import Config
 from mosemo.devices.models import Device
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import Config
 from tests.clock_support import FakeClock
 
 
@@ -58,8 +58,8 @@ async def real_batch_app(
 ) -> AsyncIterator:
     # Exercise the direct-processing route against isolated PostgreSQL. Kafka
     # publication is tested independently; Consumer execution belongs to #65.
-    from mosemo import database
-    from mosemo.main import create_app
+    from mosemo.api.main import create_app
+    from mosemo.infra import database
 
     app = create_app()
     app.state.batch_runtime.config = app.state.batch_runtime.config.model_copy(
@@ -78,8 +78,8 @@ async def real_batch_app(
     monkeypatch.setattr(database, "SessionFactory", factory)
     # Main token config is the explicit non-secret test environment, overridden
     # with the fixture config for matching signing claims.
-    from mosemo.config import get_config
-    from mosemo.dependencies import get_clock
+    from mosemo.api.dependencies import get_clock
+    from mosemo.infra.config import get_config
 
     app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_clock] = lambda: fake_clock
@@ -344,8 +344,8 @@ async def test_regressing_clock_rolls_back_batch(real_batch_app):
 async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
     real_batch_app, config, monkeypatch
 ):
-    from mosemo.config import get_config
-    from mosemo.main import create_app
+    from mosemo.api.main import create_app
+    from mosemo.infra.config import get_config
 
     _app, client, factory, accounts, devices, headers, _ = real_batch_app
     second = create_app()
@@ -556,7 +556,7 @@ async def test_first_receipt_detects_legacy_clock_regression_without_rewriting_r
     real_batch_app,
 ):
     from mosemo.activities.enums import RecordType
-    from mosemo.timezones import Timezone
+    from mosemo.shared.domain.timezones import Timezone
 
     _app, client, factory, _, devices, headers, _ = real_batch_app
     async with factory() as session:

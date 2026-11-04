@@ -10,7 +10,7 @@ from mosemo.activities.batch_processing import ActivityBatchProcessor
 from mosemo.activities.messages import ActivityRegistrationRequested
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.schemas import ActivityBatchRequest
-from mosemo.clock import Clock
+from mosemo.shared.application.clock import Clock
 
 
 class BatchProcessingExecutor:

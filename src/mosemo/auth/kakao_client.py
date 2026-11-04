@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 import httpx2
 
 from mosemo.auth.oauth_client import OAuthClientError
-from mosemo.config import KakaoConfig
+from mosemo.infra.config import KakaoConfig
 
 KAKAO_AUTHORIZE_URL = "https://kauth.kakao.com/oauth/authorize"
 KAKAO_TOKEN_URL = "https://kauth.kakao.com/oauth/token"

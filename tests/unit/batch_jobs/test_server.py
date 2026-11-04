@@ -6,9 +6,8 @@ import pytest
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from mosemo.batch_jobs.job import BatchJob, Schedule
-from mosemo.batch_jobs.server import build_scheduler, serve
-from mosemo.clock import utc_now
+from mosemo.infra.clock import utc_now
+from mosemo.infra.scheduling import BatchJob, Schedule, build_scheduler, serve
 
 
 async def noop() -> None:
@@ -62,7 +61,7 @@ async def test_stop_cancels_running_job_and_waits_for_cleanup(
             cleaned_up.set()
 
     trigger = IntervalTrigger(minutes=5, timezone=UTC)
-    caplog.set_level(logging.INFO, logger="mosemo.batch_jobs")
+    caplog.set_level(logging.INFO, logger="mosemo.infra.scheduling")
     server = asyncio.create_task(
         serve(
             [BatchJob("hold", hold, Schedule(trigger, run_on_start=True))],
@@ -81,7 +80,7 @@ async def test_stop_cancels_running_job_and_waits_for_cleanup(
     outcomes = [
         (vars(record)["operation"], vars(record)["outcome"])
         for record in caplog.records
-        if record.name == "mosemo.batch_jobs.job"
+        if record.name == "mosemo.infra.scheduling" and hasattr(record, "outcome")
     ]
     assert outcomes == [("hold", "cancelled")]
     assert not [

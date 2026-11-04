@@ -6,7 +6,9 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from alembic import command
+from alembic.autogenerate import compare_metadata
 from alembic.config import Config
+from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -14,6 +16,11 @@ from sqlalchemy.ext.asyncio import create_async_engine
 LABEL_REVISION = "e5f6a7b8c9d0"
 PROPOSAL_REVISION = "a7b8c9d0e1f2"
 PREVIOUS_REVISION = "d4e6f7a8b9c0"
+# Drift that already existed at c9d0e1f2a3b4; any other difference fails.
+ALLOWED_METADATA_DRIFT = [
+    ("modify_type", "activity_records", "timezone_id"),
+    ("remove_constraint", "accounts_account_provider_check"),
+]
 LABEL_MIGRATION_PATH = (
     Path(__file__).parents[2]
     / "migrations/versions/2026-09-21_0000_e5f6a7b8c9d0_create_label_catalog.py"
@@ -493,3 +500,60 @@ def test_focus_session_migration_preserves_segments_without_session_foreign_key(
             await engine.dispose()
 
     assert "focus_session_id" not in asyncio.run(segment_columns())
+
+
+def _drift_key(operation: tuple[Any, ...]) -> tuple[str, ...]:
+    if operation[0].startswith("modify_"):
+        return (operation[0], operation[2], operation[3])
+    return (operation[0], str(getattr(operation[1], "name", operation[1])))
+
+
+async def metadata_drift(database_url: str) -> list[tuple[str, ...]]:
+    # Same model modules as migrations/env.py during the coexistence period.
+    from mosemo.accounts import models as accounts_models
+    from mosemo.activities import models as activities_models
+    from mosemo.activity_labels.catalog import models as label_catalog_models
+    from mosemo.activity_labels.confirmations import (
+        models as label_confirmations_models,
+    )
+    from mosemo.activity_labels.proposals import models as label_proposal_models
+    from mosemo.auth import models as auth_models
+    from mosemo.devices import models as devices_models
+    from mosemo.focus_sessions import models as focus_session_models
+    from mosemo.infra.persistence import ORM_METADATA
+
+    assert {
+        accounts_models.Account.__table__,
+        activities_models.ActivityRecord.__table__,
+        label_catalog_models.Label.__table__,
+        label_confirmations_models.ActivityLabelConfirmation.__table__,
+        label_proposal_models.ActivityLabelProposal.__table__,
+        auth_models.NativeAuthCode.__table__,
+        devices_models.Device.__table__,
+        focus_session_models.FocusSession.__table__,
+    } <= set(ORM_METADATA.tables.values())
+
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            diffs = await connection.run_sync(
+                lambda sync: compare_metadata(
+                    MigrationContext.configure(sync), ORM_METADATA
+                )
+            )
+    finally:
+        await engine.dispose()
+    operations = [
+        operation
+        for diff in diffs
+        for operation in (diff if isinstance(diff, list) else [diff])
+    ]
+    return sorted(_drift_key(operation) for operation in operations)
+
+
+def test_head_schema_matches_shared_metadata_except_known_drift(
+    integration_database_url: str,
+) -> None:
+    drift = asyncio.run(metadata_drift(integration_database_url))
+
+    assert drift == ALLOWED_METADATA_DRIFT

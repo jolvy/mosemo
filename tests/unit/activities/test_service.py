@@ -17,10 +17,10 @@ from mosemo.activities.service import (
     ActivitySequenceConflictError,
     ActivityService,
 )
-from mosemo.clock import utc_now
 from mosemo.devices.models import Device
 from mosemo.devices.repository import DeviceRepository
-from mosemo.timezones import Timezone
+from mosemo.infra.clock import utc_now
+from mosemo.shared.domain.timezones import Timezone
 from tests.clock_support import FakeClock
 
 activity_record_adapter = TypeAdapter(ActivityRecord)

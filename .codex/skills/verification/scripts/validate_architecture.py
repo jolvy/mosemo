@@ -75,7 +75,7 @@ def check_source(source: str, module: str) -> list[str]:
             or (target.startswith("mosemo.") and "router" in target.split("."))
         ):
             errors.append(f"{line}: {target}: 모델·저장소에서 HTTP 계층 참조 금지")
-        if module in {"mosemo.exceptions", "mosemo.responses"} and (
+        if module in {"mosemo.exceptions", "mosemo.shared.presentation.responses"} and (
             target == "mosemo.openapi" or target.startswith("mosemo.openapi.")
         ):
             errors.append(f"{line}: {target}: ADR 0001 런타임 → OpenAPI 의존 금지")
@@ -93,8 +93,8 @@ def validate(root: Path = ROOT) -> list[str]:
             )
         except (SyntaxError, ImportError, ValueError) as error:
             errors.append(f"{path.relative_to(root)}: import 분석 실패: {error}")
-    if not (root / "src" / "mosemo" / "main.py").is_file():
-        errors.append("애플리케이션 진입점 없음: src/mosemo/main.py")
+    if not (root / "src" / "mosemo" / "api" / "main.py").is_file():
+        errors.append("애플리케이션 진입점 없음: src/mosemo/api/main.py")
     return errors
 
 

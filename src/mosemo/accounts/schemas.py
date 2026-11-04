@@ -3,8 +3,8 @@ from uuid import UUID
 from pydantic import ConfigDict, Field
 
 from mosemo.accounts.models import AccountProvider
-from mosemo.schemas import ApiResponseModel, PublicTimestamp
-from mosemo.timezones import Timezone
+from mosemo.shared.domain.timezones import Timezone
+from mosemo.shared.presentation.schemas import ApiResponseModel, PublicTimestamp
 
 
 class AccountResponse(ApiResponseModel):

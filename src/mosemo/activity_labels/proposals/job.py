@@ -1,8 +1,7 @@
 """Label proposal batch job."""
 
-from datetime import UTC
+from datetime import timedelta
 
-from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mosemo.activity_labels.proposals.processing import (
@@ -10,8 +9,8 @@ from mosemo.activity_labels.proposals.processing import (
     ProposalScanner,
 )
 from mosemo.activity_labels.proposals.suggestions import PydanticAILabelSuggester
-from mosemo.batch_jobs.job import BatchJob, Schedule
-from mosemo.clock import utc_now
+from mosemo.infra.clock import utc_now
+from mosemo.infra.scheduling import BatchJob, every
 
 LABEL_PROPOSAL_JOB_NAME = "label-proposals"
 LABEL_PROPOSAL_INTERVAL_MINUTES = 5
@@ -33,8 +32,5 @@ def build_label_proposal_job(
     return BatchJob(
         LABEL_PROPOSAL_JOB_NAME,
         run,
-        Schedule(
-            IntervalTrigger(minutes=LABEL_PROPOSAL_INTERVAL_MINUTES, timezone=UTC),
-            run_on_start=True,
-        ),
+        every(timedelta(minutes=LABEL_PROPOSAL_INTERVAL_MINUTES), run_on_start=True),
     )

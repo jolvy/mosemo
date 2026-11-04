@@ -9,14 +9,14 @@ from fastapi.testclient import TestClient
 from mosemo.activities.enums import SegmentType
 from mosemo.activities.schemas import ActivitySegmentResponse, CaptureGapResponse
 from mosemo.activities.service import ActivityService
-from mosemo.api import v1_api_router
+from mosemo.api.dependencies import get_activity_service, get_device_repository
+from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.api.middleware import BatchBodyLimitMiddleware
+from mosemo.api.routes import v1_api_router
 from mosemo.auth.tokens import TokenService
-from mosemo.clock import utc_now
-from mosemo.config import Config, get_config
-from mosemo.dependencies import get_activity_service, get_device_repository
-from mosemo.exception_handlers import register_exception_handlers
 from mosemo.infra.batch_delivery import DeliveryUnavailableError
-from mosemo.middleware import BatchBodyLimitMiddleware
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import Config, get_config
 
 
 def activity_request():

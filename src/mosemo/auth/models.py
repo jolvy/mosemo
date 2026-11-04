@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mosemo.database import Base
+from mosemo.infra.persistence import Base
 
 
 class NativeAuthCode(Base):

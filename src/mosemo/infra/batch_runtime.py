@@ -9,11 +9,11 @@ from faststream.kafka import KafkaBroker
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mosemo.activities.executor import BatchProcessingExecutor
-from mosemo.clock import utc_now
-from mosemo.config import BatchDeliveryConfig
+from mosemo.api.middleware import BatchBodyLimitMiddleware
 from mosemo.infra.batch_consumer import ActivityBatchConsumer
 from mosemo.infra.batch_delivery import ActivityBatchPublisher
-from mosemo.middleware import BatchBodyLimitMiddleware
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import BatchDeliveryConfig
 
 
 class MessagingRuntime:

@@ -1,4 +1,4 @@
-"""Batch job process: python -m mosemo.batch_jobs {serve | run JOB_NAME}."""
+"""Batch job process: python -m mosemo.batch {serve | run JOB_NAME}."""
 
 import argparse
 import asyncio
@@ -8,7 +8,7 @@ import sys
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="python -m mosemo.batch_jobs", description="Run batch jobs"
+        prog="python -m mosemo.batch", description="Run batch jobs"
     )
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("serve", help="Run scheduled jobs until stopped")
@@ -18,17 +18,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 async def run(args: argparse.Namespace) -> int:
-    from mosemo.logging import configure_logging
+    from mosemo.infra.logging import configure_logging
 
     configure_logging()
     # Configuration and engine initialization must also stay inside main's
     # protected boundary: validation errors can contain credential input values.
-    from mosemo.batch_jobs.job import run_job_once
-    from mosemo.batch_jobs.registry import build_jobs
-    from mosemo.batch_jobs.server import serve
-    from mosemo.clock import utc_now
-    from mosemo.config import get_config
-    from mosemo.database import SessionFactory, engine
+    from mosemo.batch.registry import build_jobs
+    from mosemo.infra.clock import utc_now
+    from mosemo.infra.config import get_config
+    from mosemo.infra.database import SessionFactory, engine
+    from mosemo.infra.scheduling import run_job_once, serve
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

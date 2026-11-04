@@ -4,7 +4,8 @@ import pytest
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.types import String
 
-from mosemo.timezones import Timezone, TimezoneStorage
+from mosemo.infra.persistence import TimezoneStorage
+from mosemo.shared.domain.timezones import Timezone
 
 
 def test_timezone_storage_binds_members_and_null() -> None:

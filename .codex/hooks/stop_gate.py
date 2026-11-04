@@ -61,6 +61,8 @@ PYTEST = (
     "tests/unit",
 )
 COMPONENT_TESTS = "tests/component"
+# Packages every API module depends on; a change selects all component tests.
+SHARED_PACKAGES = {"shared", "infra", "api", "consumer", "batch"}
 LOCATION = re.compile(r"(\S+?):\d+(?::\d+)?")
 PYTEST_PROBLEM = re.compile(r"^(?:FAILED|ERROR) (\S+)")
 
@@ -166,7 +168,7 @@ def component_tests(paths: list[str], root: Path) -> list[str]:
     for path in paths:
         parts = PurePosixPath(path).parts
         if parts[:2] == ("src", "mosemo"):
-            if len(parts) == 3 or parts[2] == "infra":
+            if len(parts) == 3 or parts[2] in SHARED_PACKAGES:
                 return [COMPONENT_TESTS]
             selected.add(f"{COMPONENT_TESTS}/test_{parts[2]}_api.py")
         elif parts[0] == "tests" and len(parts) == 2:

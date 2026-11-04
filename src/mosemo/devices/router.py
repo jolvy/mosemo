@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, status
 
-from mosemo.dependencies import AuthenticatedAccountDep, DeviceServiceDep
+from mosemo.api.dependencies import AuthenticatedAccountDep, DeviceServiceDep
 from mosemo.devices.schemas import DeviceCreateResponse
 from mosemo.exceptions import ErrorCode
 from mosemo.openapi import api_error_responses

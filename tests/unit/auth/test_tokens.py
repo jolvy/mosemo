@@ -5,8 +5,8 @@ import jwt
 import pytest
 
 from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
-from mosemo.clock import utc_now
-from mosemo.config import Config
+from mosemo.infra.clock import utc_now
+from mosemo.infra.config import Config
 
 
 def test_issue_and_decode_access_token(config: Config) -> None:
