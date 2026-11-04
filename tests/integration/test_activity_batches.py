@@ -76,7 +76,7 @@ async def real_batch_app(
             await super().close()
 
     factory = async_sessionmaker(engine, class_=ObservedSession, expire_on_commit=False)
-    monkeypatch.setattr(database, "SessionFactory", factory)
+    monkeypatch.setattr(database, "get_session_factory", lambda: factory)
     # Main token config is the explicit non-secret test environment, overridden
     # with the fixture config for matching signing claims.
     from mosemo.api.dependencies import get_clock

@@ -13,7 +13,7 @@ from mosemo.api.openapi import public_openapi
 from mosemo.api.routes import v1_api_router
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.infra.config import get_config
-from mosemo.infra.database import engine
+from mosemo.infra.database import get_engine
 from mosemo.infra.logging import configure_logging
 from mosemo.shared.presentation.current_account import get_current_account
 
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[AppState]:
         async with httpx2.AsyncClient(timeout=timeout) as client:
             yield {"http_client": client}
     finally:
-        await engine.dispose()
+        await get_engine().dispose()
 
 
 configure_logging()

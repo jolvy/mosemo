@@ -26,16 +26,18 @@ async def run(args: argparse.Namespace) -> int:
     from mosemo.batch.registry import build_jobs
     from mosemo.infra.clock import utc_now
     from mosemo.infra.config import get_config
-    from mosemo.infra.database import SessionFactory, engine
+    from mosemo.infra.database import get_engine, get_session_factory
     from mosemo.infra.scheduling import run_job_once, serve
 
+    engine = get_engine()
+    session_factory = get_session_factory()
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     signals = (signal.SIGINT, signal.SIGTERM)
     for sig in signals:
         loop.add_signal_handler(sig, stop.set)
     try:
-        jobs = build_jobs(SessionFactory, get_config())
+        jobs = build_jobs(session_factory, get_config())
         if args.command == "serve":
             await serve(jobs, stop, clock=utc_now)
             return 0
