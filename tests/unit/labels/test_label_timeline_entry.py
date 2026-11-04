@@ -3,8 +3,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
-from mosemo.activity_labels.queries.service import LabelTimelineEntry
+from mosemo.labeling.application.timeline import LabelTimelineEntry
+from mosemo.labeling.domain.confirmations import ActivityLabelConfirmation
 from mosemo.observation.public import ActivityTimelineKind, ObservedSegment
 
 START = datetime(2026, 9, 14, tzinfo=UTC)

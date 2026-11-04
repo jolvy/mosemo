@@ -5,6 +5,7 @@ import pytest
 
 from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import IdentityErrorCode
+from mosemo.labeling.public import LabelingErrorCode
 from mosemo.labels.public import LabelErrorCode
 from mosemo.observation.public import ObservationErrorCode
 from mosemo.shared.errors import (
@@ -73,8 +74,8 @@ def test_observation_error_codes_keep_their_public_specs() -> None:
     ]
 
 
-def test_public_error_registry_contains_the_public_specs() -> None:
-    public_members = tuple(ErrorCode)
+def test_labeling_error_codes_keep_their_public_specs() -> None:
+    public_members = tuple(LabelingErrorCode)
     assert all(isinstance(member.value, ErrorSpec) for member in public_members)
     assert [
         (member.status, member.code, member.message) for member in public_members
@@ -125,7 +126,7 @@ def test_error_spec_is_immutable_and_contains_no_documentation_metadata() -> Non
 
 
 def test_error_code_members_have_distinct_error_specs() -> None:
-    members = (*CommonErrorCode, *ObservationErrorCode, *ErrorCode)
+    members = (*CommonErrorCode, *ObservationErrorCode, *LabelingErrorCode)
     first = ErrorSpec(code=400, message="same")
     second = ErrorSpec(code=400, message="same")
 

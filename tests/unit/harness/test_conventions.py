@@ -604,9 +604,9 @@ ALLOWED_BROAD_EXCEPTS = {
         "        except Exception:\n"
         "            return redirect()\n"
     ),
-    "src/mosemo/activity_labels/proposals/processing.py": (
-        "class ProposalProcessor:\n"
-        "    async def process_candidate(self):\n"
+    "src/mosemo/labeling/application/proposals.py": (
+        "class ProposeLabel:\n"
+        "    async def execute(self):\n"
         "        try:\n"
         "            pass\n"
         "        except Exception:\n"

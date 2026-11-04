@@ -83,8 +83,6 @@ forbidden_modules = [
     "mosemo.labels",
     "mosemo.observation",
     "mosemo.labeling",
-    # Feature packages that have not moved to a bounded context yet.
-    "mosemo.activity_labels",
     "mosemo.api",
     "mosemo.consumer",
     "mosemo.batch",
@@ -499,6 +497,131 @@ name = "identity and labels do not import observation (observation -> labels, id
 type = "forbidden"
 source_modules = ["mosemo.identity", "mosemo.labels"]
 forbidden_modules = ["mosemo.observation"]
+
+# labeling bounded context (ADR 0011 「강제 방법」).
+[[tool.importlinter.contracts]]
+name = "labeling layers: presentation > application > infrastructure > domain"
+type = "layers"
+containers = ["mosemo.labeling"]
+layers = ["presentation", "application", "infrastructure", "domain"]
+
+[[tool.importlinter.contracts]]
+name = "labeling presentation does not import its infrastructure directly"
+type = "forbidden"
+source_modules = ["mosemo.labeling.presentation"]
+forbidden_modules = ["mosemo.labeling.infrastructure"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "labeling layers are imported only by labeling"
+type = "protected"
+protected_modules = [
+    "mosemo.labeling.presentation",
+    "mosemo.labeling.application",
+    "mosemo.labeling.domain",
+    "mosemo.labeling.infrastructure",
+]
+allowed_importers = ["mosemo.labeling"]
+
+[[tool.importlinter.contracts]]
+name = "labeling bootstrap is imported only by assembly roots"
+type = "protected"
+protected_modules = ["mosemo.labeling.bootstrap"]
+allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
+
+[[tool.importlinter.contracts]]
+name = "labeling presentation imports only infra.providers from infra"
+type = "forbidden"
+source_modules = ["mosemo.labeling.presentation"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.persistence",
+    "mosemo.infra.scheduling",
+    "mosemo.infra.transactions",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "labeling application imports only infra.transactions from infra"
+type = "forbidden"
+source_modules = ["mosemo.labeling.application"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.persistence",
+    "mosemo.infra.providers",
+    "mosemo.infra.scheduling",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "labeling infrastructure imports only infra.persistence from infra"
+type = "forbidden"
+source_modules = ["mosemo.labeling.infrastructure"]
+forbidden_modules = [
+    "mosemo.infra.clock",
+    "mosemo.infra.config",
+    "mosemo.infra.database",
+    "mosemo.infra.kafka_compat",
+    "mosemo.infra.logging",
+    "mosemo.infra.messaging",
+    "mosemo.infra.providers",
+    "mosemo.infra.scheduling",
+    "mosemo.infra.transactions",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "labeling domain does not import infra"
+type = "forbidden"
+source_modules = ["mosemo.labeling.domain"]
+forbidden_modules = ["mosemo.infra"]
+
+[[tool.importlinter.contracts]]
+name = "labeling domain does not import sqlalchemy, fastapi or pydantic"
+type = "forbidden"
+source_modules = ["mosemo.labeling.domain"]
+forbidden_modules = ["sqlalchemy", "fastapi", "pydantic"]
+
+[[tool.importlinter.contracts]]
+name = "labeling application does not import fastapi directly"
+type = "forbidden"
+source_modules = ["mosemo.labeling.application"]
+forbidden_modules = ["fastapi"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "labeling domain imports only shared.domain from shared"
+type = "forbidden"
+source_modules = ["mosemo.labeling.domain"]
+forbidden_modules = ["mosemo.shared.application", "mosemo.shared.presentation"]
+
+# Direct imports only: identity.public, labels.public and observation.public
+# re-export presentation modules that reach shared.presentation.
+[[tool.importlinter.contracts]]
+name = "labeling application and infrastructure do not import shared.presentation"
+type = "forbidden"
+source_modules = [
+    "mosemo.labeling.application",
+    "mosemo.labeling.infrastructure",
+]
+forbidden_modules = ["mosemo.shared.presentation"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "identity, labels and observation do not import labeling (labeling -> observation, labels, identity)"
+type = "forbidden"
+source_modules = ["mosemo.identity", "mosemo.labels", "mosemo.observation"]
+forbidden_modules = ["mosemo.labeling"]
 
 [tool.ruff]
 line-length = 88

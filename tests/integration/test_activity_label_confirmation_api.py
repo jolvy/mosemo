@@ -14,25 +14,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
-from mosemo.activity_labels.proposals.models import (
-    ActivityLabelProposal,
-    ActivityLabelProposalStatus,
-)
-from mosemo.activity_labels.proposals.processing import (
-    NoProposalWorkError,
-    ProposalProcessor,
-    ProposalScanner,
-    RecentConfirmedExampleRetriever,
-)
-from mosemo.activity_labels.proposals.suggestions import (
-    ConfirmedExample,
-    LabelSuggester,
-    SuggestionInput,
-    SuggestionResult,
-)
-from mosemo.activity_labels.schemas import SEGMENT_VERSION_PATTERN
-from mosemo.api.dependencies import get_clock
+from mosemo.api.contexts import LABELING
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
 from mosemo.identity.bootstrap import get_token_current_account
@@ -42,6 +24,27 @@ from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.database import get_session
+from mosemo.labeling.application.ports import LabelSuggester
+from mosemo.labeling.application.proposals import (
+    NoProposalWorkError,
+    RecentConfirmedExampleRetriever,
+)
+from mosemo.labeling.bootstrap import LabelProposals
+from mosemo.labeling.domain.confirmations import ActivityLabelConfirmation
+from mosemo.labeling.domain.proposals import (
+    ActivityLabelProposal,
+    ActivityLabelProposalStatus,
+)
+from mosemo.labeling.domain.suggestions import (
+    ConfirmedExample,
+    SuggestionInput,
+    SuggestionResult,
+)
+from mosemo.labeling.infrastructure.tables import (
+    activity_label_confirmations,
+    activity_label_proposals,
+)
+from mosemo.labeling.presentation.schemas import SEGMENT_VERSION_PATTERN
 from mosemo.labels.bootstrap import create_label_catalog
 from mosemo.labels.domain.labels import Label, default_labels
 from mosemo.labels.infrastructure.labels import LabelRepository
@@ -51,10 +54,12 @@ from mosemo.observation.infrastructure.timeline_segments import (
     activity_timeline_lock_key,
 )
 from mosemo.shared.application.clock import Clock
+from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.batch_support import batch_client, post_activity, receipt_for
 from tests.clock_support import FakeClock
 from tests.identity_support import delete_accounts
+from tests.labeling_support import ProposalProcessor, ProposalScanner
 
 ARCHIVED_AT = datetime(2026, 9, 14, 2, tzinfo=UTC)
 
@@ -1799,8 +1804,8 @@ async def test_three_failed_attempts_leave_the_proposal_pending_for_review(
         async with session_factory() as session:
             proposal = await session.scalar(
                 select(ActivityLabelProposal).where(
-                    ActivityLabelProposal.account_id == account_id,
-                    ActivityLabelProposal.first_event_id == event_id,
+                    activity_label_proposals.c.account_id == account_id,
+                    activity_label_proposals.c.first_event_id == event_id,
                 )
             )
             assert proposal is not None
@@ -1809,9 +1814,9 @@ async def test_three_failed_attempts_leave_the_proposal_pending_for_review(
                 await session.scalar(
                     text(
                         "SELECT status FROM activity_label_proposals "
-                        "WHERE proposal_id = :proposal_id"
+                        "WHERE id = :proposal_id"
                     ),
-                    {"proposal_id": proposal.proposal_id},
+                    {"proposal_id": proposal.id},
                 )
                 == "failed"
             )
@@ -1867,8 +1872,8 @@ async def test_claim_without_work_raises_and_commits_expired_final_lease(
         async with session_factory() as session, session.begin():
             proposal = await session.scalar(
                 select(ActivityLabelProposal).where(
-                    ActivityLabelProposal.account_id == account_id,
-                    ActivityLabelProposal.first_event_id == event_id,
+                    activity_label_proposals.c.account_id == account_id,
+                    activity_label_proposals.c.first_event_id == event_id,
                 )
             )
             assert proposal is not None
@@ -1883,8 +1888,8 @@ async def test_claim_without_work_raises_and_commits_expired_final_lease(
         async with session_factory() as session:
             proposal = await session.scalar(
                 select(ActivityLabelProposal).where(
-                    ActivityLabelProposal.account_id == account_id,
-                    ActivityLabelProposal.first_event_id == event_id,
+                    activity_label_proposals.c.account_id == account_id,
+                    activity_label_proposals.c.first_event_id == event_id,
                 )
             )
             assert proposal is not None
@@ -2087,8 +2092,8 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
                 (
                     await session.scalars(
                         select(ActivityLabelProposal).where(
-                            ActivityLabelProposal.account_id == account_id,
-                            ActivityLabelProposal.first_event_id == records[0][0],
+                            activity_label_proposals.c.account_id == account_id,
+                            activity_label_proposals.c.first_event_id == records[0][0],
                         )
                     )
                 ).all()
@@ -2168,7 +2173,7 @@ async def test_scanner_sweep_processes_every_page_until_complete(
                 (
                     await session.scalars(
                         select(ActivityLabelProposal).where(
-                            ActivityLabelProposal.account_id == account_id
+                            activity_label_proposals.c.account_id == account_id
                         )
                     )
                 ).all()
@@ -2384,7 +2389,7 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
             confirmations = (
                 await session.scalars(
                     select(ActivityLabelConfirmation).where(
-                        ActivityLabelConfirmation.account_id == account_id
+                        activity_label_confirmations.c.account_id == account_id
                     )
                 )
             ).all()
@@ -2418,8 +2423,8 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
 
         actual = suggester.inputs[0].examples
         assert [example.confirmation_id for example in actual] == [
-            by_event_id[examples["unclassified"][0]].confirmation_id,
-            by_event_id[examples["active"][0]].confirmation_id,
+            by_event_id[examples["unclassified"][0]].id,
+            by_event_id[examples["active"][0]].id,
         ]
         assert [example.label_id for example in actual] == [None, active_label_id]
     finally:
@@ -2478,7 +2483,7 @@ async def test_proposal_examples_skip_confirmations_whose_segment_is_gone(
             confirmations = (
                 await session.scalars(
                     select(ActivityLabelConfirmation).where(
-                        ActivityLabelConfirmation.account_id == account_id
+                        activity_label_confirmations.c.account_id == account_id
                     )
                 )
             ).all()
@@ -2507,8 +2512,8 @@ async def test_proposal_examples_skip_confirmations_whose_segment_is_gone(
         assert [
             example.confirmation_id for example in suggester.inputs[0].examples
         ] == [
-            by_event_id[examples[2][0]].confirmation_id,
-            by_event_id[examples[0][0]].confirmation_id,
+            by_event_id[examples[2][0]].id,
+            by_event_id[examples[0][0]].id,
         ]
     finally:
         async with session_factory() as session:
@@ -2664,6 +2669,7 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
 
         async def pause_example_lookup(
             retriever: RecentConfirmedExampleRetriever,
+            db_session: AsyncSession,
             *,
             account_id: UUID,
             exclude_first_event_id: UUID,
@@ -2674,6 +2680,7 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
             await release_lookup.wait()
             return await original_find(
                 retriever,
+                db_session,
                 account_id=account_id,
                 exclude_first_event_id=exclude_first_event_id,
                 active_label_ids=active_label_ids,
@@ -2727,8 +2734,8 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
         async with session_factory() as session:
             proposal = await session.scalar(
                 select(ActivityLabelProposal).where(
-                    ActivityLabelProposal.account_id == account_id,
-                    ActivityLabelProposal.first_event_id == event_id,
+                    activity_label_proposals.c.account_id == account_id,
+                    activity_label_proposals.c.first_event_id == event_id,
                 )
             )
             assert proposal is not None
@@ -3529,11 +3536,12 @@ async def test_label_timeline_defaults_to_account_local_today(
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
     config: Config,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client, session_factory, app = label_api_client
+    client, session_factory, _ = label_api_client
     fixed_now = datetime(2026, 9, 14, 15, 30, tzinfo=UTC)
     fake_clock = FakeClock(fixed_now)
-    app.dependency_overrides[get_clock] = lambda: fake_clock
+    monkeypatch.setattr(LABELING.get_label_timeline, "_clock", fake_clock)
     async with session_factory() as session:
         account_id, device, _, _ = await create_account_with_labels(session)
         other_account_id, _, _, _ = await create_account_with_labels(session)
@@ -3606,7 +3614,6 @@ async def test_label_timeline_defaults_to_account_local_today(
         assert isolated.status_code == 200
         assert isolated.json() == []
     finally:
-        app.dependency_overrides.pop(get_clock, None)
         async with session_factory() as session:
             await session.execute(delete_accounts(*account_ids))
             await session.commit()
@@ -4143,3 +4150,129 @@ async def test_worker_uses_owned_active_catalog_and_revalidates_suggestion(
     finally:
         async with session_factory() as session, session.begin():
             await session.execute(delete_accounts(account_id, other_id))
+
+
+def label_proposals(suggester: LabelSuggester, clock: Clock) -> LabelProposals:
+    return LabelProposals(
+        suggester=suggester,
+        labels=create_label_catalog(),
+        timeline=create_observation_timeline(),
+        dispatcher=EventDispatcher(),
+        clock=clock,
+    )
+
+
+@pytest.mark.asyncio
+async def test_job_sweep_proposes_every_candidate_in_one_session(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, label_id, _ = await create_account_with_labels(session)
+        await session.commit()
+    headers = auth_headers(config, account_id)
+    try:
+        records = [
+            await upload_closed_detail(
+                client,
+                headers=headers,
+                device_id=device.id,
+                sequence=index * 2 + 1,
+                started_at=f"2026-09-14T00:{index:02d}:00Z",
+                ended_at=f"2026-09-14T00:{index:02d}:30Z",
+                name=f"Editor {index}",
+            )
+            for index in range(3)
+        ]
+        _, confirmed_segment_id, confirmed_version = records[0]
+        confirmation = await client.put(
+            f"/api/v1/activities/segments/{confirmed_segment_id}/label-confirmation",
+            headers=headers,
+            json={
+                "segmentVersion": confirmed_version,
+                "selection": {"kind": "unclassified"},
+            },
+        )
+        assert confirmation.status_code == 200
+
+        suggester = FixedSuggester(label_id)
+        sweep = label_proposals(suggester, FakeClock(utc_now())).sweep_label_proposals
+        async with session_factory() as db_session:
+            processed = await sweep.execute(db_session, max_scanned=2)
+            assert await sweep.execute(db_session, max_scanned=2) == 0
+
+        async with session_factory() as session:
+            proposals = (
+                await session.scalars(
+                    select(ActivityLabelProposal).where(
+                        activity_label_proposals.c.account_id == account_id
+                    )
+                )
+            ).all()
+        assert processed >= 2
+        assert {proposal.first_event_id for proposal in proposals} == {
+            records[1][0],
+            records[2][0],
+        }
+        assert all(
+            proposal.status is ActivityLabelProposalStatus.READY
+            for proposal in proposals
+        )
+    finally:
+        async with session_factory() as session:
+            await session.execute(delete_accounts(account_id))
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_propose_label_reads_current_rows_on_a_reused_session(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, label_id, _ = await create_account_with_labels(session)
+        await session.commit()
+    headers = auth_headers(config, account_id)
+    try:
+        event_id, _, _ = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Editor",
+        )
+        clock = FakeClock(datetime(2026, 9, 14, 1, tzinfo=UTC))
+        failing = label_proposals(FailingSuggester(), clock).propose_label
+        suggester = FixedSuggester(label_id)
+        propose = label_proposals(suggester, clock).propose_label
+        async with session_factory() as db_session:
+            assert await failing.execute(
+                db_session, account_id=account_id, first_event_id=event_id
+            )
+            # The session still holds the failed proposal it just wrote.
+            async with session_factory() as other, other.begin():
+                await other.execute(
+                    text(
+                        "UPDATE activity_label_proposals SET status = 'superseded' "
+                        "WHERE account_id = :account_id"
+                    ),
+                    {"account_id": account_id},
+                )
+            clock.advance(timedelta(minutes=2))
+
+            assert not await propose.execute(
+                db_session, account_id=account_id, first_event_id=event_id
+            )
+        assert suggester.inputs == []
+    finally:
+        async with session_factory() as session:
+            await session.execute(delete_accounts(account_id))
+            await session.commit()

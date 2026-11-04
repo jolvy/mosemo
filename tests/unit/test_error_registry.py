@@ -9,6 +9,7 @@ from mosemo.api.openapi import (
 )
 from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import IdentityErrorCode
+from mosemo.labeling.public import LabelingErrorCode
 from mosemo.labels.public import LabelErrorCode
 from mosemo.observation.public import ObservationErrorCode
 from mosemo.shared.error_docs import ERROR_DOCS as COMMON_ERROR_DOCS
@@ -24,6 +25,18 @@ ALLOWED_NAMES: dict[type[ApiErrorCode], tuple[tuple[str, ...], frozenset[str]]] 
     IdentityErrorCode: (("AUTH_",), frozenset()),
     LabelErrorCode: (("LABEL_",), frozenset()),
     ObservationErrorCode: (("ACTIVITY_", "FOCUS_SESSION_"), frozenset()),
+    # Kept names until the public rename (#155); then the exceptions go.
+    LabelingErrorCode: (
+        ("LABELING_",),
+        frozenset(
+            {
+                "ACTIVITY_SEGMENT_NOT_FOUND",
+                "ACTIVITY_SEGMENT_NOT_LABELABLE",
+                "ACTIVITY_SEGMENT_CHANGED",
+                "ACTIVITY_LABEL_CONFIRMATION_CONFLICT",
+            }
+        ),
+    ),
     # Temporary central enum: union of the BC prefixes until each BC moves out.
     ErrorCode: (
         ("ACTIVITY_", "FOCUS_SESSION_", "LABELING_"),

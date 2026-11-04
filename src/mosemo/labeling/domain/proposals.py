@@ -1,24 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum, StrEnum, auto
 from uuid import UUID, uuid7
 
-from sqlalchemy import (
-    CheckConstraint,
-    DateTime,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Text,
-    UniqueConstraint,
-    func,
-)
-from sqlalchemy import Enum as OrmEnum
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
-
-from mosemo.infra.persistence import Base
+from mosemo.shared.domain.aggregates import AggregateRoot
 
 PROPOSAL_RETRY_DELAYS = (timedelta(minutes=1), timedelta(minutes=5))
 MAX_PROPOSAL_ATTEMPTS = len(PROPOSAL_RETRY_DELAYS) + 1
@@ -50,61 +35,30 @@ class ProposalCompletion:
     output_tokens: int | None
 
 
-class ActivityLabelProposal(Base):
-    __tablename__ = "activity_label_proposals"
-    __table_args__ = (
-        UniqueConstraint("account_id", "first_event_id", "segment_version"),
-        CheckConstraint("attempt_count BETWEEN 0 AND 3", name="attempt_count"),
-        Index("activity_label_proposals_account_id_idx", "account_id"),
-    )
+@dataclass(eq=False, repr=False, kw_only=True)
+class ActivityLabelProposal(AggregateRoot):
+    """The AI label proposal for one version of an observed segment."""
 
-    proposal_id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
-    account_id: Mapped[UUID] = mapped_column(
-        ForeignKey("accounts.id", ondelete="CASCADE")
-    )
-    first_event_id: Mapped[UUID] = mapped_column(
-        ForeignKey("activity_records.event_id", ondelete="CASCADE")
-    )
-    segment_version: Mapped[str] = mapped_column(String(64))
-    status: Mapped[ActivityLabelProposalStatus] = mapped_column(
-        OrmEnum(
-            ActivityLabelProposalStatus,
-            values_callable=lambda members: [member.value for member in members],
-            native_enum=False,
-            create_constraint=False,
-            validate_strings=True,
-            length=16,
-        )
-    )
-    suggested_label_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("labels.id", ondelete="NO ACTION"), nullable=True
-    )
-    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
-    lease_token: Mapped[UUID | None] = mapped_column(nullable=True)
-    lease_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    next_attempt_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    model: Mapped[str | None] = mapped_column(Text, nullable=True)
-    prompt_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    retrieved_example_ids: Mapped[list[str] | None] = mapped_column(
-        JSONB, nullable=True
-    )
-    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    suggested_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    id: UUID = field(default_factory=uuid7)
+    account_id: UUID
+    first_event_id: UUID
+    segment_version: str
+    status: ActivityLabelProposalStatus
+    suggested_label_id: UUID | None = None
+    attempt_count: int = 0
+    lease_token: UUID | None = None
+    lease_expires_at: datetime | None = None
+    next_attempt_at: datetime | None = None
+    provider: str | None = None
+    model: str | None = None
+    prompt_version: str | None = None
+    retrieved_example_ids: list[str] | None = None
+    latency_ms: int | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    suggested_at: datetime | None = None
+    created_at: datetime = field(init=False)
+    updated_at: datetime = field(init=False)
 
     def try_start_attempt(self, *, now: datetime, token: UUID) -> ProposalClaimResult:
         if self.status in {
