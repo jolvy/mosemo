@@ -1,7 +1,7 @@
 """Batch job definitions, the execution wrapper, and the APScheduler server.
 
 APScheduler is imported only here: job definitions build a `Schedule` with the
-creation functions below instead of passing APScheduler triggers.
+creation functions below, and only this module turns it into a trigger.
 """
 
 import asyncio
@@ -23,19 +23,24 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Schedule:
-    # Create triggers with timezone=UTC: APScheduler 3 triggers default to the
-    # host's local timezone, not the scheduler's.
-    trigger: BaseTrigger
+    """When a job runs, without APScheduler types; build it with `every`."""
+
+    interval: timedelta
     run_on_start: bool = False
 
 
 def every(interval: timedelta, *, run_on_start: bool = False) -> Schedule:
-    """Run at a fixed interval; the trigger keeps the UTC rule of ADR 0010."""
+    """Run at a fixed interval."""
 
-    return Schedule(
-        IntervalTrigger(seconds=interval.total_seconds(), timezone=UTC),
-        run_on_start=run_on_start,
-    )
+    if interval <= timedelta(0):
+        raise ValueError("schedule interval must be positive")
+    return Schedule(interval, run_on_start=run_on_start)
+
+
+def _trigger(schedule: Schedule) -> BaseTrigger:
+    # ADR 0010: create triggers with timezone=UTC. APScheduler 3 triggers
+    # default to the host's local timezone, not the scheduler's.
+    return IntervalTrigger(seconds=schedule.interval.total_seconds(), timezone=UTC)
 
 
 @dataclass(frozen=True)
@@ -122,7 +127,7 @@ def build_scheduler(
             continue
         scheduler.add_job(
             _tracked(job, running),
-            job.schedule.trigger,
+            _trigger(job.schedule),
             id=job.name,
             name=job.name,
             max_instances=1,
