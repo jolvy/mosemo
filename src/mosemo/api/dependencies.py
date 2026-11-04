@@ -31,10 +31,10 @@ from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
 from mosemo.devices.repository import DeviceRepository
 from mosemo.devices.service import DeviceService
 from mosemo.exceptions import ApiException, ErrorCode
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config, get_config
-from mosemo.infra.database import get_session
+from mosemo.infra.config import Config
+from mosemo.infra.providers import get_clock, get_config, get_session
 from mosemo.shared.application.clock import Clock
+from mosemo.shared.presentation.current_account import CurrentAccount
 
 
 def get_http_client(request: Request) -> httpx2.AsyncClient:
@@ -50,11 +50,6 @@ HttpClientDep = Annotated[
 ]
 ConfigDep = Annotated[Config, Depends(get_config)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-
-
-def get_clock() -> Clock:
-    return utc_now
-
 
 ClockDep = Annotated[Clock, Depends(get_clock)]
 
@@ -386,3 +381,9 @@ AuthenticatedAccountDep = Annotated[
     AuthenticatedAccount,
     Depends(get_authenticated_account),
 ]
+
+
+async def get_token_current_account(
+    account: AuthenticatedAccountDep,
+) -> CurrentAccount:
+    return CurrentAccount(account_id=account.account_id)

@@ -6,6 +6,7 @@ from typing import Any, TypedDict, cast
 import httpx2
 from fastapi import FastAPI
 
+from mosemo.api.dependencies import get_token_current_account
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.middleware import RedactSensitiveQueryStringMiddleware
 from mosemo.api.routes import v1_api_router
@@ -14,6 +15,7 @@ from mosemo.infra.config import get_config
 from mosemo.infra.database import engine
 from mosemo.infra.logging import configure_logging
 from mosemo.openapi import public_openapi
+from mosemo.shared.presentation.current_account import get_current_account
 
 API_DESCRIPTION = """
 Mosemo 공개 API입니다.
@@ -75,6 +77,7 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.add_middleware(RedactSensitiveQueryStringMiddleware)
     app.include_router(v1_api_router)
+    app.dependency_overrides[get_current_account] = get_token_current_account
     app.openapi = cast(Any, partial(public_openapi, app))
 
     batch_config = get_config().batch_delivery

@@ -133,6 +133,8 @@
     `commit`·`rollback`인 속성 호출이면 수신 객체(`session`, `self._session`, session factory, engine)와
     관계없이 위반이다. `flush`는 대상이 아니며 CS-P25가 맡는다.
   - 허용은 경로가 아니라 파일 이름(`service.py`·`executor.py`·`processing.py`)으로 판정한다.
+  - 예외로 트랜잭션 헬퍼 `src/mosemo/infra/transactions.py`(`unit_of_work`·`read_snapshot`, ADR 0012)는
+    경로로 허용한다. 다른 경로의 `transactions.py`는 허용하지 않는다.
   - CS-P25의 허용 메서드에는 `begin_nested`가 없으므로, 수신 객체가 `session`·`_session`인
     `begin_nested()`는 repository가 아닌 파일에서 CS-P13 허용 파일이라도 CS-P25로 실패한다. CS-P13에
     `begin_nested`를 넣은 것은 CS-P25가 보지 않는 repository 파일과 session이 아닌 수신 객체(session
