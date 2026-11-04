@@ -24,22 +24,23 @@ from mosemo.activity_labels.schemas import (
     LabelTimelineItemResponse,
 )
 from mosemo.api.dependencies import ActivityLabelServiceDep, AuthenticatedAccountDep
-from mosemo.exceptions import ApiException, ErrorCode
-from mosemo.openapi import api_error_responses
+from mosemo.exceptions import ErrorCode
+from mosemo.shared.errors import ApiErrorCode, ApiException, CommonErrorCode
+from mosemo.shared.openapi import api_error_responses
 from mosemo.shared.presentation.schemas import ValidationDetail
 
 router = APIRouter(prefix="/activities")
 
 
 def _batch_failure_response(exc: BatchLabelConfirmationError) -> ApiException:
-    error_codes: dict[type[Exception], ErrorCode] = {
+    error_codes: dict[type[Exception], ApiErrorCode] = {
         ActivityLabelSegmentNotFoundError: ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
         ActivityLabelSegmentNotLabelableError: ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
         ActivityLabelSegmentChangedError: ErrorCode.ACTIVITY_SEGMENT_CHANGED,
         ActivityLabelConfirmationConflictError: (
             ErrorCode.ACTIVITY_LABEL_CONFIRMATION_CONFLICT
         ),
-        ActivityLabelSegmentDuplicateError: ErrorCode.INVALID_ARGUMENT,
+        ActivityLabelSegmentDuplicateError: CommonErrorCode.INVALID_ARGUMENT,
         ActivityLabelUnavailableError: ErrorCode.LABEL_NOT_AVAILABLE,
     }
     error_code = error_codes[type(exc.reason)]
@@ -70,14 +71,14 @@ def _batch_failure_response(exc: BatchLabelConfirmationError) -> ApiException:
     ),
     response_description="요청한 구간 순서대로 반환한 최신 확정 상태입니다.",
     responses=api_error_responses(
-        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
         ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
         ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
         ErrorCode.ACTIVITY_SEGMENT_CHANGED,
         ErrorCode.ACTIVITY_LABEL_CONFIRMATION_CONFLICT,
         ErrorCode.LABEL_NOT_AVAILABLE,
         ErrorCode.ACTIVITY_TIMELINE_BUSY,
-        ErrorCode.INVALID_ARGUMENT,
+        CommonErrorCode.INVALID_ARGUMENT,
         headers={
             503: {
                 "Retry-After": {
@@ -117,8 +118,8 @@ async def confirm_segment_labels(
     ),
     response_description="라벨 활동 묶음, 진행 중 활동, 불투명 활동, 수집 공백 배열입니다.",
     responses=api_error_responses(
-        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
-        ErrorCode.INVALID_ARGUMENT,
+        CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        CommonErrorCode.INVALID_ARGUMENT,
     ),
 )
 async def get_label_timeline(
@@ -141,7 +142,7 @@ async def get_label_timeline(
             date=date,
         )
     except ActivityAccountNotFoundError as exc:
-        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
+        raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
 
 
 @router.get(
@@ -156,10 +157,10 @@ async def get_label_timeline(
     ),
     response_description="관찰 구간의 제안 및 사용자 확정 상태입니다.",
     responses=api_error_responses(
-        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
         ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
         ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
-        ErrorCode.INVALID_ARGUMENT,
+        CommonErrorCode.INVALID_ARGUMENT,
     ),
 )
 async def get_segment_label_state(
@@ -194,13 +195,13 @@ async def get_segment_label_state(
     ),
     response_description="저장된 최신 라벨 확정 상태입니다.",
     responses=api_error_responses(
-        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
         ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
         ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
         ErrorCode.ACTIVITY_SEGMENT_CHANGED,
         ErrorCode.LABEL_NOT_AVAILABLE,
         ErrorCode.ACTIVITY_TIMELINE_BUSY,
-        ErrorCode.INVALID_ARGUMENT,
+        CommonErrorCode.INVALID_ARGUMENT,
         headers={
             503: {
                 "Retry-After": {

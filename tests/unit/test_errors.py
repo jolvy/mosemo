@@ -3,7 +3,13 @@ from typing import Any, cast
 
 import pytest
 
-from mosemo.exceptions import ApiException, ErrorCode, ErrorSpec
+from mosemo.exceptions import ErrorCode
+from mosemo.shared.errors import (
+    ApiErrorCode,
+    ApiException,
+    CommonErrorCode,
+    ErrorSpec,
+)
 from mosemo.shared.presentation.schemas import ValidationDetail
 
 
@@ -23,7 +29,6 @@ def test_public_error_registry_contains_the_public_specs() -> None:
             400,
             "Invalid or expired OAuth login context",
         ),
-        ("AUTH_INVALID_ACCESS_TOKEN", 401, "Invalid or expired access token"),
         ("FOCUS_SESSION_NOT_FOUND", 404, "Focus session not found"),
         ("FOCUS_SESSION_CONFLICT", 409, "Focus session conflicts with stored data"),
         (
@@ -66,26 +71,37 @@ def test_public_error_registry_contains_the_public_specs() -> None:
             "Activity label confirmation conflicts with an existing selection",
         ),
         ("LABEL_NOT_AVAILABLE", 404, "Label not found or inactive"),
+    ]
+    assert len({member.status for member in public_members}) == 16
+
+
+def test_common_error_codes_contain_the_shared_specs() -> None:
+    assert issubclass(CommonErrorCode, ApiErrorCode)
+    assert issubclass(ErrorCode, ApiErrorCode)
+    assert list(ApiErrorCode) == []
+    assert [
+        (member.status, member.code, member.message) for member in CommonErrorCode
+    ] == [
+        ("AUTH_INVALID_ACCESS_TOKEN", 401, "Invalid or expired access token"),
         ("REQUEST_ROUTE_NOT_FOUND", 404, "API route not found"),
         ("REQUEST_METHOD_NOT_ALLOWED", 405, "Method not allowed"),
         ("INVALID_ARGUMENT", 422, "Request validation failed."),
         ("INTERNAL_SERVER_ERROR", 500, "Internal server error"),
     ]
-    assert len({member.status for member in public_members}) == 21
 
 
 def test_error_spec_is_immutable_and_contains_no_documentation_metadata() -> None:
     with pytest.raises(FrozenInstanceError):
-        cast(Any, ErrorCode.AUTH_INVALID_ACCESS_TOKEN.value).code = 400
+        cast(Any, CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN.value).code = 400
 
-    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "status")
-    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "description")
-    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "headers")
-    assert not hasattr(ErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "example")
+    assert not hasattr(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "status")
+    assert not hasattr(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "description")
+    assert not hasattr(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "headers")
+    assert not hasattr(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN.value, "example")
 
 
 def test_error_code_members_have_distinct_error_specs() -> None:
-    members = tuple(ErrorCode)
+    members = (*CommonErrorCode, *ErrorCode)
     first = ErrorSpec(code=400, message="same")
     second = ErrorSpec(code=400, message="same")
 
@@ -99,14 +115,14 @@ def test_api_exception_accepts_error_codes_and_validation_details() -> None:
         msg="Field required",
         type="missing",
     )
-    error = ApiException(ErrorCode.INVALID_ARGUMENT, details=[detail])
+    error = ApiException(CommonErrorCode.INVALID_ARGUMENT, details=[detail])
 
-    assert error.spec is ErrorCode.INVALID_ARGUMENT
+    assert error.spec is CommonErrorCode.INVALID_ARGUMENT
     assert error.details == (detail,)
-    assert str(error) == ErrorCode.INVALID_ARGUMENT.message
+    assert str(error) == CommonErrorCode.INVALID_ARGUMENT.message
 
     non_validation_error = ApiException(
-        ErrorCode.AUTH_INVALID_ACCESS_TOKEN, details=[detail]
+        CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN, details=[detail]
     )
     assert non_validation_error.details == (detail,)
 
@@ -114,4 +130,4 @@ def test_api_exception_accepts_error_codes_and_validation_details() -> None:
 def test_error_codes_are_enum_members_with_error_specs_as_values() -> None:
     assert isinstance(ErrorCode.AUTH_INVALID_AUTHORIZATION_CODE, ErrorCode)
     assert isinstance(ErrorCode.AUTH_INVALID_OAUTH_CONTEXT, ErrorCode)
-    assert isinstance(ErrorCode.INTERNAL_SERVER_ERROR, ErrorCode)
+    assert isinstance(CommonErrorCode.INTERNAL_SERVER_ERROR, CommonErrorCode)

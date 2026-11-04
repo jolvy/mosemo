@@ -109,6 +109,21 @@ forbidden_modules = ["fastapi"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
+name = "runtime error responses do not import OpenAPI modules"
+type = "forbidden"
+source_modules = [
+    "mosemo.shared.errors",
+    "mosemo.shared.presentation.responses",
+    "mosemo.api.exception_handlers",
+]
+forbidden_modules = [
+    "mosemo.shared.openapi",
+    "mosemo.shared.error_docs",
+    "mosemo.api.openapi",
+    "mosemo.api.error_docs",
+]
+
+[[tool.importlinter.contracts]]
 name = "only infra.scheduling imports apscheduler"
 type = "forbidden"
 source_modules = ["mosemo"]

@@ -5,8 +5,8 @@ from fastapi import APIRouter, Header, status
 
 from mosemo.api.dependencies import AuthenticatedAccountDep, DeviceServiceDep
 from mosemo.devices.schemas import DeviceCreateResponse
-from mosemo.exceptions import ErrorCode
-from mosemo.openapi import api_error_responses
+from mosemo.shared.errors import CommonErrorCode
+from mosemo.shared.openapi import api_error_responses
 
 router = APIRouter(prefix="/devices")
 
@@ -34,8 +34,8 @@ IdempotencyKeyHeader = Annotated[
     ),
     response_description="생성되었거나 동일한 재시도로 확인된 Device입니다.",
     responses=api_error_responses(
-        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
-        ErrorCode.INVALID_ARGUMENT,
+        CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        CommonErrorCode.INVALID_ARGUMENT,
     ),
 )
 async def create_device(

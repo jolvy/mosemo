@@ -67,7 +67,7 @@ date: 2026-10-17
   `code` property에서 생성한다.
 - `error.message`는 개발자용 영문 설명이다.
 - `error.details`는 항상 배열이다. 기본값은 빈 배열이며 현재 `RequestValidationError` handler가 요청 검증 실패를 변환할 때 validation detail을 채운다. `ApiException`과 공통 response builder는 details 내용, 비어 있음 또는 `ErrorCode`와의 조합을 별도 정책으로 제한하지 않는다.
-- 공개 오류의 종류·HTTP 상태·메시지는 [ErrorCode](../../src/mosemo/exceptions.py)를
+- 공개 오류의 종류·HTTP 상태·메시지는 [ErrorCode](../../src/mosemo/shared/errors.py)를
   기준으로 관리하며, 각 operation이 반환하는 오류는 [OpenAPI 스냅샷](../../openapi/openapi.json)에서
   확인한다. 이 문서에는 오류 목록을 별도로 유지하지 않는다.
 - 인증 오류는 state·쿠키·PKCE context, authorization code·verifier,

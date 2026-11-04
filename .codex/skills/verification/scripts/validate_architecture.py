@@ -5,6 +5,18 @@ from importlib.util import resolve_name
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
+# ADR 0001·0014: 런타임 오류 응답 모듈은 OpenAPI 모듈을 import하지 않는다.
+RUNTIME_ERROR_MODULES = {
+    "mosemo.shared.errors",
+    "mosemo.shared.presentation.responses",
+    "mosemo.api.exception_handlers",
+}
+OPENAPI_MODULES = (
+    "mosemo.shared.openapi",
+    "mosemo.shared.error_docs",
+    "mosemo.api.openapi",
+    "mosemo.api.error_docs",
+)
 ROLE_RANKS = {
     "router": 5,
     "dependencies": 4,
@@ -75,8 +87,8 @@ def check_source(source: str, module: str) -> list[str]:
             or (target.startswith("mosemo.") and "router" in target.split("."))
         ):
             errors.append(f"{line}: {target}: 모델·저장소에서 HTTP 계층 참조 금지")
-        if module in {"mosemo.exceptions", "mosemo.shared.presentation.responses"} and (
-            target == "mosemo.openapi" or target.startswith("mosemo.openapi.")
+        if module in RUNTIME_ERROR_MODULES and any(
+            target == name or target.startswith(f"{name}.") for name in OPENAPI_MODULES
         ):
             errors.append(f"{line}: {target}: ADR 0001 런타임 → OpenAPI 의존 금지")
     return sorted(set(errors))

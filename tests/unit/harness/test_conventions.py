@@ -806,13 +806,13 @@ def test_validate_scopes_exception_rules(
     conventions_validator: ModuleType, tmp_path: Path
 ) -> None:
     (tmp_path / "pyproject.toml").write_text(ALLOWED_PYPROJECT)
-    usage = "from mosemo.exceptions import ApiException\nraise ApiException(code)\n"
+    usage = "from mosemo.shared.errors import ApiException\nraise ApiException(code)\n"
     files = {
-        "src/mosemo/exceptions.py": EXCEPTIONS_SOURCE,
+        "src/mosemo/shared/errors.py": EXCEPTIONS_SOURCE,
         "src/mosemo/x/router.py": usage,
         "src/mosemo/api/dependencies.py": usage,
         "src/mosemo/api/exception_handlers.py": usage,
-        "src/mosemo/x/service.py": "from mosemo.exceptions import GoneException\n",
+        "src/mosemo/x/service.py": "from mosemo.shared.errors import GoneException\n",
         "tests/test_x.py": usage + "class FakeException(Exception):\n    pass\n",
     }
     for name, source in files.items():

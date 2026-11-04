@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from mosemo.exceptions import ErrorCode, ErrorSpec
-from mosemo.openapi import ERROR_DOCS
+from mosemo.api.openapi import REGISTERED_ERROR_DOCS
+from mosemo.shared.errors import ErrorSpec
 
 HTTP_METHODS = frozenset(
     {"delete", "get", "head", "options", "patch", "post", "put", "trace"}
@@ -32,7 +32,12 @@ OPENAPI_TEST_ENVIRONMENT = {
     "AUTH_MACOS_CALLBACK_URI": "com.example.mosemo:/auth/callback",
 }
 OPENAPI_SNAPSHOT_PATH = Path(__file__).resolve().parents[2] / "openapi" / "openapi.json"
-_PUBLIC_ERROR_SPECS = tuple(ErrorCode)
+_PUBLIC_ERROR_SPECS = tuple(member for enum in REGISTERED_ERROR_DOCS for member in enum)
+ERROR_DOCS = {
+    code: docs
+    for error_docs in REGISTERED_ERROR_DOCS.values()
+    for code, docs in error_docs.items()
+}
 
 
 @pytest.fixture

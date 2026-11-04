@@ -21,9 +21,10 @@ from mosemo.api.dependencies import (
     DeviceRepositoryDep,
     SessionDep,
 )
-from mosemo.exceptions import ApiException, ErrorCode
+from mosemo.exceptions import ErrorCode
 from mosemo.infra.messaging.publisher import DeliveryUnavailableError
-from mosemo.openapi import api_error_responses
+from mosemo.shared.errors import ApiException, CommonErrorCode
+from mosemo.shared.openapi import api_error_responses
 
 router = APIRouter(prefix="/activities")
 
@@ -37,11 +38,11 @@ router = APIRouter(prefix="/activities")
     description="인증 계정의 Device 원본 1~200건, 비압축 JSON 512 KiB 이하를 Kafka에 발행하고 발행 확인 후 수락합니다. 발행 확인은 최대 5초 대기하며 HTTP 전체 수락 제한은 10초입니다. 별도 Consumer의 DB 처리나 offset commit 완료를 기다리지 않습니다. 503 응답에는 Retry-After: 1을 반환합니다. 확인 timeout은 미발행을 뜻하지 않으므로 같은 batchId와 내용으로 재시도합니다.",
     response_description="Kafka 발행 ACK를 확인한 결과이며 원본별 처리 성공·DB commit·Consumer offset commit을 뜻하지 않습니다. DB 반영은 타임라인 조회로 확인합니다.",
     responses=api_error_responses(
-        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
         ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
-        ErrorCode.REQUEST_ROUTE_NOT_FOUND,
+        CommonErrorCode.REQUEST_ROUTE_NOT_FOUND,
         ErrorCode.ACTIVITY_BATCH_TOO_LARGE,
-        ErrorCode.INVALID_ARGUMENT,
+        CommonErrorCode.INVALID_ARGUMENT,
         ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
         headers={
             503: {
@@ -83,12 +84,12 @@ async def accept_batch(
     summary="활동 배치 직접 처리",
     description="이벤트를 발행하지 않고 활동 배치를 직접 처리합니다. 원본 저장과 타임라인 구간 반영이 완료된 뒤 응답합니다.",
     responses=api_error_responses(
-        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
         ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
         ErrorCode.ACTIVITY_BATCH_CONFLICT,
         ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
         ErrorCode.ACTIVITY_BATCH_TOO_LARGE,
-        ErrorCode.INVALID_ARGUMENT,
+        CommonErrorCode.INVALID_ARGUMENT,
         ErrorCode.ACTIVITY_TIMELINE_BUSY,
         ErrorCode.FOCUS_SESSION_NOT_FOUND,
         ErrorCode.FOCUS_SESSION_CONFLICT,
@@ -119,7 +120,7 @@ async def process_batch_legacy(
         error = {
             "device_not_owned": ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
             "batch_content_conflict": ErrorCode.ACTIVITY_BATCH_CONFLICT,
-            "projection_time_regression": ErrorCode.INVALID_ARGUMENT,
+            "projection_time_regression": CommonErrorCode.INVALID_ARGUMENT,
             "FocusSessionNotFoundError": ErrorCode.FOCUS_SESSION_NOT_FOUND,
             "FocusSessionInvalidTimeError": ErrorCode.FOCUS_SESSION_CONFLICT,
         }.get(str(exc))
@@ -146,8 +147,8 @@ async def process_batch_legacy(
     ),
     response_description="활동 구간과 명시적 수집 공백의 관찰 순서 배열입니다.",
     responses=api_error_responses(
-        ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
-        ErrorCode.INVALID_ARGUMENT,
+        CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+        CommonErrorCode.INVALID_ARGUMENT,
     ),
 )
 async def get_timeline(
@@ -165,4 +166,4 @@ async def get_timeline(
             date=date,
         )
     except ActivityAccountNotFoundError as exc:
-        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
+        raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc

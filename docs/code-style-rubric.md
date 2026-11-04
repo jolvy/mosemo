@@ -107,8 +107,8 @@
     FastAPI provider로 주입한다. 역할 규칙은
     [architecture](../.codex/skills/implementation/references/architecture.md)의 Mosemo 코드 역할 규칙을 따른다.
 - **CS-P07**: 예외 이름의 접미사가 계층을 나타낸다. `...Exception`은 HTTP 응답이 되는 `ApiException` 계열
-  전용이며 `src/mosemo/exceptions.py`에서만 정의한다. `ApiException`과 그 하위 클래스는 `router.py`,
-  `dependencies.py`, `exception_handlers.py`, `exceptions.py`에서만 import·생성한다. 나머지 예외는
+  전용이며 `src/mosemo/shared/errors.py`에서만 정의한다. `ApiException`과 그 하위 클래스는 `router.py`,
+  `dependencies.py`, `exception_handlers.py`, `shared/errors.py`에서만 import·생성한다. 나머지 예외는
   `...Error`다. Ruff `N818`은 `*Exception` 이름을 무시하도록 설정하고 이 규칙은 검사기가 판정한다.
 - **CS-P10**: `repository.py`·`*_repository.py`의 클래스 공개 메서드가 대상이다.
   - 조회는 `find_`(단건, 없으면 `None`), `list_`(여러 건), `has_`(존재 여부 `bool`), `is_`(조건 판정
