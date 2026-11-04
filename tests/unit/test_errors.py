@@ -6,6 +6,7 @@ import pytest
 from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import IdentityErrorCode
 from mosemo.labels.public import LabelErrorCode
+from mosemo.observation.public import ObservationErrorCode
 from mosemo.shared.errors import (
     ApiErrorCode,
     ApiException,
@@ -40,11 +41,9 @@ def test_label_error_codes_keep_their_public_specs() -> None:
     ]
 
 
-def test_public_error_registry_contains_the_public_specs() -> None:
-    public_members = tuple(ErrorCode)
-    assert all(isinstance(member.value, ErrorSpec) for member in public_members)
+def test_observation_error_codes_keep_their_public_specs() -> None:
     assert [
-        (member.status, member.code, member.message) for member in public_members
+        (member.status, member.code, member.message) for member in ObservationErrorCode
     ] == [
         ("FOCUS_SESSION_NOT_FOUND", 404, "Focus session not found"),
         ("FOCUS_SESSION_CONFLICT", 409, "Focus session conflicts with stored data"),
@@ -71,6 +70,15 @@ def test_public_error_registry_contains_the_public_specs() -> None:
         ("ACTIVITY_BATCH_TOO_LARGE", 413, "Activity batch body is too large"),
         ("ACTIVITY_DELIVERY_UNAVAILABLE", 503, "Activity delivery is unavailable"),
         ("ACTIVITY_TIMELINE_BUSY", 503, "Activity timeline is busy"),
+    ]
+
+
+def test_public_error_registry_contains_the_public_specs() -> None:
+    public_members = tuple(ErrorCode)
+    assert all(isinstance(member.value, ErrorSpec) for member in public_members)
+    assert [
+        (member.status, member.code, member.message) for member in public_members
+    ] == [
         ("ACTIVITY_SEGMENT_NOT_FOUND", 404, "Activity segment not found"),
         (
             "ACTIVITY_SEGMENT_NOT_LABELABLE",
@@ -88,7 +96,7 @@ def test_public_error_registry_contains_the_public_specs() -> None:
             "Activity label confirmation conflicts with an existing selection",
         ),
     ]
-    assert len({member.status for member in public_members}) == 13
+    assert len({member.status for member in public_members}) == 4
 
 
 def test_common_error_codes_contain_the_shared_specs() -> None:
@@ -117,7 +125,7 @@ def test_error_spec_is_immutable_and_contains_no_documentation_metadata() -> Non
 
 
 def test_error_code_members_have_distinct_error_specs() -> None:
-    members = (*CommonErrorCode, *ErrorCode)
+    members = (*CommonErrorCode, *ObservationErrorCode, *ErrorCode)
     first = ErrorSpec(code=400, message="same")
     second = ErrorSpec(code=400, message="same")
 

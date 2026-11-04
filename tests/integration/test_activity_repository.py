@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -12,20 +13,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from mosemo.activities.enums import RecordType
-from mosemo.activities.models import ActivityRecord as StoredActivityRecord
-from mosemo.activities.repository import (
-    ActivityRepository,
-    ActivityTimelineBusyError,
-    activity_timeline_lock_key,
-)
-from mosemo.activities.schemas import ActivityRecord
-from mosemo.activities.service import (
-    ActivityDeviceNotFoundError,
-    ActivityEventIdConflictError,
-    ActivitySequenceConflictError,
-    ActivityService,
-)
 from mosemo.identity.bootstrap import (
     create_account_directory,
     create_device_directory,
@@ -33,9 +20,25 @@ from mosemo.identity.bootstrap import (
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
 from mosemo.infra.clock import utc_now
+from mosemo.observation.domain.activities import (
+    ActivityDeviceNotFoundError,
+    ActivityEventIdConflictError,
+    ActivitySequenceConflictError,
+    RecordType,
+)
+from mosemo.observation.domain.activities import ActivityRecord as StoredActivityRecord
+from mosemo.observation.domain.timeline import ActivityTimelineBusyError
+from mosemo.observation.infrastructure.activity_records import ActivityRecordRepository
+from mosemo.observation.infrastructure.tables import activity_records
+from mosemo.observation.infrastructure.timeline_segments import (
+    activity_timeline_lock_key,
+)
+from mosemo.observation.presentation.activities.mappers import ActivityRecordMapper
+from mosemo.observation.presentation.activities.schemas import ActivityRecord
 from mosemo.shared.domain.timezones import Timezone
 from tests.clock_support import FakeClock
 from tests.identity_support import delete_accounts
+from tests.observation_support import ActivityService
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 
@@ -113,11 +116,9 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
     other_account_id = other_account.id
     device_id = device.id
     await integration_session.commit()
-    repository = ActivityRepository(integration_session)
     device_repository = create_device_directory()
     service = ActivityService(
         session=integration_session,
-        repository=repository,
         devices=device_repository,
         accounts=create_account_directory(),
         clock=FakeClock(utc_now()),
@@ -155,8 +156,12 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
     with pytest.raises(ActivitySequenceConflictError):
         await service.create_activity(account_id=account_id, record=reused_sequence)
 
-    stored_observation = await repository.find_by_event_id(observation.event_id)
-    stored_state = await repository.find_by_event_id(state_change.event_id)
+    stored_observation = await ActivityRecordRepository().find_by_event_id(
+        integration_session, observation.event_id
+    )
+    stored_state = await ActivityRecordRepository().find_by_event_id(
+        integration_session, state_change.event_id
+    )
     assert stored_observation is not None
     assert stored_state is not None
     await integration_session.refresh(
@@ -193,7 +198,7 @@ async def test_activity_storage_persists_both_payloads_and_allows_lower_sequence
     count = await integration_session.scalar(
         select(func.count())
         .select_from(StoredActivityRecord)
-        .where(StoredActivityRecord.device_id == device_id)
+        .where(activity_records.c.device_id == device_id)
     )
     assert count == 2
 
@@ -212,7 +217,7 @@ async def test_activity_record_database_constraints(
     duplicate_sequence: bool,
 ) -> None:
     _, device = await create_account_and_device(integration_session)
-    common_values = {
+    common_values: dict[str, Any] = {
         "device_id": device.id,
         "observed_at": datetime(2026, 9, 14, tzinfo=UTC),
         "timezone_id": Timezone.ASIA_SEOUL,
@@ -285,7 +290,6 @@ async def test_activity_service_hides_missing_and_unowned_devices(
     device_id = device.id
     service = ActivityService(
         session=integration_session,
-        repository=ActivityRepository(integration_session),
         devices=create_device_directory(),
         accounts=create_account_directory(),
         clock=FakeClock(utc_now()),
@@ -329,7 +333,6 @@ async def test_concurrent_identical_requests_store_one_record(
             async with session_factory() as session:
                 return await ActivityService(
                     session=session,
-                    repository=ActivityRepository(session),
                     devices=create_device_directory(),
                     accounts=create_account_directory(),
                     clock=fake_clock,
@@ -342,7 +345,7 @@ async def test_concurrent_identical_requests_store_one_record(
             count = await verification_session.scalar(
                 select(func.count())
                 .select_from(StoredActivityRecord)
-                .where(StoredActivityRecord.event_id == record.event_id)
+                .where(activity_records.c.event_id == record.event_id)
             )
             assert count == 1
     finally:
@@ -384,7 +387,6 @@ async def test_account_lock_timeout_rolls_back_without_blocking_other_account(
             async with session_factory() as session:
                 return await ActivityService(
                     session=session,
-                    repository=ActivityRepository(session),
                     devices=create_device_directory(),
                     accounts=create_account_directory(),
                     clock=fake_clock,
@@ -403,7 +405,7 @@ async def test_account_lock_timeout_rolls_back_without_blocking_other_account(
             count = await verification_session.scalar(
                 select(func.count())
                 .select_from(StoredActivityRecord)
-                .where(StoredActivityRecord.event_id == locked_record.event_id)
+                .where(activity_records.c.event_id == locked_record.event_id)
             )
             assert count == 0
 
@@ -414,3 +416,61 @@ async def test_account_lock_timeout_rolls_back_without_blocking_other_account(
                 await cleanup_session.execute(delete_accounts(*account_ids))
                 await cleanup_session.commit()
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_resolves_conflicts_by_event_id_then_device_sequence(
+    integration_session: AsyncSession,
+) -> None:
+    _, device = await create_account_and_device(integration_session)
+    repository = ActivityRecordRepository()
+    mapper = ActivityRecordMapper()
+    first = mapper.to_entity(activity_observation(device_id=device.id, sequence=1))
+    second = mapper.to_entity(activity_observation(device_id=device.id, sequence=2))
+
+    stored, created = await repository.get_or_create(integration_session, first)
+    assert created
+    assert stored.event_id == first.event_id
+    assert stored.received_at is not None
+    await repository.get_or_create(integration_session, second)
+
+    # Same event ID: the record with that event ID comes back, whatever else differs.
+    retried = mapper.to_entity(
+        activity_observation(device_id=device.id, event_id=first.event_id, sequence=9)
+    )
+    existing, created = await repository.get_or_create(integration_session, retried)
+    assert not created
+    assert existing.event_id == first.event_id
+    # Both keys taken by different records: the event ID match wins.
+    both = mapper.to_entity(
+        activity_observation(device_id=device.id, event_id=first.event_id, sequence=2)
+    )
+    existing, created = await repository.get_or_create(integration_session, both)
+    assert not created
+    assert existing.event_id == first.event_id
+    # New event ID on a taken device sequence: the sequence holder comes back.
+    reused = mapper.to_entity(activity_observation(device_id=device.id, sequence=2))
+    existing, created = await repository.get_or_create(integration_session, reused)
+    assert not created
+    assert existing.event_id == second.event_id
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_raises_when_no_conflicting_record_is_found(
+    integration_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, device = await create_account_and_device(integration_session)
+    repository = ActivityRecordRepository()
+    record = ActivityRecordMapper().to_entity(
+        activity_observation(device_id=device.id, sequence=1)
+    )
+    await repository.get_or_create(integration_session, record)
+
+    async def missing(*args: object, **kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(repository, "find_by_event_id", missing)
+    monkeypatch.setattr(repository, "find_by_device_sequence", missing)
+
+    with pytest.raises(RuntimeError, match="could not be resolved"):
+        await repository.get_or_create(integration_session, record)

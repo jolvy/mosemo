@@ -1,1 +1,0 @@
-"""Activity collection API types."""

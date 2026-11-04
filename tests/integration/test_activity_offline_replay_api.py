@@ -9,15 +9,18 @@ from fastapi import FastAPI
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.activities.models import ActivityRecord
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.routes import v1_api_router
+from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
 from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config, get_config
 from mosemo.infra.database import get_session
+from mosemo.observation.domain.activities import ActivityRecord
+from mosemo.observation.infrastructure.tables import activity_records
+from mosemo.shared.presentation.current_account import get_current_account
 from tests.batch_support import batch_client, post_activity, receipt_for
 from tests.identity_support import delete_accounts
 
@@ -39,6 +42,7 @@ async def activity_api(
     register_exception_handlers(app)
     app.include_router(v1_api_router)
     app.dependency_overrides[get_config] = lambda: config
+    app.dependency_overrides[get_current_account] = get_token_current_account
 
     async def override_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
@@ -179,7 +183,7 @@ async def stored_count(
         count = await session.scalar(
             select(func.count())
             .select_from(ActivityRecord)
-            .where(ActivityRecord.device_id == device_id)
+            .where(activity_records.c.device_id == device_id)
         )
     assert count is not None
     return count
@@ -494,7 +498,7 @@ async def test_sequence_orders_equal_observation_and_receive_times_over_http(
     async with session_factory() as session:
         await session.execute(
             update(ActivityRecord)
-            .where(ActivityRecord.event_id.in_((low_event_id, high_event_id)))
+            .where(activity_records.c.event_id.in_((low_event_id, high_event_id)))
             .values(received_at=datetime(2026, 9, 14, tzinfo=UTC))
         )
         await session.commit()

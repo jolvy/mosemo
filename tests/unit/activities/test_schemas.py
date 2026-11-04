@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from mosemo.activities.enums import CollectionState, RecordType
-from mosemo.activities.schemas import (
+from mosemo.observation.domain.activities import CollectionState, RecordType
+from mosemo.observation.presentation.activities.schemas import (
     ActivityObservation,
     ActivityRecord,
     CapturedText,

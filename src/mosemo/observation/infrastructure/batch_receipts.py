@@ -6,26 +6,30 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.models import ActivityBatchReceipt
+from mosemo.observation.domain.activities import ActivityBatchReceipt
+from mosemo.observation.infrastructure.tables import activity_batch_receipts
 
 
 class BatchReceiptRepository:
-    def __init__(self, session: AsyncSession):
-        self._session = session
-
-    async def has_for_account(self, account_id: UUID) -> bool:
+    async def has_for_account(self, db_session: AsyncSession, account_id: UUID) -> bool:
         return (
-            await self._session.scalar(
-                select(ActivityBatchReceipt.batch_id)
-                .where(ActivityBatchReceipt.account_id == account_id)
+            await db_session.scalar(
+                select(activity_batch_receipts.c.batch_id)
+                .where(activity_batch_receipts.c.account_id == account_id)
                 .limit(1)
             )
         ) is not None
 
     async def claim(
-        self, *, account_id: UUID, device_id: UUID, batch_id: UUID, fingerprint: str
+        self,
+        db_session: AsyncSession,
+        *,
+        account_id: UUID,
+        device_id: UUID,
+        batch_id: UUID,
+        fingerprint: str,
     ) -> ActivityBatchReceipt | None:
-        return await self._session.scalar(
+        return await db_session.scalar(
             insert(ActivityBatchReceipt)
             .values(
                 account_id=account_id,
@@ -39,8 +43,13 @@ class BatchReceiptRepository:
         )
 
     async def find(
-        self, *, account_id: UUID, device_id: UUID, batch_id: UUID
+        self,
+        db_session: AsyncSession,
+        *,
+        account_id: UUID,
+        device_id: UUID,
+        batch_id: UUID,
     ) -> ActivityBatchReceipt | None:
-        return await self._session.get(
+        return await db_session.get(
             ActivityBatchReceipt, (account_id, device_id, batch_id)
         )

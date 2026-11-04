@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from mosemo.activities.schemas import ActivityBatchRequest
+from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
 
 
 def batch_payload():

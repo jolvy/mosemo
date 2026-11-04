@@ -19,6 +19,7 @@ PREVIOUS_REVISION = "d4e6f7a8b9c0"
 RECEIPT_REVISION = "c9d0e1f2a3b4"
 IDENTITY_KEY_REVISION = "d0e1f2a3b4c5"
 LABEL_KEY_REVISION = "e1f2a3b4c5d6"
+OBSERVATION_KEY_REVISION = "f2a3b4c5d6e7"
 # Drift that already existed at c9d0e1f2a3b4; any other difference fails.
 ALLOWED_METADATA_DRIFT = [
     ("modify_type", "activity_records", "timezone_id"),
@@ -249,7 +250,7 @@ def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == [LABEL_KEY_REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == [OBSERVATION_KEY_REVISION]
     # The assertions below describe the schema up to the batch receipts revision.
     command.downgrade(config, RECEIPT_REVISION)
     account_id = uuid4()
@@ -600,6 +601,54 @@ def test_label_primary_key_migration_renames_column_and_keeps_foreign_keys(
     assert len(after["referred"]) == 3
 
 
+async def observation_key_columns(database_url: str) -> dict[str, Any]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            return await connection.run_sync(_inspect_observation_keys)
+    finally:
+        await engine.dispose()
+
+
+def _inspect_observation_keys(connection: Any) -> dict[str, Any]:
+    inspector = inspect(connection)
+    tables = {"focus_sessions", "activity_timeline_segments"}
+    return {
+        "focus_session_pk": inspector.get_pk_constraint("focus_sessions")[
+            "constrained_columns"
+        ],
+        "segment_pk": inspector.get_pk_constraint("activity_timeline_segments")[
+            "constrained_columns"
+        ],
+        "referred": sorted(
+            (table, foreign_key["referred_table"], *foreign_key["referred_columns"])
+            for table in inspector.get_table_names()
+            for foreign_key in inspector.get_foreign_keys(table)
+            if foreign_key["referred_table"] in tables
+        ),
+    }
+
+
+def test_observation_primary_key_migration_renames_columns_and_keeps_foreign_keys(
+    integration_database_url: str,
+) -> None:
+    config = alembic_config(integration_database_url)
+    command.downgrade(config, LABEL_KEY_REVISION)
+    try:
+        before = asyncio.run(observation_key_columns(integration_database_url))
+    finally:
+        command.upgrade(config, "head")
+    after = asyncio.run(observation_key_columns(integration_database_url))
+
+    assert before["focus_session_pk"] == ["session_id"]
+    assert before["segment_pk"] == ["segment_id"]
+    assert after["focus_session_pk"] == ["id"]
+    assert after["segment_pk"] == ["id"]
+    # The one foreign key to a renamed primary key still points at it.
+    assert before["referred"] == [("activity_records", "focus_sessions", "session_id")]
+    assert after["referred"] == [("activity_records", "focus_sessions", "id")]
+
+
 def _drift_key(operation: tuple[Any, ...]) -> tuple[str, ...]:
     if operation[0].startswith("modify_"):
         return (operation[0], operation[2], operation[3])
@@ -608,29 +657,31 @@ def _drift_key(operation: tuple[Any, ...]) -> tuple[str, ...]:
 
 async def metadata_drift(database_url: str) -> list[tuple[str, ...]]:
     # Same model modules as migrations/env.py during the coexistence period.
-    from mosemo.activities import models as activities_models
+
     from mosemo.activity_labels.confirmations import (
         models as label_confirmations_models,
     )
     from mosemo.activity_labels.proposals import models as label_proposal_models
-    from mosemo.focus_sessions import models as focus_session_models
     from mosemo.identity import bootstrap as identity_bootstrap
     from mosemo.identity.infrastructure import tables as identity_tables
     from mosemo.infra.persistence import ORM_METADATA
     from mosemo.labels import bootstrap as labels_bootstrap
     from mosemo.labels.infrastructure import tables as labels_tables
+    from mosemo.observation import bootstrap as observation_bootstrap
+    from mosemo.observation.infrastructure import tables as observation_tables
 
     identity_bootstrap.map_tables()
     labels_bootstrap.map_tables()
+    observation_bootstrap.map_tables()
     assert {
         identity_tables.accounts,
-        activities_models.ActivityRecord.__table__,
+        observation_tables.activity_records,
         labels_tables.labels,
         label_confirmations_models.ActivityLabelConfirmation.__table__,
         label_proposal_models.ActivityLabelProposal.__table__,
         identity_tables.native_auth_codes,
         identity_tables.devices,
-        focus_session_models.FocusSession.__table__,
+        observation_tables.focus_sessions,
     } <= set(ORM_METADATA.tables.values())
 
     engine = create_async_engine(database_url)

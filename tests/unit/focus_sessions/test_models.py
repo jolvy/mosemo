@@ -1,9 +1,10 @@
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 import pytest
 
-from mosemo.focus_sessions.models import (
+from mosemo.observation.domain.focus_sessions import (
     FocusSession,
     FocusSessionInvalidTimeError,
     FocusSessionNotFoundError,
@@ -14,7 +15,7 @@ STARTED_AT = datetime(2026, 9, 14, tzinfo=UTC)
 
 def make_session(*, target_seconds: int = 0) -> FocusSession:
     return FocusSession(
-        session_id=uuid4(),
+        id=uuid4(),
         account_id=uuid4(),
         device_id=uuid4(),
         started_at=STARTED_AT,
@@ -52,7 +53,7 @@ def test_validate_activity_hides_sessions_owned_by_others(owner: str) -> None:
 def test_has_same_start_accepts_same_device_start_and_target() -> None:
     stored = make_session(target_seconds=60)
     candidate = FocusSession(
-        session_id=stored.session_id,
+        id=stored.id,
         account_id=stored.account_id,
         device_id=stored.device_id,
         started_at=STARTED_AT,
@@ -71,16 +72,16 @@ def test_has_same_start_accepts_same_device_start_and_target() -> None:
     ],
 )
 def test_has_same_start_rejects_any_different_start_field(
-    field: str, value: object
+    field: str, value: Any
 ) -> None:
     stored = make_session(target_seconds=60)
-    start = {
+    start: dict[str, Any] = {
         "device_id": stored.device_id,
         "started_at": STARTED_AT,
         "target_seconds": 60,
     }
     candidate = FocusSession(
-        session_id=stored.session_id,
+        id=stored.id,
         account_id=stored.account_id,
         **(start | {field: value}),
     )

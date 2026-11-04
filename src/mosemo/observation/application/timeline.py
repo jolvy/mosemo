@@ -5,10 +5,14 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.enums import ActivityTimelineKind
-from mosemo.activities.models import ActivityTimelineSegment
-from mosemo.activities.repository import ActivityRepository
-from mosemo.activities.versions import segment_version
+from mosemo.observation.domain.timeline import (
+    ActivityTimelineKind,
+    ActivityTimelineSegment,
+    segment_version,
+)
+from mosemo.observation.infrastructure.timeline_segments import (
+    TimelineSegmentRepository,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +44,7 @@ def _observed(segment: ActivityTimelineSegment, *, now: datetime) -> ObservedSeg
         else None
     )
     return ObservedSegment(
-        id=segment.segment_id,
+        id=segment.id,
         account_id=segment.account_id,
         first_event_id=segment.first_event_id,
         started_at=segment.started_at,
@@ -59,12 +63,15 @@ class ObservationTimeline:
     Runs inside the caller's transaction and never opens one itself.
     """
 
+    def __init__(self, *, segments: TimelineSegmentRepository) -> None:
+        self._segments = segments
+
     async def lock(self, db_session: AsyncSession, account_id: UUID) -> None:
         """Hold the account timeline lock until the caller's transaction ends.
 
         Raises `ActivityTimelineBusyError` when the lock is not acquired in time.
         """
-        await ActivityRepository(db_session).lock_timeline(account_id)
+        await self._segments.lock_timeline(db_session, account_id)
 
     async def find_segment(
         self,
@@ -75,8 +82,8 @@ class ObservationTimeline:
         now: datetime,
     ) -> ObservedSegment | None:
         """The account's segment with this ID, if any."""
-        segment = await ActivityRepository(db_session).find_account_segment(
-            account_id=account_id, segment_id=segment_id
+        segment = await self._segments.find_account_segment(
+            db_session, account_id=account_id, segment_id=segment_id
         )
         return None if segment is None else _observed(segment, now=now)
 
@@ -89,10 +96,8 @@ class ObservationTimeline:
         now: datetime,
     ) -> ObservedSegment | None:
         """The account's segment that starts with this event, if any."""
-        segment = await ActivityRepository(
-            db_session
-        ).find_account_segment_by_first_event(
-            account_id=account_id, first_event_id=first_event_id
+        segment = await self._segments.find_account_segment_by_first_event(
+            db_session, account_id=account_id, first_event_id=first_event_id
         )
         return None if segment is None else _observed(segment, now=now)
 
@@ -105,10 +110,8 @@ class ObservationTimeline:
         now: datetime,
     ) -> dict[UUID, ObservedSegment]:
         """The account's segments keyed by first event; missing ones are left out."""
-        segments = await ActivityRepository(
-            db_session
-        ).list_account_segments_by_first_events(
-            account_id=account_id, first_event_ids=first_event_ids
+        segments = await self._segments.list_account_segments_by_first_events(
+            db_session, account_id=account_id, first_event_ids=first_event_ids
         )
         return {
             segment.first_event_id: _observed(segment, now=now) for segment in segments
@@ -124,8 +127,8 @@ class ObservationTimeline:
         now: datetime,
     ) -> list[ObservedSegment]:
         """The account's segments overlapping `[start, end)` at `now`, in order."""
-        segments = await ActivityRepository(db_session).list_date_segments(
-            account_id=account_id, start=start, end=end
+        segments = await self._segments.list_date_segments(
+            db_session, account_id=account_id, start=start, end=end
         )
         return [
             _observed(segment, now=now)
@@ -142,7 +145,7 @@ class ObservationTimeline:
         limit: int,
     ) -> list[ObservedSegment]:
         """Closed detailed segments of all accounts after the cursor, by segment ID."""
-        segments = await ActivityRepository(db_session).list_closed_detailed_segments(
-            after_segment_id=after_segment_id, now=now, limit=limit
+        segments = await self._segments.list_closed_detailed_segments(
+            db_session, after_segment_id=after_segment_id, now=now, limit=limit
         )
         return [_observed(segment, now=now) for segment in segments]

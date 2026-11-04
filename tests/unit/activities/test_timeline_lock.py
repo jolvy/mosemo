@@ -1,6 +1,8 @@
 from uuid import UUID
 
-from mosemo.activities.repository import activity_timeline_lock_key
+from mosemo.observation.infrastructure.timeline_segments import (
+    activity_timeline_lock_key,
+)
 
 
 def test_activity_timeline_lock_key_is_pinned() -> None:

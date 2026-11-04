@@ -2,7 +2,8 @@ from uuid import UUID
 
 from pydantic import Field
 
-from mosemo.activities.schemas import TimelineTimestamp
+from mosemo.observation.domain.focus_sessions import FocusSession
+from mosemo.observation.presentation.activities.schemas import TimelineTimestamp
 from mosemo.shared.presentation.schemas import (
     ApiRequestModel,
     ApiResponseModel,
@@ -57,3 +58,16 @@ class FocusSessionResponse(ApiResponseModel):
         description="완료 시 확정된 라벨입니다. 완료 전에는 null입니다."
     )
     description: str = Field(description="작업 설명입니다.")
+
+    @classmethod
+    def from_session(cls, focus_session: FocusSession) -> FocusSessionResponse:
+        return cls(
+            session_id=focus_session.id,
+            device_id=focus_session.device_id,
+            started_at=focus_session.started_at,
+            ended_at=focus_session.ended_at,
+            target_seconds=focus_session.target_seconds,
+            work_seconds=focus_session.work_seconds,
+            label_id=focus_session.label_id,
+            description=focus_session.description,
+        )

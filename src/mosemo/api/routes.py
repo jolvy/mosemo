@@ -1,9 +1,8 @@
 from fastapi import APIRouter
 
-from mosemo.activities.router import router as activities_router
 from mosemo.activity_labels.router import router as labels_router
-from mosemo.api.contexts import IDENTITY, LABELS
-from mosemo.focus_sessions.router import router as focus_sessions_router
+from mosemo.api.activity_batches import get_batch_publisher
+from mosemo.api.contexts import IDENTITY, LABELS, OBSERVATION
 from mosemo.shared.errors import CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 
@@ -18,9 +17,14 @@ v1_api_router = APIRouter(
 
 v1_api_router.include_router(IDENTITY.auth_router(), prefix="/auth", tags=["auth"])
 v1_api_router.include_router(IDENTITY.accounts_router(), tags=["accounts"])
-v1_api_router.include_router(activities_router, tags=["activities"])
+v1_api_router.include_router(
+    OBSERVATION.activities_router(get_batch_publisher=get_batch_publisher),
+    tags=["activities"],
+)
 v1_api_router.include_router(labels_router, tags=["activities"])
 v1_api_router.include_router(LABELS.router(), tags=["labels"])
 v1_api_router.include_router(IDENTITY.devices_router(), tags=["devices"])
 
-v1_api_router.include_router(focus_sessions_router, tags=["focus-sessions"])
+v1_api_router.include_router(
+    OBSERVATION.focus_sessions_router(), tags=["focus-sessions"]
+)

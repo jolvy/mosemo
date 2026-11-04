@@ -50,7 +50,7 @@ class BatchBodyLimitMiddleware:
         ):
             await self._app(scope, receive, send)
             return
-        from mosemo.exceptions import ErrorCode
+        from mosemo.observation.public import ObservationErrorCode
         from mosemo.shared.presentation.responses import error_response
 
         if scope["path"] == "/api/v1/activities/batches/legacy":
@@ -73,13 +73,14 @@ class BatchBodyLimitMiddleware:
             if response_started:
                 raise
             await error_response(
-                ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE, headers={"Retry-After": "1"}
+                ObservationErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
+                headers={"Retry-After": "1"},
             )(scope, receive, send)
 
     async def _bounded_request(
         self, scope: Scope, receive: Receive, send: Send
     ) -> None:
-        from mosemo.exceptions import ErrorCode
+        from mosemo.observation.public import ObservationErrorCode
         from mosemo.shared.presentation.responses import error_response
 
         body = bytearray()
@@ -91,16 +92,17 @@ class BatchBodyLimitMiddleware:
                         return
                     chunk = message.get("body", b"")
                     if len(body) + len(chunk) > self._limit:
-                        await error_response(ErrorCode.ACTIVITY_BATCH_TOO_LARGE)(
-                            scope, receive, send
-                        )
+                        await error_response(
+                            ObservationErrorCode.ACTIVITY_BATCH_TOO_LARGE
+                        )(scope, receive, send)
                         return
                     body.extend(chunk)
                     if not message.get("more_body", False):
                         break
         except TimeoutError:
             await error_response(
-                ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE, headers={"Retry-After": "1"}
+                ObservationErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
+                headers={"Retry-After": "1"},
             )(scope, receive, send)
             return
         consumed = False

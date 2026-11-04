@@ -4,14 +4,18 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from uuid import UUID
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
-from mosemo.activities.messages import ActivityRegistrationRequested
-from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.api.middleware import BatchBodyLimitMiddleware
 from mosemo.infra.config import BatchDeliveryConfig
-from mosemo.infra.messaging.publisher import KafkaPublisher
+from mosemo.infra.messaging.publisher import DeliveryUnavailableError, KafkaPublisher
 from mosemo.infra.messaging.runtime import kafka_publisher
+from mosemo.observation import bootstrap as observation_bootstrap
+from mosemo.observation.bootstrap import (
+    ActivityBatchRequest,
+    ActivityDeliveryUnavailableError,
+    ActivityRegistrationRequested,
+)
 
 
 class ActivityBatchPublisher:
@@ -24,6 +28,27 @@ class ActivityBatchPublisher:
             key=str(account_id).encode("utf-8"),
             value=message.model_dump_json(by_alias=True).encode("utf-8"),
         )
+
+
+class ActivityBatchDelivery:
+    """The observation delivery port over the publisher in the app state."""
+
+    def __init__(self, publisher: ActivityBatchPublisher) -> None:
+        self._publisher = publisher
+
+    async def publish(self, account_id: UUID, batch: ActivityBatchRequest) -> None:
+        try:
+            await self._publisher.publish(account_id, batch)
+        except DeliveryUnavailableError as exc:
+            raise ActivityDeliveryUnavailableError from exc
+
+
+def get_batch_publisher(
+    request: Request,
+) -> observation_bootstrap.ActivityBatchPublisher[ActivityBatchRequest] | None:
+    """The delivery port while the messaging lifespan holds a publisher."""
+    publisher = getattr(request.app.state, "batch_publisher", None)
+    return None if publisher is None else ActivityBatchDelivery(publisher)
 
 
 class MessagingRuntime:

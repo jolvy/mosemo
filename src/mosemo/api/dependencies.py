@@ -3,17 +3,15 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.repository import ActivityRepository
-from mosemo.activities.service import ActivityService
 from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.confirmations.service import ConfirmationService
 from mosemo.activity_labels.proposals.repository import ProposalRepository
 from mosemo.activity_labels.queries.repository import LabelQueryRepository
 from mosemo.activity_labels.queries.service import LabelQueries
 from mosemo.activity_labels.service import ActivityLabelService
-from mosemo.api.contexts import IDENTITY, LABELS
+from mosemo.api.contexts import IDENTITY, LABELS, OBSERVATION
 from mosemo.identity import bootstrap as identity_bootstrap
-from mosemo.identity.public import AccountDirectory, DeviceDirectory
+from mosemo.identity.public import AccountDirectory
 from mosemo.infra.config import Config
 from mosemo.infra.providers import get_clock, get_config, get_session
 from mosemo.labels.public import LabelCatalog
@@ -32,46 +30,6 @@ def get_account_directory() -> AccountDirectory:
 
 
 AccountDirectoryDep = Annotated[AccountDirectory, Depends(get_account_directory)]
-
-
-def get_activity_repository(session: SessionDep) -> ActivityRepository:
-    return ActivityRepository(session)
-
-
-ActivityRepositoryDep = Annotated[
-    ActivityRepository,
-    Depends(get_activity_repository),
-]
-
-
-def get_device_directory() -> DeviceDirectory:
-    return IDENTITY.device_directory
-
-
-DeviceDirectoryDep = Annotated[DeviceDirectory, Depends(get_device_directory)]
-
-
-def get_activity_service(
-    session: SessionDep,
-    repository: ActivityRepositoryDep,
-    *,
-    devices: DeviceDirectoryDep,
-    accounts: AccountDirectoryDep,
-    clock: ClockDep,
-) -> ActivityService:
-    return ActivityService(
-        session=session,
-        repository=repository,
-        devices=devices,
-        accounts=accounts,
-        clock=clock,
-    )
-
-
-ActivityServiceDep = Annotated[
-    ActivityService,
-    Depends(get_activity_service),
-]
 
 
 def get_confirmation_repository(session: SessionDep) -> ConfirmationRepository:
@@ -114,7 +72,7 @@ LabelQueryRepositoryDep = Annotated[
 
 
 def get_observation_timeline() -> ObservationTimeline:
-    return ObservationTimeline()
+    return OBSERVATION.observation_timeline
 
 
 ObservationTimelineDep = Annotated[

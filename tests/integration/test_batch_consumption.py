@@ -9,21 +9,28 @@ from faststream.kafka.message import KafkaAckableMessage
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from mosemo.activities.executor import BatchProcessingExecutor
-from mosemo.activities.messages import ActivityRegistrationRequested
-from mosemo.activities.models import ActivityBatchReceipt, ActivityRecord
-from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.consumer.activity_batches import activity_batch_handler
-from mosemo.identity.bootstrap import create_device_directory
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
 from mosemo.infra.clock import utc_now
 from mosemo.infra.kafka_compat import BatchPartition
 from mosemo.infra.messaging.subscriber import MessageConsumer
+from mosemo.observation.domain.activities import ActivityBatchReceipt, ActivityRecord
+from mosemo.observation.infrastructure.tables import (
+    activity_batch_receipts,
+    activity_records,
+    activity_timeline_segments,
+)
+from mosemo.observation.infrastructure.timeline_segments import (
+    TimelineSegmentRepository,
+)
+from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
+from mosemo.observation.presentation.messages import ActivityRegistrationRequested
 from tests.clock_support import FakeClock
 from tests.identity_support import delete_accounts
 from tests.integration.test_activity_batches import batch, record
 from tests.kafka_support import GroupOffsets, KafkaTestAdmin
+from tests.observation_support import batch_executor
 
 
 async def eventually(check, *, timeout=20):
@@ -119,7 +126,7 @@ async def receipt_count(sessions, owner):
         return await session.scalar(
             select(func.count())
             .select_from(ActivityBatchReceipt)
-            .where(ActivityBatchReceipt.account_id == owner)
+            .where(activity_batch_receipts.c.account_id == owner)
         )
 
 
@@ -132,9 +139,7 @@ async def test_real_partitions_parallel_but_next_batch_waits_for_db_and_offset_a
     entered = asyncio.Queue()
     release = {owner: asyncio.Event() for owner in owners}
     before_commit, allow_commit = asyncio.Event(), asyncio.Event()
-    real_executor = BatchProcessingExecutor(
-        sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
-    )
+    real_executor = batch_executor(sessions, clock=FakeClock(utc_now()))
 
     class Executor:
         async def execute(self, msg):
@@ -185,9 +190,7 @@ async def test_valid_offsets_resume_and_new_group_uses_earliest(
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
     seen = []
-    real = BatchProcessingExecutor(
-        sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
-    )
+    real = batch_executor(sessions, clock=FakeClock(utc_now()))
 
     class Executor:
         async def execute(self, msg):
@@ -235,9 +238,7 @@ async def test_rebalance_between_group_members_cancels_old_session_before_replay
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
     entered, cancelled = asyncio.Event(), asyncio.Event()
-    real = BatchProcessingExecutor(
-        sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
-    )
+    real = batch_executor(sessions, clock=FakeClock(utc_now()))
     seen = []
 
     class HeldExecutor:
@@ -290,7 +291,7 @@ async def test_rebalance_between_group_members_cancels_old_session_before_replay
                     await session.scalar(
                         select(func.count())
                         .select_from(ActivityRecord)
-                        .where(ActivityRecord.device_id.in_(devices))
+                        .where(activity_records.c.device_id.in_(devices))
                     )
                     == 4
                 )
@@ -307,7 +308,6 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
 
     import httpx2
 
-    from mosemo.activities.models import ActivityTimelineSegment
     from mosemo.identity.presentation.auth.router import get_token_service
 
     delivery = integration_kafka.config
@@ -391,7 +391,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                         await session.scalar(
                             select(func.count())
                             .select_from(ActivityRecord)
-                            .where(ActivityRecord.device_id == devices[0])
+                            .where(activity_records.c.device_id == devices[0])
                         )
                         == 0
                     )
@@ -412,20 +412,20 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 assert await receipt_count(sessions, owners[0]) == 1
                 async with sessions() as session:
                     receipt_query = select(
-                        ActivityBatchReceipt.fingerprint,
-                        ActivityBatchReceipt.results,
-                        ActivityBatchReceipt.processed_at,
+                        activity_batch_receipts.c.fingerprint,
+                        activity_batch_receipts.c.results,
+                        activity_batch_receipts.c.processed_at,
                     ).where(
-                        ActivityBatchReceipt.account_id == owners[0],
-                        ActivityBatchReceipt.device_id == devices[0],
-                        ActivityBatchReceipt.batch_id == body["batchId"],
+                        activity_batch_receipts.c.account_id == owners[0],
+                        activity_batch_receipts.c.device_id == devices[0],
+                        activity_batch_receipts.c.batch_id == body["batchId"],
                     )
                     receipt_before = (await session.execute(receipt_query)).one()
                     before = list(
                         (
                             await session.scalars(
-                                select(ActivityTimelineSegment.segment_id).where(
-                                    ActivityTimelineSegment.account_id == owners[0]
+                                select(activity_timeline_segments.c.id).where(
+                                    activity_timeline_segments.c.account_id == owners[0]
                                 )
                             )
                         ).all()
@@ -456,8 +456,8 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                     after = list(
                         (
                             await session.scalars(
-                                select(ActivityTimelineSegment.segment_id).where(
-                                    ActivityTimelineSegment.account_id == owners[0]
+                                select(activity_timeline_segments.c.id).where(
+                                    activity_timeline_segments.c.account_id == owners[0]
                                 )
                             )
                         ).all()
@@ -466,7 +466,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                         await session.scalar(
                             select(func.count())
                             .select_from(ActivityRecord)
-                            .where(ActivityRecord.device_id == devices[0])
+                            .where(activity_records.c.device_id == devices[0])
                         )
                         == 1
                     )
@@ -552,19 +552,16 @@ async def test_registered_faststream_handler_rejects_invalid_message_without_pro
 async def test_kafka_commits_and_acks_while_account_advisory_lock_is_held(
     integration_kafka, consumption_db
 ):
-    from mosemo.activities.repository import ActivityRepository
 
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
     # This is an independent lock holder, not concurrent legacy processing.
     async with sessions() as holder, holder.begin():
-        await ActivityRepository(holder).lock_timeline(owners[0])
+        await TimelineSegmentRepository().lock_timeline(holder, owners[0])
         await publish(config, owners[:1], devices[:1], 1)
         async with running(
             config,
-            BatchProcessingExecutor(
-                sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
-            ),
+            batch_executor(sessions, clock=FakeClock(utc_now())),
         ) as (
             consumer,
             _,
@@ -585,7 +582,7 @@ async def test_real_kafka_commit_failure_rolls_back_every_write_without_ack(
 ):
     from sqlalchemy import event
 
-    from mosemo.activities.models import ActivityTimelineSegment
+    from mosemo.observation.domain.timeline import ActivityTimelineSegment
 
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
@@ -593,11 +590,7 @@ async def test_real_kafka_commit_failure_rolls_back_every_write_without_ack(
     broker = KafkaBroker(config.bootstrap_servers, logger=None, graceful_timeout=0)
     worker = MessageConsumer(
         broker,
-        activity_batch_handler(
-            BatchProcessingExecutor(
-                sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
-            )
-        ),
+        activity_batch_handler(batch_executor(sessions, clock=FakeClock(utc_now()))),
     )
 
     def fail_commit(session):
@@ -617,7 +610,7 @@ async def test_real_kafka_commit_failure_rolls_back_every_write_without_ack(
                 await session.scalar(
                     select(func.count())
                     .select_from(ActivityRecord)
-                    .where(ActivityRecord.device_id == devices[0])
+                    .where(activity_records.c.device_id == devices[0])
                 )
                 == 0
             )
@@ -625,7 +618,7 @@ async def test_real_kafka_commit_failure_rolls_back_every_write_without_ack(
                 await session.scalar(
                     select(func.count())
                     .select_from(ActivityTimelineSegment)
-                    .where(ActivityTimelineSegment.account_id == owners[0])
+                    .where(activity_timeline_segments.c.account_id == owners[0])
                 )
                 == 0
             )

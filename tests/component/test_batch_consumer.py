@@ -9,21 +9,29 @@ import pytest
 from faststream import AckPolicy
 from faststream.kafka import KafkaBroker
 
-from mosemo.activities.executor import BatchProcessingExecutor
-from mosemo.activities.messages import ActivityRegistrationRequested
-from mosemo.activities.schemas import ActivityBatchRequest
 from mosemo.consumer.activity_batches import (
     InvalidBatchMessageError,
     activity_batch_handler,
     decode_batch,
     run_consumer,
 )
-from mosemo.identity.bootstrap import create_device_directory
 from mosemo.infra.clock import utc_now
 from mosemo.infra.kafka_compat import BatchPartition
 from mosemo.infra.messaging.subscriber import MessageConsumer
+from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
+from mosemo.observation.presentation.messages import ActivityRegistrationRequested
 from tests.clock_support import FakeClock
 from tests.component.test_activities_api import activity_request
+from tests.observation_support import batch_executor
+
+
+def session_double() -> Mock:
+    """A session that `unit_of_work` can open: no open transaction, no events."""
+    session = Mock()
+    session.in_transaction.return_value = False
+    session.flush = AsyncMock()
+    session.sync_session.info = {}
+    return session
 
 
 def message():
@@ -60,7 +68,7 @@ async def test_executor_owns_fresh_session_for_each_attempt(monkeypatch, failure
 
     @asynccontextmanager
     async def sessions():
-        session = Mock()
+        session = session_double()
         session.begin.return_value = AsyncMock()
         opened.append(session)
         try:
@@ -76,11 +84,9 @@ async def test_executor_owns_fresh_session_for_each_attempt(monkeypatch, failure
             raise asyncio.CancelledError
 
     monkeypatch.setattr(
-        "mosemo.activities.executor.ActivityBatchProcessor.process", process
+        "mosemo.observation.application.batches.ActivityBatchProcessor.process", process
     )
-    executor = BatchProcessingExecutor(
-        sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
-    )
+    executor = batch_executor(sessions, clock=FakeClock(utc_now()))
     for _ in range(2):
         if failure:
             with pytest.raises(
@@ -425,7 +431,7 @@ async def test_consumer_waits_for_executor_commit_and_never_acks_failed_commit(
             raise RuntimeError("commit failed")
 
     transaction.__aexit__.side_effect = finish
-    session = Mock()
+    session = session_double()
     session.begin.return_value = transaction
 
     @asynccontextmanager
@@ -433,17 +439,14 @@ async def test_consumer_waits_for_executor_commit_and_never_acks_failed_commit(
         yield session
 
     monkeypatch.setattr(
-        "mosemo.activities.executor.ActivityBatchProcessor.process", AsyncMock()
+        "mosemo.observation.application.batches.ActivityBatchProcessor.process",
+        AsyncMock(),
     )
     broker = Broker()
     broker.commit.side_effect = lambda: acked.set()
     worker = MessageConsumer(
         cast(KafkaBroker, broker),
-        activity_batch_handler(
-            BatchProcessingExecutor(
-                sessions, clock=FakeClock(utc_now()), devices=create_device_directory()
-            )
-        ),
+        activity_batch_handler(batch_executor(sessions, clock=FakeClock(utc_now()))),
     )
     stop = asyncio.Event()
     pending = asyncio.create_task(worker.run("test", stop, group_id="group"))
