@@ -1,46 +1,49 @@
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from uuid import UUID, uuid7
 
-from sqlalchemy import (
-    DateTime,
-    ForeignKey,
-    Index,
-    String,
-    UniqueConstraint,
-)
-from sqlalchemy.orm import Mapped, mapped_column
-
-from mosemo.infra.persistence import Base
+from mosemo.shared.domain.aggregates import AggregateRoot
 
 
-class ActivityLabelConfirmation(Base):
-    __tablename__ = "activity_label_confirmations"
-    __table_args__ = (
-        UniqueConstraint("account_id", "first_event_id"),
-        Index(
-            "activity_label_confirmations_account_id_idx",
-            "account_id",
-        ),
-    )
+class ActivityLabelSegmentNotFoundError(Exception):
+    pass
 
-    confirmation_id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
-    account_id: Mapped[UUID] = mapped_column(
-        ForeignKey("accounts.id", ondelete="CASCADE"),
-    )
-    first_event_id: Mapped[UUID] = mapped_column(
-        ForeignKey("activity_records.event_id", ondelete="CASCADE")
-    )
-    segment_version: Mapped[str] = mapped_column(String(64))
-    label_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("labels.id", ondelete="NO ACTION"),
-        nullable=True,
-    )
-    confirmed_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-    )
+
+class ActivityLabelSegmentNotLabelableError(Exception):
+    pass
+
+
+class ActivityLabelSegmentChangedError(Exception):
+    pass
+
+
+class ActivityLabelUnavailableError(Exception):
+    pass
+
+
+class ActivityLabelConfirmationConflictError(Exception):
+    pass
+
+
+class ActivityLabelSegmentDuplicateError(Exception):
+    pass
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class ActivityLabelConfirmation(AggregateRoot):
+    """The latest label or unclassified choice for one observed segment.
+
+    `label_id` is `None` for unclassified. The segment is identified by its
+    first event, and the choice applies only to `segment_version`.
+    """
+
+    id: UUID = field(default_factory=uuid7)
+    account_id: UUID
+    first_event_id: UUID
+    segment_version: str
+    label_id: UUID | None
+    confirmed_at: datetime
+    updated_at: datetime
 
     def applies_to(self, segment_version: str) -> bool:
         return self.segment_version == segment_version

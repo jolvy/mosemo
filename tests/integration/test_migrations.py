@@ -20,6 +20,7 @@ RECEIPT_REVISION = "c9d0e1f2a3b4"
 IDENTITY_KEY_REVISION = "d0e1f2a3b4c5"
 LABEL_KEY_REVISION = "e1f2a3b4c5d6"
 OBSERVATION_KEY_REVISION = "f2a3b4c5d6e7"
+LABELING_KEY_REVISION = "a3b4c5d6e7f8"
 # Drift that already existed at c9d0e1f2a3b4; any other difference fails.
 ALLOWED_METADATA_DRIFT = [
     ("modify_type", "activity_records", "timezone_id"),
@@ -250,7 +251,7 @@ def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == [OBSERVATION_KEY_REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == [LABELING_KEY_REVISION]
     # The assertions below describe the schema up to the batch receipts revision.
     command.downgrade(config, RECEIPT_REVISION)
     account_id = uuid4()
@@ -649,6 +650,55 @@ def test_observation_primary_key_migration_renames_columns_and_keeps_foreign_key
     assert after["referred"] == [("activity_records", "focus_sessions", "id")]
 
 
+async def labeling_key_columns(database_url: str) -> dict[str, Any]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            return await connection.run_sync(_inspect_labeling_keys)
+    finally:
+        await engine.dispose()
+
+
+def _inspect_labeling_keys(connection: Any) -> dict[str, Any]:
+    inspector = inspect(connection)
+    tables = {"activity_label_confirmations", "activity_label_proposals"}
+    return {
+        "pks": {
+            table: inspector.get_pk_constraint(table)["constrained_columns"]
+            for table in sorted(tables)
+        },
+        "referred": [
+            table
+            for table in inspector.get_table_names()
+            for foreign_key in inspector.get_foreign_keys(table)
+            if foreign_key["referred_table"] in tables
+        ],
+    }
+
+
+def test_labeling_primary_key_migration_renames_columns(
+    integration_database_url: str,
+) -> None:
+    config = alembic_config(integration_database_url)
+    command.downgrade(config, OBSERVATION_KEY_REVISION)
+    try:
+        before = asyncio.run(labeling_key_columns(integration_database_url))
+    finally:
+        command.upgrade(config, "head")
+    after = asyncio.run(labeling_key_columns(integration_database_url))
+
+    assert before["pks"] == {
+        "activity_label_confirmations": ["confirmation_id"],
+        "activity_label_proposals": ["proposal_id"],
+    }
+    assert after["pks"] == {
+        "activity_label_confirmations": ["id"],
+        "activity_label_proposals": ["id"],
+    }
+    # No foreign key refers to either primary key.
+    assert before["referred"] == after["referred"] == []
+
+
 def _drift_key(operation: tuple[Any, ...]) -> tuple[str, ...]:
     if operation[0].startswith("modify_"):
         return (operation[0], operation[2], operation[3])
@@ -658,13 +708,11 @@ def _drift_key(operation: tuple[Any, ...]) -> tuple[str, ...]:
 async def metadata_drift(database_url: str) -> list[tuple[str, ...]]:
     # Same model modules as migrations/env.py during the coexistence period.
 
-    from mosemo.activity_labels.confirmations import (
-        models as label_confirmations_models,
-    )
-    from mosemo.activity_labels.proposals import models as label_proposal_models
     from mosemo.identity import bootstrap as identity_bootstrap
     from mosemo.identity.infrastructure import tables as identity_tables
     from mosemo.infra.persistence import ORM_METADATA
+    from mosemo.labeling import bootstrap as labeling_bootstrap
+    from mosemo.labeling.infrastructure import tables as labeling_tables
     from mosemo.labels import bootstrap as labels_bootstrap
     from mosemo.labels.infrastructure import tables as labels_tables
     from mosemo.observation import bootstrap as observation_bootstrap
@@ -673,12 +721,13 @@ async def metadata_drift(database_url: str) -> list[tuple[str, ...]]:
     identity_bootstrap.map_tables()
     labels_bootstrap.map_tables()
     observation_bootstrap.map_tables()
+    labeling_bootstrap.map_tables()
     assert {
         identity_tables.accounts,
         observation_tables.activity_records,
         labels_tables.labels,
-        label_confirmations_models.ActivityLabelConfirmation.__table__,
-        label_proposal_models.ActivityLabelProposal.__table__,
+        labeling_tables.activity_label_confirmations,
+        labeling_tables.activity_label_proposals,
         identity_tables.native_auth_codes,
         identity_tables.devices,
         observation_tables.focus_sessions,

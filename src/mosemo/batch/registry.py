@@ -4,10 +4,11 @@ from collections.abc import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from mosemo.activity_labels.proposals.job import build_label_proposal_job
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.infra.config import Config
+from mosemo.infra.providers import get_event_dispatcher
 from mosemo.infra.scheduling import BatchJob
+from mosemo.labeling import bootstrap as labeling_bootstrap
 from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.observation import bootstrap as observation_bootstrap
 
@@ -28,12 +29,14 @@ def build_jobs(
     identity_bootstrap.map_tables()
     labels_bootstrap.map_tables()
     observation_bootstrap.map_tables()
+    labeling_bootstrap.map_tables()
     jobs = [
-        build_label_proposal_job(
+        labeling_bootstrap.create_label_proposal_job(
             session_factory,
             model=config.label_model,
             labels=labels_bootstrap.create_label_catalog(),
             timeline=observation_bootstrap.create_observation_timeline(),
+            dispatcher=get_event_dispatcher(),
         )
     ]
     ensure_unique_names(jobs)

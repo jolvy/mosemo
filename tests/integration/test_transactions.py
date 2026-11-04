@@ -14,6 +14,7 @@ from mosemo.infra.transactions import (
     TransactionAlreadyOpenError,
     read_snapshot,
     record_event,
+    reset_session,
     unit_of_work,
 )
 from mosemo.shared.application.events import EventDispatcher
@@ -346,3 +347,32 @@ async def test_read_snapshot_is_read_only_and_dispatches_nothing(
     assert note.events == []
     assert recorder.events == []
     assert await count_rows(db_session, notes) == 0
+
+
+@pytest.mark.asyncio
+async def test_reset_session_forgets_loaded_and_tracked_roots(
+    db_session: AsyncSession,
+) -> None:
+    dispatcher, recorder = recording_dispatcher()
+    note = new_note("first")
+    async with unit_of_work(db_session, dispatcher):
+        db_session.add(note)
+
+    reset_session(db_session)
+    # A forgotten root is detached: its later events are not dispatched.
+    note.write("detached")
+    async with unit_of_work(db_session, dispatcher):
+        loaded = (await db_session.execute(select(Note))).scalar_one()
+
+    assert loaded is not note
+    assert recorder.events == [NoteWritten(note_id=note.id, body="first")]
+
+
+@pytest.mark.asyncio
+async def test_reset_session_with_an_open_transaction_fails(
+    db_session: AsyncSession,
+) -> None:
+    await db_session.execute(select(1))
+
+    with pytest.raises(TransactionAlreadyOpenError):
+        reset_session(db_session)

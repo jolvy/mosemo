@@ -1,86 +1,25 @@
 import asyncio
 import json
-from dataclasses import dataclass
-from typing import Protocol
-from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel
 from pydantic_ai import Agent, ModelRetry
 from pydantic_ai.models import Model
 
-from mosemo.observation.public import (
-    BrowserWebContext,
-    CapturedString,
-    CapturedWindow,
-    DetailedActivityContext,
+from mosemo.labeling.domain.suggestions import (
+    PROMPT_VERSION,
+    SuggestionInput,
+    SuggestionResult,
 )
-
-PROMPT_VERSION = "v1"
-_context_adapter = TypeAdapter(DetailedActivityContext)
-
-
-@dataclass(frozen=True)
-class LabelCandidate:
-    label_id: UUID
-    display_name: str
-
-
-@dataclass(frozen=True)
-class ConfirmedExample:
-    confirmation_id: UUID
-    activity: str
-    label_id: UUID | None
-
-
-@dataclass(frozen=True)
-class SuggestionInput:
-    activity: str
-    labels: tuple[LabelCandidate, ...]
-    examples: tuple[ConfirmedExample, ...]
-
-
-@dataclass(frozen=True)
-class SuggestionResult:
-    label_id: UUID | None
-    provider: str
-    model: str
-    prompt_version: str
-    input_tokens: int | None
-    output_tokens: int | None
-
-
-class LabelSuggester(Protocol):
-    async def suggest(self, request: SuggestionInput) -> SuggestionResult: ...
 
 
 class _ModelSelection(BaseModel):
     label_id: UUID | None
 
 
-def summarize_context(context: dict[str, object]) -> str:
-    detailed = _context_adapter.validate_python(context)
-    parts: list[str] = []
-    if isinstance(detailed.app.bundle_id, CapturedString):
-        parts.append(f"app_bundle_id: {detailed.app.bundle_id.value[:256]}")
-    if isinstance(detailed.app.name, CapturedString):
-        parts.append(f"app_name: {detailed.app.name.value[:256]}")
-    if isinstance(detailed.window, CapturedWindow):
-        parts.append(f"window_title: {detailed.window.title.value[:256]}")
-    if isinstance(detailed.web, BrowserWebContext):
-        if isinstance(detailed.web.tab_title, CapturedString):
-            parts.append(f"tab_title: {detailed.web.tab_title.value[:256]}")
-        if isinstance(detailed.web.url, CapturedString):
-            try:
-                host = urlsplit(detailed.web.url.value).hostname
-            except ValueError:
-                host = None
-            if host:
-                parts.append(f"web_host: {host[:256]}")
-    return "\n".join(parts)
-
-
 class PydanticAILabelSuggester:
+    """The `LabelSuggester` port backed by a PydanticAI model."""
+
     def __init__(self, model: str | Model) -> None:
         if isinstance(model, str) and ":" not in model:
             raise ValueError("LABEL_MODEL must include a provider prefix")

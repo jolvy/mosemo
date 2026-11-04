@@ -8,6 +8,8 @@ from mosemo.api.error_docs import ERROR_DOCS as CENTRAL_ERROR_DOCS
 from mosemo.exceptions import ErrorCode
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.identity.public import IdentityErrorCode
+from mosemo.labeling import bootstrap as labeling_bootstrap
+from mosemo.labeling.public import LabelingErrorCode
 from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.labels.public import LabelErrorCode
 from mosemo.observation import bootstrap as observation_bootstrap
@@ -22,6 +24,7 @@ REGISTERED_ERROR_DOCS: Mapping[type[ApiErrorCode], Mapping[ApiErrorCode, ErrorDo
     IdentityErrorCode: identity_bootstrap.ERROR_DOCS,
     LabelErrorCode: labels_bootstrap.ERROR_DOCS,
     ObservationErrorCode: observation_bootstrap.ERROR_DOCS,
+    LabelingErrorCode: labeling_bootstrap.ERROR_DOCS,
     ErrorCode: CENTRAL_ERROR_DOCS,
 }
 

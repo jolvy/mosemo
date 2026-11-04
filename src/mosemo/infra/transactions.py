@@ -111,3 +111,17 @@ async def read_snapshot(db_session: AsyncSession) -> AsyncIterator[None]:
             yield
     finally:
         _discard_events(db_session.sync_session)
+
+
+def reset_session(db_session: AsyncSession) -> None:
+    """Forget every loaded object before the next transaction on a reused session.
+
+    A session keeps loaded objects after a commit (`expire_on_commit=False`),
+    and a query does not overwrite them, so a later transaction would see rows
+    as an earlier one left them. A use case that runs several transactions on
+    one session calls this between them; it also drops the tracked roots, which
+    otherwise live as long as the session.
+    """
+    _ensure_no_transaction(db_session)
+    db_session.expunge_all()
+    _tracked_roots(db_session.sync_session).clear()

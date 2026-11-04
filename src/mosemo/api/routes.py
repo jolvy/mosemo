@@ -1,8 +1,7 @@
 from fastapi import APIRouter
 
-from mosemo.activity_labels.router import router as labels_router
 from mosemo.api.activity_batches import get_batch_publisher
-from mosemo.api.contexts import IDENTITY, LABELS, OBSERVATION
+from mosemo.api.contexts import IDENTITY, LABELING, LABELS, OBSERVATION
 from mosemo.shared.errors import CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 
@@ -21,7 +20,7 @@ v1_api_router.include_router(
     OBSERVATION.activities_router(get_batch_publisher=get_batch_publisher),
     tags=["activities"],
 )
-v1_api_router.include_router(labels_router, tags=["activities"])
+v1_api_router.include_router(LABELING.router(), tags=["activities"])
 v1_api_router.include_router(LABELS.router(), tags=["labels"])
 v1_api_router.include_router(IDENTITY.devices_router(), tags=["devices"])
 

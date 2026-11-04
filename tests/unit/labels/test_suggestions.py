@@ -4,11 +4,8 @@ import pytest
 from pydantic_ai import UnexpectedModelBehavior
 from pydantic_ai.models.test import TestModel
 
-from mosemo.activity_labels.proposals.suggestions import (
-    LabelCandidate,
-    PydanticAILabelSuggester,
-    SuggestionInput,
-)
+from mosemo.labeling.domain.suggestions import LabelCandidate, SuggestionInput
+from mosemo.labeling.infrastructure.suggestions import PydanticAILabelSuggester
 
 
 @pytest.mark.asyncio
