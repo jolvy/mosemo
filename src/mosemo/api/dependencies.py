@@ -17,6 +17,7 @@ from mosemo.identity.public import AccountDirectory, DeviceDirectory
 from mosemo.infra.config import Config
 from mosemo.infra.providers import get_clock, get_config, get_session
 from mosemo.labels.public import LabelCatalog
+from mosemo.observation.public import ObservationTimeline
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.presentation.current_account import CurrentAccount
 
@@ -112,16 +113,25 @@ LabelQueryRepositoryDep = Annotated[
 ]
 
 
+def get_observation_timeline() -> ObservationTimeline:
+    return ObservationTimeline()
+
+
+ObservationTimelineDep = Annotated[
+    ObservationTimeline, Depends(get_observation_timeline)
+]
+
+
 def get_confirmation_service(
     session: SessionDep,
-    activity_repository: ActivityRepositoryDep,
+    timeline: ObservationTimelineDep,
     *,
     confirmation_repository: ConfirmationRepositoryDep,
     labels: LabelCatalogDep,
 ) -> ConfirmationService:
     return ConfirmationService(
         session=session,
-        activity_repository=activity_repository,
+        timeline=timeline,
         confirmation_repository=confirmation_repository,
         labels=labels,
     )
@@ -134,7 +144,7 @@ ConfirmationServiceDep = Annotated[
 
 
 def get_label_queries(
-    activity_repository: ActivityRepositoryDep,
+    timeline: ObservationTimelineDep,
     confirmation_repository: ConfirmationRepositoryDep,
     *,
     proposal_repository: ProposalRepositoryDep,
@@ -142,7 +152,7 @@ def get_label_queries(
     accounts: AccountDirectoryDep,
 ) -> LabelQueries:
     return LabelQueries(
-        activity_repository=activity_repository,
+        timeline=timeline,
         confirmation_repository=confirmation_repository,
         proposal_repository=proposal_repository,
         label_query_repository=label_query_repository,
@@ -155,7 +165,7 @@ LabelQueriesDep = Annotated[LabelQueries, Depends(get_label_queries)]
 
 def get_activity_label_service(
     session: SessionDep,
-    activity_repository: ActivityRepositoryDep,
+    timeline: ObservationTimelineDep,
     *,
     confirmations: ConfirmationServiceDep,
     queries: LabelQueriesDep,
@@ -163,7 +173,7 @@ def get_activity_label_service(
 ) -> ActivityLabelService:
     return ActivityLabelService(
         session=session,
-        activity_repository=activity_repository,
+        timeline=timeline,
         confirmations=confirmations,
         queries=queries,
         clock=clock,

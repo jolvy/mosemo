@@ -7,12 +7,6 @@ from uuid import UUID
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.enums import ActivityTimelineKind
-from mosemo.activities.models import ActivityTimelineSegment
-from mosemo.activities.repository import ActivityRepository
-from mosemo.activities.schemas import ActivityContext
-from mosemo.activities.service import timeline_date_window
-from mosemo.activities.versions import segment_version
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
 from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.confirmations.service import (
@@ -48,6 +42,13 @@ from mosemo.activity_labels.schemas import (
     WaitingLabelProposalResponse,
 )
 from mosemo.identity.public import AccountDirectory
+from mosemo.observation.public import (
+    ActivityContext,
+    ActivityTimelineKind,
+    ObservationTimeline,
+    ObservedSegment,
+)
+from mosemo.shared.domain.timezones import timeline_date_window
 
 activity_context_adapter = TypeAdapter(ActivityContext)
 
@@ -75,7 +76,7 @@ def group_version(members: list[str]) -> str:
 class LabelTimelineEntry:
     """A labelable segment with the confirmation that applies to its version."""
 
-    segment: ActivityTimelineSegment
+    segment: ObservedSegment
     version: str
     ended_at: datetime
     confirmation: ActivityLabelConfirmation | None
@@ -92,7 +93,7 @@ class LabelTimelineEntry:
         assert self.segment.context is not None
         assert self.segment.last_observed_at is not None
         return LabelTimelineSegmentResponse(
-            segment_id=self.segment.segment_id,
+            segment_id=self.segment.id,
             segment_version=self.version,
             started_at=self.segment.started_at,
             ended_at=self.ended_at,
@@ -105,13 +106,13 @@ class LabelQueries:
     def __init__(
         self,
         *,
-        activity_repository: ActivityRepository,
+        timeline: ObservationTimeline,
         confirmation_repository: ConfirmationRepository,
         proposal_repository: ProposalRepository,
         label_query_repository: LabelQueryRepository,
         accounts: AccountDirectory,
     ) -> None:
-        self._activity_repository = activity_repository
+        self._timeline = timeline
         self._confirmation_repository = confirmation_repository
         self._proposal_repository = proposal_repository
         self._label_query_repository = label_query_repository
@@ -134,25 +135,16 @@ class LabelQueries:
         if window is None:
             return []
         _, start, end = window
-        segments = await self._activity_repository.list_date_segments(
-            account_id=account_id,
-            start=start,
-            end=end,
+        visible_segments = await self._timeline.list_window(
+            db_session, account_id=account_id, start=start, end=end, now=now
         )
-
-        visible_segments = [
-            segment
-            for segment in segments
-            if segment.overlaps_window(start=start, end=end, now=now)
-        ]
         confirmations = (
             await self._label_query_repository.list_confirmations_with_label_names(
                 account_id=account_id,
                 first_event_ids={
                     segment.first_event_id
                     for segment in visible_segments
-                    if segment.timeline_kind_at(now)
-                    is ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
+                    if segment.kind is ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
                 },
             )
         )
@@ -160,14 +152,13 @@ class LabelQueries:
         results: list[LabelTimelineItemResponse] = []
         group: list[LabelTimelineEntry] = []
         for segment in visible_segments:
-            kind = segment.timeline_kind_at(now)
-            if kind is not ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY:
+            if segment.kind is not ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY:
                 if group:
                     results.append(self._group_response(group))
                     group = []
-                results.append(self._standalone_response(segment, kind=kind, now=now))
+                results.append(self._standalone_response(segment))
                 continue
-            entry = self._timeline_entry(segment, confirmations, now=now)
+            entry = self._timeline_entry(segment, confirmations)
             if group and not entry.joins(group[-1]):
                 results.append(self._group_response(group))
                 group = []
@@ -178,14 +169,13 @@ class LabelQueries:
 
     @staticmethod
     def _timeline_entry(
-        segment: ActivityTimelineSegment,
+        segment: ObservedSegment,
         confirmations: dict[UUID, ConfirmationWithLabelName],
-        *,
-        now: datetime,
     ) -> LabelTimelineEntry:
-        ended_at = segment.effective_ended_at(now)
+        ended_at = segment.ended_at
+        version = segment.version
         assert ended_at is not None
-        version = segment_version(segment, ended_at=ended_at)
+        assert version is not None
         confirmation_with_name = confirmations.get(segment.first_event_id)
         if confirmation_with_name is None or not (
             confirmation_with_name.confirmation.applies_to(version)
@@ -206,18 +196,14 @@ class LabelQueries:
         )
 
     @staticmethod
-    def _standalone_response(
-        segment: ActivityTimelineSegment,
-        *,
-        kind: ActivityTimelineKind,
-        now: datetime,
-    ) -> LabelTimelineItemResponse:
-        ended_at = segment.effective_ended_at(now)
+    def _standalone_response(segment: ObservedSegment) -> LabelTimelineItemResponse:
+        kind = segment.kind
+        ended_at = segment.ended_at
         if kind is ActivityTimelineKind.CAPTURE_GAP:
             assert segment.reason is not None
             return LabelTimelineCaptureGapResponse(
                 item_type="capture_gap",
-                segment_id=segment.segment_id,
+                segment_id=segment.id,
                 started_at=segment.started_at,
                 ended_at=ended_at,
                 reason=segment.reason,
@@ -228,7 +214,7 @@ class LabelQueries:
         if kind is ActivityTimelineKind.OPAQUE_ACTIVITY:
             return OpaqueActivityResponse(
                 item_type="opaque_activity",
-                segment_id=segment.segment_id,
+                segment_id=segment.id,
                 started_at=segment.started_at,
                 ended_at=ended_at,
                 last_observed_at=segment.last_observed_at,
@@ -237,7 +223,7 @@ class LabelQueries:
         assert kind is ActivityTimelineKind.IN_PROGRESS_ACTIVITY
         return InProgressActivityResponse(
             item_type="in_progress_activity",
-            segment_id=segment.segment_id,
+            segment_id=segment.id,
             started_at=segment.started_at,
             ended_at=None,
             last_observed_at=segment.last_observed_at,
@@ -269,7 +255,7 @@ class LabelQueries:
             group_version=group_version(
                 [
                     group_member_version(
-                        segment_id=entry.segment.segment_id,
+                        segment_id=entry.segment.id,
                         version=entry.version,
                         confirmation=entry.confirmation,
                     )
@@ -284,17 +270,22 @@ class LabelQueries:
         )
 
     async def get_state(
-        self, *, account_id: UUID, segment_id: UUID, now: datetime
+        self,
+        db_session: AsyncSession,
+        *,
+        account_id: UUID,
+        segment_id: UUID,
+        now: datetime,
     ) -> ActivityLabelStateResponse:
         segment = await find_labelable_segment(
-            self._activity_repository,
+            self._timeline,
+            db_session,
             account_id=account_id,
             segment_id=segment_id,
             now=now,
         )
-        ended_at = segment.effective_ended_at(now)
-        assert ended_at is not None
-        version = segment_version(segment, ended_at=ended_at)
+        version = segment.version
+        assert version is not None
         confirmation = await self._confirmation_repository.find_confirmation(
             account_id=account_id,
             first_event_id=segment.first_event_id,
@@ -305,7 +296,7 @@ class LabelQueries:
             segment_version=version,
         )
         return self._state_response(
-            segment_id=segment.segment_id,
+            segment_id=segment.id,
             version=version,
             confirmation=(
                 confirmation
@@ -325,7 +316,7 @@ class LabelQueries:
             segment_version=saved.version,
         )
         return self._confirmed_response(
-            segment_id=saved.segment.segment_id,
+            segment_id=saved.segment.id,
             version=saved.version,
             confirmation=saved.confirmation,
             proposal=proposal,

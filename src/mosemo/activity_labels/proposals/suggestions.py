@@ -9,7 +9,7 @@ from pydantic import BaseModel, TypeAdapter
 from pydantic_ai import Agent, ModelRetry
 from pydantic_ai.models import Model
 
-from mosemo.activities.schemas import (
+from mosemo.observation.public import (
     BrowserWebContext,
     CapturedString,
     CapturedWindow,

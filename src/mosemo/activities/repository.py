@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import datetime
 from hashlib import blake2b
 from uuid import UUID
@@ -333,6 +333,21 @@ class ActivityRepository:
             .where(ActivityTimelineSegment.account_id == account_id)
             .where(ActivityTimelineSegment.first_event_id == first_event_id)
         )
+
+    async def list_account_segments_by_first_events(
+        self,
+        *,
+        account_id: UUID,
+        first_event_ids: Collection[UUID],
+    ) -> list[ActivityTimelineSegment]:
+        if not first_event_ids:
+            return []
+        result = await self._session.scalars(
+            select(ActivityTimelineSegment)
+            .where(ActivityTimelineSegment.account_id == account_id)
+            .where(ActivityTimelineSegment.first_event_id.in_(first_event_ids))
+        )
+        return list(result.all())
 
     async def list_closed_detailed_segments(
         self,

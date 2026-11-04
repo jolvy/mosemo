@@ -47,6 +47,7 @@ from mosemo.labels.bootstrap import create_label_catalog
 from mosemo.labels.domain.labels import Label, default_labels
 from mosemo.labels.infrastructure.labels import LabelRepository
 from mosemo.labels.infrastructure.tables import labels as label_table
+from mosemo.observation.public import ObservationTimeline
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.batch_support import batch_client, post_activity, receipt_for
@@ -298,8 +299,11 @@ async def test_known_segment_version_survives_proposal_and_confirmation(
             suggester=FixedSuggester(label_id),
             clock=clock,
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
-        scanner = ProposalScanner(session_factory, processor, clock=clock)
+        scanner = ProposalScanner(
+            session_factory, processor, clock=clock, timeline=ObservationTimeline()
+        )
         assert await scanner.run_once() == 1
         proposed = await client.get(state_url, headers=headers)
         assert proposed.status_code == 200
@@ -1440,6 +1444,7 @@ async def test_batch_uses_user_choices_with_ready_and_waiting_proposals(
             suggester=FixedSuggester(coding_id),
             clock=FakeClock(utc_now()),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await processor.process_candidate(account_id, first_event_id)
         timeline = await client.get(
@@ -1557,6 +1562,7 @@ class CountingProposalProcessor(ProposalProcessor):
             suggester=suggester,
             clock=clock,
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         self.candidates: list[tuple[UUID, UUID]] = []
 
@@ -1606,6 +1612,7 @@ async def test_worker_proposal_is_visible_but_not_confirmed_over_http(
             suggester=suggester,
             clock=FakeClock(utc_now()),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         await processor.process_candidate(account_id, event_id)
         assert "web_host: example.com" in suggester.inputs[0].activity
@@ -1667,6 +1674,7 @@ async def test_user_can_confirm_unclassified_after_proposal_failure(
             suggester=RecoveringSuggester(),
             clock=FakeClock(datetime(2026, 9, 14, 1, tzinfo=UTC)),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await processor.process_candidate(account_id, event_id)
 
@@ -1720,6 +1728,7 @@ async def test_failed_proposal_stays_pending_then_retries_as_unclassified(
             suggester=suggester,
             clock=clock,
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await processor.process_candidate(account_id, event_id)
         failed = await client.get(
@@ -1774,6 +1783,7 @@ async def test_three_failed_attempts_leave_the_proposal_pending_for_review(
             suggester=suggester,
             clock=clock,
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         for delay in (0, 1, 5):
             clock.advance(timedelta(minutes=delay, seconds=1))
@@ -1840,6 +1850,7 @@ async def test_claim_without_work_raises_and_commits_expired_final_lease(
             suggester=FixedSuggester(label_id),
             clock=clock,
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         with pytest.raises(NoProposalWorkError):
             await processor._claim(account_id, uuid4())
@@ -1952,8 +1963,11 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
             suggester=suggester,
             clock=clock,
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
-        scanner = ProposalScanner(session_factory, processor, clock=clock)
+        scanner = ProposalScanner(
+            session_factory, processor, clock=clock, timeline=ObservationTimeline()
+        )
         assert await scanner.run_once() == 2
         assert len(suggester.inputs) == 2
         assert await scanner.run_once() == 0
@@ -2008,6 +2022,7 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
             suggester=completed_suggester,
             clock=clock,
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         for event_id, _, _ in records[:4]:
             assert await completed_processor.process_candidate(account_id, event_id)
@@ -2038,7 +2053,9 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
         processor = CountingProposalProcessor(
             session_factory, suggester=scanner_suggester, clock=clock
         )
-        scanner = ProposalScanner(session_factory, processor, clock=clock)
+        scanner = ProposalScanner(
+            session_factory, processor, clock=clock, timeline=ObservationTimeline()
+        )
         total_scanned = 0
         processed = 0
         while True:
@@ -2112,6 +2129,7 @@ async def test_scanner_sweep_processes_every_page_until_complete(
             suggester=FixedSuggester(label_id),
             clock=clock,
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await completed_processor.process_candidate(account_id, event_ids[0])
 
@@ -2119,7 +2137,9 @@ async def test_scanner_sweep_processes_every_page_until_complete(
         processor = CountingProposalProcessor(
             session_factory, suggester=suggester, clock=clock
         )
-        scanner = ProposalScanner(session_factory, processor, clock=clock)
+        scanner = ProposalScanner(
+            session_factory, processor, clock=clock, timeline=ObservationTimeline()
+        )
 
         processed = await scanner.run_sweep(max_scanned=2)
 
@@ -2235,6 +2255,7 @@ async def test_next_proposal_uses_only_owners_latest_confirmation_and_stays_stab
             suggester=suggester,
             clock=FakeClock(utc_now()),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await processor.process_candidate(account_id, event_id)
         assert len(suggester.inputs) == 1
@@ -2377,6 +2398,7 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
             suggester=suggester,
             clock=FakeClock(utc_now()),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await processor.process_candidate(account_id, target[0])
 
@@ -2386,6 +2408,94 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
             by_event_id[examples["active"][0]].confirmation_id,
         ]
         assert [example.label_id for example in actual] == [None, active_label_id]
+    finally:
+        async with session_factory() as session:
+            await session.execute(delete_accounts(account_id))
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_proposal_examples_skip_confirmations_whose_segment_is_gone(
+    label_api_client: tuple[
+        httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
+    ],
+    config: Config,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory, _ = label_api_client
+    async with session_factory() as session:
+        account_id, device, _, label_id = await create_account_with_labels(session)
+        await session.commit()
+    headers = auth_headers(config, account_id)
+    try:
+        target = await upload_closed_detail(
+            client,
+            headers=headers,
+            device_id=device.id,
+            sequence=1,
+            started_at="2026-09-14T00:00:00Z",
+            ended_at="2026-09-14T00:00:30Z",
+            name="Target",
+        )
+        examples = [
+            await upload_closed_detail(
+                client,
+                headers=headers,
+                device_id=device.id,
+                sequence=3 + index * 2,
+                started_at=f"2026-09-14T00:0{2 + index * 2}:00Z",
+                ended_at=f"2026-09-14T00:0{2 + index * 2}:30Z",
+                name=f"Example {index}",
+            )
+            for index in range(3)
+        ]
+        for _, segment_id, version in examples:
+            response = await client.put(
+                f"/api/v1/activities/segments/{segment_id}/label-confirmation",
+                headers=headers,
+                json={
+                    "segmentVersion": version,
+                    "selection": {"kind": "label", "labelId": str(label_id)},
+                },
+            )
+            assert response.status_code == 200
+
+        async with session_factory() as session, session.begin():
+            confirmations = (
+                await session.scalars(
+                    select(ActivityLabelConfirmation).where(
+                        ActivityLabelConfirmation.account_id == account_id
+                    )
+                )
+            ).all()
+            by_event_id = {row.first_event_id: row for row in confirmations}
+            base_time = datetime(2026, 9, 14, tzinfo=UTC)
+            for index, (event_id, _, _) in enumerate(examples):
+                by_event_id[event_id].updated_at = base_time + timedelta(minutes=index)
+            # The newest-but-one confirmation outlives its segment, as after a
+            # timeline rebuild, and shares the first page with a usable example.
+            await session.execute(
+                text("DELETE FROM activity_timeline_segments WHERE segment_id = :id"),
+                {"id": examples[1][1]},
+            )
+
+        monkeypatch.setattr(RecentConfirmedExampleRetriever, "PAGE_SIZE", 2)
+        suggester = FixedSuggester(label_id)
+        processor = ProposalProcessor(
+            session_factory,
+            suggester=suggester,
+            clock=FakeClock(utc_now()),
+            labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
+        )
+        assert await processor.process_candidate(account_id, target[0])
+
+        assert [
+            example.confirmation_id for example in suggester.inputs[0].examples
+        ] == [
+            by_event_id[examples[2][0]].confirmation_id,
+            by_event_id[examples[0][0]].confirmation_id,
+        ]
     finally:
         async with session_factory() as session:
             await session.execute(delete_accounts(account_id))
@@ -2419,6 +2529,7 @@ async def test_archived_suggestion_is_retained_and_blocks_label_deletion(
             suggester=FixedSuggester(label_id),
             clock=FakeClock(utc_now()),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await processor.process_candidate(account_id, event_id)
         async with session_factory() as session, session.begin():
@@ -2494,6 +2605,7 @@ async def test_confirmation_during_model_call_does_not_publish_a_proposal(
             suggester=CallbackSuggester(label_id, confirm_while_running),
             clock=FakeClock(utc_now()),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await processor.process_candidate(account_id, event_id)
         state = await client.get(
@@ -2562,6 +2674,7 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
             suggester=FixedSuggester(label_id),
             clock=FakeClock(utc_now()),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         task = asyncio.create_task(processor.process_candidate(account_id, event_id))
         await asyncio.wait_for(lookup_started.wait(), timeout=3)
@@ -2653,6 +2766,7 @@ async def test_projection_change_during_model_call_discards_stale_result(
             suggester=CallbackSuggester(label_id, insert_late_observation),
             clock=FakeClock(utc_now()),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await processor.process_candidate(account_id, event_id)
         changed = await client.get(
@@ -2668,6 +2782,7 @@ async def test_projection_change_during_model_call_discards_stale_result(
             suggester=FixedSuggester(label_id),
             clock=FakeClock(utc_now()),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await next_processor.process_candidate(account_id, event_id)
         current = await client.get(
@@ -2714,6 +2829,7 @@ async def test_expired_worker_lease_cannot_overwrite_newer_proposal(
             suggester=blocked,
             clock=clock,
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         first_task = asyncio.create_task(
             first_processor.process_candidate(account_id, event_id)
@@ -2730,6 +2846,7 @@ async def test_expired_worker_lease_cannot_overwrite_newer_proposal(
             suggester=duplicate,
             clock=clock,
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert not await second_processor.process_candidate(account_id, event_id)
         assert duplicate.inputs == []
@@ -3982,6 +4099,7 @@ async def test_worker_uses_owned_active_catalog_and_revalidates_suggestion(
             suggester=suggester,
             clock=FakeClock(utc_now()),
             labels=create_label_catalog(),
+            timeline=ObservationTimeline(),
         )
         assert await processor.process_candidate(account_id, event_id)
 

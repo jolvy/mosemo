@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from mosemo.activities.schemas import (
+from mosemo.observation.public import (
     DetailedActivityContext,
     OpaqueActivityContext,
     TimelineTimestamp,

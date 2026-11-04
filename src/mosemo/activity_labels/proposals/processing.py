@@ -6,13 +6,6 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from mosemo.activities.enums import ActivityTimelineKind
-from mosemo.activities.models import ActivityTimelineSegment
-from mosemo.activities.repository import (
-    ActivityRepository,
-    ActivityTimelineBusyError,
-)
-from mosemo.activities.versions import segment_version
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
 from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.proposals.models import (
@@ -31,6 +24,12 @@ from mosemo.activity_labels.proposals.suggestions import (
     summarize_context,
 )
 from mosemo.labels.public import LabelCatalog
+from mosemo.observation.public import (
+    ActivityTimelineBusyError,
+    ActivityTimelineKind,
+    ObservationTimeline,
+    ObservedSegment,
+)
 from mosemo.shared.application.clock import Clock
 
 MAX_EXAMPLES = 8
@@ -68,18 +67,13 @@ class NoProposalWorkError(Exception):
     """No current proposal attempt can be claimed for this candidate."""
 
 
-def _current_version(
-    segment: ActivityTimelineSegment | None, *, now: datetime
-) -> str | None:
-    if segment is None or (
-        segment.timeline_kind_at(now)
-        is not ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
+def _current_version(segment: ObservedSegment | None) -> str | None:
+    if (
+        segment is None
+        or segment.kind is not ActivityTimelineKind.CLOSED_DETAILED_ACTIVITY
     ):
         return None
-    ended_at = segment.effective_ended_at(now)
-    if ended_at is None:
-        return None
-    return segment_version(segment, ended_at=ended_at)
+    return segment.version
 
 
 def _needs_processing(
@@ -99,8 +93,10 @@ class RecentConfirmedExampleRetriever:
 
     PAGE_SIZE = 40
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, timeline: ObservationTimeline) -> None:
+        self._session = session
         self._confirmation_repository = ConfirmationRepository(session)
+        self._timeline = timeline
 
     async def find(
         self,
@@ -121,12 +117,16 @@ class RecentConfirmedExampleRetriever:
             )
             if not rows:
                 break
-            for confirmation, segment in rows:
-                if not self._is_usable_as_suggestion_example(
-                    confirmation,
-                    segment,
-                    active_label_ids=active_label_ids,
-                    now=now,
+            segments = await self._timeline.find_by_first_events(
+                self._session,
+                account_id=account_id,
+                first_event_ids={confirmation.first_event_id for confirmation in rows},
+                now=now,
+            )
+            for confirmation in rows:
+                segment = segments.get(confirmation.first_event_id)
+                if segment is None or not self._is_usable_as_suggestion_example(
+                    confirmation, segment, active_label_ids=active_label_ids
                 ):
                     continue
                 assert segment.context is not None
@@ -147,12 +147,11 @@ class RecentConfirmedExampleRetriever:
     @staticmethod
     def _is_usable_as_suggestion_example(
         confirmation: ActivityLabelConfirmation,
-        segment: ActivityTimelineSegment,
+        segment: ObservedSegment,
         *,
         active_label_ids: set[UUID],
-        now: datetime,
     ) -> bool:
-        version = _current_version(segment, now=now)
+        version = _current_version(segment)
         return (
             version is not None
             and confirmation.applies_to(version)
@@ -173,11 +172,13 @@ class ProposalProcessor:
         suggester: LabelSuggester,
         clock: Clock,
         labels: LabelCatalog,
+        timeline: ObservationTimeline,
     ) -> None:
         self._session_factory = session_factory
         self._suggester = suggester
         self._clock = clock
         self._labels = labels
+        self._timeline = timeline
 
     async def process_candidate(self, account_id: UUID, first_event_id: UUID) -> bool:
         try:
@@ -221,7 +222,9 @@ class ProposalProcessor:
         now = self._clock()
         async with self._session_factory() as session:
             labels = await self._labels.list_active(session, account_id)
-            examples = await RecentConfirmedExampleRetriever(session).find(
+            examples = await RecentConfirmedExampleRetriever(
+                session, timeline=self._timeline
+            ).find(
                 account_id=account_id,
                 exclude_first_event_id=first_event_id,
                 active_label_ids={label.id for label in labels},
@@ -238,13 +241,12 @@ class ProposalProcessor:
     async def _claim(self, account_id: UUID, first_event_id: UUID) -> _Claim:
         now = self._clock()
         async with self._session_factory() as session, session.begin():
-            activity_repository = ActivityRepository(session)
-            await activity_repository.lock_timeline(account_id)
+            await self._timeline.lock(session, account_id)
             confirmation_repository = ConfirmationRepository(session)
-            segment = await activity_repository.find_account_segment_by_first_event(
-                account_id=account_id, first_event_id=first_event_id
+            segment = await self._timeline.find_by_first_event(
+                session, account_id=account_id, first_event_id=first_event_id, now=now
             )
-            version = _current_version(segment, now=now)
+            version = _current_version(segment)
             if segment is None or version is None:
                 raise NoProposalWorkError
             confirmation = await confirmation_repository.find_confirmation(
@@ -297,20 +299,18 @@ class ProposalProcessor:
         first_event_id = claim.first_event_id
         now = self._clock()
         async with self._session_factory() as session, session.begin():
-            await ActivityRepository(session).lock_timeline(account_id)
+            await self._timeline.lock(session, account_id)
             proposal = await ProposalRepository(session).find_by_id(claim.proposal_id)
             if proposal is None or not proposal.owns_attempt(claim.lease_token):
                 return
             confirmation_repository = ConfirmationRepository(session)
-            segment = await ActivityRepository(
-                session
-            ).find_account_segment_by_first_event(
-                account_id=account_id, first_event_id=first_event_id
+            segment = await self._timeline.find_by_first_event(
+                session, account_id=account_id, first_event_id=first_event_id, now=now
             )
             confirmation = await confirmation_repository.find_confirmation(
                 account_id=account_id, first_event_id=first_event_id
             )
-            if _current_version(segment, now=now) != claim.segment_version or (
+            if _current_version(segment) != claim.segment_version or (
                 confirmation is not None
                 and confirmation.applies_to(claim.segment_version)
             ):
@@ -357,10 +357,12 @@ class ProposalScanner:
         processor: ProposalProcessor,
         *,
         clock: Clock,
+        timeline: ObservationTimeline,
     ) -> None:
         self._session_factory = session_factory
         self._processor = processor
         self._clock = clock
+        self._timeline = timeline
         self._last_segment_id: UUID | None = None
 
     async def run_once(self, *, max_processed: int = 100) -> int:
@@ -435,11 +437,11 @@ class ProposalScanner:
     async def _find_page(self, *, limit: int) -> list[_ScannedSegment]:
         now = self._clock()
         async with self._session_factory() as session:
-            segments = await ActivityRepository(session).list_closed_detailed_segments(
-                after_segment_id=self._last_segment_id, now=now, limit=limit
+            segments = await self._timeline.list_closed_page(
+                session, after_segment_id=self._last_segment_id, now=now, limit=limit
             )
             versioned_segments = [
-                (segment, _current_version(segment, now=now)) for segment in segments
+                (segment, _current_version(segment)) for segment in segments
             ]
             current_segments = [
                 (segment, version)
@@ -449,7 +451,7 @@ class ProposalScanner:
             if not current_segments:
                 return [
                     _ScannedSegment(
-                        segment.segment_id,
+                        segment.id,
                         segment.account_id,
                         segment.first_event_id,
                         needs_processing=False,
@@ -501,7 +503,7 @@ class ProposalScanner:
                     )
                 page.append(
                     _ScannedSegment(
-                        segment.segment_id,
+                        segment.id,
                         segment.account_id,
                         segment.first_event_id,
                         needs_processing,

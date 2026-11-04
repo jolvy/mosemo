@@ -12,6 +12,7 @@ from mosemo.activity_labels.proposals.suggestions import PydanticAILabelSuggeste
 from mosemo.infra.clock import utc_now
 from mosemo.infra.scheduling import BatchJob, every
 from mosemo.labels.public import LabelCatalog
+from mosemo.observation.public import ObservationTimeline
 
 LABEL_PROPOSAL_JOB_NAME = "label-proposals"
 LABEL_PROPOSAL_INTERVAL_MINUTES = 5
@@ -22,6 +23,7 @@ def build_label_proposal_job(
     *,
     model: str,
     labels: LabelCatalog,
+    timeline: ObservationTimeline,
 ) -> BatchJob:
     # Constructed up front so an invalid LABEL_MODEL fails before the first run.
     suggester = PydanticAILabelSuggester(model)
@@ -29,9 +31,15 @@ def build_label_proposal_job(
     async def run() -> None:
         # A fresh scanner starts its cursor over, so each run is a full sweep.
         processor = ProposalProcessor(
-            session_factory, suggester=suggester, clock=utc_now, labels=labels
+            session_factory,
+            suggester=suggester,
+            clock=utc_now,
+            labels=labels,
+            timeline=timeline,
         )
-        await ProposalScanner(session_factory, processor, clock=utc_now).run_sweep()
+        await ProposalScanner(
+            session_factory, processor, clock=utc_now, timeline=timeline
+        ).run_sweep()
 
     return BatchJob(
         LABEL_PROPOSAL_JOB_NAME,

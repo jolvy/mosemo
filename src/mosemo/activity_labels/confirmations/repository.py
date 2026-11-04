@@ -1,9 +1,8 @@
 from uuid import UUID
 
-from sqlalchemy import and_, select, tuple_
+from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activities.models import ActivityTimelineSegment
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
 
 
@@ -33,18 +32,9 @@ class ConfirmationRepository:
         exclude_first_event_id: UUID,
         limit: int,
         offset: int,
-    ) -> list[tuple[ActivityLabelConfirmation, ActivityTimelineSegment]]:
+    ) -> list[ActivityLabelConfirmation]:
         query = (
-            select(ActivityLabelConfirmation, ActivityTimelineSegment)
-            .join(
-                ActivityTimelineSegment,
-                and_(
-                    ActivityTimelineSegment.account_id
-                    == ActivityLabelConfirmation.account_id,
-                    ActivityTimelineSegment.first_event_id
-                    == ActivityLabelConfirmation.first_event_id,
-                ),
-            )
+            select(ActivityLabelConfirmation)
             .where(ActivityLabelConfirmation.account_id == account_id)
             .where(ActivityLabelConfirmation.first_event_id != exclude_first_event_id)
             .order_by(
@@ -52,8 +42,8 @@ class ConfirmationRepository:
                 ActivityLabelConfirmation.confirmation_id.desc(),
             )
         )
-        rows = (await self._session.execute(query.limit(limit).offset(offset))).all()
-        return [(confirmation, segment) for confirmation, segment in rows]
+        result = await self._session.scalars(query.limit(limit).offset(offset))
+        return list(result.all())
 
     async def list_by_keys(
         self, keys: list[tuple[UUID, UUID]]

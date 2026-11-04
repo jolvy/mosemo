@@ -1,6 +1,5 @@
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime
 from uuid import UUID
-from zoneinfo import ZoneInfo
 
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +21,7 @@ from mosemo.focus_sessions.models import FocusSessionNotFoundError
 from mosemo.focus_sessions.repository import FocusSessionRepository
 from mosemo.identity.public import AccountDirectory, DeviceDirectory
 from mosemo.shared.application.clock import Clock
-from mosemo.shared.domain.timezones import Timezone
+from mosemo.shared.domain.timezones import timeline_date_window
 
 
 class ActivityDeviceNotFoundError(Exception):
@@ -38,34 +37,6 @@ class ActivitySequenceConflictError(Exception):
 
 
 context_adapter = TypeAdapter(ActivityContext)
-
-
-def timeline_date_window(
-    *,
-    account_timezone: Timezone,
-    requested_date: date | None,
-    now: datetime,
-) -> tuple[date, datetime, datetime] | None:
-    timezone = ZoneInfo(account_timezone.value)
-    today = now.astimezone(timezone).date()
-    selected_date = requested_date or today
-    if selected_date > today:
-        return None
-
-    try:
-        start = datetime.combine(
-            selected_date,
-            time.min,
-            tzinfo=timezone,
-        ).astimezone(UTC)
-    except OverflowError:
-        start = datetime.min.replace(tzinfo=UTC)
-    end = datetime.combine(
-        selected_date + timedelta(days=1),
-        time.min,
-        tzinfo=timezone,
-    ).astimezone(UTC)
-    return selected_date, start, end
 
 
 def _timeline_response(

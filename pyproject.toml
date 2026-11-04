@@ -377,6 +377,16 @@ type = "forbidden"
 source_modules = ["mosemo.identity"]
 forbidden_modules = ["mosemo.labels"]
 
+# observation public boundary (#151). Temporary: the old activity_labels code
+# reaches activities only through observation.public until #152 replaces this
+# with observation `protected` contracts.
+[[tool.importlinter.contracts]]
+name = "old activity_labels does not import activities directly"
+type = "forbidden"
+source_modules = ["mosemo.activity_labels"]
+forbidden_modules = ["mosemo.activities"]
+allow_indirect_imports = true
+
 [tool.ruff]
 line-length = 88
 target-version = "py314"
