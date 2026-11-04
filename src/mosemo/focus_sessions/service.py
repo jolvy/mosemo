@@ -8,7 +8,6 @@ from mosemo.activities.service import (
     ActivityDeviceNotFoundError,
     timeline_date_window,
 )
-from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.focus_sessions.mappers import FocusSessionMapper
 from mosemo.focus_sessions.models import (
     FocusSession,
@@ -22,6 +21,7 @@ from mosemo.focus_sessions.schemas import (
     FocusSessionResponse,
 )
 from mosemo.identity.public import AccountDirectory, DeviceDirectory
+from mosemo.labels.public import LabelCatalog
 from mosemo.shared.application.clock import Clock
 
 
@@ -35,12 +35,12 @@ class FocusSessionCommands:
         *,
         repository: FocusSessionRepository,
         devices: DeviceDirectory,
-        label_catalog_repository: LabelCatalogRepository,
+        labels: LabelCatalog,
         activity_repository: ActivityRepository,
     ) -> None:
         self._repository = repository
         self._devices = devices
-        self._label_catalog_repository = label_catalog_repository
+        self._labels = labels
         self._activity_repository = activity_repository
         self._mapper = FocusSessionMapper()
 
@@ -66,6 +66,7 @@ class FocusSessionCommands:
 
     async def complete(
         self,
+        db_session: AsyncSession,
         *,
         account_id: UUID,
         session_id: UUID,
@@ -74,12 +75,10 @@ class FocusSessionCommands:
         stored = await self._repository.find_owned(account_id, session_id)
         if stored is None:
             raise FocusSessionNotFoundError
-        if stored.ended_at is None:
-            label = await self._label_catalog_repository.find_active_owned(
-                account_id=account_id, label_id=request.label_id
-            )
-            if label is None:
-                raise FocusSessionLabelNotAvailableError
+        if stored.ended_at is None and not await self._labels.is_active(
+            db_session, account_id=account_id, label_id=request.label_id
+        ):
+            raise FocusSessionLabelNotAvailableError
         last_observed_at = await self._activity_repository.find_last_observed_at(
             session_id
         )
@@ -142,7 +141,10 @@ class FocusSessionService:
     ) -> FocusSessionResponse:
         async with self._session.begin():
             stored = await self._commands.complete(
-                account_id=account_id, session_id=session_id, request=request
+                self._session,
+                account_id=account_id,
+                session_id=session_id,
+                request=request,
             )
             await self._session.flush()
             return FocusSessionResponse.model_validate(stored, from_attributes=True)

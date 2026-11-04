@@ -25,6 +25,7 @@ from mosemo.activity_labels.schemas import (
 from mosemo.api.dependencies import ActivityLabelServiceDep, AuthenticatedAccountDep
 from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import AccountNotFoundError
+from mosemo.labels.public import LabelErrorCode
 from mosemo.shared.errors import ApiErrorCode, ApiException, CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 from mosemo.shared.presentation.schemas import ValidationDetail
@@ -41,7 +42,7 @@ def _batch_failure_response(exc: BatchLabelConfirmationError) -> ApiException:
             ErrorCode.ACTIVITY_LABEL_CONFIRMATION_CONFLICT
         ),
         ActivityLabelSegmentDuplicateError: CommonErrorCode.INVALID_ARGUMENT,
-        ActivityLabelUnavailableError: ErrorCode.LABEL_NOT_AVAILABLE,
+        ActivityLabelUnavailableError: LabelErrorCode.LABEL_NOT_AVAILABLE,
     }
     error_code = error_codes[type(exc.reason)]
     location: list[str | int] = ["body", "items", exc.item_index]
@@ -76,7 +77,7 @@ def _batch_failure_response(exc: BatchLabelConfirmationError) -> ApiException:
         ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
         ErrorCode.ACTIVITY_SEGMENT_CHANGED,
         ErrorCode.ACTIVITY_LABEL_CONFIRMATION_CONFLICT,
-        ErrorCode.LABEL_NOT_AVAILABLE,
+        LabelErrorCode.LABEL_NOT_AVAILABLE,
         ErrorCode.ACTIVITY_TIMELINE_BUSY,
         CommonErrorCode.INVALID_ARGUMENT,
         headers={
@@ -199,7 +200,7 @@ async def get_segment_label_state(
         ErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
         ErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
         ErrorCode.ACTIVITY_SEGMENT_CHANGED,
-        ErrorCode.LABEL_NOT_AVAILABLE,
+        LabelErrorCode.LABEL_NOT_AVAILABLE,
         ErrorCode.ACTIVITY_TIMELINE_BUSY,
         CommonErrorCode.INVALID_ARGUMENT,
         headers={
@@ -235,6 +236,6 @@ async def put_segment_label_confirmation(
     except ActivityLabelSegmentChangedError as exc:
         raise ApiException(ErrorCode.ACTIVITY_SEGMENT_CHANGED) from exc
     except ActivityLabelUnavailableError as exc:
-        raise ApiException(ErrorCode.LABEL_NOT_AVAILABLE) from exc
+        raise ApiException(LabelErrorCode.LABEL_NOT_AVAILABLE) from exc
     except ActivityTimelineBusyError as exc:
         raise ApiException(ErrorCode.ACTIVITY_TIMELINE_BUSY) from exc

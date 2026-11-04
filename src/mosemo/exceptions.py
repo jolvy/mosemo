@@ -49,7 +49,3 @@ class ErrorCode(ApiErrorCode):
         code=409,
         message="Activity label confirmation conflicts with an existing selection",
     )
-    LABEL_NOT_AVAILABLE = ErrorSpec(
-        code=404,
-        message="Label not found or inactive",
-    )

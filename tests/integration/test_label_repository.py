@@ -5,9 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.activity_labels.catalog.models import Label, default_labels
-from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.identity.domain.accounts import Account, AccountProvider
+from mosemo.labels.domain.labels import Label, default_labels
+from mosemo.labels.infrastructure.labels import LabelRepository
+from mosemo.labels.infrastructure.tables import labels as label_table
 
 
 @pytest.mark.asyncio
@@ -26,11 +27,11 @@ async def test_label_constraints_are_account_scoped_and_cascade(
     integration_session.add(second_account)
     await integration_session.flush()
 
-    label_repository = LabelCatalogRepository(integration_session)
+    label_repository = LabelRepository()
     first_labels = default_labels(first_account.id)
-    label_repository.add_all(first_labels)
+    label_repository.add_all(integration_session, first_labels)
     second_labels = default_labels(second_account.id)
-    label_repository.add_all(second_labels)
+    label_repository.add_all(integration_session, second_labels)
     await integration_session.flush()
     assert len(first_labels) == 5
     assert len(second_labels) == 5
@@ -75,7 +76,7 @@ async def test_label_constraints_are_account_scoped_and_cascade(
     await integration_session.flush()
     remaining_labels = (
         await integration_session.scalars(
-            select(Label).where(Label.account_id == second_account.id)
+            select(Label).where(label_table.c.account_id == second_account.id)
         )
     ).all()
     assert remaining_labels == []

@@ -13,7 +13,6 @@ from mosemo.activities.repository import (
     ActivityTimelineBusyError,
 )
 from mosemo.activities.versions import segment_version
-from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.activity_labels.confirmations.models import ActivityLabelConfirmation
 from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.proposals.models import (
@@ -31,6 +30,7 @@ from mosemo.activity_labels.proposals.suggestions import (
     SuggestionResult,
     summarize_context,
 )
+from mosemo.labels.public import LabelCatalog
 from mosemo.shared.application.clock import Clock
 
 MAX_EXAMPLES = 8
@@ -172,10 +172,12 @@ class ProposalProcessor:
         *,
         suggester: LabelSuggester,
         clock: Clock,
+        labels: LabelCatalog,
     ) -> None:
         self._session_factory = session_factory
         self._suggester = suggester
         self._clock = clock
+        self._labels = labels
 
     async def process_candidate(self, account_id: UUID, first_event_id: UUID) -> bool:
         try:
@@ -218,18 +220,17 @@ class ProposalProcessor:
     ) -> SuggestionInput:
         now = self._clock()
         async with self._session_factory() as session:
-            catalog_repository = LabelCatalogRepository(session)
-            labels = await catalog_repository.list_active_owned(account_id=account_id)
+            labels = await self._labels.list_active(session, account_id)
             examples = await RecentConfirmedExampleRetriever(session).find(
                 account_id=account_id,
                 exclude_first_event_id=first_event_id,
-                active_label_ids={label.label_id for label in labels},
+                active_label_ids={label.id for label in labels},
                 now=now,
             )
         return SuggestionInput(
             activity=activity,
             labels=tuple(
-                LabelCandidate(label.label_id, label.display_name) for label in labels
+                LabelCandidate(label.id, label.display_name) for label in labels
             ),
             examples=tuple(examples),
         )
@@ -321,10 +322,9 @@ class ProposalProcessor:
                     and (
                         result.label_id
                         not in {label.label_id for label in request.labels}
-                        or await LabelCatalogRepository(session).find_active_owned(
-                            account_id=account_id, label_id=result.label_id
+                        or not await self._labels.is_active(
+                            session, account_id=account_id, label_id=result.label_id
                         )
-                        is None
                     )
                 )
             ):

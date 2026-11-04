@@ -5,18 +5,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import ActivityService
-from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.activity_labels.confirmations.repository import ConfirmationRepository
 from mosemo.activity_labels.confirmations.service import ConfirmationService
 from mosemo.activity_labels.proposals.repository import ProposalRepository
 from mosemo.activity_labels.queries.repository import LabelQueryRepository
 from mosemo.activity_labels.queries.service import LabelQueries
 from mosemo.activity_labels.service import ActivityLabelService
-from mosemo.api.contexts import IDENTITY
+from mosemo.api.contexts import IDENTITY, LABELS
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.identity.public import AccountDirectory, DeviceDirectory
 from mosemo.infra.config import Config
 from mosemo.infra.providers import get_clock, get_config, get_session
+from mosemo.labels.public import LabelCatalog
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.presentation.current_account import CurrentAccount
 
@@ -83,14 +83,11 @@ ConfirmationRepositoryDep = Annotated[
 ]
 
 
-def get_label_catalog_repository(session: SessionDep) -> LabelCatalogRepository:
-    return LabelCatalogRepository(session)
+def get_label_catalog() -> LabelCatalog:
+    return LABELS.label_catalog
 
 
-LabelCatalogRepositoryDep = Annotated[
-    LabelCatalogRepository,
-    Depends(get_label_catalog_repository),
-]
+LabelCatalogDep = Annotated[LabelCatalog, Depends(get_label_catalog)]
 
 
 def get_proposal_repository(session: SessionDep) -> ProposalRepository:
@@ -103,8 +100,10 @@ ProposalRepositoryDep = Annotated[
 ]
 
 
-def get_label_query_repository(session: SessionDep) -> LabelQueryRepository:
-    return LabelQueryRepository(session)
+def get_label_query_repository(
+    session: SessionDep, labels: LabelCatalogDep
+) -> LabelQueryRepository:
+    return LabelQueryRepository(session, labels=labels)
 
 
 LabelQueryRepositoryDep = Annotated[
@@ -118,13 +117,13 @@ def get_confirmation_service(
     activity_repository: ActivityRepositoryDep,
     *,
     confirmation_repository: ConfirmationRepositoryDep,
-    label_catalog_repository: LabelCatalogRepositoryDep,
+    labels: LabelCatalogDep,
 ) -> ConfirmationService:
     return ConfirmationService(
         session=session,
         activity_repository=activity_repository,
         confirmation_repository=confirmation_repository,
-        label_catalog_repository=label_catalog_repository,
+        labels=labels,
     )
 
 

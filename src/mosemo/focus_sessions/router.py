@@ -6,12 +6,12 @@ from fastapi import APIRouter, Depends, Path, Query
 
 from mosemo.activities.repository import ActivityRepository
 from mosemo.activities.service import ActivityDeviceNotFoundError
-from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.api.dependencies import (
     AccountDirectoryDep,
     AuthenticatedAccountDep,
     ClockDep,
     DeviceDirectoryDep,
+    LabelCatalogDep,
     SessionDep,
 )
 from mosemo.exceptions import ErrorCode
@@ -33,6 +33,7 @@ from mosemo.focus_sessions.service import (
     FocusSessionService,
 )
 from mosemo.identity.public import AccountNotFoundError
+from mosemo.labels.public import LabelErrorCode
 from mosemo.shared.errors import ApiException, CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 
@@ -45,6 +46,7 @@ def get_focus_session_service(
     *,
     devices: DeviceDirectoryDep,
     accounts: AccountDirectoryDep,
+    labels: LabelCatalogDep,
 ) -> FocusSessionService:
     repository = FocusSessionRepository(session)
     activity_repository = ActivityRepository(session)
@@ -53,7 +55,7 @@ def get_focus_session_service(
         commands=FocusSessionCommands(
             repository=repository,
             devices=devices,
-            label_catalog_repository=LabelCatalogRepository(session),
+            labels=labels,
             activity_repository=activity_repository,
         ),
         queries=FocusSessionQueries(repository=repository, accounts=accounts),
@@ -69,7 +71,7 @@ ERRORS = api_error_responses(
     ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
     ErrorCode.FOCUS_SESSION_NOT_FOUND,
     ErrorCode.FOCUS_SESSION_CONFLICT,
-    ErrorCode.LABEL_NOT_AVAILABLE,
+    LabelErrorCode.LABEL_NOT_AVAILABLE,
     CommonErrorCode.INVALID_ARGUMENT,
 )
 
@@ -121,7 +123,7 @@ async def complete_focus_session(
     except FocusSessionInvalidTimeError as exc:
         raise ApiException(CommonErrorCode.INVALID_ARGUMENT) from exc
     except FocusSessionLabelNotAvailableError as exc:
-        raise ApiException(ErrorCode.LABEL_NOT_AVAILABLE) from exc
+        raise ApiException(LabelErrorCode.LABEL_NOT_AVAILABLE) from exc
 
 
 @router.get(

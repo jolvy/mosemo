@@ -4,8 +4,8 @@ from uuid import UUID
 
 from sqlalchemy import Delete, delete
 
-from mosemo.api.default_labels import register_default_labels
 from mosemo.identity.infrastructure.tables import accounts
+from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.shared.application.events import EventDispatcher
 
 
@@ -15,7 +15,7 @@ def delete_accounts(*account_ids: UUID) -> Delete:
 
 
 def sign_up_dispatcher() -> EventDispatcher:
-    """A dispatcher with the temporary default label handler the API registers."""
+    """A dispatcher with the labels handlers that the API registers."""
     dispatcher = EventDispatcher()
-    register_default_labels(dispatcher)
+    labels_bootstrap.register_handlers(dispatcher)
     return dispatcher

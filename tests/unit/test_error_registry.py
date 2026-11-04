@@ -9,6 +9,7 @@ from mosemo.api.openapi import (
 )
 from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import IdentityErrorCode
+from mosemo.labels.public import LabelErrorCode
 from mosemo.shared.error_docs import ERROR_DOCS as COMMON_ERROR_DOCS
 from mosemo.shared.errors import ApiErrorCode, CommonErrorCode
 from mosemo.shared.openapi import ErrorDocs
@@ -20,9 +21,10 @@ ALLOWED_NAMES: dict[type[ApiErrorCode], tuple[tuple[str, ...], frozenset[str]]] 
         frozenset({"AUTH_INVALID_ACCESS_TOKEN"}),
     ),
     IdentityErrorCode: (("AUTH_",), frozenset()),
+    LabelErrorCode: (("LABEL_",), frozenset()),
     # Temporary central enum: union of the BC prefixes until each BC moves out.
     ErrorCode: (
-        ("LABEL_", "ACTIVITY_", "FOCUS_SESSION_", "LABELING_"),
+        ("ACTIVITY_", "FOCUS_SESSION_", "LABELING_"),
         frozenset(),
     ),
 }

@@ -10,7 +10,6 @@ import pytest
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.activity_labels.catalog.models import Label, default_labels
 from mosemo.identity.application.ports import OAuthClient
 from mosemo.identity.application.sign_in import (
     ExchangeAuthorizationCode,
@@ -29,6 +28,8 @@ from mosemo.identity.infrastructure.tables import accounts as account_table
 from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.infra.clock import utc_now
 from mosemo.infra.config import Config
+from mosemo.labels.domain.labels import Label, default_labels
+from mosemo.labels.infrastructure.tables import labels as label_table
 from mosemo.shared.application.clock import Clock
 from tests.clock_support import FakeClock
 from tests.identity_support import delete_accounts, sign_up_dispatcher
@@ -171,12 +172,12 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
     first_labels = (
         await integration_session.scalars(
             select(Label)
-            .where(Label.account_id == account.id)
-            .order_by(Label.display_name)
+            .where(label_table.c.account_id == account.id)
+            .order_by(label_table.c.display_name)
         )
     ).all()
     assert len(first_labels) == 5
-    first_label_ids = [label.label_id for label in first_labels]
+    first_label_ids = [label.id for label in first_labels]
     assert sorted(label.display_name for label in first_labels) == sorted(
         ("코딩", "학습", "소통", "쇼핑", "여가")
     )
@@ -190,11 +191,11 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
     second_labels = (
         await integration_session.scalars(
             select(Label)
-            .where(Label.account_id == account.id)
-            .order_by(Label.display_name)
+            .where(label_table.c.account_id == account.id)
+            .order_by(label_table.c.display_name)
         )
     ).all()
-    assert [label.label_id for label in second_labels] == first_label_ids
+    assert [label.id for label in second_labels] == first_label_ids
     assert len(second_labels) == 5
 
 
@@ -465,7 +466,7 @@ async def test_concurrent_first_login_uses_account_created_by_other_request(
             (account,) = accounts
             labels = (
                 await session.scalars(
-                    select(Label).where(Label.account_id == account.id)
+                    select(Label).where(label_table.c.account_id == account.id)
                 )
             ).all()
             assert len(labels) == 5
@@ -477,8 +478,8 @@ async def test_concurrent_first_login_uses_account_created_by_other_request(
             assert stored_code.account_id == account.id
             if first_login_commits:
                 assert account.id == winner_account.id
-                assert {label.label_id for label in labels} == {
-                    label.label_id for label in winner_labels
+                assert {label.id for label in labels} == {
+                    label.id for label in winner_labels
                 }
                 assert account.last_authenticated_at == login_time
             else:

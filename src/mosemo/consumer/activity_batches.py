@@ -15,6 +15,7 @@ from mosemo.infra.messaging.subscriber import (
     MessageProcessor,
     RawMessage,
 )
+from mosemo.labels import bootstrap as labels_bootstrap
 
 
 class InvalidBatchMessageError(ValueError):
@@ -49,6 +50,7 @@ async def run_consumer(
     if not config.enabled:
         raise ValueError("Activity Consumer requires BATCH_ENABLED=true")
     identity_bootstrap.map_tables()
+    labels_bootstrap.map_tables()
     executor = BatchProcessingExecutor(
         sessions, clock=utc_now, devices=identity_bootstrap.create_device_directory()
     )

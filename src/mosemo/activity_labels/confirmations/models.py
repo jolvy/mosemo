@@ -32,7 +32,7 @@ class ActivityLabelConfirmation(Base):
     )
     segment_version: Mapped[str] = mapped_column(String(64))
     label_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("labels.label_id", ondelete="NO ACTION"),
+        ForeignKey("labels.id", ondelete="NO ACTION"),
         nullable=True,
     )
     confirmed_at: Mapped[datetime] = mapped_column(

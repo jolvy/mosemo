@@ -5,6 +5,7 @@ import pytest
 
 from mosemo.exceptions import ErrorCode
 from mosemo.identity.public import IdentityErrorCode
+from mosemo.labels.public import LabelErrorCode
 from mosemo.shared.errors import (
     ApiErrorCode,
     ApiException,
@@ -28,6 +29,14 @@ def test_identity_error_codes_keep_their_public_specs() -> None:
             400,
             "Invalid or expired OAuth login context",
         ),
+    ]
+
+
+def test_label_error_codes_keep_their_public_specs() -> None:
+    assert [
+        (member.status, member.code, member.message) for member in LabelErrorCode
+    ] == [
+        ("LABEL_NOT_AVAILABLE", 404, "Label not found or inactive"),
     ]
 
 
@@ -78,9 +87,8 @@ def test_public_error_registry_contains_the_public_specs() -> None:
             409,
             "Activity label confirmation conflicts with an existing selection",
         ),
-        ("LABEL_NOT_AVAILABLE", 404, "Label not found or inactive"),
     ]
-    assert len({member.status for member in public_members}) == 14
+    assert len({member.status for member in public_members}) == 13
 
 
 def test_common_error_codes_contain_the_shared_specs() -> None:
