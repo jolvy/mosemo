@@ -700,9 +700,9 @@ async def test_legacy_serializes_until_commit_or_rollback(
     original = ActivityBatchProcessor.process
     calls = []
 
-    async def held(self, owner, payload):
-        calls.append(payload.batch_id)
-        result = await original(self, owner, payload)
+    async def held(self, db_session, *, account_id, batch):
+        calls.append(batch.batch_id)
+        result = await original(self, db_session, account_id=account_id, batch=batch)
         if len(calls) == 1:
             entered.set()
             await release.wait()

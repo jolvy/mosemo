@@ -76,8 +76,8 @@ async def test_executor_owns_fresh_session_for_each_attempt(monkeypatch, failure
         finally:
             closed.append(session)
 
-    async def process(self, owner, batch):
-        used.append(self.session)
+    async def process(self, db_session, *, account_id, batch):
+        used.append(db_session)
         if failure == "error":
             raise RuntimeError("failed")
         if failure == "cancel":

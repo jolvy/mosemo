@@ -76,16 +76,23 @@ def segment_seed(segment: ActivityTimelineSegment) -> ProjectedSegment:
     return ProjectedGap(segment.started_at, segment.first_event_id, segment.reason)
 
 
-class ActivityBatchProcessor:
-    """Processes one batch in the transaction that its use case opened.
+@dataclass(frozen=True, slots=True)
+class _AccountScope:
+    """The account being projected, its devices, and the processing time."""
 
-    Built per call with that use case's session.
+    account_id: UUID
+    device_ids: Sequence[UUID]
+    now: datetime
+
+
+class ActivityBatchProcessor:
+    """Stores a batch, its receipt and its projection.
+
+    Stateless; runs inside the transaction its use case opened and takes that
+    use case's `db_session` as the first argument.
     """
 
-    def __init__(
-        self, db_session: AsyncSession, *, clock: Clock, devices: DeviceDirectory
-    ) -> None:
-        self.session = db_session
+    def __init__(self, *, clock: Clock, devices: DeviceDirectory) -> None:
         self._clock = clock
         self._devices = devices
         self._records = ActivityRecordRepository()
@@ -96,51 +103,59 @@ class ActivityBatchProcessor:
         )
 
     async def process(
-        self,
-        account_id: UUID,
-        batch: ActivityBatch,
+        self, db_session: AsyncSession, *, account_id: UUID, batch: ActivityBatch
     ) -> list[dict[str, str]]:
         now = self._clock()
-        await self._ensure_device_owned(account_id, batch.device_id)
-        initialized = await self._receipts.has_for_account(self.session, account_id)
+        await self._ensure_device_owned(
+            db_session, account_id=account_id, device_id=batch.device_id
+        )
+        initialized = await self._receipts.has_for_account(db_session, account_id)
         claimed = await self._receipts.claim(
-            self.session,
+            db_session,
             account_id=account_id,
             device_id=batch.device_id,
             batch_id=batch.batch_id,
             fingerprint=batch.fingerprint,
         )
         if claimed is None:
-            return await self._winner_results(account_id, batch)
-        device_ids = await self._devices.list_device_ids(self.session, account_id)
-        latest = await self._initialize_account(
-            account_id, device_ids, initialized=initialized, now=now
+            return await self._winner_results(
+                db_session, account_id=account_id, batch=batch
+            )
+        scope = _AccountScope(
+            account_id=account_id,
+            device_ids=await self._devices.list_device_ids(db_session, account_id),
+            now=now,
         )
-        adopted, results = await self._store_records(account_id, batch)
-        await self._ensure_device_order(adopted)
+        latest = await self._initialize_account(
+            db_session, scope, initialized=initialized
+        )
+        adopted, results = await self._store_records(
+            db_session, account_id=account_id, batch=batch
+        )
+        await self._ensure_device_order(db_session, adopted)
         if adopted:
             try:
-                await self._project(
-                    account_id, adopted, device_ids=device_ids, latest=latest, now=now
-                )
+                await self._project(db_session, scope, adopted=adopted, latest=latest)
             except ProjectionError:
                 raise TerminalBatchError("projection_time_regression") from None
         claimed.results = results
-        await self.session.flush()
+        await db_session.flush()
         return results
 
-    async def _ensure_device_owned(self, account_id: UUID, device_id: UUID) -> None:
+    async def _ensure_device_owned(
+        self, db_session: AsyncSession, *, account_id: UUID, device_id: UUID
+    ) -> None:
         owned = await self._devices.find_owned(
-            self.session, account_id=account_id, device_id=device_id
+            db_session, account_id=account_id, device_id=device_id
         )
         if owned is None:
             raise TerminalBatchError("device_not_owned")
 
     async def _winner_results(
-        self, account_id: UUID, batch: ActivityBatch
+        self, db_session: AsyncSession, *, account_id: UUID, batch: ActivityBatch
     ) -> list[dict[str, str]]:
         winner = await self._receipts.find(
-            self.session,
+            db_session,
             account_id=account_id,
             device_id=batch.device_id,
             batch_id=batch.batch_id,
@@ -152,66 +167,65 @@ class ActivityBatchProcessor:
         return winner.results
 
     async def _initialize_account(
-        self,
-        account_id: UUID,
-        device_ids: Sequence[UUID],
-        *,
-        initialized: bool,
-        now: datetime,
+        self, db_session: AsyncSession, scope: _AccountScope, *, initialized: bool
     ) -> ActivityRecord | None:
         if not initialized and not await self._records.is_account_clock_monotone(
-            self.session, device_ids
+            db_session, scope.device_ids
         ):
             raise TerminalBatchError("projection_time_regression")
         latest = await self._records.find_latest_account_record(
-            self.session, device_ids
+            db_session, scope.device_ids
         )
         if not initialized and latest is not None:
-            await self._rebuild_legacy_projection(
-                account_id, latest, device_ids=device_ids, now=now
-            )
+            await self._rebuild_legacy_projection(db_session, scope, latest=latest)
         return latest
 
     async def _store_records(
-        self, account_id: UUID, batch: ActivityBatch
+        self, db_session: AsyncSession, *, account_id: UUID, batch: ActivityBatch
     ) -> tuple[list[ActivityRecord], list[dict[str, str]]]:
         adopted = []
         results = []
         for record in batch.records:
-            stored, status = await self._store_record(account_id, record)
+            stored, status = await self._store_record(
+                db_session, account_id=account_id, record=record
+            )
             if stored is not None:
                 adopted.append(stored)
             results.append({"eventId": str(record.event_id), "status": status})
         return adopted, results
 
     async def _store_record(
-        self, account_id: UUID, record: ActivityRecord
+        self, db_session: AsyncSession, *, account_id: UUID, record: ActivityRecord
     ) -> tuple[ActivityRecord | None, str]:
         # Processed IDs are immutable. Pre-reads do not replace INSERT's
         # unique constraints: a concurrent winner comes back from get_or_create.
-        status = await self._rejection_status(record)
+        status = await self._rejection_status(db_session, record)
         if status is not None:
             return None, status
-        await self._validate_focus_session(account_id, record)
-        stored, created = await self._records.get_or_create(self.session, record)
+        await self._validate_focus_session(
+            db_session, account_id=account_id, record=record
+        )
+        stored, created = await self._records.get_or_create(db_session, record)
         if created:
             return stored, "stored"
         return None, _conflict_status(record, stored)
 
-    async def _rejection_status(self, record: ActivityRecord) -> str | None:
-        event = await self._records.find_by_event_id(self.session, record.event_id)
+    async def _rejection_status(
+        self, db_session: AsyncSession, record: ActivityRecord
+    ) -> str | None:
+        event = await self._records.find_by_event_id(db_session, record.event_id)
         if event is None:
             event = await self._records.find_by_device_sequence(
-                self.session, device_id=record.device_id, sequence=record.sequence
+                db_session, device_id=record.device_id, sequence=record.sequence
             )
         return None if event is None else _conflict_status(record, event)
 
     async def _validate_focus_session(
-        self, account_id: UUID, record: ActivityRecord
+        self, db_session: AsyncSession, *, account_id: UUID, record: ActivityRecord
     ) -> None:
         try:
             await self._focus_sessions.validate(
-                self.session, account_id=account_id, record=record
+                db_session, account_id=account_id, record=record
             )
         except (
             FocusSessionNotFoundError,
@@ -219,24 +233,21 @@ class ActivityBatchProcessor:
         ) as error:
             raise TerminalBatchError(type(error).__name__) from None
 
-    async def _ensure_device_order(self, adopted: list[ActivityRecord]) -> None:
+    async def _ensure_device_order(
+        self, db_session: AsyncSession, adopted: list[ActivityRecord]
+    ) -> None:
         for record in adopted:
             previous = await self._records.find_previous_device_observed_at(
-                self.session, record
+                db_session, record
             )
             following = await self._records.find_next_device_observed_at(
-                self.session, record
+                db_session, record
             )
             if not record.is_in_device_order(previous=previous, following=following):
                 raise TerminalBatchError("projection_time_regression")
 
     async def _rebuild_legacy_projection(
-        self,
-        account_id: UUID,
-        latest: ActivityRecord,
-        *,
-        device_ids: Sequence[UUID],
-        now: datetime,
+        self, db_session: AsyncSession, scope: _AccountScope, *, latest: ActivityRecord
     ) -> None:
         # The first receipt marks an atomic transition from received_at tie order.
         # Rebuild even for duplicate-only batches; an unchanged prefix does not
@@ -245,18 +256,18 @@ class ActivityBatchProcessor:
         projection = TimelineProjection()
         after = None
         while page := await self._records.list_record_page(
-            self.session, device_ids, start=start, after=after
+            db_session, scope.device_ids, start=start, after=after
         ):
             for record in page:
                 projection.feed(record)
             after = observation_key(page[-1])
         existing = await self._segments.list_segment_range(
-            self.session, account_id, start=start
+            db_session, scope.account_id, start=start
         )
         await self._segments.replace_account_segments(
-            self.session,
-            account_id=account_id,
-            projected=projection.finish(now),
+            db_session,
+            account_id=scope.account_id,
+            projected=projection.finish(scope.now),
             existing=existing,
             # Keep replacement from converging before every legacy tie is rebuilt.
             event_observed_at=latest.observed_at,
@@ -264,55 +275,53 @@ class ActivityBatchProcessor:
 
     async def _project(
         self,
-        account_id: UUID,
-        adopted: list[ActivityRecord],
+        db_session: AsyncSession,
+        scope: _AccountScope,
         *,
-        device_ids: Sequence[UUID],
+        adopted: list[ActivityRecord],
         latest: ActivityRecord | None,
-        now: datetime,
     ) -> None:
         ordered = sorted(adopted, key=observation_key)
         if latest is None or observation_key(ordered[0]) > observation_key(latest):
             last_segment = await self._segments.find_last_account_segment(
-                self.session, account_id
+                db_session, scope.account_id
             )
             if last_segment is not None:
                 await self._append(
-                    account_id, ordered, last_segment=last_segment, now=now
+                    db_session, scope, ordered=ordered, last_segment=last_segment
                 )
                 return
-        await self._replay(account_id, ordered, device_ids=device_ids, now=now)
+        await self._replay(db_session, scope, ordered=ordered)
 
     async def _append(
         self,
-        account_id: UUID,
-        ordered: list[ActivityRecord],
+        db_session: AsyncSession,
+        scope: _AccountScope,
         *,
+        ordered: list[ActivityRecord],
         last_segment: ActivityTimelineSegment,
-        now: datetime,
     ) -> None:
         projection = TimelineProjection(segment_seed(last_segment))
         for record in ordered:
             projection.feed(record)
         await self._segments.replace_account_segments(
-            self.session,
-            account_id=account_id,
-            projected=projection.finish(now),
+            db_session,
+            account_id=scope.account_id,
+            projected=projection.finish(scope.now),
             existing=[last_segment],
             event_observed_at=ordered[-1].observed_at,
         )
 
     async def _replay(
         self,
-        account_id: UUID,
-        ordered: list[ActivityRecord],
+        db_session: AsyncSession,
+        scope: _AccountScope,
         *,
-        device_ids: Sequence[UUID],
-        now: datetime,
+        ordered: list[ActivityRecord],
     ) -> None:
         observed_at = ordered[-1].observed_at
         start = await self._segments.find_replay_start(
-            self.session, account_id, observed_at=ordered[0].observed_at
+            db_session, scope.account_id, observed_at=ordered[0].observed_at
         )
         projection = TimelineProjection()
         after = None
@@ -320,7 +329,7 @@ class ActivityBatchProcessor:
         convergence = None
         while convergence is None and (
             page := await self._records.list_record_page(
-                self.session, device_ids, start=start, after=after
+                db_session, scope.device_ids, start=start, after=after
             )
         ):
             for record in page:
@@ -328,31 +337,41 @@ class ActivityBatchProcessor:
                 closed = projection.feed(record)
                 if closed is not None and not remaining:
                     convergence = await self._converged_segment(
-                        account_id, closed, observed_at=observed_at
+                        db_session,
+                        account_id=scope.account_id,
+                        closed=closed,
+                        observed_at=observed_at,
                     )
                     if convergence is not None:
                         break
             after = observation_key(page[-1])
         existing = await self._segments.list_segment_range(
-            self.session,
-            account_id,
+            db_session,
+            scope.account_id,
             start=start,
             through=convergence.started_at if convergence else None,
         )
-        projected = projection.segments[:-1] if convergence else projection.finish(now)
+        projected = (
+            projection.segments[:-1] if convergence else projection.finish(scope.now)
+        )
         await self._segments.replace_account_segments(
-            self.session,
-            account_id=account_id,
+            db_session,
+            account_id=scope.account_id,
             projected=projected,
             existing=existing,
             event_observed_at=observed_at,
         )
 
     async def _converged_segment(
-        self, account_id: UUID, closed: ProjectedSegment, *, observed_at: datetime
+        self,
+        db_session: AsyncSession,
+        *,
+        account_id: UUID,
+        closed: ProjectedSegment,
+        observed_at: datetime,
     ) -> ActivityTimelineSegment | None:
         old = await self._segments.find_account_segment_by_first_event(
-            self.session, account_id=account_id, first_event_id=closed.first_event_id
+            db_session, account_id=account_id, first_event_id=closed.first_event_id
         )
         if (
             old is None
@@ -377,9 +396,8 @@ class ProcessActivityBatch(UseCase):
     def __init__(
         self, *, devices: DeviceDirectory, dispatcher: EventDispatcher, clock: Clock
     ) -> None:
-        self._devices = devices
+        self._processor = ActivityBatchProcessor(clock=clock, devices=devices)
         self._dispatcher = dispatcher
-        self._clock = clock
 
     async def execute(
         self, db_session: AsyncSession, *, account_id: UUID, batch: ActivityBatch
@@ -389,9 +407,9 @@ class ProcessActivityBatch(UseCase):
         Raises `TerminalBatchError` with a safe diagnostic code.
         """
         async with unit_of_work(db_session, self._dispatcher):
-            return await ActivityBatchProcessor(
-                db_session, clock=self._clock, devices=self._devices
-            ).process(account_id, batch)
+            return await self._processor.process(
+                db_session, account_id=account_id, batch=batch
+            )
 
 
 class ProcessLegacyActivityBatch(UseCase):
@@ -400,9 +418,8 @@ class ProcessLegacyActivityBatch(UseCase):
     def __init__(
         self, *, devices: DeviceDirectory, dispatcher: EventDispatcher, clock: Clock
     ) -> None:
-        self._devices = devices
+        self._processor = ActivityBatchProcessor(clock=clock, devices=devices)
         self._dispatcher = dispatcher
-        self._clock = clock
         self._segments = TimelineSegmentRepository()
 
     async def execute(
@@ -414,9 +431,9 @@ class ProcessLegacyActivityBatch(UseCase):
         """
         async with unit_of_work(db_session, self._dispatcher):
             await self._segments.lock_timeline(db_session, account_id)
-            return await ActivityBatchProcessor(
-                db_session, clock=self._clock, devices=self._devices
-            ).process(account_id, batch)
+            return await self._processor.process(
+                db_session, account_id=account_id, batch=batch
+            )
 
 
 class AcceptActivityBatch(UseCase):
