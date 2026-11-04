@@ -6,16 +6,16 @@ from mosemo.activity_labels.catalog.router import router as label_catalog_router
 from mosemo.activity_labels.router import router as labels_router
 from mosemo.auth.router import router as auth_router
 from mosemo.devices.router import router as devices_router
-from mosemo.exceptions import ErrorCode
 from mosemo.focus_sessions.router import router as focus_sessions_router
-from mosemo.openapi import api_error_responses
+from mosemo.shared.errors import CommonErrorCode
+from mosemo.shared.openapi import api_error_responses
 
 v1_api_router = APIRouter(
     prefix="/api/v1",
     responses=api_error_responses(
-        ErrorCode.REQUEST_ROUTE_NOT_FOUND,
-        ErrorCode.REQUEST_METHOD_NOT_ALLOWED,
-        ErrorCode.INTERNAL_SERVER_ERROR,
+        CommonErrorCode.REQUEST_ROUTE_NOT_FOUND,
+        CommonErrorCode.REQUEST_METHOD_NOT_ALLOWED,
+        CommonErrorCode.INTERNAL_SERVER_ERROR,
     ),
 )
 

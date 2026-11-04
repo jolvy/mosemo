@@ -11,10 +11,8 @@ from mosemo.api.exception_handlers import (
     _validation_details,
     register_exception_handlers,
 )
-from mosemo.exceptions import (
-    ApiException,
-    ErrorCode,
-)
+from mosemo.exceptions import ErrorCode
+from mosemo.shared.errors import ApiErrorCode, ApiException, CommonErrorCode
 from mosemo.shared.presentation.schemas import ValidationDetail
 
 
@@ -103,6 +101,38 @@ def test_validation_details_rejects_empty_framework_errors() -> None:
         _validation_details(RequestValidationError([]))
 
 
+@pytest.mark.parametrize(
+    ("spec", "headers"),
+    [
+        (CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN, {"www-authenticate": "Bearer"}),
+        (ErrorCode.ACTIVITY_TIMELINE_BUSY, {"retry-after": "1"}),
+        (ErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE, {"retry-after": "1"}),
+        (ErrorCode.ACTIVITY_DEVICE_NOT_FOUND, {}),
+    ],
+)
+def test_api_exception_handler_owns_error_header_policy(
+    spec: ApiErrorCode, headers: dict[str, str]
+) -> None:
+    app = FastAPI()
+    register_exception_handlers(app)
+
+    @app.get("/error")
+    def error() -> None:
+        raise ApiException(spec)
+
+    with TestClient(app) as client:
+        response = client.get("/error")
+
+    assert response.status_code == spec.code
+    assert response.json()["error"]["status"] == spec.status
+    policy_headers = {
+        name: value
+        for name, value in response.headers.items()
+        if name in {"www-authenticate", "retry-after"}
+    }
+    assert policy_headers == headers
+
+
 def test_api_exception_handler_returns_replacement_envelope_and_challenge() -> None:
     app = FastAPI()
     register_exception_handlers(app)
@@ -110,7 +140,7 @@ def test_api_exception_handler_returns_replacement_envelope_and_challenge() -> N
     @app.get("/error")
     def error() -> None:
         raise ApiException(
-            ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+            CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
             details=[
                 ValidationDetail(
                     loc=["header", "Authorization"],
@@ -326,7 +356,7 @@ def test_controlled_exceptions_are_not_logged_as_unexpected(caplog) -> None:
 
     @app.get("/controlled")
     def controlled() -> None:
-        raise ApiException(ErrorCode.INTERNAL_SERVER_ERROR)
+        raise ApiException(CommonErrorCode.INTERNAL_SERVER_ERROR)
 
     @app.get("/validated")
     def validated(value: int) -> int:

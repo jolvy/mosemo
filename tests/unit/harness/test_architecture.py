@@ -21,12 +21,26 @@ def test_models_reject_http_imports_including_relative_and_nested(
 
 
 @pytest.mark.parametrize(
-    "module", ["mosemo.exceptions", "mosemo.shared.presentation.responses"]
+    "module",
+    [
+        "mosemo.shared.errors",
+        "mosemo.shared.presentation.responses",
+        "mosemo.api.exception_handlers",
+    ],
+)
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from mosemo.shared import openapi",
+        "from mosemo.shared.error_docs import ERROR_DOCS",
+        "from mosemo.api.openapi import public_openapi",
+        "import mosemo.api.error_docs",
+    ],
 )
 def test_runtime_error_modules_cannot_import_openapi(
-    architecture_validator: ModuleType, module: str
+    architecture_validator: ModuleType, module: str, source: str
 ) -> None:
-    assert architecture_validator.check_source("from mosemo import openapi", module)
+    assert architecture_validator.check_source(source, module)
 
 
 def test_repository_keeps_orm_and_schema_dependencies(

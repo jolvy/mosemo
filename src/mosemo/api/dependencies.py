@@ -30,10 +30,10 @@ from mosemo.auth.service import (
 from mosemo.auth.tokens import InvalidAccessTokenError, TokenService
 from mosemo.devices.repository import DeviceRepository
 from mosemo.devices.service import DeviceService
-from mosemo.exceptions import ApiException, ErrorCode
 from mosemo.infra.config import Config
 from mosemo.infra.providers import get_clock, get_config, get_session
 from mosemo.shared.application.clock import Clock
+from mosemo.shared.errors import ApiException, CommonErrorCode
 from mosemo.shared.presentation.current_account import CurrentAccount
 
 
@@ -367,12 +367,12 @@ async def get_authenticated_account(
     token_service: TokenServiceDep,
 ) -> AuthenticatedAccount:
     if credentials is None:
-        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN)
+        raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN)
 
     try:
         account_id = token_service.decode_access_token(credentials.credentials)
     except InvalidAccessTokenError as exc:
-        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
+        raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
 
     return AuthenticatedAccount(account_id=account_id)
 

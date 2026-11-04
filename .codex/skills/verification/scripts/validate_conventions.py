@@ -14,7 +14,7 @@ SKIPPED_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".ruff_cache"}
 RUFF_CONFIG_FILES = {"ruff.toml", ".ruff.toml"}
 COMPLEXIPY_CONFIG_FILE = "complexipy.toml"
 COMPLEXITY_SNAPSHOT = "complexipy-snapshot.json"
-EXCEPTIONS_FILE = "src/mosemo/exceptions.py"
+EXCEPTIONS_FILE = "src/mosemo/shared/errors.py"
 API_EXCEPTION = "ApiException"
 API_EXCEPTION_FILES = {
     "src/mosemo/api/dependencies.py",
@@ -812,7 +812,7 @@ def check_api_exception_usage(tree: ast.AST, names: set[str]) -> list[str]:
     ]
     return [
         f"{line}: CS-P07: `ApiException`은 `router.py`와 `dependencies.py`·"
-        "`exception_handlers.py`·`exceptions.py`에서만 import하거나 만든다. "
+        "`exception_handlers.py`·`shared/errors.py`에서만 import하거나 만든다. "
         "service·repository는 도메인 오류(`...Error`)를 던지고, router에서 "
         "`ApiException`으로 바꾼다"
         for line in lines

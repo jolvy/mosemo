@@ -17,11 +17,9 @@ from mosemo.auth.service import (
     InvalidAuthorizationCodeError,
     OAuthAuthenticationError,
 )
-from mosemo.exceptions import (
-    ApiException,
-    ErrorCode,
-)
-from mosemo.openapi import api_error_responses
+from mosemo.exceptions import ErrorCode
+from mosemo.shared.errors import ApiException, CommonErrorCode
+from mosemo.shared.openapi import api_error_responses
 from mosemo.shared.presentation.responses import error_response
 
 logger = logging.getLogger(__name__)
@@ -128,7 +126,7 @@ def _finalize_oauth_callback_response(
             }
         },
         **api_error_responses(
-            ErrorCode.INVALID_ARGUMENT,
+            CommonErrorCode.INVALID_ARGUMENT,
         ),
     },
 )
@@ -311,7 +309,7 @@ async def callback(
         },
         **api_error_responses(
             ErrorCode.AUTH_INVALID_AUTHORIZATION_CODE,
-            ErrorCode.INVALID_ARGUMENT,
+            CommonErrorCode.INVALID_ARGUMENT,
         ),
     },
 )

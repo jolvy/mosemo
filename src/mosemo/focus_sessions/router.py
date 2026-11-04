@@ -12,7 +12,7 @@ from mosemo.activities.service import (
 from mosemo.activity_labels.catalog.repository import LabelCatalogRepository
 from mosemo.api.dependencies import AuthenticatedAccountDep, ClockDep, SessionDep
 from mosemo.devices.repository import DeviceRepository
-from mosemo.exceptions import ApiException, ErrorCode
+from mosemo.exceptions import ErrorCode
 from mosemo.focus_sessions.models import (
     FocusSessionConflictError,
     FocusSessionInvalidTimeError,
@@ -30,7 +30,8 @@ from mosemo.focus_sessions.service import (
     FocusSessionQueries,
     FocusSessionService,
 )
-from mosemo.openapi import api_error_responses
+from mosemo.shared.errors import ApiException, CommonErrorCode
+from mosemo.shared.openapi import api_error_responses
 
 router = APIRouter(prefix="/focus-sessions")
 
@@ -59,12 +60,12 @@ FocusSessionServiceDep = Annotated[
     FocusSessionService, Depends(get_focus_session_service)
 ]
 ERRORS = api_error_responses(
-    ErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+    CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
     ErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
     ErrorCode.FOCUS_SESSION_NOT_FOUND,
     ErrorCode.FOCUS_SESSION_CONFLICT,
     ErrorCode.LABEL_NOT_AVAILABLE,
-    ErrorCode.INVALID_ARGUMENT,
+    CommonErrorCode.INVALID_ARGUMENT,
 )
 
 
@@ -113,7 +114,7 @@ async def complete_focus_session(
     except FocusSessionConflictError as exc:
         raise ApiException(ErrorCode.FOCUS_SESSION_CONFLICT) from exc
     except FocusSessionInvalidTimeError as exc:
-        raise ApiException(ErrorCode.INVALID_ARGUMENT) from exc
+        raise ApiException(CommonErrorCode.INVALID_ARGUMENT) from exc
     except FocusSessionLabelNotAvailableError as exc:
         raise ApiException(ErrorCode.LABEL_NOT_AVAILABLE) from exc
 
@@ -135,4 +136,4 @@ async def list_focus_sessions(
     try:
         return await service.list_completed(account.account_id, date)
     except ActivityAccountNotFoundError as exc:
-        raise ApiException(ErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
+        raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc

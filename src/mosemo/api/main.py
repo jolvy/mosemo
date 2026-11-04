@@ -10,11 +10,11 @@ from mosemo.api.activity_batches import compose_messaging_app
 from mosemo.api.dependencies import get_token_current_account
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.middleware import RedactSensitiveQueryStringMiddleware
+from mosemo.api.openapi import public_openapi
 from mosemo.api.routes import v1_api_router
 from mosemo.infra.config import get_config
 from mosemo.infra.database import engine
 from mosemo.infra.logging import configure_logging
-from mosemo.openapi import public_openapi
 from mosemo.shared.presentation.current_account import get_current_account
 
 API_DESCRIPTION = """

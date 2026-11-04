@@ -7,10 +7,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from mosemo.exceptions import (
-    ApiException,
-    ErrorCode,
-)
+from mosemo.exceptions import ErrorCode
+from mosemo.shared.errors import ApiException, CommonErrorCode
 from mosemo.shared.presentation.responses import error_response
 from mosemo.shared.presentation.schemas import ValidationDetail
 
@@ -36,7 +34,7 @@ def _validation_details(exc: RequestValidationError) -> list[ValidationDetail]:
 
 def _unexpected_exception_response(exc: Exception) -> JSONResponse:
     logger.exception("Unhandled API exception", exc_info=exc)
-    return error_response(ErrorCode.INTERNAL_SERVER_ERROR)
+    return error_response(CommonErrorCode.INTERNAL_SERVER_ERROR)
 
 
 async def api_exception_handler(
@@ -44,7 +42,7 @@ async def api_exception_handler(
     exc: ApiException,
 ) -> JSONResponse:
     headers = None
-    if exc.spec is ErrorCode.AUTH_INVALID_ACCESS_TOKEN:
+    if exc.spec is CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN:
         headers = {"WWW-Authenticate": "Bearer"}
     elif exc.spec in {
         ErrorCode.ACTIVITY_TIMELINE_BUSY,
@@ -59,7 +57,7 @@ async def request_validation_exception_handler(
     exc: RequestValidationError,
 ) -> JSONResponse:
     return error_response(
-        ErrorCode.INVALID_ARGUMENT,
+        CommonErrorCode.INVALID_ARGUMENT,
         details=_validation_details(exc),
     )
 
@@ -78,17 +76,17 @@ async def http_exception_handler_for_public_api(
     exc: StarletteHTTPException,
 ) -> Response:
     if exc.status_code == HTTPStatus.NOT_FOUND:
-        return error_response(ErrorCode.REQUEST_ROUTE_NOT_FOUND)
+        return error_response(CommonErrorCode.REQUEST_ROUTE_NOT_FOUND)
 
     if exc.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
-        response = error_response(ErrorCode.REQUEST_METHOD_NOT_ALLOWED)
+        response = error_response(CommonErrorCode.REQUEST_METHOD_NOT_ALLOWED)
         if exc.headers is not None:
             response.headers.update(exc.headers)
         return response
 
     if exc.status_code == HTTPStatus.BAD_REQUEST and _is_invalid_encoding(exc):
         return error_response(
-            ErrorCode.INVALID_ARGUMENT,
+            CommonErrorCode.INVALID_ARGUMENT,
             details=[
                 ValidationDetail(
                     loc=["body"],
