@@ -24,7 +24,7 @@ Quality checks:
 - verify expected behavior against the specification; passing tests alone do not establish PRD compliance
 - distinguish confirmed business mismatches from responsibility concerns and unresolved policy questions
 - judge the actual rule owner rather than file names, method lengths, or conditional counts; a field assignment method does not own preconditions still held by its caller
-- do not invent requirements, demand ORM/domain separation for preference alone, or require methods for assignments without a business rule
+- do not invent requirements, demand a separate persistence model beyond ADR 0013's imperative mapping for preference alone, or require methods for assignments without a business rule
 - do not run tests or execution-based checks unless requested by the parent and allowed by the review scope
 
 Return:
