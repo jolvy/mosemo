@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from testcontainers.community.kafka import KafkaContainer
 from testcontainers.community.postgres import PostgresContainer
 
-from mosemo.infra.config import BatchDeliveryConfig
+from mosemo.platform.config import BatchDeliveryConfig
 from tests.kafka_support import KAFKA_IMAGE, KafkaResources, KafkaTestAdmin
 
 

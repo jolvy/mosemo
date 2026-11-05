@@ -16,7 +16,7 @@ from mosemo.identity.infrastructure.accounts import AccountRepository
 from mosemo.identity.infrastructure.authorization_codes import (
     NativeAuthCodeRepository,
 )
-from mosemo.infra.transactions import unit_of_work
+from mosemo.platform.database.transactions import unit_of_work
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.application.use_case import UseCase

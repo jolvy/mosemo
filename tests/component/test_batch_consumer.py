@@ -15,11 +15,11 @@ from mosemo.consumer.activity_batches import (
     decode_batch,
     run_consumer,
 )
-from mosemo.infra.clock import utc_now
-from mosemo.infra.kafka_compat import BatchPartition
-from mosemo.infra.messaging.subscriber import MessageConsumer
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
 from mosemo.observation.presentation.messages import ActivityRegistrationRequested
+from mosemo.platform.clock import utc_now
+from mosemo.platform.messaging.kafka_compat import BatchPartition
+from mosemo.platform.messaging.subscriber import MessageConsumer
 from tests.clock_support import FakeClock
 from tests.component.test_activities_api import activity_request
 from tests.observation_support import batch_executor
@@ -271,7 +271,7 @@ async def test_runtime_refuses_to_consume_when_delivery_is_disabled(
 ):
     config.batch_delivery.enabled = False
     constructor = Mock(side_effect=AssertionError("must not connect"))
-    monkeypatch.setattr("mosemo.infra.messaging.runtime.KafkaBroker", constructor)
+    monkeypatch.setattr("mosemo.platform.messaging.runtime.KafkaBroker", constructor)
     with pytest.raises(ValueError, match="requires BATCH_ENABLED=true"):
         await run_consumer(config.batch_delivery, AsyncMock(), stop=asyncio.Event())
 
@@ -280,7 +280,7 @@ async def test_runtime_refuses_to_consume_when_delivery_is_disabled(
 async def test_runtime_configures_manual_offsets_and_earliest(config, monkeypatch):
     broker = Broker()
     constructor = Mock(return_value=broker)
-    monkeypatch.setattr("mosemo.infra.messaging.runtime.KafkaBroker", constructor)
+    monkeypatch.setattr("mosemo.platform.messaging.runtime.KafkaBroker", constructor)
     stop = asyncio.Event()
     stop.set()
     await run_consumer(config.batch_delivery, AsyncMock(), stop=stop)

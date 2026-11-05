@@ -21,9 +21,6 @@ from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
 from mosemo.identity.presentation.auth.router import get_token_service
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config, get_config
-from mosemo.infra.database import get_session
 from mosemo.labeling.application.ports import LabelSuggester
 from mosemo.labeling.application.proposals import (
     NoProposalWorkError,
@@ -53,6 +50,9 @@ from mosemo.observation.bootstrap import create_observation_timeline
 from mosemo.observation.infrastructure.timeline_segments import (
     activity_timeline_lock_key,
 )
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config, get_config
+from mosemo.platform.database.engine import get_session
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account

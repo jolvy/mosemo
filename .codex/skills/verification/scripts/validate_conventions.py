@@ -30,13 +30,13 @@ BROAD_EXCEPT_ALLOWED = {
     # 프로세스 경계
     ("src/mosemo/batch/__main__.py", "main"): 1,
     # 오류를 runtime supervisor로 넘김
-    ("src/mosemo/infra/messaging/subscriber.py", "MessageConsumer.handle"): 1,
+    ("src/mosemo/platform/messaging/subscriber.py", "MessageConsumer.handle"): 1,
     # 어떤 오류든 앱으로 실패 리다이렉트
     ("src/mosemo/identity/presentation/auth/router.py", "create_router.callback"): 1,
     # 후보 하나의 제안 생성 실패는 시도 실패로 기록하고 스캐너를 멈추지 않음
     ("src/mosemo/labeling/application/proposals.py", "ProposeLabel.execute"): 1,
     # job 하나의 실패가 스케줄러를 멈추지 않고, 예외 메시지를 로그에 남기지 않음
-    ("src/mosemo/infra/scheduling.py", "execute_job"): 1,
+    ("src/mosemo/platform/scheduling.py", "execute_job"): 1,
 }
 RUFF_CONFIG = tomllib.loads("""
 line-length = 88
@@ -48,7 +48,7 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
                  "PLR0913"]
 
 [lint.per-file-ignores]
-"src/mosemo/infra/clock.py" = ["TID251"]
+"src/mosemo/platform/clock.py" = ["TID251"]
 "src/mosemo/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
@@ -63,12 +63,12 @@ max-positional-args = 2
 extend-ignore-names = ["*Exception"]
 
 [lint.flake8-tidy-imports.banned-api]
-"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.infra.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
-"time.time".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.platform.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
+"time.time".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
 "sqlalchemy.orm.DeclarativeBase".msg = "ADR 0013: 엔티티는 domain dataclass로 두고 BC infrastructure의 `Table`과 imperative mapping으로 매핑한다."
 "sqlalchemy.orm.mapped_column".msg = "ADR 0013: 컬럼은 BC infrastructure의 `Table`에 `Column`으로 정의한다."
 
@@ -95,10 +95,10 @@ DEPENDENCY_SUFFIXES = (
 )
 OVERRIDE_MODULES = {"typing", "typing_extensions"}
 TRANSACTION_BOUNDARY_METHODS = {"begin", "begin_nested", "commit", "rollback"}
-TRANSACTION_HELPER_FILE = "src/mosemo/infra/transactions.py"
+TRANSACTION_HELPER_FILE = "src/mosemo/platform/database/transactions.py"
 
 CLOCK_HINT = (
-    "현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻고, "
+    "현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻고, "
     "Ruff TID251·DTZ 검사를 끄거나 우회하지 않는다"
 )
 SUPPRESSION_DIRECTIVE = re.compile(
@@ -296,7 +296,7 @@ def check_transaction_calls(tree: ast.AST) -> list[str]:
     return [
         f"{node.lineno}: CS-P13: `{TRANSACTION_HELPER_FILE}` 밖에서는 `begin`·"
         "`begin_nested`·`commit`·`rollback`을 직접 호출하지 않는다. 트랜잭션은 "
-        "UseCase가 `infra.transactions`의 `unit_of_work`·`read_snapshot`으로 연다"
+        "UseCase가 `platform.database.transactions`의 `unit_of_work`·`read_snapshot`으로 연다"
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)

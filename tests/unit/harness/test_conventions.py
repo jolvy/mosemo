@@ -15,7 +15,7 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
                  "PLR0913"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/mosemo/infra/clock.py" = ["TID251"]
+"src/mosemo/platform/clock.py" = ["TID251"]
 "src/mosemo/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
@@ -30,12 +30,12 @@ max-positional-args = 2
 extend-ignore-names = ["*Exception"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.infra.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
-"time.time".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.platform.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
+"time.time".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
 "sqlalchemy.orm.DeclarativeBase".msg = "ADR 0013: 엔티티는 domain dataclass로 두고 BC infrastructure의 `Table`과 imperative mapping으로 매핑한다."
 "sqlalchemy.orm.mapped_column".msg = "ADR 0013: 컬럼은 BC infrastructure의 `Table`에 `Column`으로 정의한다."
 
@@ -179,7 +179,9 @@ def test_ruff_config_allows_exact_config(
             '"scripts/**" = ["PLR2004"]', '"scripts/**" = ["PLR2004", "N"]'
         ),
         ALLOWED_PYPROJECT.replace('["TID251"]', '["TID251", "DTZ005"]'),
-        ALLOWED_PYPROJECT.replace("src/mosemo/infra/clock.py", "src/mosemo/other.py"),
+        ALLOWED_PYPROJECT.replace(
+            "src/mosemo/platform/clock.py", "src/mosemo/other.py"
+        ),
         ALLOWED_PYPROJECT.replace('"S110", ', ""),
         ALLOWED_PYPROJECT.replace('"PT",\n', '"PT", "E501",\n'),
         ALLOWED_PYPROJECT.replace(',\n                 "PLR0913"]', "]"),
@@ -355,7 +357,7 @@ def test_validate_rejects_transaction_calls_outside_transaction_helper(
             "        pass\n"
         ),
         "src/mosemo/x/service.py": transaction,
-        "src/mosemo/infra/transactions.py": transaction,
+        "src/mosemo/platform/database/transactions.py": transaction,
         "src/mosemo/y/transactions.py": "session.commit()\n",
         "scripts/x.py": "session.commit()\n",
         "tests/x.py": "session.commit()\n",
@@ -385,7 +387,7 @@ ALLOWED_BROAD_EXCEPTS = {
         "    except Exception, asyncio.CancelledError:\n"
         "        exit(1)\n"
     ),
-    "src/mosemo/infra/messaging/subscriber.py": (
+    "src/mosemo/platform/messaging/subscriber.py": (
         "class MessageConsumer:\n"
         "    async def handle(self):\n"
         "        try:\n"
@@ -409,7 +411,7 @@ ALLOWED_BROAD_EXCEPTS = {
         "        except Exception:\n"
         "            record()\n"
     ),
-    "src/mosemo/infra/scheduling.py": (
+    "src/mosemo/platform/scheduling.py": (
         "async def execute_job():\n    try:\n        pass\n    except Exception:\n"
         "        log()\n"
     ),
@@ -466,10 +468,10 @@ def test_broad_excepts_reject_count_over_limit(
         "    try:\n        pass\n    except Exception:\n        log()\n"
         "    try:\n        pass\n    except Exception:\n        log()\n"
     )
-    trees = broad_except_trees(**{"src/mosemo/infra/scheduling.py": source})
+    trees = broad_except_trees(**{"src/mosemo/platform/scheduling.py": source})
     errors = conventions_validator.check_broad_excepts(trees)
     assert len(errors) == 1
-    assert errors[0].startswith("src/mosemo/infra/scheduling.py:8: CS-P18")
+    assert errors[0].startswith("src/mosemo/platform/scheduling.py:8: CS-P18")
 
 
 def test_broad_excepts_use_enclosing_class_and_function_names(
@@ -480,11 +482,13 @@ def test_broad_excepts_use_enclosing_class_and_function_names(
         "    def handle(self):\n"
         "        try:\n            pass\n        except Exception:\n            pass\n"
     )
-    trees = broad_except_trees(**{"src/mosemo/infra/messaging/subscriber.py": source})
+    trees = broad_except_trees(
+        **{"src/mosemo/platform/messaging/subscriber.py": source}
+    )
     errors = conventions_validator.check_broad_excepts(trees)
     assert [error.split(": ", 2)[:2] for error in errors] == [
-        ["src/mosemo/infra/messaging/subscriber.py:5", "CS-P18"],
-        ["src/mosemo/infra/messaging/subscriber.py", "CS-P18"],
+        ["src/mosemo/platform/messaging/subscriber.py:5", "CS-P18"],
+        ["src/mosemo/platform/messaging/subscriber.py", "CS-P18"],
     ]
     assert "`Other.handle`" in errors[0]
     assert "`MessageConsumer.handle`" in errors[1]

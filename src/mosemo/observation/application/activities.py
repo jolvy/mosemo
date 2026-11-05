@@ -4,7 +4,6 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.identity.public import AccountDirectory, DeviceDirectory
-from mosemo.infra.transactions import read_snapshot, unit_of_work
 from mosemo.observation.application.focus_sessions import FocusSessionLinks
 from mosemo.observation.application.timeline import (
     ObservationTimeline,
@@ -24,6 +23,7 @@ from mosemo.observation.infrastructure.focus_sessions import FocusSessionReposit
 from mosemo.observation.infrastructure.timeline_segments import (
     TimelineSegmentRepository,
 )
+from mosemo.platform.database.transactions import read_snapshot, unit_of_work
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.application.use_case import UseCase

@@ -9,9 +9,9 @@ from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.main import app as api_app
 from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.presentation.auth.router import get_token_service
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config
-from mosemo.infra.providers import (
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config
+from mosemo.platform.providers import (
     get_clock,
     get_config,
     get_event_dispatcher,

@@ -8,8 +8,8 @@ async def run() -> None:
     # Configuration and engine initialization must also stay inside main's
     # protected boundary: validation errors can contain credential input values.
     from mosemo.consumer.activity_batches import run_consumer
-    from mosemo.infra.config import get_config
-    from mosemo.infra.database import get_engine, get_session_factory
+    from mosemo.platform.config import get_config
+    from mosemo.platform.database.engine import get_engine, get_session_factory
 
     engine = get_engine()
     session_factory = get_session_factory()

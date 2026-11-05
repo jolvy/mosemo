@@ -11,7 +11,7 @@ def test_modules_import_without_configuration_environment():
         [
             sys.executable,
             "-c",
-            "import mosemo.infra.database, mosemo.api.openapi, mosemo.identity.bootstrap",
+            "import mosemo.platform.database.engine, mosemo.api.openapi, mosemo.identity.bootstrap",
         ],
         cwd=ROOT,
         env={},

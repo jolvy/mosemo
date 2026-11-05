@@ -7,7 +7,6 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.identity.public import AccountDirectory
-from mosemo.infra.transactions import read_snapshot
 from mosemo.labeling.domain.confirmations import ActivityLabelConfirmation
 from mosemo.labeling.infrastructure.confirmations import ConfirmationRepository
 from mosemo.labels.public import LabelCatalog
@@ -16,6 +15,7 @@ from mosemo.observation.public import (
     ObservationTimeline,
     ObservedSegment,
 )
+from mosemo.platform.database.transactions import read_snapshot
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.use_case import UseCase
 from mosemo.shared.domain.timezones import timeline_date_window

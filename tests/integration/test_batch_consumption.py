@@ -12,9 +12,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from mosemo.consumer.activity_batches import activity_batch_handler
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
-from mosemo.infra.clock import utc_now
-from mosemo.infra.kafka_compat import BatchPartition
-from mosemo.infra.messaging.subscriber import MessageConsumer
 from mosemo.observation.domain.activities import ActivityBatchReceipt, ActivityRecord
 from mosemo.observation.infrastructure.tables import (
     activity_batch_receipts,
@@ -26,6 +23,9 @@ from mosemo.observation.infrastructure.timeline_segments import (
 )
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
 from mosemo.observation.presentation.messages import ActivityRegistrationRequested
+from mosemo.platform.clock import utc_now
+from mosemo.platform.messaging.kafka_compat import BatchPartition
+from mosemo.platform.messaging.subscriber import MessageConsumer
 from tests.clock_support import FakeClock
 from tests.identity_support import delete_accounts
 from tests.integration.test_activity_batches import batch, record

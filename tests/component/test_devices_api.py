@@ -8,8 +8,8 @@ from fastapi.testclient import TestClient
 from mosemo.identity.application.devices import RegisterDevice
 from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.identity.presentation.devices.router import create_router
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config
 from tests.component.identity_app import make_identity_app
 
 

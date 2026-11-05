@@ -19,7 +19,6 @@ from mosemo.identity.bootstrap import (
 )
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
-from mosemo.infra.clock import utc_now
 from mosemo.observation.domain.activities import (
     ActivityDeviceNotFoundError,
     ActivityEventIdConflictError,
@@ -35,6 +34,7 @@ from mosemo.observation.infrastructure.timeline_segments import (
 )
 from mosemo.observation.presentation.activities.mappers import ActivityRecordMapper
 from mosemo.observation.presentation.activities.schemas import ActivityRecord
+from mosemo.platform.clock import utc_now
 from mosemo.shared.domain.timezones import Timezone
 from tests.clock_support import FakeClock
 from tests.identity_support import delete_accounts

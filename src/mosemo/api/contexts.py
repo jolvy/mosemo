@@ -1,12 +1,12 @@
 """Bounded context object graphs that the API process builds once at startup."""
 
 from mosemo.identity import bootstrap as identity_bootstrap
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import get_config
-from mosemo.infra.providers import get_event_dispatcher
 from mosemo.labeling import bootstrap as labeling_bootstrap
 from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.observation import bootstrap as observation_bootstrap
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import get_config
+from mosemo.platform.providers import get_event_dispatcher
 
 identity_bootstrap.map_tables()
 labels_bootstrap.map_tables()

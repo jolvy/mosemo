@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from faststream.kafka import KafkaBroker
 
-from mosemo.infra.messaging.publisher import KafkaPublisher
+from mosemo.platform.messaging.publisher import KafkaPublisher
 
 
 def consumer_broker(bootstrap_servers: str) -> KafkaBroker:

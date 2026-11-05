@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from mosemo.infra.config import get_config
+from mosemo.platform.config import get_config
 
 
 # Created on first use so importing this module does not read the configuration.

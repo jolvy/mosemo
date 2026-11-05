@@ -14,14 +14,14 @@ from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
 from mosemo.identity.presentation.auth.router import get_token_service
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config, get_config
-from mosemo.infra.database import get_session
 from mosemo.labels.domain.labels import Label
 from mosemo.labels.infrastructure.tables import labels as label_table
 from mosemo.observation.domain.activities import ActivityRecord
 from mosemo.observation.domain.focus_sessions import FocusSession
 from mosemo.observation.infrastructure.tables import activity_records, focus_sessions
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config, get_config
+from mosemo.platform.database.engine import get_session
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.batch_support import batch_client, post_activity
 from tests.identity_support import delete_accounts

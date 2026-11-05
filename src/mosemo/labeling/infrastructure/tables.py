@@ -15,12 +15,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
-from mosemo.infra.persistence import ORM_METADATA, mapper_registry
 from mosemo.labeling.domain.confirmations import ActivityLabelConfirmation
 from mosemo.labeling.domain.proposals import (
     ActivityLabelProposal,
     ActivityLabelProposalStatus,
 )
+from mosemo.platform.database.persistence import ORM_METADATA, mapper_registry
 
 activity_label_confirmations = Table(
     "activity_label_confirmations",

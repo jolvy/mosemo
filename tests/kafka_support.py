@@ -29,8 +29,8 @@ from faststream import AckPolicy
 from faststream.kafka import KafkaBroker
 from faststream.kafka.annotations import KafkaMessage
 
-from mosemo.infra.config import BatchDeliveryConfig
-from mosemo.infra.kafka_compat import BatchPartition
+from mosemo.platform.config import BatchDeliveryConfig
+from mosemo.platform.messaging.kafka_compat import BatchPartition
 
 KAFKA_IMAGE = "confluentinc/cp-kafka:7.8.0"
 

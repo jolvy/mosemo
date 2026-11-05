@@ -21,7 +21,7 @@ from mosemo.identity.domain.accounts import AccountProvider
 from mosemo.identity.domain.pkce import create_code_challenge
 from mosemo.identity.infrastructure.kakao_client import KAKAO_AUTHORIZE_URL
 from mosemo.identity.presentation.auth.router import create_router
-from mosemo.infra.config import Config
+from mosemo.platform.config import Config
 from tests.component.identity_app import make_identity_app
 
 CODE_VERIFIER = "A" * 43

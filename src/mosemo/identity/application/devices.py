@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mosemo.identity.domain.devices import Device
 from mosemo.identity.infrastructure.devices import DeviceRepository
 from mosemo.identity.infrastructure.queries import DeviceQuery
-from mosemo.infra.transactions import unit_of_work
+from mosemo.platform.database.transactions import unit_of_work
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.application.use_case import UseCase
 

@@ -4,7 +4,11 @@ import sys
 
 import pytest
 
-from mosemo.infra.logging import JsonFormatter, SensitiveDataFilter, configure_logging
+from mosemo.platform.logging import (
+    JsonFormatter,
+    SensitiveDataFilter,
+    configure_logging,
+)
 
 
 def test_json_formatter_emits_expected_fields(monkeypatch) -> None:

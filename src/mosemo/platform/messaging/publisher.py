@@ -4,7 +4,7 @@ import asyncio
 
 from faststream.kafka import KafkaBroker
 
-from mosemo.infra.kafka_compat import KafkaPublicationError
+from mosemo.platform.messaging.kafka_compat import KafkaPublicationError
 
 
 class DeliveryUnavailableError(Exception):

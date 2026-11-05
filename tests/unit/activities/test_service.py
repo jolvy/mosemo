@@ -8,7 +8,6 @@ from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.identity.public import DeviceDirectory
-from mosemo.infra.clock import utc_now
 from mosemo.observation.application.activities import RecordActivity
 from mosemo.observation.domain.activities import (
     ActivityDeviceNotFoundError,
@@ -27,6 +26,7 @@ from mosemo.observation.presentation.activities.schemas import (
     ActivityCreateResponse,
     ActivityRecord,
 )
+from mosemo.platform.clock import utc_now
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.domain.timezones import Timezone
 from tests.clock_support import FakeClock

@@ -12,8 +12,8 @@ from datetime import timedelta
 from functools import partial
 from unittest.mock import patch
 
-from mosemo.infra import scheduling
-from mosemo.infra.scheduling import BatchJob, every
+from mosemo.platform import scheduling
+from mosemo.platform.scheduling import BatchJob, every
 
 
 async def noop() -> None:

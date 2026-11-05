@@ -11,8 +11,8 @@ from sqlalchemy import (
     func,
 )
 
-from mosemo.infra.persistence import ORM_METADATA, mapper_registry
 from mosemo.labels.domain.labels import Label
+from mosemo.platform.database.persistence import ORM_METADATA, mapper_registry
 
 labels = Table(
     "labels",

@@ -6,8 +6,8 @@ from fastapi import APIRouter, FastAPI
 
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.identity.bootstrap import get_token_current_account
-from mosemo.infra.config import Config, get_config
-from mosemo.infra.providers import get_session
+from mosemo.platform.config import Config, get_config
+from mosemo.platform.providers import get_session
 from mosemo.shared.presentation.current_account import get_current_account
 
 

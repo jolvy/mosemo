@@ -8,7 +8,7 @@ import pytest
 from mosemo.identity.bootstrap import get_oauth_client
 from mosemo.identity.domain.accounts import AccountProvider
 from mosemo.identity.infrastructure.kakao_client import KakaoClient
-from mosemo.infra.config import Config
+from mosemo.platform.config import Config
 
 
 class OtherProvider(StrEnum):

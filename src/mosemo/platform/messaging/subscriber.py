@@ -8,7 +8,7 @@ from typing import override
 from faststream import AckPolicy, BaseMiddleware
 from faststream.kafka import KafkaBroker, KafkaMessage
 
-from mosemo.infra.kafka_compat import BatchPartition, BatchRebalanceAdapter
+from mosemo.platform.messaging.kafka_compat import BatchPartition, BatchRebalanceAdapter
 
 
 @dataclass(frozen=True)

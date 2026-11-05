@@ -5,7 +5,6 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.infra.transactions import read_snapshot
 from mosemo.labeling.domain.confirmations import (
     ActivityLabelConfirmation,
     ActivityLabelSegmentNotFoundError,
@@ -22,6 +21,7 @@ from mosemo.observation.public import (
     ObservationTimeline,
     ObservedSegment,
 )
+from mosemo.platform.database.transactions import read_snapshot
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.use_case import UseCase
 

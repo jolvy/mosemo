@@ -6,9 +6,9 @@ from typing import cast
 import httpx2
 from fastapi import Request
 
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config, get_config
-from mosemo.infra.database import get_session
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config, get_config
+from mosemo.platform.database.engine import get_session
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 

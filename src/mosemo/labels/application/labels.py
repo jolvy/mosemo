@@ -3,9 +3,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.identity.public import AccountCreated, AccountDirectory
-from mosemo.infra.transactions import read_snapshot
 from mosemo.labels.domain.labels import Label, default_labels
 from mosemo.labels.infrastructure.labels import LabelRepository
+from mosemo.platform.database.transactions import read_snapshot
 from mosemo.shared.application.use_case import UseCase
 
 

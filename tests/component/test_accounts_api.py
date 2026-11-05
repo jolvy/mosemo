@@ -9,8 +9,8 @@ from mosemo.identity.application.accounts import AccountNotFoundError, GetAccoun
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.presentation.accounts.router import create_router
 from mosemo.identity.presentation.auth.router import get_token_service
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config
 from mosemo.shared.domain.timezones import Timezone
 from tests.component.identity_app import make_identity_app
 

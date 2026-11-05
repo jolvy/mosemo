@@ -3,12 +3,12 @@
   "disable_existing_loggers": false,
   "filters": {
     "sensitive_data": {
-      "()": "mosemo.infra.logging.SensitiveDataFilter"
+      "()": "mosemo.platform.logging.SensitiveDataFilter"
     }
   },
   "formatters": {
     "json": {
-      "()": "mosemo.infra.logging.JsonFormatter"
+      "()": "mosemo.platform.logging.JsonFormatter"
     }
   },
   "handlers": {

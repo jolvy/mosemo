@@ -15,8 +15,6 @@ from mosemo.identity.bootstrap import create_device_directory
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
 from mosemo.identity.presentation.auth.router import get_token_service
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config
 from mosemo.observation.domain.activities import ActivityBatchReceipt, ActivityRecord
 from mosemo.observation.domain.timeline import ProjectedActivity, project_events
 from mosemo.observation.infrastructure.activity_records import (
@@ -35,6 +33,8 @@ from mosemo.observation.presentation.activities.mappers import (
     batch_fingerprint,
 )
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config
 from mosemo.shared.application.events import EventDispatcher
 from tests.clock_support import FakeClock
 from tests.identity_support import delete_accounts
@@ -73,7 +73,7 @@ async def real_batch_app(
     # Exercise the direct-processing route against isolated PostgreSQL. Kafka
     # publication is tested independently; Consumer execution belongs to #65.
     from mosemo.api.main import create_app
-    from mosemo.infra import database
+    from mosemo.platform.database import engine as database
 
     app = create_app()
     app.state.batch_runtime.config = app.state.batch_runtime.config.model_copy(
@@ -92,8 +92,8 @@ async def real_batch_app(
     monkeypatch.setattr(database, "get_session_factory", lambda: factory)
     # Main token config is the explicit non-secret test environment, overridden
     # with the fixture config for matching signing claims.
-    from mosemo.infra.config import get_config
-    from mosemo.infra.providers import get_clock
+    from mosemo.platform.config import get_config
+    from mosemo.platform.providers import get_clock
 
     app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_clock] = lambda: fake_clock
@@ -360,7 +360,7 @@ async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
     real_batch_app, config, monkeypatch
 ):
     from mosemo.api.main import create_app
-    from mosemo.infra.config import get_config
+    from mosemo.platform.config import get_config
 
     _app, client, factory, accounts, devices, headers, _ = real_batch_app
     second = create_app()
