@@ -72,8 +72,8 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
 | CS-P07 | 이름 | Python 이름 표기 규칙을 어기거나, `...Exception` 이름과 `ApiException`을 HTTP 계층 밖에서 쓰는가? | Ruff `N`, 검사기 | clean-code Naming, #102 |
 | CS-P11 | 계층·경계 | 다른 모듈을 허용되지 않은 방향으로 import하는가? | import-linter(`poe lint-imports`) | [ADR 0011](adr/0011-split-bounded-contexts-logically-with-layered-packages.md) 「강제 방법」 |
 | CS-P12 | 계층·경계 | `exception_handlers.py` 밖에서 `HTTPException`을 쓰는가? | 검사기 | [ADR 0001](adr/0001-public-api-error-boundary.md) |
-| CS-P13 | 계층·경계 | 트랜잭션 헬퍼(`infra/transactions.py`) 밖에서 `begin`·`commit`·`rollback`을 직접 호출하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), [ADR 0012](adr/0012-notify-cross-context-changes-with-in-process-domain-events.md), 저장소 관례 |
-| CS-P15 | 저장소 관용구 | `src/mosemo/infra/clock.py` 밖에서 현재 시각 API를 호출하거나 `clock`을 키워드 전용 필수 인자로 받지 않는가? | Ruff `TID251`, 검사기 | #86 |
+| CS-P13 | 계층·경계 | 트랜잭션 헬퍼(`platform/database/transactions.py`) 밖에서 `begin`·`commit`·`rollback`을 직접 호출하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), [ADR 0012](adr/0012-notify-cross-context-changes-with-in-process-domain-events.md), 저장소 관례 |
+| CS-P15 | 저장소 관용구 | `src/mosemo/platform/clock.py` 밖에서 현재 시각 API를 호출하거나 `clock`을 키워드 전용 필수 인자로 받지 않는가? | Ruff `TID251`, 검사기 | #86 |
 | CS-P17 | 저장소 관용구 | FastAPI 의존성을 `Annotated` 없이 선언하는가? | Ruff `FAST002` | architecture FastAPI Request Boundaries |
 | CS-P18 | 오류 처리 | 넓은 `except`를 허용 위치 밖에서 쓰거나 예외를 조용히 삼키는가? | 검사기(`src`), Ruff `BLE001`(`src` 밖), `S110` | [ADR 0001](adr/0001-public-api-error-boundary.md), #102 |
 | CS-P19 | async 경계 | async 함수에서 블로킹 호출을 하는가? | Ruff `ASYNC` (`tests` 제외) | architecture FastAPI Request Boundaries |
@@ -94,7 +94,7 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
   `pyproject.toml`의 `[tool.complexipy]`는 위반이다. 기준선을 다시 만들어 고복잡도 함수를 통과시키는 우회를
   막는다.
 - **CS-P04**: 위치 인자는 2개까지이고 세 번째 인자부터 키워드 전용(`*`)이다. `self`·`cls`는 세지 않는다.
-  `tests`(pytest가 fixture를 이름으로 주입)와 `src/mosemo/api/middleware.py`(ASGI 서버가 위치 인자로 호출)는
+  `tests`(pytest가 fixture를 이름으로 주입)와 `src/mosemo/entrypoints/api/middleware.py`(ASGI 서버가 위치 인자로 호출)는
   제외한다. 라이브러리가 위치 인자로 호출하는 오버라이드는 `@typing.override`를 붙인다.
   - 전체 인자는 5개까지다(`PLR0913`, `*args`·`**kwargs` 제외). `tests`는 제외한다.
   - 인자가 많으면 책임 단위로 나눈다. 허용하는 방법은 하위 협력자 추출, 업무 사건의 데이터를 담는 값 객체,
@@ -104,9 +104,9 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
     [ADR 0011](adr/0011-split-bounded-contexts-logically-with-layered-packages.md) 「조립」을 따른다.
 - **CS-P07**: 예외 이름의 접미사가 계층을 나타낸다. `...Exception`은 HTTP 응답이 되는 `ApiException` 계열
   전용이며 `src/mosemo/shared/errors.py`에서만 정의한다. `ApiException`과 그 하위 클래스는 `router.py`,
-  `api/exception_handlers.py`, `shared/errors.py`에서만 import·생성한다. 나머지 예외는
+  `entrypoints/api/exception_handlers.py`, `shared/errors.py`에서만 import·생성한다. 나머지 예외는
   `...Error`다. Ruff `N818`은 `*Exception` 이름을 무시하도록 설정하고 이 규칙은 검사기가 판정한다.
-- **CS-P12**: `HTTPException`은 `src/mosemo/api/exception_handlers.py`에서만 import하거나 참조한다. router도
+- **CS-P12**: `HTTPException`은 `src/mosemo/entrypoints/api/exception_handlers.py`에서만 import하거나 참조한다. router도
   허용하지 않는다. ADR 0001·0014에 따라 공개할 오류는 BC 오류 코드 enum과 `ApiException`으로 명시하고, 내부 오류는
   도메인 오류(`...Error`)로 던진다. 판정은 import 경로를 해석하지 않고 이름으로 한다. `ImportFrom`의 가져오는
   이름이나 속성 참조의 `attr`가 `HTTPException`으로 끝나면 위반이며, 허용 파일이 만든 별칭
@@ -115,22 +115,22 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
   - Ruff `TID251` 대신 검사기로 판정한다. `banned-api`는 금지 항목마다 허용 경로를 줄 수 없어
     `exception_handlers.py`를 허용하려면 `per-file-ignores`에 `TID251`을 넣어야 하고, 그러면 그 파일에서
     CS-P15의 현재 시각 API 금지까지 꺼진다.
-- **CS-P13**: 트랜잭션은 UseCase가 `infra.transactions`의 `unit_of_work`·`read_snapshot`으로 연다
+- **CS-P13**: 트랜잭션은 UseCase가 `platform.database.transactions`의 `unit_of_work`·`read_snapshot`으로 연다
   ([ADR 0012](adr/0012-notify-cross-context-changes-with-in-process-domain-events.md)).
   - 대상은 `src`의 모든 `.py` 파일이다. 메서드 이름이 `begin`·`begin_nested`·`commit`·`rollback`인 속성 호출이면
     수신 객체(`db_session`, session factory, engine)와 관계없이 위반이다. `flush`는 대상이 아니다.
-  - 예외는 트랜잭션 헬퍼 `src/mosemo/infra/transactions.py` 하나이며 경로로 허용한다. 다른 경로의
+  - 예외는 트랜잭션 헬퍼 `src/mosemo/platform/database/transactions.py` 하나이며 경로로 허용한다. 다른 경로의
     `transactions.py`는 허용하지 않는다.
   - 파일 이름으로 허용하던 옛 규칙(`service.py`·`executor.py`·`processing.py`)은 대상 파일이 없어져 없앴다.
-- **CS-P15**: 시스템 시각은 `mosemo.infra.clock.utc_now`만 읽는다. 금지 API는 `datetime.now`,
+- **CS-P15**: 시스템 시각은 `mosemo.platform.clock.utc_now`만 읽는다. 금지 API는 `datetime.now`,
   `datetime.utcnow`, `datetime.today`, `date.today`, `time.time`, `time.time_ns`이고 예외 파일은
-  `src/mosemo/infra/clock.py` 하나다. 시각을 읽는 객체는 생성자에서 키워드 전용 필수 인자 `clock`을 받고, 트랜잭션
+  `src/mosemo/platform/clock.py` 하나다. 시각을 읽는 객체는 생성자에서 키워드 전용 필수 인자 `clock`을 받고, 트랜잭션
   또는 처리 단계마다 한 번 읽어 하위에 `now`로 넘긴다. 시각을 받기만 하는 객체는 `now` 인자로 받는다.
 - **CS-P18**: `src`의 넓은 `except`(`Exception`, `BaseException`, 이를 포함한 튜플, 맨 `except:`)는 검사기의
   허용 위치 목록 `BROAD_EXCEPT_ALLOWED`(파일, 함수, 개수)에서만 쓴다. 목록에 있지만 코드에서 사라진 항목도
   위반이다. 이유 주석은 모델이 스스로 붙여 통과할 수 있으므로 허용 근거로 쓰지 않는다. 새 경계는 이유와 함께
-  목록에 추가하며 리뷰 대상이다. 현재 허용 위치는 프로세스 경계 2(`consumer.__main__.main`,
-  `batch.__main__.main`), supervisor 전달 1(`MessageConsumer.handle`), 로그인 콜백
+  목록에 추가하며 리뷰 대상이다. 현재 허용 위치는 프로세스 경계 2(`entrypoints.consumer.__main__.main`,
+  `entrypoints.batch.__main__.main`), supervisor 전달 1(`MessageConsumer.handle`), 로그인 콜백
   1(`identity/presentation/auth/router.create_router.callback`), 처리 단위 격리 2(`ProposeLabel.execute`, `execute_job`)다.
   Ruff `BLE001`은 로그만 남기는 넓은 `except`를 통과시켜 더 약하므로 `src`에서는 끄고 그 밖의 경로에서 쓴다.
 - **CS-P22**: 인라인 억제 주석(`noqa`, `ruff: noqa`, `type: ignore`, `ty: ignore`, `pyright: ignore`,
