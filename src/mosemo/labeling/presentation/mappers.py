@@ -146,7 +146,7 @@ class LabelTimelineMapper:
         assert segment.context is not None
         assert segment.last_observed_at is not None
         return LabelTimelineSegmentResponse(
-            segment_id=segment.id,
+            id=segment.id,
             segment_version=entry.version,
             started_at=segment.started_at,
             ended_at=entry.ended_at,
@@ -191,7 +191,7 @@ class LabelTimelineMapper:
             assert segment.reason is not None
             return LabelTimelineCaptureGapResponse(
                 item_type="capture_gap",
-                segment_id=segment.id,
+                id=segment.id,
                 started_at=segment.started_at,
                 ended_at=ended_at,
                 reason=segment.reason,
@@ -202,7 +202,7 @@ class LabelTimelineMapper:
         if kind is ActivityTimelineKind.OPAQUE_ACTIVITY:
             return OpaqueActivityResponse(
                 item_type="opaque_activity",
-                segment_id=segment.id,
+                id=segment.id,
                 started_at=segment.started_at,
                 ended_at=ended_at,
                 last_observed_at=segment.last_observed_at,
@@ -211,7 +211,7 @@ class LabelTimelineMapper:
         assert kind is ActivityTimelineKind.IN_PROGRESS_ACTIVITY
         return InProgressActivityResponse(
             item_type="in_progress_activity",
-            segment_id=segment.id,
+            id=segment.id,
             started_at=segment.started_at,
             ended_at=None,
             last_observed_at=segment.last_observed_at,

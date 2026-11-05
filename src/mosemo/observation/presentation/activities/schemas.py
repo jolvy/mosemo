@@ -392,7 +392,7 @@ TimelineTimestamp = Annotated[
 class ActivitySegmentResponse(ApiResponseModel):
     """실제로 관찰된 동일 문맥의 활동 구간입니다."""
 
-    segment_id: UUID = Field(description="재구축 시 바뀔 수 있는 구간 식별자입니다.")
+    id: UUID = Field(description="재구축 시 바뀔 수 있는 구간 식별자입니다.")
     segment_type: Literal[SegmentType.ACTIVITY] = Field(
         description="활동 구간 종류입니다."
     )
@@ -411,7 +411,7 @@ class ActivitySegmentResponse(ApiResponseModel):
 class CaptureGapResponse(ApiResponseModel):
     """명시적 수집 중단으로 관찰할 수 없었던 구간입니다."""
 
-    segment_id: UUID = Field(description="재구축 시 바뀔 수 있는 구간 식별자입니다.")
+    id: UUID = Field(description="재구축 시 바뀔 수 있는 구간 식별자입니다.")
     segment_type: Literal[SegmentType.CAPTURE_GAP] = Field(
         description="수집 공백 종류입니다."
     )

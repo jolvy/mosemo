@@ -130,7 +130,7 @@ def test_openapi_metadata_and_public_data_contract_are_stable(
         "codeVerifier",
     }
     assert set(schemas["AccountResponse"]["properties"]) == {
-        "accountId",
+        "id",
         "provider",
         "timezone",
         "createdAt",
@@ -161,7 +161,7 @@ def test_openapi_metadata_and_public_data_contract_are_stable(
         "capture_gap"
     )
     assert set(schemas["ActivityBatchResponse"]["properties"]) == {"batchId", "status"}
-    assert set(schemas["DeviceCreateResponse"]["properties"]) == {"deviceId"}
+    assert set(schemas["DeviceCreateResponse"]["properties"]) == {"id"}
     for activity_schema in ("BatchActivityObservation", "BatchCollectionStateChanged"):
         assert "deviceId" not in schemas[activity_schema]["properties"]
         assert "deviceRegistrationId" not in schemas[activity_schema]["properties"]
@@ -356,7 +356,7 @@ def test_public_error_examples_match_status_and_common_schema(
     }
     schemas = openapi_document["components"]["schemas"]
     assert set(schemas["ActivitySegmentResponse"]["required"]) == {
-        "segmentId",
+        "id",
         "segmentType",
         "startedAt",
         "endedAt",
@@ -442,9 +442,9 @@ def test_public_error_examples_match_status_and_common_schema(
             "examples"
         ]
     ) == {
-        "ACTIVITY_SEGMENT_NOT_LABELABLE",
-        "ACTIVITY_SEGMENT_CHANGED",
-        "ACTIVITY_LABEL_CONFIRMATION_CONFLICT",
+        "LABELING_SEGMENT_NOT_LABELABLE",
+        "LABELING_SEGMENT_CHANGED",
+        "LABELING_CONFIRMATION_CONFLICT",
     }
     assert batch_confirmation["responses"]["503"]["headers"]["Retry-After"][
         "schema"
@@ -456,8 +456,8 @@ def test_public_error_examples_match_status_and_common_schema(
     assert set(
         confirmation["responses"]["409"]["content"]["application/json"]["examples"]
     ) == {
-        "ACTIVITY_SEGMENT_NOT_LABELABLE",
-        "ACTIVITY_SEGMENT_CHANGED",
+        "LABELING_SEGMENT_NOT_LABELABLE",
+        "LABELING_SEGMENT_CHANGED",
     }
 
 
@@ -522,7 +522,7 @@ def test_label_catalog_openapi_contract(openapi_document: dict[str, Any]) -> Non
 
     schema = openapi_document["components"]["schemas"]["LabelResponse"]
     assert set(schema["properties"]) == {
-        "labelId",
+        "id",
         "displayName",
         "createdAt",
         "updatedAt",

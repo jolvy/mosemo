@@ -215,7 +215,7 @@ def test_timeline_returns_direct_discriminated_union_array(config: Config) -> No
     assert response.status_code == 200
     assert response.json() == [
         {
-            "segmentId": str(activity_id),
+            "id": str(activity_id),
             "segmentType": "activity",
             "startedAt": "2026-09-14T00:00:00.123456Z",
             "endedAt": "2026-09-14T00:00:30Z",
@@ -223,7 +223,7 @@ def test_timeline_returns_direct_discriminated_union_array(config: Config) -> No
             "context": {"kind": "opaque"},
         },
         {
-            "segmentId": str(gap_id),
+            "id": str(gap_id),
             "segmentType": "capture_gap",
             "startedAt": "2026-09-14T00:00:30Z",
             "endedAt": None,

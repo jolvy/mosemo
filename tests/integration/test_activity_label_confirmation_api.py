@@ -165,7 +165,7 @@ async def upload_closed_detail(
         f"/api/v1/activities/timeline?date={started_at[:10]}", headers=headers
     )
     segment_id = next(
-        item["segmentId"]
+        item["id"]
         for item in timeline.json()
         if item.get("context", {}).get("app", {}).get("name", {}).get("value") == name
     )
@@ -184,7 +184,7 @@ def segment_confirmation_item(
     segment: dict[str, Any], selection: dict[str, str]
 ) -> dict[str, Any]:
     return {
-        "segmentId": segment["segmentId"],
+        "segmentId": segment["id"],
         "segmentVersion": segment["segmentVersion"],
         "selection": selection,
     }
@@ -291,7 +291,7 @@ async def test_known_segment_version_survives_proposal_and_confirmation(
         )
         assert timeline.status_code == 200
         segment_id = next(
-            item["segmentId"]
+            item["id"]
             for item in timeline.json()
             if item.get("context", {}).get("kind") == "detailed"
         )
@@ -389,7 +389,7 @@ async def test_label_state_can_be_confirmed_and_corrected_over_http(
             for item in timeline.json()
             if item["context"].get("kind") == "detailed"
         )
-        segment_id = segment["segmentId"]
+        segment_id = segment["id"]
 
         pending = await client.get(
             f"/api/v1/activities/segments/{segment_id}/label-state",
@@ -505,7 +505,7 @@ async def test_confirming_a_label_group_applies_to_every_member(
         assert confirmed.status_code == 200
         results = confirmed.json()["items"]
         assert [result["segmentId"] for result in results] == [
-            member["segmentId"] for member in group["segments"]
+            member["id"] for member in group["segments"]
         ]
         assert all(
             result["selection"] == {"kind": "label", "labelId": str(coding_id)}
@@ -572,12 +572,12 @@ async def test_batch_confirms_each_segment_in_a_group_with_its_own_selection(
             json={
                 "items": [
                     {
-                        "segmentId": first["segmentId"],
+                        "segmentId": first["id"],
                         "segmentVersion": first["segmentVersion"],
                         "selection": {"kind": "label", "labelId": str(coding_id)},
                     },
                     {
-                        "segmentId": second["segmentId"],
+                        "segmentId": second["id"],
                         "segmentVersion": second["segmentVersion"],
                         "selection": {"kind": "unclassified"},
                     },
@@ -588,8 +588,8 @@ async def test_batch_confirms_each_segment_in_a_group_with_its_own_selection(
         assert confirmed.status_code == 200
         results = confirmed.json()["items"]
         assert [result["segmentId"] for result in results] == [
-            first["segmentId"],
-            second["segmentId"],
+            first["id"],
+            second["id"],
         ]
         assert [result["selection"] for result in results] == [
             {"kind": "label", "labelId": str(coding_id)},
@@ -720,7 +720,7 @@ async def test_delayed_batch_retry_conflicts_after_a_put_correction(
         )
         segment = refreshed.json()[0]["segments"][0]
         correction = await client.put(
-            f"/api/v1/activities/segments/{segment['segmentId']}/label-confirmation",
+            f"/api/v1/activities/segments/{segment['id']}/label-confirmation",
             headers=headers,
             json={
                 "segmentVersion": segment["segmentVersion"],
@@ -741,9 +741,7 @@ async def test_delayed_batch_retry_conflicts_after_a_put_correction(
         )
 
         assert delayed.status_code == 409
-        assert delayed.json()["error"]["status"] == (
-            "ACTIVITY_LABEL_CONFIRMATION_CONFLICT"
-        )
+        assert delayed.json()["error"]["status"] == "LABELING_CONFIRMATION_CONFLICT"
         assert latest.json()[0]["selection"]["labelId"] == str(learning_id)
         assert latest.json()[0]["groupVersion"] != refreshed.json()[0]["groupVersion"]
     finally:
@@ -796,7 +794,7 @@ async def test_batch_conflict_does_not_apply_earlier_items(
         first, second = groups
         second_segment = second["segments"][0]
         corrected = await client.put(
-            f"/api/v1/activities/segments/{second_segment['segmentId']}/label-confirmation",
+            f"/api/v1/activities/segments/{second_segment['id']}/label-confirmation",
             headers=headers,
             json={
                 "segmentVersion": second_segment["segmentVersion"],
@@ -824,9 +822,7 @@ async def test_batch_conflict_does_not_apply_earlier_items(
         )
 
         assert rejected.status_code == 409
-        assert rejected.json()["error"]["status"] == (
-            "ACTIVITY_LABEL_CONFIRMATION_CONFLICT"
-        )
+        assert rejected.json()["error"]["status"] == "LABELING_CONFIRMATION_CONFLICT"
         assert rejected.json()["error"]["details"][0]["loc"] == [
             "body",
             "items",
@@ -834,13 +830,13 @@ async def test_batch_conflict_does_not_apply_earlier_items(
             "selection",
         ]
         states = {
-            segment["segmentId"]: (item["state"], item.get("selection"))
+            segment["id"]: (item["state"], item.get("selection"))
             for item in current.json()
             if item["itemType"] == "activity_group"
             for segment in item["segments"]
         }
-        assert states[first["segments"][0]["segmentId"]] == ("pending", None)
-        assert states[second_segment["segmentId"]] == (
+        assert states[first["segments"][0]["id"]] == ("pending", None)
+        assert states[second_segment["id"]] == (
             "confirmed",
             {
                 "kind": "label",
@@ -922,7 +918,7 @@ async def test_batch_with_stale_member_rolls_back_every_group_and_identifies_fai
         )
 
         assert rejected.status_code == 409
-        assert rejected.json()["error"]["status"] == "ACTIVITY_SEGMENT_CHANGED"
+        assert rejected.json()["error"]["status"] == "LABELING_SEGMENT_CHANGED"
         assert rejected.json()["error"]["details"][0]["loc"] == [
             "body",
             "items",
@@ -992,19 +988,16 @@ async def test_batch_accepts_one_segment_from_a_timeline_group(
 
         assert confirmed.status_code == 200
         assert len(confirmed.json()["items"]) == 1
-        assert (
-            confirmed.json()["items"][0]["segmentId"]
-            == group["segments"][0]["segmentId"]
-        )
+        assert confirmed.json()["items"][0]["segmentId"] == group["segments"][0]["id"]
         states = {
-            segment["segmentId"]: item["state"]
+            segment["id"]: item["state"]
             for item in current.json()
             if item["itemType"] == "activity_group"
             for segment in item["segments"]
         }
         assert states == {
-            group["segments"][0]["segmentId"]: "confirmed",
-            group["segments"][1]["segmentId"]: "pending",
+            group["segments"][0]["id"]: "confirmed",
+            group["segments"][1]["id"]: "pending",
         }
     finally:
         async with session_factory() as session:
@@ -1196,7 +1189,7 @@ async def test_batch_rejects_foreign_segment_without_confirming_own_group(
             json={"items": [own_item, foreign_item]},
         )
         assert foreign.status_code == 404
-        assert foreign.json()["error"]["status"] == "ACTIVITY_SEGMENT_NOT_FOUND"
+        assert foreign.json()["error"]["status"] == "LABELING_SEGMENT_NOT_FOUND"
         assert foreign.json()["error"]["details"][0]["loc"] == [
             "body",
             "items",
@@ -1305,7 +1298,7 @@ async def test_batch_rejects_opaque_segment(
             json={
                 "items": [
                     {
-                        "segmentId": opaque["segmentId"],
+                        "segmentId": opaque["id"],
                         "segmentVersion": "0" * 64,
                         "selection": {"kind": "unclassified"},
                     }
@@ -1315,7 +1308,7 @@ async def test_batch_rejects_opaque_segment(
 
         assert not_labelable.status_code == 409
         assert not_labelable.json()["error"]["status"] == (
-            "ACTIVITY_SEGMENT_NOT_LABELABLE"
+            "LABELING_SEGMENT_NOT_LABELABLE"
         )
     finally:
         async with session_factory() as session:
@@ -1991,7 +1984,7 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
         for segment in timeline.json():
             if segment.get("context", {}).get("kind") == "detailed":
                 state = await client.get(
-                    f"/api/v1/activities/segments/{segment['segmentId']}/label-state",
+                    f"/api/v1/activities/segments/{segment['id']}/label-state",
                     headers=headers,
                 )
                 assert state.json()["proposal"]["status"] == "ready"
@@ -2918,7 +2911,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             },
         )
         assert response.status_code == 409
-        assert response.json()["error"]["status"] == ("ACTIVITY_SEGMENT_NOT_LABELABLE")
+        assert response.json()["error"]["status"] == "LABELING_SEGMENT_NOT_LABELABLE"
 
     try:
         await post_activity(
@@ -2951,7 +2944,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             for item in timeline.json()
             if item["context"].get("kind") == "detailed"
         )
-        segment_id = detailed_segment["segmentId"]
+        segment_id = detailed_segment["id"]
         state = await client.get(
             f"/api/v1/activities/segments/{segment_id}/label-state",
             headers=headers,
@@ -2998,14 +2991,14 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             f"{now.astimezone(ZoneInfo('Asia/Seoul')).date().isoformat()}",
             headers=other_headers,
         )
-        open_id = open_timeline.json()[0]["segmentId"]
+        open_id = open_timeline.json()[0]["id"]
         open_state = await client.get(
             f"/api/v1/activities/segments/{open_id}/label-state",
             headers=other_headers,
         )
         assert open_state.status_code == 409
         assert open_state.json()["error"]["status"] == (
-            "ACTIVITY_SEGMENT_NOT_LABELABLE"
+            "LABELING_SEGMENT_NOT_LABELABLE"
         )
         await reject_batch_segment(open_id)
 
@@ -3025,7 +3018,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             headers=other_headers,
         )
         opaque_id = next(
-            item["segmentId"]
+            item["id"]
             for item in opaque_timeline.json()
             if item.get("context", {}).get("kind") == "opaque"
         )
@@ -3051,7 +3044,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             headers=other_headers,
         )
         gap_id = next(
-            item["segmentId"]
+            item["id"]
             for item in gap_timeline.json()
             if item["segmentType"] == "capture_gap"
         )
@@ -3116,13 +3109,13 @@ async def test_label_timeline_groups_adjacent_segments_with_same_confirmation(
         segment_versions = []
         for segment in detailed_segments:
             pending = await client.get(
-                f"/api/v1/activities/segments/{segment['segmentId']}/label-state",
+                f"/api/v1/activities/segments/{segment['id']}/label-state",
                 headers=headers,
             )
             assert pending.status_code == 200
             segment_versions.append(pending.json()["segmentVersion"])
             confirmed = await client.put(
-                f"/api/v1/activities/segments/{segment['segmentId']}/label-confirmation",
+                f"/api/v1/activities/segments/{segment['id']}/label-confirmation",
                 headers=headers,
                 json={
                     "segmentVersion": pending.json()["segmentVersion"],
@@ -3153,7 +3146,7 @@ async def test_label_timeline_groups_adjacent_segments_with_same_confirmation(
                 },
                 "segments": [
                     {
-                        "segmentId": segment["segmentId"],
+                        "id": segment["id"],
                         "segmentVersion": segment_version,
                         "startedAt": segment["startedAt"],
                         "endedAt": segment["endedAt"],
@@ -3167,7 +3160,7 @@ async def test_label_timeline_groups_adjacent_segments_with_same_confirmation(
             },
             {
                 "itemType": "opaque_activity",
-                "segmentId": observation_timeline.json()[2]["segmentId"],
+                "id": observation_timeline.json()[2]["id"],
                 "startedAt": "2026-09-14T00:01:00Z",
                 "endedAt": "2026-09-14T00:01:00Z",
                 "lastObservedAt": "2026-09-14T00:01:00Z",
@@ -3253,11 +3246,11 @@ async def test_label_timeline_preserves_state_and_label_boundaries(
             if index in {0, 1, 2, 6}:
                 label_id = learning_id if index == 1 else coding_id
                 state = await client.get(
-                    f"/api/v1/activities/segments/{segment['segmentId']}/label-state",
+                    f"/api/v1/activities/segments/{segment['id']}/label-state",
                     headers=headers,
                 )
                 confirmed = await client.put(
-                    f"/api/v1/activities/segments/{segment['segmentId']}/label-confirmation",
+                    f"/api/v1/activities/segments/{segment['id']}/label-confirmation",
                     headers=headers,
                     json={
                         "segmentVersion": state.json()["segmentVersion"],
@@ -3293,15 +3286,13 @@ async def test_label_timeline_preserves_state_and_label_boundaries(
             "pending",
             "confirmed",
         ]
-        assert [
-            [member["segmentId"] for member in item["segments"]] for item in body[:6]
-        ] == [
-            [segments[0]["segmentId"]],
-            [segments[1]["segmentId"]],
-            [segments[2]["segmentId"]],
-            [segments[3]["segmentId"], segments[4]["segmentId"]],
-            [segments[5]["segmentId"]],
-            [segments[6]["segmentId"]],
+        assert [[member["id"] for member in item["segments"]] for item in body[:6]] == [
+            [segments[0]["id"]],
+            [segments[1]["id"]],
+            [segments[2]["id"]],
+            [segments[3]["id"], segments[4]["id"]],
+            [segments[5]["id"]],
+            [segments[6]["id"]],
         ]
         assert body[2]["selection"] == body[0]["selection"]
         assert body[5]["selection"] == {"kind": "unclassified"}
@@ -3381,12 +3372,12 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
         assert len(activities) == 4
         for index, segment in enumerate(activities):
             state = await client.get(
-                f"/api/v1/activities/segments/{segment['segmentId']}/label-state",
+                f"/api/v1/activities/segments/{segment['id']}/label-state",
                 headers=headers,
             )
             if index == 1:
                 confirmation = await client.put(
-                    f"/api/v1/activities/segments/{segment['segmentId']}/label-confirmation",
+                    f"/api/v1/activities/segments/{segment['id']}/label-confirmation",
                     headers=headers,
                     json={
                         "segmentVersion": state.json()["segmentVersion"],
@@ -3395,7 +3386,7 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
                 )
             else:
                 confirmation = await client.put(
-                    f"/api/v1/activities/segments/{segment['segmentId']}/label-confirmation",
+                    f"/api/v1/activities/segments/{segment['id']}/label-confirmation",
                     headers=headers,
                     json={
                         "segmentVersion": state.json()["segmentVersion"],
@@ -3491,11 +3482,11 @@ async def test_label_timeline_splits_same_label_at_zero_duration_capture_gap(
         assert len(editor_segments) == 2
         for segment in editor_segments:
             state = await client.get(
-                f"/api/v1/activities/segments/{segment['segmentId']}/label-state",
+                f"/api/v1/activities/segments/{segment['id']}/label-state",
                 headers=headers,
             )
             confirmed = await client.put(
-                f"/api/v1/activities/segments/{segment['segmentId']}/label-confirmation",
+                f"/api/v1/activities/segments/{segment['id']}/label-confirmation",
                 headers=headers,
                 json={
                     "segmentVersion": state.json()["segmentVersion"],
@@ -3515,12 +3506,12 @@ async def test_label_timeline_splits_same_label_at_zero_duration_capture_gap(
             "capture_gap",
             "activity_group",
         ]
-        assert [member["segmentId"] for member in body[0]["segments"]] == [
-            editor_segments[0]["segmentId"]
+        assert [member["id"] for member in body[0]["segments"]] == [
+            editor_segments[0]["id"]
         ]
         assert body[1]["startedAt"] == body[1]["endedAt"] == "2026-09-14T00:01:00Z"
-        assert [member["segmentId"] for member in body[2]["segments"]] == [
-            editor_segments[1]["segmentId"]
+        assert [member["id"] for member in body[2]["segments"]] == [
+            editor_segments[1]["id"]
         ]
         assert body[0]["selection"] == body[2]["selection"]
         assert body[0]["endedAt"] == body[2]["startedAt"]
@@ -3705,12 +3696,12 @@ async def test_label_timeline_reopens_confirmation_after_late_observation(
             == "Editor"
         )
         state = await client.get(
-            f"/api/v1/activities/segments/{first_segment['segmentId']}/label-state",
+            f"/api/v1/activities/segments/{first_segment['id']}/label-state",
             headers=headers,
         )
         old_version = state.json()["segmentVersion"]
         confirmation = await client.put(
-            f"/api/v1/activities/segments/{first_segment['segmentId']}/label-confirmation",
+            f"/api/v1/activities/segments/{first_segment['id']}/label-confirmation",
             headers=headers,
             json={
                 "segmentVersion": old_version,
@@ -3790,7 +3781,7 @@ async def test_projection_version_invalidates_only_changed_segments(
             for item in timeline.json()
             if item["context"].get("kind") == "detailed"
         )
-        segment_id = detailed_segment["segmentId"]
+        segment_id = detailed_segment["id"]
         before = await client.get(
             f"/api/v1/activities/segments/{segment_id}/label-state",
             headers=headers,
@@ -3834,7 +3825,7 @@ async def test_projection_version_invalidates_only_changed_segments(
             },
         )
         assert stale.status_code == 409
-        assert stale.json()["error"]["status"] == "ACTIVITY_SEGMENT_CHANGED"
+        assert stale.json()["error"]["status"] == "LABELING_SEGMENT_CHANGED"
     finally:
         async with session_factory() as session:
             await session.execute(delete_accounts(account_id))
@@ -3880,7 +3871,7 @@ async def test_projection_version_survives_same_result_recalculation(
             for item in timeline.json()
             if item["context"].get("kind") == "detailed"
         )
-        segment_id = detailed_segment["segmentId"]
+        segment_id = detailed_segment["id"]
         before = await client.get(
             f"/api/v1/activities/segments/{segment_id}/label-state",
             headers=headers,
@@ -4050,9 +4041,7 @@ async def test_past_confirmation_keeps_archived_label_and_displays_current_name(
         assert retried.json()["items"] == [confirmed.json()]
         catalog = await client.get("/api/v1/labels", headers=headers)
         assert catalog.status_code == 200
-        archived = next(
-            item for item in catalog.json() if item["labelId"] == str(label_id)
-        )
+        archived = next(item for item in catalog.json() if item["id"] == str(label_id))
         assert archived["displayName"] == "개발 작업"
         assert archived["archivedAt"] is not None
     finally:
@@ -4095,9 +4084,7 @@ async def test_worker_uses_owned_active_catalog_and_revalidates_suggestion(
         catalog = await client.get("/api/v1/labels", headers=headers)
         assert catalog.status_code == 200
         expected_active_ids = {
-            UUID(label["labelId"])
-            for label in catalog.json()
-            if label["archivedAt"] is None
+            UUID(label["id"]) for label in catalog.json() if label["archivedAt"] is None
         }
         selected_id = {
             "active": active_id,

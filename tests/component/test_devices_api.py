@@ -42,7 +42,7 @@ def test_devices_create_returns_server_id(config: Config) -> None:
         )
 
     assert response.status_code == 201
-    assert response.json() == {"deviceId": str(device_id)}
+    assert response.json() == {"id": str(device_id)}
     service.execute.assert_awaited_once_with(
         sentinel.db_session,
         account_id=account_id,

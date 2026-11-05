@@ -87,7 +87,7 @@ async def focus_client(integration_database_url: str, config: Config) -> AsyncIt
 
 def start_request(device_id, *, target=0):
     return {
-        "sessionId": str(uuid4()),
+        "id": str(uuid4()),
         "deviceId": str(device_id),
         "startedAt": "2026-10-07T00:00:00.123456Z",
         "targetSeconds": target,
@@ -126,7 +126,7 @@ async def test_start_observe_complete_retry_and_list(focus_client):
         "timezoneId": "Asia/Seoul",
         "utcOffsetMinutes": 540,
         "context": {"kind": "opaque"},
-        "focusSessionId": request["sessionId"],
+        "focusSessionId": request["id"],
     }
     assert (
         await post_activity(client, headers=headers, json=activity)
@@ -137,8 +137,8 @@ async def test_start_observe_complete_retry_and_list(focus_client):
                 activity_records.c.event_id == activity["eventId"]
             )
         )
-        assert str(stored.focus_session_id) == request["sessionId"]
-    complete_url = url + "/" + request["sessionId"] + "/completion"
+        assert str(stored.focus_session_id) == request["id"]
+    complete_url = url + "/" + request["id"] + "/completion"
     # A completion cannot move the session end before an already-linked observation.
     invalid_end = await client.put(
         complete_url,
@@ -199,7 +199,7 @@ async def test_foreign_label_invalid_durations_and_activity_link_are_rejected(
         await client.post(url, headers=other_headers, json=request)
     ).status_code == 404
     assert (await client.post(url, headers=headers, json=request)).status_code == 201
-    complete_url = url + "/" + request["sessionId"] + "/completion"
+    complete_url = url + "/" + request["id"] + "/completion"
     assert (
         await client.put(complete_url, headers=headers, json=completion(other_label_id))
     ).status_code == 404
@@ -222,7 +222,7 @@ async def test_foreign_label_invalid_durations_and_activity_link_are_rejected(
         "timezoneId": "Asia/Seoul",
         "utcOffsetMinutes": 540,
         "context": {"kind": "opaque"},
-        "focusSessionId": request["sessionId"],
+        "focusSessionId": request["id"],
     }
     # Older clients without a session link continue to work.
     del activity["focusSessionId"]
@@ -248,7 +248,7 @@ async def test_suspended_collection_record_rejects_focus_link(focus_client):
         "utcOffsetMinutes": 540,
         "state": "suspended",
         "reason": "user_paused",
-        "focusSessionId": request["sessionId"],
+        "focusSessionId": request["id"],
     }
     response = await post_activity(client, headers=headers, json=activity)
     assert response.status_code == 422
@@ -278,7 +278,7 @@ async def test_completed_session_blocks_label_deletion_but_allows_account_cascad
     ).status_code == 201
     assert (
         await client.put(
-            "/api/v1/focus-sessions/" + request["sessionId"] + "/completion",
+            "/api/v1/focus-sessions/" + request["id"] + "/completion",
             headers=headers,
             json=completion(label_id),
         )
@@ -292,7 +292,7 @@ async def test_completed_session_blocks_label_deletion_but_allows_account_cascad
         await session.execute(delete_accounts(account_id))
         await session.commit()
         assert await session.get(Label, label_id, populate_existing=True) is None
-        assert await session.get(FocusSession, request["sessionId"]) is None
+        assert await session.get(FocusSession, request["id"]) is None
 
 
 @pytest.mark.parametrize("invalid_link", ["time", "missing"])
@@ -314,9 +314,7 @@ async def test_invalid_activity_focus_link_rolls_back_and_retains_original(
         "timezoneId": "Asia/Seoul",
         "utcOffsetMinutes": 540,
         "context": {"kind": "opaque"},
-        "focusSessionId": request["sessionId"]
-        if invalid_link == "time"
-        else str(uuid4()),
+        "focusSessionId": request["id"] if invalid_link == "time" else str(uuid4()),
     }
     response = await post_activity(
         client,

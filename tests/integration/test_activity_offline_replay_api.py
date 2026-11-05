@@ -171,7 +171,7 @@ def offline_records(device_id: UUID) -> list[dict[str, object]]:
 
 def timeline_meaning(segments: list[dict[str, object]]) -> list[dict[str, object]]:
     return [
-        {key: value for key, value in segment.items() if key != "segmentId"}
+        {key: value for key, value in segment.items() if key != "id"}
         for segment in segments
     ]
 

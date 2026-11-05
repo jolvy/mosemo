@@ -13,7 +13,7 @@ class FocusSessionMapper:
         self, request: FocusSessionCreateRequest, *, account_id: UUID
     ) -> FocusSession:
         return FocusSession(
-            id=request.session_id,
+            id=request.id,
             account_id=account_id,
             device_id=request.device_id,
             started_at=request.started_at,

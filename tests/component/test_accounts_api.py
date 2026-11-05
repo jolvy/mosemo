@@ -75,7 +75,7 @@ def test_accounts_me_returns_authenticated_account(config: Config) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
     assert response.json() == {
-        "accountId": str(account.id),
+        "id": str(account.id),
         "provider": "KAKAO",
         "timezone": "Asia/Seoul",
         "createdAt": "2026-09-05T01:02:03Z",

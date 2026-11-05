@@ -52,6 +52,6 @@ def create_router(*, register_device: RegisterDevice) -> APIRouter:
             account_id=current_account.account_id,
             idempotency_key=idempotency_key,
         )
-        return DeviceCreateResponse(device_id=device_id)
+        return DeviceCreateResponse(id=device_id)
 
     return router

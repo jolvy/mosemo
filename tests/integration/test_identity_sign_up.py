@@ -224,7 +224,7 @@ async def test_valid_token_with_account_passes_the_account_check(
         )
 
         assert response.status_code == 200
-        assert response.json()["accountId"] == str(account.id)
+        assert response.json()["id"] == str(account.id)
     finally:
         async with AsyncSession(engine) as session:
             await session.execute(delete_accounts(account.id))

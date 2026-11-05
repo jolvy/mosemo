@@ -183,9 +183,7 @@ ActivityLabelStateResponse = Annotated[
 class LabelTimelineSegmentResponse(ApiResponseModel):
     """A closed observation segment included in a label timeline group."""
 
-    segment_id: UUID = Field(
-        description="재구축 시 바뀔 수 있는 관찰 구간 식별자입니다."
-    )
+    id: UUID = Field(description="재구축 시 바뀔 수 있는 관찰 구간 식별자입니다.")
     segment_version: str = Field(description="현재 관찰 구간의 불투명 version입니다.")
     started_at: TimelineTimestamp = Field(description="관찰 구간 시작 시각입니다.")
     ended_at: TimelineTimestamp = Field(
@@ -249,7 +247,7 @@ class InProgressActivityResponse(ApiResponseModel):
     item_type: Literal["in_progress_activity"] = Field(
         description="아직 종료가 확인되지 않은 상세 활동입니다."
     )
-    segment_id: UUID = Field(description="관찰 활동 구간 식별자입니다.")
+    id: UUID = Field(description="관찰 활동 구간 식별자입니다.")
     started_at: TimelineTimestamp = Field(description="관찰 구간 시작 시각입니다.")
     ended_at: None = Field(description="종료가 아직 확인되지 않아 항상 null입니다.")
     last_observed_at: TimelineTimestamp = Field(
@@ -264,7 +262,7 @@ class OpaqueActivityResponse(ApiResponseModel):
     """An activity observation with identifying details removed."""
 
     item_type: Literal["opaque_activity"] = Field(description="불투명 활동입니다.")
-    segment_id: UUID = Field(description="관찰 활동 구간 식별자입니다.")
+    id: UUID = Field(description="관찰 활동 구간 식별자입니다.")
     started_at: TimelineTimestamp = Field(description="관찰 구간 시작 시각입니다.")
     ended_at: TimelineTimestamp | None = Field(description="종료가 확인된 시각입니다.")
     last_observed_at: TimelineTimestamp = Field(
@@ -279,7 +277,7 @@ class LabelTimelineCaptureGapResponse(ApiResponseModel):
     """A period when activity collection was explicitly suspended."""
 
     item_type: Literal["capture_gap"] = Field(description="명시적인 수집 공백입니다.")
-    segment_id: UUID = Field(description="수집 공백 구간 식별자입니다.")
+    id: UUID = Field(description="수집 공백 구간 식별자입니다.")
     started_at: TimelineTimestamp = Field(description="수집 공백 시작 시각입니다.")
     ended_at: TimelineTimestamp | None = Field(description="수집 공백 종료 시각입니다.")
     reason: str = Field(description="첫 수집 중단의 사유입니다.")

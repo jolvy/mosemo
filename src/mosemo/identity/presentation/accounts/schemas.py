@@ -10,7 +10,7 @@ from mosemo.shared.presentation.schemas import ApiResponseModel, PublicTimestamp
 class AccountResponse(ApiResponseModel):
     """현재 인증된 Mosemo 계정의 공개 정보입니다."""
 
-    account_id: UUID = Field(description="Mosemo 계정의 고유 식별자입니다.")
+    id: UUID = Field(description="Mosemo 계정의 고유 식별자입니다.")
     provider: AccountProvider = Field(
         description="계정 인증에 사용한 외부 인증 제공자입니다."
     )
@@ -25,7 +25,7 @@ class AccountResponse(ApiResponseModel):
     @classmethod
     def from_account(cls, account: Account) -> AccountResponse:
         return cls(
-            account_id=account.id,
+            id=account.id,
             provider=account.provider,
             timezone=account.timezone,
             created_at=account.created_at,
