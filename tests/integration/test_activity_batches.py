@@ -1,7 +1,7 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import httpx2
@@ -36,27 +36,7 @@ from mosemo.platform.clock import utc_now
 from mosemo.shared.application.events import EventDispatcher
 from tests.support.clock import FakeClock
 from tests.support.identity import delete_accounts
-
-
-def record(sequence, seconds, *, context=None, event_id=None):
-    observed = datetime(2026, 9, 14, tzinfo=UTC) + timedelta(seconds=seconds)
-    return {
-        "eventId": str(event_id or uuid4()),
-        "sequence": sequence,
-        "recordType": "activity_observation",
-        "observedAt": observed.isoformat().replace("+00:00", "Z"),
-        "timezoneId": "Asia/Seoul",
-        "utcOffsetMinutes": 540,
-        "context": context or {"kind": "opaque"},
-    }
-
-
-def batch(device, records, *, batch_id=None):
-    return {
-        "batchId": str(batch_id or uuid4()),
-        "deviceId": str(device),
-        "records": records,
-    }
+from tests.support.observation import batch, record
 
 
 @pytest.fixture

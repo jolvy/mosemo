@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, cast
+from unittest.mock import AsyncMock, create_autospec, sentinel
 from uuid import UUID, uuid4
 
 import httpx2
@@ -11,10 +12,26 @@ from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from mosemo.entrypoints.api.activity_batches import compose_messaging_app
+from mosemo.entrypoints.api.activity_batches import (
+    compose_messaging_app,
+    get_batch_publisher,
+)
+from mosemo.entrypoints.api.config import ApiConfig
+from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
+from mosemo.observation.application.activities import GetObservationTimeline
+from mosemo.observation.application.batches import (
+    AcceptActivityBatch,
+    ProcessLegacyActivityBatch,
+)
 from mosemo.observation.domain.activities import ActivityBatchReceipt
 from mosemo.observation.infrastructure.tables import activity_batch_receipts
+from mosemo.observation.presentation.activities.router import create_router
+from mosemo.platform.clock import utc_now
 from mosemo.platform.messaging.config import BatchDeliveryConfig
+from mosemo.platform.providers import get_session
+from mosemo.shared.application.events import EventDispatcher
+from mosemo.shared.presentation.current_account import get_current_account
+from tests.support.identity import current_account_provider, token_service
 
 
 class BatchClient(httpx2.AsyncClient):
@@ -84,3 +101,34 @@ async def post_activity(
             {expected_result} if expected_result else {"stored", "duplicate"}
         )
     return response
+
+
+def make_app(api_config: ApiConfig):
+    identity_config = api_config.identity()
+    api = FastAPI()
+    devices = AsyncMock()
+    api.include_router(
+        create_router(
+            accept_activity_batch=AcceptActivityBatch(devices=devices),
+            process_legacy_activity_batch=ProcessLegacyActivityBatch(
+                devices=devices, dispatcher=EventDispatcher(), clock=utc_now
+            ),
+            get_observation_timeline=create_autospec(
+                GetObservationTimeline, instance=True
+            ),
+            get_batch_publisher=get_batch_publisher,
+        ),
+        prefix="/api/v1",
+    )
+    register_exception_handlers(api)
+    api.dependency_overrides[get_session] = lambda: sentinel.db_session
+    api.dependency_overrides[get_current_account] = current_account_provider(
+        identity_config
+    )
+    app = compose_messaging_app(api, api_config.batch_delivery)
+    account_id = uuid4()
+    headers = {
+        "Authorization": "Bearer "
+        + token_service(identity_config).issue_access_token(account_id, now=utc_now())
+    }
+    return app, devices, account_id, headers

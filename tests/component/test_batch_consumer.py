@@ -21,9 +21,8 @@ from mosemo.platform.clock import utc_now
 from mosemo.platform.messaging.config import BatchDeliveryConfig
 from mosemo.platform.messaging.kafka_compat import BatchPartition
 from mosemo.platform.messaging.subscriber import MessageConsumer
-from tests.component.test_activities_api import activity_request
 from tests.support.clock import FakeClock
-from tests.support.observation import batch_executor
+from tests.support.observation import activity_request, batch_executor
 
 
 def session_double() -> Mock:

@@ -26,11 +26,10 @@ from mosemo.observation.presentation.messages import ActivityRegistrationRequest
 from mosemo.platform.clock import utc_now
 from mosemo.platform.messaging.kafka_compat import BatchPartition
 from mosemo.platform.messaging.subscriber import MessageConsumer
-from tests.integration.test_activity_batches import batch, record
 from tests.support.clock import FakeClock
 from tests.support.identity import delete_accounts
 from tests.support.kafka import GroupOffsets, KafkaTestAdmin
-from tests.support.observation import batch_executor
+from tests.support.observation import batch, batch_executor, record
 
 
 async def eventually(check, *, timeout=20):
