@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from mosemo.api.activity_batches import get_batch_publisher
-from mosemo.api.contexts import IDENTITY, LABELING, LABELS, OBSERVATION
+from mosemo.entrypoints.api.activity_batches import get_batch_publisher
+from mosemo.entrypoints.api.contexts import IDENTITY, LABELING, LABELS, OBSERVATION
 from mosemo.shared.errors import CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 

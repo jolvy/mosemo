@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from mosemo.api.openapi import REGISTERED_ERROR_DOCS
+from mosemo.entrypoints.api.openapi import REGISTERED_ERROR_DOCS
 from mosemo.shared.errors import ErrorSpec
 
 HTTP_METHODS = frozenset(
@@ -46,7 +46,7 @@ def openapi_document(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         if name not in os.environ:
             monkeypatch.setenv(name, value)
 
-    from mosemo.api.main import app
+    from mosemo.entrypoints.api.main import app
 
     return app.openapi()
 

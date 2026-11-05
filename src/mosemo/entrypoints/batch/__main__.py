@@ -1,4 +1,4 @@
-"""Batch job process: python -m mosemo.batch {serve | run JOB_NAME}."""
+"""Batch job process: python -m mosemo.entrypoints.batch {serve | run JOB_NAME}."""
 
 import argparse
 import asyncio
@@ -8,7 +8,7 @@ import sys
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="python -m mosemo.batch", description="Run batch jobs"
+        prog="python -m mosemo.entrypoints.batch", description="Run batch jobs"
     )
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("serve", help="Run scheduled jobs until stopped")
@@ -23,7 +23,7 @@ async def run(args: argparse.Namespace) -> int:
     configure_logging()
     # Configuration and engine initialization must also stay inside main's
     # protected boundary: validation errors can contain credential input values.
-    from mosemo.batch.registry import build_jobs
+    from mosemo.entrypoints.batch.registry import build_jobs
     from mosemo.platform.clock import utc_now
     from mosemo.platform.config import get_config
     from mosemo.platform.database.engine import get_engine, get_session_factory

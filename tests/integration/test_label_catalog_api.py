@@ -10,8 +10,8 @@ import pytest_asyncio
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mosemo.api.exception_handlers import register_exception_handlers
-from mosemo.api.routes import v1_api_router
+from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
+from mosemo.entrypoints.api.routes import v1_api_router
 from mosemo.identity.bootstrap import (
     get_kakao_client,
     get_oauth_client_resolver,

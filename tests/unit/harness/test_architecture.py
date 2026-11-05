@@ -9,7 +9,7 @@ import pytest
     [
         "mosemo.shared.errors",
         "mosemo.shared.presentation.responses",
-        "mosemo.api.exception_handlers",
+        "mosemo.entrypoints.api.exception_handlers",
     ],
 )
 @pytest.mark.parametrize(
@@ -17,8 +17,8 @@ import pytest
     [
         "from mosemo.shared import openapi",
         "from mosemo.shared.error_docs import ERROR_DOCS",
-        "from mosemo.api.openapi import public_openapi",
-        "def hidden():\n    import mosemo.api.openapi",
+        "from mosemo.entrypoints.api.openapi import public_openapi",
+        "def hidden():\n    import mosemo.entrypoints.api.openapi",
     ],
 )
 def test_runtime_error_modules_cannot_import_openapi(
@@ -31,7 +31,8 @@ def test_other_modules_may_import_openapi(
     architecture_validator: ModuleType,
 ) -> None:
     assert not architecture_validator.check_source(
-        "from mosemo.shared.openapi import api_error_responses", "mosemo.api.routes"
+        "from mosemo.shared.openapi import api_error_responses",
+        "mosemo.entrypoints.api.routes",
     )
 
 

@@ -40,7 +40,7 @@ def test_startup_error_or_task_cancellation_exits_real_entrypoint(entrypoint, sc
             command = (
                 [
                     "uvicorn",
-                    "mosemo.api.main:app",
+                    "mosemo.entrypoints.api.main:app",
                     "--host",
                     "127.0.0.1",
                     "--port",
@@ -49,7 +49,7 @@ def test_startup_error_or_task_cancellation_exits_real_entrypoint(entrypoint, sc
                     "on",
                 ]
                 if entrypoint == "api"
-                else ["mosemo.consumer"]
+                else ["mosemo.entrypoints.consumer"]
             )
         else:
             command = ["tests.messaging_startup_process", entrypoint, scenario]

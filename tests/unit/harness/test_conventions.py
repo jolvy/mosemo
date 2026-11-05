@@ -16,7 +16,7 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
 
 [tool.ruff.lint.per-file-ignores]
 "src/mosemo/platform/clock.py" = ["TID251"]
-"src/mosemo/api/middleware.py" = ["PLR0917"]
+"src/mosemo/entrypoints/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]
@@ -351,7 +351,7 @@ def test_validate_rejects_transaction_calls_outside_transaction_helper(
         "    await session.rollback()\n"
     )
     files = {
-        "src/mosemo/api/x.py": (
+        "src/mosemo/entrypoints/api/x.py": (
             "async def run(self):\n"
             "    async with self._session_factory.begin_nested():\n"
             "        pass\n"
@@ -367,7 +367,7 @@ def test_validate_rejects_transaction_calls_outside_transaction_helper(
         (tmp_path / name).write_text(source)
     errors = rule_errors(conventions_validator.validate(tmp_path), "CS-P13")
     assert sorted(error.split(": ", 2)[:2] for error in errors) == [
-        ["src/mosemo/api/x.py:2", "CS-P13"],
+        ["src/mosemo/entrypoints/api/x.py:2", "CS-P13"],
         ["src/mosemo/x/service.py:2", "CS-P13"],
         ["src/mosemo/x/service.py:4", "CS-P13"],
         ["src/mosemo/x/service.py:5", "CS-P13"],
@@ -377,10 +377,10 @@ def test_validate_rejects_transaction_calls_outside_transaction_helper(
 
 
 ALLOWED_BROAD_EXCEPTS = {
-    "src/mosemo/consumer/__main__.py": (
+    "src/mosemo/entrypoints/consumer/__main__.py": (
         "def main():\n    try:\n        run()\n    except Exception:\n        exit(1)\n"
     ),
-    "src/mosemo/batch/__main__.py": (
+    "src/mosemo/entrypoints/batch/__main__.py": (
         "def main():\n"
         "    try:\n"
         "        run()\n"
@@ -624,7 +624,7 @@ def test_validate_scopes_exception_rules(
     files = {
         "src/mosemo/shared/errors.py": EXCEPTIONS_SOURCE,
         "src/mosemo/x/router.py": usage,
-        "src/mosemo/api/exception_handlers.py": usage,
+        "src/mosemo/entrypoints/api/exception_handlers.py": usage,
         "src/mosemo/x/dependencies.py": usage,
         "src/mosemo/x/service.py": "from mosemo.shared.errors import GoneException\n",
         "tests/test_x.py": usage + "class FakeException(Exception):\n    pass\n",
@@ -789,7 +789,7 @@ def test_validate_scopes_role_rules(
         ),
         (
             "src/mosemo/x/router.py",
-            "from mosemo.api.exception_handlers import StarletteHTTPException\n",
+            "from mosemo.entrypoints.api.exception_handlers import StarletteHTTPException\n",
             1,
         ),
         ("src/mosemo/x/repository.py", "from fastapi import HTTPException\n", 1),
@@ -815,7 +815,7 @@ def test_http_exception_usage_is_allowed_in_handlers_and_outside_src(
 ) -> None:
     usage = "from fastapi import HTTPException\n"
     files = {
-        "src/mosemo/api/exception_handlers.py": usage,
+        "src/mosemo/entrypoints/api/exception_handlers.py": usage,
         "tests/x.py": usage,
         "src/mosemo/x/router.py": "import fastapi\nfrom fastapi import Depends\n",
     }

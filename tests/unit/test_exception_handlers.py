@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from mosemo.api.exception_handlers import (
+from mosemo.entrypoints.api.exception_handlers import (
     _validation_details,
     register_exception_handlers,
 )
@@ -242,8 +242,8 @@ def test_unregistered_http_error_becomes_internal_server_error_and_is_logged(
             headers={"X-Internal-Reason": "secret framework header"},
         )
 
-    caplog.set_level(logging.ERROR, logger="mosemo.api.exception_handlers")
-    exception_logger = logging.getLogger("mosemo.api.exception_handlers")
+    caplog.set_level(logging.ERROR, logger="mosemo.entrypoints.api.exception_handlers")
+    exception_logger = logging.getLogger("mosemo.entrypoints.api.exception_handlers")
     was_disabled = exception_logger.disabled
     exception_logger.disabled = False
 
@@ -267,7 +267,7 @@ def test_unregistered_http_error_becomes_internal_server_error_and_is_logged(
     records = [
         record
         for record in caplog.records
-        if record.name == "mosemo.api.exception_handlers"
+        if record.name == "mosemo.entrypoints.api.exception_handlers"
     ]
     assert len(records) == 1
     assert records[0].getMessage() == "Unhandled API exception"
@@ -319,8 +319,8 @@ def test_unexpected_exception_returns_generic_error_and_logs_original(caplog) ->
     def unexpected() -> None:
         raise RuntimeError("secret SQL statement and request data")
 
-    caplog.set_level(logging.ERROR, logger="mosemo.api.exception_handlers")
-    exception_logger = logging.getLogger("mosemo.api.exception_handlers")
+    caplog.set_level(logging.ERROR, logger="mosemo.entrypoints.api.exception_handlers")
+    exception_logger = logging.getLogger("mosemo.entrypoints.api.exception_handlers")
     was_disabled = exception_logger.disabled
     exception_logger.disabled = False
 
@@ -343,7 +343,7 @@ def test_unexpected_exception_returns_generic_error_and_logs_original(caplog) ->
     records = [
         record
         for record in caplog.records
-        if record.name == "mosemo.api.exception_handlers"
+        if record.name == "mosemo.entrypoints.api.exception_handlers"
     ]
     assert len(records) == 1
     assert records[0].getMessage() == "Unhandled API exception"
@@ -362,7 +362,7 @@ def test_controlled_exceptions_are_not_logged_as_unexpected(caplog) -> None:
     def validated(value: int) -> int:
         return value
 
-    caplog.set_level(logging.ERROR, logger="mosemo.api.exception_handlers")
+    caplog.set_level(logging.ERROR, logger="mosemo.entrypoints.api.exception_handlers")
     with TestClient(app, raise_server_exceptions=False) as client:
         controlled_response = client.get("/controlled")
         validation_response = client.get("/validated")
@@ -372,5 +372,5 @@ def test_controlled_exceptions_are_not_logged_as_unexpected(caplog) -> None:
     assert not [
         record
         for record in caplog.records
-        if record.name == "mosemo.api.exception_handlers"
+        if record.name == "mosemo.entrypoints.api.exception_handlers"
     ]

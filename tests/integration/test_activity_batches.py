@@ -72,7 +72,7 @@ async def real_batch_app(
 ) -> AsyncIterator:
     # Exercise the direct-processing route against isolated PostgreSQL. Kafka
     # publication is tested independently; Consumer execution belongs to #65.
-    from mosemo.api.main import create_app
+    from mosemo.entrypoints.api.main import create_app
     from mosemo.platform.database import engine as database
 
     app = create_app()
@@ -359,7 +359,7 @@ async def test_regressing_clock_rolls_back_batch(real_batch_app):
 async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
     real_batch_app, config, monkeypatch
 ):
-    from mosemo.api.main import create_app
+    from mosemo.entrypoints.api.main import create_app
     from mosemo.platform.config import get_config
 
     _app, client, factory, accounts, devices, headers, _ = real_batch_app
@@ -781,7 +781,7 @@ async def test_executors_rollback_raw_projection_and_receipt(
 ):
     from sqlalchemy import event
 
-    from mosemo.consumer.activity_batches import BatchProcessingExecutor
+    from mosemo.entrypoints.consumer.activity_batches import BatchProcessingExecutor
     from mosemo.observation.application.batches import ActivityBatchProcessor
     from mosemo.observation.bootstrap import create_process_activity_batch
     from mosemo.observation.domain.timeline import ActivityTimelineSegment

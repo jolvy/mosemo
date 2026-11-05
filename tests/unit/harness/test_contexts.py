@@ -97,7 +97,7 @@ VALID_CONTEXT = {
 
 
 def write_files(root: Path, files: dict[str, str]) -> None:
-    files = {"src/mosemo/api/main.py": "", **files}
+    files = {"src/mosemo/entrypoints/api/main.py": "", **files}
     for name, source in files.items():
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_text(source)

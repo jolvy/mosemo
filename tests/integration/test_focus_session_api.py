@@ -8,8 +8,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from mosemo.api.exception_handlers import register_exception_handlers
-from mosemo.api.routes import v1_api_router
+from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
+from mosemo.entrypoints.api.routes import v1_api_router
 from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device

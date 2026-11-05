@@ -17,18 +17,18 @@ COMPLEXITY_SNAPSHOT = "complexipy-snapshot.json"
 EXCEPTIONS_FILE = "src/mosemo/shared/errors.py"
 API_EXCEPTION = "ApiException"
 API_EXCEPTION_FILES = {
-    "src/mosemo/api/exception_handlers.py",
+    "src/mosemo/entrypoints/api/exception_handlers.py",
     EXCEPTIONS_FILE,
 }
 HTTP_EXCEPTION = "HTTPException"
-HTTP_EXCEPTION_FILE = "src/mosemo/api/exception_handlers.py"
+HTTP_EXCEPTION_FILE = "src/mosemo/entrypoints/api/exception_handlers.py"
 BROAD_EXCEPTIONS = {"Exception", "BaseException"}
 # (파일, 감싸는 클래스·함수 이름): 허용 개수. 새 경계는 이유와 함께 추가하고 리뷰한다.
 BROAD_EXCEPT_ALLOWED = {
     # 프로세스 경계: 예외 메시지(payload·비밀값)를 출력하지 않고 종료
-    ("src/mosemo/consumer/__main__.py", "main"): 1,
+    ("src/mosemo/entrypoints/consumer/__main__.py", "main"): 1,
     # 프로세스 경계
-    ("src/mosemo/batch/__main__.py", "main"): 1,
+    ("src/mosemo/entrypoints/batch/__main__.py", "main"): 1,
     # 오류를 runtime supervisor로 넘김
     ("src/mosemo/platform/messaging/subscriber.py", "MessageConsumer.handle"): 1,
     # 어떤 오류든 앱으로 실패 리다이렉트
@@ -49,7 +49,7 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
 
 [lint.per-file-ignores]
 "src/mosemo/platform/clock.py" = ["TID251"]
-"src/mosemo/api/middleware.py" = ["PLR0917"]
+"src/mosemo/entrypoints/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]

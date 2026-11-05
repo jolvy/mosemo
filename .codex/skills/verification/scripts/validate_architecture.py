@@ -14,12 +14,12 @@ ROOT = Path(__file__).resolve().parents[4]
 RUNTIME_ERROR_MODULES = {
     "mosemo.shared.errors",
     "mosemo.shared.presentation.responses",
-    "mosemo.api.exception_handlers",
+    "mosemo.entrypoints.api.exception_handlers",
 }
 OPENAPI_MODULES = (
     "mosemo.shared.openapi",
     "mosemo.shared.error_docs",
-    "mosemo.api.openapi",
+    "mosemo.entrypoints.api.openapi",
 )
 
 
@@ -722,8 +722,8 @@ def validate(root: Path = ROOT) -> list[str]:
             )
         except (SyntaxError, ImportError, ValueError) as error:
             errors.append(f"{path.relative_to(root)}: import 분석 실패: {error}")
-    if not (root / "src" / "mosemo" / "api" / "main.py").is_file():
-        errors.append("애플리케이션 진입점 없음: src/mosemo/api/main.py")
+    if not (root / "src" / "mosemo" / "entrypoints" / "api" / "main.py").is_file():
+        errors.append("애플리케이션 진입점 없음: src/mosemo/entrypoints/api/main.py")
     return errors
 
 

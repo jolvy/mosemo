@@ -6,9 +6,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mosemo.api.activity_batches import get_batch_publisher
-from mosemo.api.exception_handlers import register_exception_handlers
-from mosemo.api.middleware import BatchBodyLimitMiddleware
+from mosemo.entrypoints.api.activity_batches import get_batch_publisher
+from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
+from mosemo.entrypoints.api.middleware import BatchBodyLimitMiddleware
 from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.observation.application.activities import GetObservationTimeline

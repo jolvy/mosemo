@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from mosemo.api.middleware import BatchBodyLimitMiddleware
+from mosemo.entrypoints.api.middleware import BatchBodyLimitMiddleware
 
 
 @pytest.mark.asyncio
