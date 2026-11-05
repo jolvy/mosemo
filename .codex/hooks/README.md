@@ -88,6 +88,49 @@ input parsing differs between the tools.
 - Hook failures (exceptions, missing commands, the internal time limit) block
   with `검사기 실행 실패` and follow the same retry rule.
 
+### Metrics log
+
+- Every stop appends one JSON line to `MOSEMO_METRICS_LOG` when set, otherwise
+  to `$(git rev-parse --git-common-dir)/mosemo-agent-metrics.jsonl`, outside
+  the work tree and shared by all worktrees. The line is written with one
+  `write` in append mode so that concurrent sessions do not interleave.
+- Fields:
+  - `at`: UTC time, ISO 8601. `session`: hook input `session_id`.
+  - `agent`: `MOSEMO_AGENT` (`claude` or `codex` in the hook commands),
+    otherwise `unknown`.
+  - `model`: the last `"model":"claude-…"` value in the transcript, otherwise
+    `null`.
+  - `harness_rev`, `harness_dirty`: `MOSEMO_HARNESS_REV` and
+    `MOSEMO_HARNESS_DIRTY` when set. Otherwise the last commit
+    (`git log -1 --format=%h`) and whether `git status --porcelain` shows
+    uncommitted changes, both limited to `.codex/`, `.claude/`, `AGENTS.md`,
+    `src/mosemo/AGENTS.md`, `tests/AGENTS.md`, `tests/unit/harness/`,
+    `docs/code-style-rubric.md`, and `docs/adr/`.
+  - `skills`: Skill names from the transcript, deduplicated in order of
+    appearance: `Skill` tool calls (`input.skill`), `<command-name>` values in
+    user message text (without the leading `/`), and `Read` calls whose
+    `file_path` ends with `.codex/skills/<name>/SKILL.md` or
+    `.claude/skills/<name>/SKILL.md`.
+  - `result`: `skip` (no changed `.py`), `cached` (same fingerprint as the last
+    pass or block), `allow`, `block`, `capped` (the same failure passed after
+    `MAX_BLOCKS` blocks), or `error` (blocked because a check could not run).
+  - `session_blocks`: total blocks in the session, stored as `blocks` in the
+    session record of the state file. It is not reset when the failure
+    changes or a stop passes.
+  - `failed`: names of failed checks.
+  - `rules`: violation counts by Ruff rule code and `validate_conventions`
+    `CS-P..` ID. Other checks (`validate_architecture`, `ty check`,
+    `complexipy`, `pytest`, and hook failures) are keyed by check name and
+    count their failure lines.
+- The transcript (`transcript_path`, JSONL) is read line by line and
+  unparsable lines are skipped. Without a readable path, `skills` is `[]` and
+  `model` is `null`. The parser targets the Claude Code format; Codex runs are
+  told apart only by `agent`.
+- Logging never changes the decision. A write failure prints one stderr line
+  and the hook keeps its exit code; nothing is written to stdout.
+- The parsers and the writer live in `stop_metrics.py`; their tests in
+  `tests/unit/harness/test_stop_metrics.py` use no Git or subprocess.
+
 ## Trust and limits
 
 - Claude Code reads `.claude/settings.json` when a session starts.

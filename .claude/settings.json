@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && uv run --locked python .codex/hooks/post_edit_feedback.py",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && MOSEMO_AGENT=claude uv run --locked python .codex/hooks/post_edit_feedback.py",
             "timeout": 10
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && uv run --locked python .codex/hooks/stop_gate.py",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && MOSEMO_AGENT=claude uv run --locked python .codex/hooks/stop_gate.py",
             "timeout": 300
           }
         ]
