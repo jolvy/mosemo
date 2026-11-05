@@ -48,6 +48,11 @@ build-backend = "uv_build"
 entrypoint = "mosemo.entrypoints.api.main:app"
 
 [tool.pytest.ini_options]
+addopts = ["--import-mode=importlib", "--strict-markers"]
+markers = [
+    "requires_db: needs a real PostgreSQL",
+    "requires_kafka: needs a real Kafka",
+]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
