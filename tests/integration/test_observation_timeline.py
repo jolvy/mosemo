@@ -164,7 +164,7 @@ async def test_activity_projection_merges_devices_and_keeps_instant_switch(
         == records[2].observed_at
     )
     assert activity_segments[2].started_at == records[3].observed_at
-    assert len({segment.segment_id for segment in segments}) == 3
+    assert len({segment.id for segment in segments}) == 3
 
     same_result = await service.create_activity(
         account_id=account_id, record=records[3]
@@ -376,7 +376,7 @@ async def test_cross_midnight_segment_is_unclipped_on_both_dates(
     today = await service.get_timeline(account_id=account_id, date=date(2026, 9, 15))
     assert len(yesterday) == 1
     assert len(today) == 2
-    assert yesterday[0].segment_id == today[0].segment_id
+    assert yesterday[0].id == today[0].id
     assert yesterday[0].started_at == today[0].started_at == first.observed_at
     assert yesterday[0].ended_at == today[0].ended_at == second.observed_at
 
@@ -450,7 +450,7 @@ async def test_explicit_gap_ignores_active_and_closes_on_next_observation(
     assert gap.reason == "screen_locked"
     assert gap.ended_at == last.started_at == records[4].observed_at
     assert first.context == last.context
-    assert first.segment_id != last.segment_id
+    assert first.id != last.id
     stored = await TimelineSegmentRepository().list_account_segments(
         integration_session, account_id
     )
@@ -592,12 +592,8 @@ async def test_late_observation_matches_chronological_timeline(
     )
     assert len(first_timeline) == len(late_timeline) == 3
     assert [
-        segment.model_dump(mode="json", exclude={"segment_id"})
-        for segment in first_timeline
-    ] == [
-        segment.model_dump(mode="json", exclude={"segment_id"})
-        for segment in late_timeline
-    ]
+        segment.model_dump(mode="json", exclude={"id"}) for segment in first_timeline
+    ] == [segment.model_dump(mode="json", exclude={"id"}) for segment in late_timeline]
 
 
 @pytest.mark.asyncio
@@ -624,7 +620,7 @@ async def test_late_bridge_merges_and_keeps_earliest_segment_id(
     await service.create_activity(account_id=account_id, record=bridge)
     after = await service.get_timeline(account_id=account_id, date=date(2026, 9, 14))
     assert len(after) == 1
-    assert after[0].segment_id == before[0].segment_id
+    assert after[0].id == before[0].id
 
 
 @pytest.mark.asyncio
@@ -650,7 +646,7 @@ async def test_late_split_stops_at_unchanged_downstream_segment(
         await service.create_activity(account_id=account_id, record=record)
     before = await service.get_timeline(account_id=account_id, date=date(2026, 9, 14))
     assert len(before) == 4
-    untouched_id = before[2].segment_id
+    untouched_id = before[2].id
     old_xmin = await integration_session.scalar(
         text(
             "SELECT CAST(xmin AS text) FROM activity_timeline_segments "
@@ -666,9 +662,9 @@ async def test_late_split_stops_at_unchanged_downstream_segment(
     )
     after = await service.get_timeline(account_id=account_id, date=date(2026, 9, 14))
     assert len(after) == 4
-    assert after[0].segment_id == before[0].segment_id
-    assert after[2].segment_id == untouched_id
-    assert after[3].segment_id == before[3].segment_id
+    assert after[0].id == before[0].id
+    assert after[2].id == untouched_id
+    assert after[3].id == before[3].id
     new_xmin = await integration_session.scalar(
         text(
             "SELECT CAST(xmin AS text) FROM activity_timeline_segments "

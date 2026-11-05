@@ -45,17 +45,17 @@
       "AccountResponse": {
         "description": "현재 인증된 Mosemo 계정의 공개 정보입니다.",
         "properties": {
-          "accountId": {
-            "description": "Mosemo 계정의 고유 식별자입니다.",
-            "format": "uuid",
-            "title": "Accountid",
-            "type": "string"
-          },
           "createdAt": {
             "description": "계정이 생성된 시각입니다.",
             "format": "date-time",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
             "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "description": "Mosemo 계정의 고유 식별자입니다.",
+            "format": "uuid",
+            "title": "Id",
             "type": "string"
           },
           "lastAuthenticatedAt": {
@@ -75,7 +75,7 @@
           }
         },
         "required": [
-          "accountId",
+          "id",
           "provider",
           "timezone",
           "createdAt",
@@ -375,17 +375,17 @@
             "description": "관찰로 확인되거나 침묵으로 닫힌 종료 시각입니다.",
             "title": "Endedat"
           },
+          "id": {
+            "description": "재구축 시 바뀔 수 있는 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
           "lastObservedAt": {
             "description": "같은 문맥이 마지막으로 실제 관찰된 시각입니다.",
             "format": "date-time",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
             "title": "Lastobservedat",
-            "type": "string"
-          },
-          "segmentId": {
-            "description": "재구축 시 바뀔 수 있는 구간 식별자입니다.",
-            "format": "uuid",
-            "title": "Segmentid",
             "type": "string"
           },
           "segmentType": {
@@ -403,7 +403,7 @@
           }
         },
         "required": [
-          "segmentId",
+          "id",
           "segmentType",
           "startedAt",
           "endedAt",
@@ -757,15 +757,15 @@
             "description": "다음 실제 활동 관찰로 확인된 종료 시각입니다.",
             "title": "Endedat"
           },
+          "id": {
+            "description": "재구축 시 바뀔 수 있는 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
           "reason": {
             "description": "첫 suspended의 수집 중단 사유입니다.",
             "title": "Reason",
-            "type": "string"
-          },
-          "segmentId": {
-            "description": "재구축 시 바뀔 수 있는 구간 식별자입니다.",
-            "format": "uuid",
-            "title": "Segmentid",
             "type": "string"
           },
           "segmentType": {
@@ -783,7 +783,7 @@
           }
         },
         "required": [
-          "segmentId",
+          "id",
           "segmentType",
           "startedAt",
           "endedAt",
@@ -1055,15 +1055,15 @@
       "DeviceCreateResponse": {
         "description": "Device 등록 결과입니다.",
         "properties": {
-          "deviceId": {
+          "id": {
             "description": "서버가 발급한 Device 식별자입니다.",
             "format": "uuid",
-            "title": "Deviceid",
+            "title": "Id",
             "type": "string"
           }
         },
         "required": [
-          "deviceId"
+          "id"
         ],
         "title": "DeviceCreateResponse",
         "type": "object"
@@ -1186,10 +1186,10 @@
             "title": "Deviceid",
             "type": "string"
           },
-          "sessionId": {
+          "id": {
             "description": "재시도에도 유지하는 클라이언트 발급 세션 UUID입니다.",
             "format": "uuid",
-            "title": "Sessionid",
+            "title": "Id",
             "type": "string"
           },
           "startedAt": {
@@ -1208,7 +1208,7 @@
           }
         },
         "required": [
-          "sessionId",
+          "id",
           "deviceId",
           "startedAt",
           "targetSeconds"
@@ -1244,6 +1244,12 @@
             "description": "UTC 종료 시각입니다. 기록 완료 전에는 null입니다.",
             "title": "Endedat"
           },
+          "id": {
+            "description": "집중 세션 식별자입니다.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
           "labelId": {
             "anyOf": [
               {
@@ -1256,12 +1262,6 @@
             ],
             "description": "완료 시 확정된 라벨입니다. 완료 전에는 null입니다.",
             "title": "Labelid"
-          },
-          "sessionId": {
-            "description": "집중 세션 식별자입니다.",
-            "format": "uuid",
-            "title": "Sessionid",
-            "type": "string"
           },
           "startedAt": {
             "description": "UTC 세션 시작 시각입니다.",
@@ -1289,7 +1289,7 @@
           }
         },
         "required": [
-          "sessionId",
+          "id",
           "deviceId",
           "startedAt",
           "endedAt",
@@ -1313,6 +1313,12 @@
             "title": "Endedat",
             "type": "null"
           },
+          "id": {
+            "description": "관찰 활동 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
           "itemType": {
             "const": "in_progress_activity",
             "description": "아직 종료가 확인되지 않은 상세 활동입니다.",
@@ -1326,12 +1332,6 @@
             "title": "Lastobservedat",
             "type": "string"
           },
-          "segmentId": {
-            "description": "관찰 활동 구간 식별자입니다.",
-            "format": "uuid",
-            "title": "Segmentid",
-            "type": "string"
-          },
           "startedAt": {
             "description": "관찰 구간 시작 시각입니다.",
             "format": "date-time",
@@ -1342,7 +1342,7 @@
         },
         "required": [
           "itemType",
-          "segmentId",
+          "id",
           "startedAt",
           "endedAt",
           "lastObservedAt",
@@ -1380,10 +1380,10 @@
             "title": "Displayname",
             "type": "string"
           },
-          "labelId": {
+          "id": {
             "description": "라벨의 고유 식별자입니다.",
             "format": "uuid",
-            "title": "Labelid",
+            "title": "Id",
             "type": "string"
           },
           "updatedAt": {
@@ -1395,7 +1395,7 @@
           }
         },
         "required": [
-          "labelId",
+          "id",
           "displayName",
           "createdAt",
           "updatedAt",
@@ -1468,6 +1468,12 @@
             "description": "수집 공백 종료 시각입니다.",
             "title": "Endedat"
           },
+          "id": {
+            "description": "수집 공백 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
           "itemType": {
             "const": "capture_gap",
             "description": "명시적인 수집 공백입니다.",
@@ -1477,12 +1483,6 @@
           "reason": {
             "description": "첫 수집 중단의 사유입니다.",
             "title": "Reason",
-            "type": "string"
-          },
-          "segmentId": {
-            "description": "수집 공백 구간 식별자입니다.",
-            "format": "uuid",
-            "title": "Segmentid",
             "type": "string"
           },
           "startedAt": {
@@ -1495,7 +1495,7 @@
         },
         "required": [
           "itemType",
-          "segmentId",
+          "id",
           "startedAt",
           "endedAt",
           "reason"
@@ -1546,17 +1546,17 @@
             "title": "Endedat",
             "type": "string"
           },
+          "id": {
+            "description": "재구축 시 바뀔 수 있는 관찰 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
           "lastObservedAt": {
             "description": "마지막 실제 관찰 시각입니다.",
             "format": "date-time",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
             "title": "Lastobservedat",
-            "type": "string"
-          },
-          "segmentId": {
-            "description": "재구축 시 바뀔 수 있는 관찰 구간 식별자입니다.",
-            "format": "uuid",
-            "title": "Segmentid",
             "type": "string"
           },
           "segmentVersion": {
@@ -1573,7 +1573,7 @@
           }
         },
         "required": [
-          "segmentId",
+          "id",
           "segmentVersion",
           "startedAt",
           "endedAt",
@@ -1638,6 +1638,12 @@
             "description": "종료가 확인된 시각입니다.",
             "title": "Endedat"
           },
+          "id": {
+            "description": "관찰 활동 구간 식별자입니다.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
           "itemType": {
             "const": "opaque_activity",
             "description": "불투명 활동입니다.",
@@ -1651,12 +1657,6 @@
             "title": "Lastobservedat",
             "type": "string"
           },
-          "segmentId": {
-            "description": "관찰 활동 구간 식별자입니다.",
-            "format": "uuid",
-            "title": "Segmentid",
-            "type": "string"
-          },
           "startedAt": {
             "description": "관찰 구간 시작 시각입니다.",
             "format": "date-time",
@@ -1667,7 +1667,7 @@
         },
         "required": [
           "itemType",
-          "segmentId",
+          "id",
           "startedAt",
           "endedAt",
           "lastObservedAt",
@@ -2850,7 +2850,7 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "ACTIVITY_SEGMENT_NOT_FOUND": {
+                  "LABELING_SEGMENT_NOT_FOUND": {
                     "description": "관찰 구간을 찾을 수 없거나 인증된 계정에 속하지 않습니다.",
                     "summary": "Activity segment not found",
                     "value": {
@@ -2858,7 +2858,7 @@
                         "code": 404,
                         "details": [],
                         "message": "Activity segment not found",
-                        "status": "ACTIVITY_SEGMENT_NOT_FOUND"
+                        "status": "LABELING_SEGMENT_NOT_FOUND"
                       }
                     }
                   },
@@ -2919,7 +2919,7 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "ACTIVITY_LABEL_CONFIRMATION_CONFLICT": {
+                  "LABELING_CONFIRMATION_CONFLICT": {
                     "description": "같은 관찰 버전에 다른 선택이 이미 확정되어 있으므로 덮어쓸 수 없습니다.",
                     "summary": "Activity label confirmation conflict",
                     "value": {
@@ -2934,15 +2934,15 @@
                               "selection"
                             ],
                             "msg": "Activity label confirmation conflicts with an existing selection",
-                            "type": "activity_label_confirmation_conflict"
+                            "type": "labeling_confirmation_conflict"
                           }
                         ],
                         "message": "Activity label confirmation conflicts with an existing selection",
-                        "status": "ACTIVITY_LABEL_CONFIRMATION_CONFLICT"
+                        "status": "LABELING_CONFIRMATION_CONFLICT"
                       }
                     }
                   },
-                  "ACTIVITY_SEGMENT_CHANGED": {
+                  "LABELING_SEGMENT_CHANGED": {
                     "description": "관찰 구간이 재구성되었으므로 최신 상태를 다시 조회해야 합니다.",
                     "summary": "Activity segment changed",
                     "value": {
@@ -2950,11 +2950,11 @@
                         "code": 409,
                         "details": [],
                         "message": "Activity segment changed; refresh before confirming",
-                        "status": "ACTIVITY_SEGMENT_CHANGED"
+                        "status": "LABELING_SEGMENT_CHANGED"
                       }
                     }
                   },
-                  "ACTIVITY_SEGMENT_NOT_LABELABLE": {
+                  "LABELING_SEGMENT_NOT_LABELABLE": {
                     "description": "열린 구간·불투명 활동·수집 공백은 라벨 확정 대상이 아닙니다.",
                     "summary": "Activity segment is not labelable",
                     "value": {
@@ -2962,7 +2962,7 @@
                         "code": 409,
                         "details": [],
                         "message": "Activity segment is not labelable",
-                        "status": "ACTIVITY_SEGMENT_NOT_LABELABLE"
+                        "status": "LABELING_SEGMENT_NOT_LABELABLE"
                       }
                     }
                   }
@@ -3382,7 +3382,7 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "ACTIVITY_SEGMENT_NOT_FOUND": {
+                  "LABELING_SEGMENT_NOT_FOUND": {
                     "description": "관찰 구간을 찾을 수 없거나 인증된 계정에 속하지 않습니다.",
                     "summary": "Activity segment not found",
                     "value": {
@@ -3390,7 +3390,7 @@
                         "code": 404,
                         "details": [],
                         "message": "Activity segment not found",
-                        "status": "ACTIVITY_SEGMENT_NOT_FOUND"
+                        "status": "LABELING_SEGMENT_NOT_FOUND"
                       }
                     }
                   },
@@ -3451,7 +3451,7 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "ACTIVITY_SEGMENT_CHANGED": {
+                  "LABELING_SEGMENT_CHANGED": {
                     "description": "관찰 구간이 재구성되었으므로 최신 상태를 다시 조회해야 합니다.",
                     "summary": "Activity segment changed",
                     "value": {
@@ -3459,11 +3459,11 @@
                         "code": 409,
                         "details": [],
                         "message": "Activity segment changed; refresh before confirming",
-                        "status": "ACTIVITY_SEGMENT_CHANGED"
+                        "status": "LABELING_SEGMENT_CHANGED"
                       }
                     }
                   },
-                  "ACTIVITY_SEGMENT_NOT_LABELABLE": {
+                  "LABELING_SEGMENT_NOT_LABELABLE": {
                     "description": "열린 구간·불투명 활동·수집 공백은 라벨 확정 대상이 아닙니다.",
                     "summary": "Activity segment is not labelable",
                     "value": {
@@ -3471,7 +3471,7 @@
                         "code": 409,
                         "details": [],
                         "message": "Activity segment is not labelable",
-                        "status": "ACTIVITY_SEGMENT_NOT_LABELABLE"
+                        "status": "LABELING_SEGMENT_NOT_LABELABLE"
                       }
                     }
                   }
@@ -3671,7 +3671,7 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "ACTIVITY_SEGMENT_NOT_FOUND": {
+                  "LABELING_SEGMENT_NOT_FOUND": {
                     "description": "관찰 구간을 찾을 수 없거나 인증된 계정에 속하지 않습니다.",
                     "summary": "Activity segment not found",
                     "value": {
@@ -3679,7 +3679,7 @@
                         "code": 404,
                         "details": [],
                         "message": "Activity segment not found",
-                        "status": "ACTIVITY_SEGMENT_NOT_FOUND"
+                        "status": "LABELING_SEGMENT_NOT_FOUND"
                       }
                     }
                   }
@@ -3728,7 +3728,7 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "ACTIVITY_SEGMENT_NOT_LABELABLE": {
+                  "LABELING_SEGMENT_NOT_LABELABLE": {
                     "description": "열린 구간·불투명 활동·수집 공백은 라벨 확정 대상이 아닙니다.",
                     "summary": "Activity segment is not labelable",
                     "value": {
@@ -3736,7 +3736,7 @@
                         "code": 409,
                         "details": [],
                         "message": "Activity segment is not labelable",
-                        "status": "ACTIVITY_SEGMENT_NOT_LABELABLE"
+                        "status": "LABELING_SEGMENT_NOT_LABELABLE"
                       }
                     }
                   }
@@ -5365,7 +5365,7 @@
         ]
       }
     },
-    "/api/v1/focus-sessions/{session_id}/completion": {
+    "/api/v1/focus-sessions/{focus_session_id}/completion": {
       "put": {
         "description": "라벨은 필수이고 설명은 선택입니다. 동일한 완료 요청은 재시도할 수 있고 확정된 기록은 변경할 수 없습니다.",
         "operationId": "focusSessionsComplete",
@@ -5373,12 +5373,12 @@
           {
             "description": "집중 세션 식별자입니다.",
             "in": "path",
-            "name": "session_id",
+            "name": "focus_session_id",
             "required": true,
             "schema": {
               "description": "집중 세션 식별자입니다.",
               "format": "uuid",
-              "title": "Session Id",
+              "title": "Focus Session Id",
               "type": "string"
             }
           }

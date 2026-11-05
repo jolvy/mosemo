@@ -2,20 +2,19 @@ from mosemo.shared.errors import ApiErrorCode, ErrorSpec
 
 
 class LabelingErrorCode(ApiErrorCode):
-    # The ACTIVITY_ names are kept until the public rename (#155, ADR 0014).
-    ACTIVITY_SEGMENT_NOT_FOUND = ErrorSpec(
+    LABELING_SEGMENT_NOT_FOUND = ErrorSpec(
         code=404,
         message="Activity segment not found",
     )
-    ACTIVITY_SEGMENT_NOT_LABELABLE = ErrorSpec(
+    LABELING_SEGMENT_NOT_LABELABLE = ErrorSpec(
         code=409,
         message="Activity segment is not labelable",
     )
-    ACTIVITY_SEGMENT_CHANGED = ErrorSpec(
+    LABELING_SEGMENT_CHANGED = ErrorSpec(
         code=409,
         message="Activity segment changed; refresh before confirming",
     )
-    ACTIVITY_LABEL_CONFIRMATION_CONFLICT = ErrorSpec(
+    LABELING_CONFIRMATION_CONFLICT = ErrorSpec(
         code=409,
         message="Activity label confirmation conflicts with an existing selection",
     )

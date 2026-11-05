@@ -14,9 +14,7 @@ from mosemo.shared.presentation.schemas import (
 class FocusSessionCreateRequest(ApiRequestModel):
     """집중 세션을 시작하는 재시도 가능한 요청입니다."""
 
-    session_id: UUID = Field(
-        description="재시도에도 유지하는 클라이언트 발급 세션 UUID입니다."
-    )
+    id: UUID = Field(description="재시도에도 유지하는 클라이언트 발급 세션 UUID입니다.")
     device_id: UUID = Field(description="세션을 시작한 등록 기기 식별자입니다.")
     started_at: ObservationTimestamp = Field(description="UTC 세션 시작 시각입니다.")
     target_seconds: int = Field(
@@ -44,7 +42,7 @@ class FocusSessionCompleteRequest(ApiRequestModel):
 class FocusSessionResponse(ApiResponseModel):
     """진행 중이거나 완료한 집중 세션입니다."""
 
-    session_id: UUID = Field(description="집중 세션 식별자입니다.")
+    id: UUID = Field(description="집중 세션 식별자입니다.")
     device_id: UUID = Field(description="세션을 시작한 등록 기기 식별자입니다.")
     started_at: TimelineTimestamp = Field(description="UTC 세션 시작 시각입니다.")
     ended_at: TimelineTimestamp | None = Field(
@@ -62,7 +60,7 @@ class FocusSessionResponse(ApiResponseModel):
     @classmethod
     def from_session(cls, focus_session: FocusSession) -> FocusSessionResponse:
         return cls(
-            session_id=focus_session.id,
+            id=focus_session.id,
             device_id=focus_session.device_id,
             started_at=focus_session.started_at,
             ended_at=focus_session.ended_at,

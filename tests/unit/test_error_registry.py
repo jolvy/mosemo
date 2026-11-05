@@ -24,18 +24,7 @@ ALLOWED_NAMES: dict[type[ApiErrorCode], tuple[tuple[str, ...], frozenset[str]]] 
     IdentityErrorCode: (("AUTH_",), frozenset()),
     LabelErrorCode: (("LABEL_",), frozenset()),
     ObservationErrorCode: (("ACTIVITY_", "FOCUS_SESSION_"), frozenset()),
-    # Kept names until the public rename (#155); then the exceptions go.
-    LabelingErrorCode: (
-        ("LABELING_",),
-        frozenset(
-            {
-                "ACTIVITY_SEGMENT_NOT_FOUND",
-                "ACTIVITY_SEGMENT_NOT_LABELABLE",
-                "ACTIVITY_SEGMENT_CHANGED",
-                "ACTIVITY_LABEL_CONFIRMATION_CONFLICT",
-            }
-        ),
-    ),
+    LabelingErrorCode: (("LABELING_",), frozenset()),
 }
 
 

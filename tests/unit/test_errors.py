@@ -79,19 +79,19 @@ def test_labeling_error_codes_keep_their_public_specs() -> None:
     assert [
         (member.status, member.code, member.message) for member in public_members
     ] == [
-        ("ACTIVITY_SEGMENT_NOT_FOUND", 404, "Activity segment not found"),
+        ("LABELING_SEGMENT_NOT_FOUND", 404, "Activity segment not found"),
         (
-            "ACTIVITY_SEGMENT_NOT_LABELABLE",
+            "LABELING_SEGMENT_NOT_LABELABLE",
             409,
             "Activity segment is not labelable",
         ),
         (
-            "ACTIVITY_SEGMENT_CHANGED",
+            "LABELING_SEGMENT_CHANGED",
             409,
             "Activity segment changed; refresh before confirming",
         ),
         (
-            "ACTIVITY_LABEL_CONFIRMATION_CONFLICT",
+            "LABELING_CONFIRMATION_CONFLICT",
             409,
             "Activity label confirmation conflicts with an existing selection",
         ),

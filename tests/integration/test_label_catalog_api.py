@@ -195,15 +195,15 @@ async def test_label_catalog_returns_owned_active_and_archived_labels(
     assert set(by_name) == set(expected_ids)
     for name, label in by_name.items():
         assert set(label) == {
-            "labelId",
+            "id",
             "displayName",
             "createdAt",
             "updatedAt",
             "archivedAt",
         }
-        assert label["labelId"] == expected_ids[name]
+        assert label["id"] == expected_ids[name]
     assert by_name["코딩"] == {
-        "labelId": expected_ids["코딩"],
+        "id": expected_ids["코딩"],
         "displayName": "코딩",
         "createdAt": "2026-09-25T01:02:03Z",
         "updatedAt": "2026-09-26T04:05:06Z",

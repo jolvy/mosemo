@@ -94,7 +94,7 @@ def create_router(
         return FocusSessionResponse.from_session(stored)
 
     @router.put(
-        "/{session_id}/completion",
+        "/{focus_session_id}/completion",
         operation_id="focusSessionsComplete",
         response_model=FocusSessionResponse,
         summary="종료한 집중 세션 기록 완료",
@@ -102,7 +102,7 @@ def create_router(
         responses=ERRORS,
     )
     async def complete_focus_session_route(
-        session_id: Annotated[UUID, Path(description="집중 세션 식별자입니다.")],
+        focus_session_id: Annotated[UUID, Path(description="집중 세션 식별자입니다.")],
         request: FocusSessionCompleteRequest,
         *,
         db_session: SessionDep,
@@ -112,7 +112,7 @@ def create_router(
             stored = await complete_focus_session.execute(
                 db_session,
                 account_id=account.account_id,
-                focus_session_id=session_id,
+                focus_session_id=focus_session_id,
                 completion=mapper.to_completion(request),
             )
         return FocusSessionResponse.from_session(stored)

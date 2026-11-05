@@ -68,7 +68,7 @@ def timeline_segment_response(segment: ObservedSegment) -> TimelineSegmentRespon
         assert segment.last_observed_at is not None
         assert segment.context is not None
         return ActivitySegmentResponse(
-            segment_id=segment.id,
+            id=segment.id,
             segment_type=SegmentType.ACTIVITY,
             started_at=segment.started_at,
             ended_at=segment.ended_at,
@@ -78,7 +78,7 @@ def timeline_segment_response(segment: ObservedSegment) -> TimelineSegmentRespon
 
     assert segment.reason is not None
     return CaptureGapResponse(
-        segment_id=segment.id,
+        id=segment.id,
         segment_type=SegmentType.CAPTURE_GAP,
         started_at=segment.started_at,
         ended_at=segment.ended_at,

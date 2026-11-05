@@ -46,13 +46,13 @@ from mosemo.shared.presentation.current_account import CurrentAccountDep
 from mosemo.shared.presentation.schemas import ValidationDetail
 
 ERROR_CODES: dict[type[Exception], ApiErrorCode] = {
-    ActivityLabelSegmentNotFoundError: LabelingErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
+    ActivityLabelSegmentNotFoundError: LabelingErrorCode.LABELING_SEGMENT_NOT_FOUND,
     ActivityLabelSegmentNotLabelableError: (
-        LabelingErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE
+        LabelingErrorCode.LABELING_SEGMENT_NOT_LABELABLE
     ),
-    ActivityLabelSegmentChangedError: LabelingErrorCode.ACTIVITY_SEGMENT_CHANGED,
+    ActivityLabelSegmentChangedError: LabelingErrorCode.LABELING_SEGMENT_CHANGED,
     ActivityLabelConfirmationConflictError: (
-        LabelingErrorCode.ACTIVITY_LABEL_CONFIRMATION_CONFLICT
+        LabelingErrorCode.LABELING_CONFIRMATION_CONFLICT
     ),
     ActivityLabelSegmentDuplicateError: CommonErrorCode.INVALID_ARGUMENT,
     ActivityLabelUnavailableError: LabelErrorCode.LABEL_NOT_AVAILABLE,
@@ -124,10 +124,10 @@ def create_router(
         response_description="요청한 구간 순서대로 반환한 최신 확정 상태입니다.",
         responses=api_error_responses(
             CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
-            LabelingErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
-            LabelingErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
-            LabelingErrorCode.ACTIVITY_SEGMENT_CHANGED,
-            LabelingErrorCode.ACTIVITY_LABEL_CONFIRMATION_CONFLICT,
+            LabelingErrorCode.LABELING_SEGMENT_NOT_FOUND,
+            LabelingErrorCode.LABELING_SEGMENT_NOT_LABELABLE,
+            LabelingErrorCode.LABELING_SEGMENT_CHANGED,
+            LabelingErrorCode.LABELING_CONFIRMATION_CONFLICT,
             LabelErrorCode.LABEL_NOT_AVAILABLE,
             ObservationErrorCode.ACTIVITY_TIMELINE_BUSY,
             CommonErrorCode.INVALID_ARGUMENT,
@@ -199,8 +199,8 @@ def create_router(
         response_description="관찰 구간의 제안 및 사용자 확정 상태입니다.",
         responses=api_error_responses(
             CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
-            LabelingErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
-            LabelingErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
+            LabelingErrorCode.LABELING_SEGMENT_NOT_FOUND,
+            LabelingErrorCode.LABELING_SEGMENT_NOT_LABELABLE,
             CommonErrorCode.INVALID_ARGUMENT,
         ),
     )
@@ -232,9 +232,9 @@ def create_router(
         response_description="저장된 최신 라벨 확정 상태입니다.",
         responses=api_error_responses(
             CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
-            LabelingErrorCode.ACTIVITY_SEGMENT_NOT_FOUND,
-            LabelingErrorCode.ACTIVITY_SEGMENT_NOT_LABELABLE,
-            LabelingErrorCode.ACTIVITY_SEGMENT_CHANGED,
+            LabelingErrorCode.LABELING_SEGMENT_NOT_FOUND,
+            LabelingErrorCode.LABELING_SEGMENT_NOT_LABELABLE,
+            LabelingErrorCode.LABELING_SEGMENT_CHANGED,
             LabelErrorCode.LABEL_NOT_AVAILABLE,
             ObservationErrorCode.ACTIVITY_TIMELINE_BUSY,
             CommonErrorCode.INVALID_ARGUMENT,
