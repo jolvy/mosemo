@@ -19,8 +19,8 @@ from mosemo.observation.infrastructure.tables import activity_records
 from mosemo.platform.clock import utc_now
 from mosemo.platform.database.engine import get_session
 from mosemo.shared.presentation.current_account import get_current_account
-from tests.batch_support import batch_client, post_activity, receipt_for
-from tests.identity_support import (
+from tests.support.batches import batch_client, post_activity, receipt_for
+from tests.support.identity import (
     current_account_provider,
     delete_accounts,
     token_service,

@@ -7,7 +7,7 @@ import pytest
 from mosemo.identity.application.accounts import AccountNotFoundError, GetAccount
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.infrastructure.accounts import AccountRepository
-from tests.use_case_support import TransactionRecorder, record_transactions
+from tests.support.use_cases import TransactionRecorder, record_transactions
 
 
 @pytest.fixture

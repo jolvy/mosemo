@@ -209,7 +209,7 @@ test, checks both partition leaders, and deletes the group and topic on teardown
 Clients must stop before fixture teardown; the smoke test demonstrates this with
 FastStream broker lifespans. No local development topic/group is reused and Docker failures
 fail the tests rather than switching to an in-memory broker.
-`KafkaTestAdmin` in `tests/kafka_support.py` owns topic/group preparation and
+`KafkaTestAdmin` in `tests/support/kafka.py` owns topic/group preparation and
 cleanup, leader readiness, offsets, assignments and key partition selection.
 Its aiokafka Admin protocol calls never publish or consume messages. Tests and
 the isolated client verifier publish and receive through FastStream. The local
@@ -252,7 +252,7 @@ quality gate (Docker must be running):
 bash .codex/skills/verification/scripts/validate.sh
 ```
 
-DB feature regressions in `tests/batch_support.py` use the direct `/batches/legacy`
+DB feature regressions in `tests/support/batches.py` use the direct `/batches/legacy`
 route; they verify processing rules, not Kafka delivery. The real broker tests
 above exercise the delivery path. Failure storage, blocking, retry exhaustion
 and manual recovery remain outside this verification scope and unimplemented;

@@ -9,8 +9,8 @@ from mosemo.identity.application.devices import RegisterDevice
 from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.presentation.devices.router import create_router
 from mosemo.platform.clock import utc_now
-from tests.component.identity_app import make_identity_app
-from tests.identity_support import token_service
+from tests.support.identity import token_service
+from tests.support.identity_app import make_identity_app
 
 
 def make_app(

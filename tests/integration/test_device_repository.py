@@ -14,7 +14,7 @@ from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.infrastructure.devices import DeviceRepository
 from mosemo.identity.infrastructure.tables import devices
 from mosemo.shared.application.events import EventDispatcher
-from tests.identity_support import delete_accounts
+from tests.support.identity import delete_accounts
 
 
 @pytest.mark.asyncio

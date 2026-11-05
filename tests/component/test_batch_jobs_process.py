@@ -129,7 +129,10 @@ def test_run_reports_job_failure_with_exit_code_one():
 
 def test_run_reports_job_success_with_exit_code_zero():
     result = run_process(
-        "tests.batch_jobs_process", "run", "noop", label_model="openai:fake-model"
+        "tests.support.processes.batch_jobs",
+        "run",
+        "noop",
+        label_model="openai:fake-model",
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
@@ -161,7 +164,7 @@ async def test_job_ignoring_cancellation_does_not_outlive_the_shutdown_deadline(
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
-        "tests.batch_jobs_process",
+        "tests.support.processes.batch_jobs",
         *arguments,
         cwd=ROOT,
         env=process_environment("openai:fake-model"),

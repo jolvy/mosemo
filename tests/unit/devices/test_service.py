@@ -8,7 +8,7 @@ from mosemo.identity.application.devices import RegisterDevice
 from mosemo.identity.domain.devices import Device
 from mosemo.identity.infrastructure.devices import DeviceRepository
 from mosemo.shared.application.events import EventDispatcher
-from tests.use_case_support import TransactionRecorder, record_transactions
+from tests.support.use_cases import TransactionRecorder, record_transactions
 
 
 @pytest.fixture

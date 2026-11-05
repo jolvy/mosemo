@@ -136,7 +136,7 @@ def check_test_clock_lambdas(tree: ast.AST) -> list[str]:
     """(a) 테스트에서 `clock=`에 lambda를 넘기는 호출을 찾는다."""
     return [
         f"{keyword.value.lineno}: CS-P23: `clock=`에 lambda를 넘기지 않는다. "
-        "`tests/clock_support.py`의 `FakeClock` 인스턴스나 `utc_now`를 넘긴다"
+        "`tests/support/clock.py`의 `FakeClock` 인스턴스나 `utc_now`를 넘긴다"
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         for keyword in node.keywords

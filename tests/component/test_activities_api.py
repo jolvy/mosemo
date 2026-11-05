@@ -22,8 +22,8 @@ from mosemo.platform.clock import utc_now
 from mosemo.platform.messaging.publisher import DeliveryUnavailableError
 from mosemo.platform.providers import get_session
 from mosemo.shared.presentation.current_account import get_current_account
-from tests.identity_support import current_account_provider, token_service
-from tests.use_case_support import record_transactions
+from tests.support.identity import current_account_provider, token_service
+from tests.support.use_cases import record_transactions
 
 
 @pytest.fixture(autouse=True)

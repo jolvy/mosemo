@@ -24,8 +24,8 @@ from mosemo.identity.presentation.auth.router import (
     create_oauth_router,
     create_token_router,
 )
-from tests.component.identity_app import make_identity_app
-from tests.identity_support import token_service
+from tests.support.identity import token_service
+from tests.support.identity_app import make_identity_app
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)

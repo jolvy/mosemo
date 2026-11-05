@@ -29,8 +29,8 @@ from mosemo.observation.presentation.activities.schemas import (
 from mosemo.platform.clock import utc_now
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.domain.timezones import Timezone
-from tests.clock_support import FakeClock
-from tests.use_case_support import record_transactions
+from tests.support.clock import FakeClock
+from tests.support.use_cases import record_transactions
 
 activity_record_adapter = TypeAdapter(ActivityRecord)
 RECEIVED_AT = datetime(2026, 9, 14, 1, 2, 3, tzinfo=UTC)

@@ -138,7 +138,7 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
   `pyproject.toml`의 `per-file-ignores`에만 두고, Ruff 설정 전체(선택 규칙, 옵션, 경로별 예외)는 검사기의
   고정 목록과 정확히 같아야 한다. `ruff.toml`·`.ruff.toml`은 두지 않는다. 규칙을 빼거나 옵션으로 약하게
   만드는 우회를 막는다.
-- **CS-P23**: 테스트의 시각 공급원은 `FakeClock`(`tests/clock_support.py`)으로 공급하고, 실제 시스템 시각이
+- **CS-P23**: 테스트의 시각 공급원은 `FakeClock`(`tests/support/clock.py`)으로 공급하고, 실제 시스템 시각이
   필요한 곳(PyJWT 검증, APScheduler 실행)에만 `utc_now`를 쓴다. `clock=lambda: ...`와 `get_clock` 재정의에
   lambda를 돌려주는 lambda를 넣는 방식은 검사기가 막는다. 도메인 메서드에 고정 `datetime`을 넘기는 것은
   대상이 아니다.
