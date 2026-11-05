@@ -58,10 +58,12 @@ PYTEST = (
     "--tb=short",
     "-p",
     "no:cacheprovider",
+    "-m",
+    "not requires_db and not requires_kafka",
     "tests/unit",
 )
-COMPONENT_TESTS = "tests/component"
-# Packages every API module depends on; a change selects all component tests.
+INTEGRATION_TESTS = "tests/integration"
+# Packages every module depends on; a change selects all integration tests.
 SHARED_PACKAGES = {"shared", "platform", "entrypoints"}
 LOCATION = re.compile(r"(\S+?):\d+(?::\d+)?")
 PYTEST_PROBLEM = re.compile(r"^(?:FAILED|ERROR) (\S+)")
@@ -162,22 +164,23 @@ def change_fingerprint(paths: list[str], root: Path) -> str:
     return digest.hexdigest()
 
 
-def component_tests(paths: list[str], root: Path) -> list[str]:
-    """바뀐 `.py` 경로(삭제 포함)로 함께 실행할 component 테스트를 고른다."""
+def integration_tests(paths: list[str], root: Path) -> list[str]:
+    """바뀐 `.py` 경로(삭제 포함)로 함께 실행할 integration 테스트 경로를 고른다."""
     selected = set()
     for path in paths:
         parts = PurePosixPath(path).parts
         if parts[:2] == ("src", "mosemo"):
             if len(parts) == 3 or parts[2] in SHARED_PACKAGES:
-                return [COMPONENT_TESTS]
-            selected.add(f"{COMPONENT_TESTS}/test_{parts[2]}_api.py")
-        elif parts[0] == "tests" and len(parts) == 2:
-            return [COMPONENT_TESTS]
-        elif parts[:2] == ("tests", "component"):
-            if not parts[-1].startswith("test_"):
-                return [COMPONENT_TESTS]
-            selected.add(path)
-    return sorted(test for test in selected if (root / test).is_file())
+                selected.add(INTEGRATION_TESTS)
+            else:
+                selected.add(f"{INTEGRATION_TESTS}/{parts[2]}")
+        elif parts[0] == "tests" and (len(parts) == 2 or parts[1] == "support"):
+            selected.add(INTEGRATION_TESTS)
+        elif parts[:2] == ("tests", "integration"):
+            selected.add(path if parts[-1].startswith("test_") else INTEGRATION_TESTS)
+    if INTEGRATION_TESTS in selected:
+        selected = {INTEGRATION_TESTS}
+    return sorted(test for test in selected if (root / test).exists())
 
 
 def complexipy_failures(output: str) -> str:
@@ -245,7 +248,7 @@ def style_failures(
                 break
     if failures:
         return failures
-    tests = [*PYTEST, *component_tests(python_paths, root)]
+    tests = [*PYTEST, *integration_tests(python_paths, root)]
     failure = run_check("pytest", tests, root=root, deadline=deadline)
     return [failure] if failure is not None else []
 

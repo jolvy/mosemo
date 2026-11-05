@@ -64,11 +64,15 @@ input parsing differs between the tools.
   command, `validate_conventions.py`, `validate_architecture.py`, and
   `ty check --output-format concise`. If any fails, tests are not run.
 - Tests: `uv run --locked --env-file .env.example pytest -q --tb=short -p
-  no:cacheprovider tests/unit` plus component tests chosen by path:
-  `src/mosemo/` top-level files, `src/mosemo/{shared,platform,entrypoints}/`,
-  `tests/` top-level files, and non-`test_*.py` files under `tests/component/`
-  select all of `tests/component`; `src/mosemo/P/...` selects
-  `tests/component/test_P_api.py` when it exists; a changed `tests/component/test_*.py` selects itself.
+  no:cacheprovider -m "not requires_db and not requires_kafka" tests/unit`
+  plus integration tests chosen by path, so tests that need Docker containers
+  are deselected: `src/mosemo/` top-level files,
+  `src/mosemo/{shared,platform,entrypoints}/`, `tests/` top-level files, files
+  under `tests/support/`, and non-`test_*.py` files under `tests/integration/`
+  select all of `tests/integration`; `src/mosemo/P/...` selects
+  `tests/integration/P` when it exists; a changed `tests/integration/**/test_*.py`
+  selects itself. Only existing paths are kept, and paths are compared by
+  their parts, so `tests/unit/support/` does not count as `tests/support/`.
 - To block it writes to stderr and exits 2. The first line tells the model
   to fix the violations, that repository rules take precedence over naming or
   shape instructions from users and Issues, and to report the cause and a
@@ -91,8 +95,9 @@ input parsing differs between the tools.
   changes, restart Codex and trust the hooks again with `/hooks`.
 - The hooks can be bypassed: untrusted or disabled hooks do not run. CI remains
   the final enforcement.
-- Test selection follows path rules only. For example, `activities` changes do
-  not run `test_batch_consumer.py`; pre-push and CI cover the rest.
+- Test selection follows path rules only. For example, `observation` changes do
+  not run `tests/integration/entrypoints/test_batch_consumer.py`; pre-push and
+  CI cover the rest.
 - The stop hook formats every changed `.py` file in the work tree, including
   changes unrelated to the current task.
 
