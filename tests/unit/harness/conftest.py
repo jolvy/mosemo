@@ -36,3 +36,8 @@ def architecture_validator() -> ModuleType:
 @pytest.fixture(scope="session")
 def conventions_validator() -> ModuleType:
     return load_validator("validate_conventions")
+
+
+@pytest.fixture(scope="session")
+def repository() -> Path:
+    return REPOSITORY
