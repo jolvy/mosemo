@@ -7,7 +7,7 @@
 - `src/mosemo/` 코드를 수정하기 전에 [src/mosemo/AGENTS.md](src/mosemo/AGENTS.md)를 읽는다.
 
 - 애플리케이션 코드: `src/mosemo/` (FastAPI, Pydantic, SQLAlchemy)
-- 테스트: `tests/unit/`, `tests/component/`, `tests/integration/` (pytest)
+- 테스트: `tests/unit/{패키지}/`, `tests/integration/{패키지}/`, 공유 코드 `tests/support/` (pytest)
 - 데이터베이스 마이그레이션: `migrations/` (Alembic)
 - 공개 API 스냅샷: `openapi/openapi.json`
 - OpenAPI 내보내기 스크립트: `scripts/export_openapi.py`
@@ -52,7 +52,7 @@ git diff --cached --check
 - 엔티티는 BC domain의 dataclass로 두고 BC infrastructure의 `Table`과 imperative mapping으로 영속화한다(ADR 0013). Ruff `TID251`이 `DeclarativeBase`·`mapped_column` 재도입을 막는다.
 - Ruff 오류는 `uv run --locked ruff check --fix <path>`로 제한된 범위에서 수정한다.
 - 포맷이 필요하면 `uv run --locked ruff format <path>`를 실행한다.
-- 통합 테스트는 Docker에서 PostgreSQL 컨테이너를 실행하므로 Docker가 동작 중이어야 한다.
+- `requires_db`·`requires_kafka` 마커가 붙은 테스트만 Docker 컨테이너를 실행하므로 Docker가 동작 중이어야 한다. 마커는 컨테이너 fixture 사용 여부에 따라 자동으로 붙는다. 새 컨테이너 fixture를 추가하면 `tests/conftest.py`의 마커 매핑도 함께 추가한다. Docker 없이 실행하려면 `-m "not requires_db and not requires_kafka"`를 쓴다.
 - 실행하지 못한 검증이나 실패한 검증은 완료된 것으로 표현하지 않고 이유를 보고한다.
 
 ## GitHub 사용
