@@ -129,6 +129,19 @@ forbidden_modules = ["faststream", "aiokafka"]
 ignore_imports = ["mosemo.platform.** -> faststream", "mosemo.platform.** -> aiokafka"]
 allow_indirect_imports = true
 
+# Bounded contexts never reach the entrypoints, directly or indirectly (ADR 0015).
+# A new bounded context goes into source_modules too.
+[[tool.importlinter.contracts]]
+name = "bounded contexts do not import entrypoints"
+type = "forbidden"
+source_modules = [
+    "mosemo.identity",
+    "mosemo.labels",
+    "mosemo.observation",
+    "mosemo.labeling",
+]
+forbidden_modules = ["mosemo.entrypoints"]
+
 # Direction between bounded contexts (ADR 0011 「Context Map」). analytics goes
 # above labeling when it is added.
 [[tool.importlinter.contracts]]
