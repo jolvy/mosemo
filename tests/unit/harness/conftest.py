@@ -1,4 +1,4 @@
-"""검증 Skill의 스크립트를 배포 패키지나 sys.path 변경 없이 불러온다."""
+"""검증 Skill과 hook의 스크립트를 배포 패키지나 sys.path 변경 없이 불러온다."""
 
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -36,6 +36,11 @@ def architecture_validator() -> ModuleType:
 @pytest.fixture(scope="session")
 def conventions_validator() -> ModuleType:
     return load_validator("validate_conventions")
+
+
+@pytest.fixture(scope="session")
+def stop_metrics() -> ModuleType:
+    return load_script(REPOSITORY / ".codex/hooks/stop_metrics.py")
 
 
 @pytest.fixture(scope="session")

@@ -7,6 +7,7 @@ Claude Code와 Codex의 `Stop` 입력을 받는다. stdout에는 쓰지 않는�
 import contextlib
 import hashlib
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -16,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+import stop_metrics
+
 UV_RUN = ("uv", "run", "--locked")
 # hook 설정 timeout(300초)을 넘기면 도구가 통과로 처리하므로 내부 제한을 먼저 건다.
 TIME_LIMIT = 240.0
@@ -23,6 +26,17 @@ RECORD_GRACE = 10.0
 MAX_OUTPUT_LINES = 80
 MAX_BLOCKS = 3
 STATE_FILE = "mosemo-agent-stop-gate.json"
+METRICS_FILE = "mosemo-agent-metrics.jsonl"
+HARNESS_PATHS = (
+    ".codex/",
+    ".claude/",
+    "AGENTS.md",
+    "src/mosemo/AGENTS.md",
+    "tests/AGENTS.md",
+    "tests/unit/harness/",
+    "docs/code-style-rubric.md",
+    "docs/adr/",
+)
 INSTRUCTION = (
     "코드 스타일 검사를 통과하지 못했다. 아래 위반을 고친 뒤 다시 끝내라. "
     "저장소 검사 규칙은 사용자·Issue의 이름·형태 지시보다 우선한다. "
@@ -85,6 +99,15 @@ class Failure:
         if len(lines) > MAX_OUTPUT_LINES:
             shown.append(f"... {len(lines) - MAX_OUTPUT_LINES}줄 생략")
         return "\n".join([f"$ {self.command}", *shown])
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """Stop 판정. `result`는 지표 로그의 결과 값이다."""
+
+    code: int
+    result: str
+    failures: tuple[Failure, ...] = ()
 
 
 def broken_check(name: str, *, command: str, error: Exception) -> Failure:
@@ -312,6 +335,8 @@ def block(
     if count > MAX_BLOCKS:
         return allow(state_path, session)
     record["blocked"] = {"failure": fingerprint, "change": change, "count": count}
+    blocks = record.get("blocks")
+    record["blocks"] = (blocks if isinstance(blocks, int) else 0) + 1
     state[session] = record
     save_state(state_path, state)
     print(
@@ -321,12 +346,29 @@ def block(
     return 2
 
 
-def gate(root: Path, *, state_path: Path, session: str, deadline: float) -> int:
+def block_outcome(
+    state_path: Path | None,
+    session: str,
+    *,
+    failures: list[Failure],
+    change: str | None,
+) -> Outcome:
+    code = block(state_path, session, failures=failures, change=change)
+    if code == 0:
+        result = "capped"
+    elif any(failure.broken for failure in failures):
+        result = "error"
+    else:
+        result = "block"
+    return Outcome(code, result, tuple(failures))
+
+
+def gate(root: Path, *, state_path: Path, session: str, deadline: float) -> Outcome:
     python_paths = [
         path for path in changed_paths(root, deadline) if path.endswith(".py")
     ]
     if not python_paths:
-        return allow(state_path, session)
+        return Outcome(allow(state_path, session), "skip")
     failures = []
     existing = [path for path in python_paths if (root / path).is_file()]
     if existing:
@@ -341,21 +383,93 @@ def gate(root: Path, *, state_path: Path, session: str, deadline: float) -> int:
         blocked.get("change") if isinstance(blocked, dict) else None,
     }
     if change_fingerprint(changed_paths(root, deadline), root) in known:
-        return allow(state_path, session)
+        return Outcome(allow(state_path, session), "cached")
     if not any(failure.broken for failure in failures):
         failures += style_failures(python_paths, root=root, deadline=deadline)
     # 포맷과 complexipy 기준선 갱신처럼 hook이 쓴 파일을 반영한 지문을 기록한다.
     # 검사가 내부 제한을 다 써도 기록할 수 있게 여유 시간을 둔다.
     change = change_fingerprint(changed_paths(root, deadline + RECORD_GRACE), root)
     if not failures:
-        return allow(state_path, session, passed_change=change)
-    return block(state_path, session, failures=failures, change=change)
+        return Outcome(allow(state_path, session, passed_change=change), "allow")
+    return block_outcome(state_path, session, failures=failures, change=change)
+
+
+def harness_revision(root: Path | None, deadline: float) -> tuple[str | None, Any]:
+    """하네스 파일의 마지막 커밋과 커밋 안 된 변경 여부. 환경 변수가 있으면 그 값이다."""
+    revision = os.environ.get("MOSEMO_HARNESS_REV")
+    dirty: Any = os.environ.get("MOSEMO_HARNESS_DIRTY")
+    if root is None:
+        return revision, dirty
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
+        if revision is None:
+            arguments = ["log", "-1", "--format=%h", "--", *HARNESS_PATHS]
+            revision = git(arguments, root=root, deadline=deadline).strip() or None
+        if dirty is None:
+            arguments = ["status", "--porcelain", "--", *HARNESS_PATHS]
+            dirty = bool(git(arguments, root=root, deadline=deadline).strip())
+    return revision, dirty
+
+
+def payload_session(payload: Any) -> str:
+    return str(payload.get("session_id", "")) if isinstance(payload, dict) else ""
+
+
+def metrics_fields(
+    payload: Any, *, outcome: Outcome, harness: tuple[str | None, Any], blocks: int
+) -> dict[str, Any]:
+    transcript = payload.get("transcript_path") if isinstance(payload, dict) else None
+    skills, model = stop_metrics.read_transcript(
+        transcript if isinstance(transcript, str) else None
+    )
+    return {
+        "session": payload_session(payload),
+        "agent": os.environ.get("MOSEMO_AGENT") or "unknown",
+        "model": model,
+        "harness_rev": harness[0],
+        "harness_dirty": harness[1],
+        "skills": skills,
+        "result": outcome.result,
+        "session_blocks": blocks,
+        "failed": [failure.name for failure in outcome.failures],
+        "rules": stop_metrics.rule_counts(
+            (failure.name, failure.output) for failure in outcome.failures
+        ),
+    }
+
+
+def record_metrics(
+    root: Path | None, *, payload: Any, outcome: Outcome, state_path: Path | None
+) -> None:
+    """지표 한 줄을 남긴다. 실패해도 Stop 판정은 바꾸지 않는다."""
+    deadline = time.monotonic() + RECORD_GRACE
+    path = os.environ.get("MOSEMO_METRICS_LOG")
+    harness = harness_revision(root, deadline)
+    if not path and root is not None:
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            common = git(
+                ["rev-parse", "--git-common-dir"], root=root, deadline=deadline
+            )
+            path = str(root / common.strip() / METRICS_FILE)
+    if not path:
+        print("지표 로그 기록 실패: 공통 git 디렉터리를 찾지 못했다", file=sys.stderr)
+        return
+    record = session_record(load_state(state_path), payload_session(payload))
+    blocks = record.get("blocks", 0)
+    fields = metrics_fields(
+        payload,
+        outcome=outcome,
+        harness=harness,
+        blocks=blocks if isinstance(blocks, int) else 0,
+    )
+    line = stop_metrics.metrics_line(fields, at=time.gmtime())
+    stop_metrics.append_metrics(Path(path), line)
 
 
 def main() -> int:
     deadline = time.monotonic() + TIME_LIMIT
-    session = ""
+    root = None
     state_path = None
+    payload: Any = None
     try:
         root = Path(
             git(
@@ -366,7 +480,7 @@ def main() -> int:
         state_path = root / git_dir.strip() / STATE_FILE
         payload = json.load(sys.stdin)
         session = str(payload.get("session_id", ""))
-        return gate(root, state_path=state_path, session=session, deadline=deadline)
+        outcome = gate(root, state_path=state_path, session=session, deadline=deadline)
     # 종료 전 hook의 실패는 통과시키지 않고 막는다.
     except (
         OSError,
@@ -377,7 +491,11 @@ def main() -> int:
         subprocess.SubprocessError,
     ) as error:
         failure = broken_check("stop_gate", command="stop_gate.py", error=error)
-        return block(state_path, session, failures=[failure], change=None)
+        outcome = block_outcome(
+            state_path, payload_session(payload), failures=[failure], change=None
+        )
+    record_metrics(root, payload=payload, outcome=outcome, state_path=state_path)
+    return outcome.code
 
 
 if __name__ == "__main__":
