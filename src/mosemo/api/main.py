@@ -12,9 +12,9 @@ from mosemo.api.middleware import RedactSensitiveQueryStringMiddleware
 from mosemo.api.openapi import public_openapi
 from mosemo.api.routes import v1_api_router
 from mosemo.identity import bootstrap as identity_bootstrap
-from mosemo.infra.config import get_config
-from mosemo.infra.database import get_engine
-from mosemo.infra.logging import configure_logging
+from mosemo.platform.config import get_config
+from mosemo.platform.database.engine import get_engine
+from mosemo.platform.logging import configure_logging
 from mosemo.shared.presentation.current_account import get_current_account
 
 API_DESCRIPTION = """

@@ -1,8 +1,8 @@
 import pytest
 
 from mosemo.identity import bootstrap as identity_bootstrap
-from mosemo.infra.config import Config
 from mosemo.labels import bootstrap as labels_bootstrap
+from mosemo.platform.config import Config
 from mosemo.shared.application.events import EventDispatcher
 from tests.identity_support import sign_up_dispatcher
 

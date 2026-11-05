@@ -22,7 +22,7 @@ from sqlalchemy import Column, ForeignKey, Integer, MetaData, String, Table
 from sqlalchemy.orm import Mapper, registry, relationship
 
 import mosemo
-from mosemo.infra.persistence import mapper_registry
+from mosemo.platform.database.persistence import mapper_registry
 from mosemo.shared.domain.aggregates import AggregateRoot
 from mosemo.shared.presentation.current_account import (
     CurrentAccountDep,

@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.types import String
 
-from mosemo.infra.persistence import TimezoneStorage
+from mosemo.platform.database.persistence import TimezoneStorage
 from mosemo.shared.domain.timezones import Timezone
 
 

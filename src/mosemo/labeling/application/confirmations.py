@@ -5,7 +5,6 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.infra.transactions import unit_of_work
 from mosemo.labeling.application.states import (
     SegmentLabelState,
     find_labelable_segment,
@@ -24,6 +23,7 @@ from mosemo.labeling.infrastructure.confirmations import ConfirmationRepository
 from mosemo.labeling.infrastructure.proposals import ProposalRepository
 from mosemo.labels.public import LabelCatalog
 from mosemo.observation.public import ObservationTimeline, ObservedSegment
+from mosemo.platform.database.transactions import unit_of_work
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.application.use_case import UseCase

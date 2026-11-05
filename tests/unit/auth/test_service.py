@@ -23,7 +23,7 @@ from mosemo.identity.infrastructure.accounts import AccountRepository
 from mosemo.identity.infrastructure.authorization_codes import (
     NativeAuthCodeRepository,
 )
-from mosemo.infra.config import Config
+from mosemo.platform.config import Config
 from mosemo.shared.application.events import EventDispatcher
 from tests.clock_support import FakeClock
 from tests.use_case_support import TransactionRecorder, record_transactions

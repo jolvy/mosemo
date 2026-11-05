@@ -5,12 +5,12 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mosemo.identity import bootstrap as identity_bootstrap
-from mosemo.infra.config import Config
-from mosemo.infra.providers import get_event_dispatcher
-from mosemo.infra.scheduling import BatchJob
 from mosemo.labeling import bootstrap as labeling_bootstrap
 from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.observation import bootstrap as observation_bootstrap
+from mosemo.platform.config import Config
+from mosemo.platform.providers import get_event_dispatcher
+from mosemo.platform.scheduling import BatchJob
 
 
 def ensure_unique_names(jobs: Sequence[BatchJob]) -> None:

@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from faststream.kafka import KafkaBroker
 
-from mosemo.infra.kafka_compat import BatchPartition
+from mosemo.platform.messaging.kafka_compat import BatchPartition
 from tests.kafka_support import KafkaResources, capture_records
 
 

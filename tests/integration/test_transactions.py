@@ -10,7 +10,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import registry
 
-from mosemo.infra.transactions import (
+from mosemo.platform.database.transactions import (
     TransactionAlreadyOpenError,
     read_snapshot,
     record_event,

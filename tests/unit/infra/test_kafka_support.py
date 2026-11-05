@@ -4,7 +4,7 @@ import pytest
 from aiokafka.errors import GroupCoordinatorNotAvailableError
 from aiokafka.structs import OffsetAndMetadata, TopicPartition
 
-from mosemo.infra.kafka_compat import BatchPartition
+from mosemo.platform.messaging.kafka_compat import BatchPartition
 from tests.kafka_support import KafkaTestAdmin
 
 

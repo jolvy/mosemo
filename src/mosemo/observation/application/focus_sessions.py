@@ -5,7 +5,6 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.identity.public import AccountDirectory, DeviceDirectory
-from mosemo.infra.transactions import read_snapshot, unit_of_work
 from mosemo.labels.public import LabelCatalog
 from mosemo.observation.domain.activities import (
     ActivityDeviceNotFoundError,
@@ -20,6 +19,7 @@ from mosemo.observation.infrastructure.activity_records import (
     ActivityRecordRepository,
 )
 from mosemo.observation.infrastructure.focus_sessions import FocusSessionRepository
+from mosemo.platform.database.transactions import read_snapshot, unit_of_work
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.application.use_case import UseCase

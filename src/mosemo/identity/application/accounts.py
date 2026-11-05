@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mosemo.identity.domain.accounts import Account
 from mosemo.identity.infrastructure.accounts import AccountRepository
 from mosemo.identity.infrastructure.queries import AccountQuery
-from mosemo.infra.transactions import read_snapshot
+from mosemo.platform.database.transactions import read_snapshot
 from mosemo.shared.application.use_case import UseCase
 from mosemo.shared.domain.timezones import Timezone
 

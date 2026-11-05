@@ -16,7 +16,11 @@ from sqlalchemy.orm import Mapper
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.authorization_codes import NativeAuthCode
 from mosemo.identity.domain.devices import Device
-from mosemo.infra.persistence import ORM_METADATA, TimezoneStorage, mapper_registry
+from mosemo.platform.database.persistence import (
+    ORM_METADATA,
+    TimezoneStorage,
+    mapper_registry,
+)
 from mosemo.shared.domain.timezones import Timezone
 
 accounts = Table(

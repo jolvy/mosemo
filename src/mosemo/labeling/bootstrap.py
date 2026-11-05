@@ -6,8 +6,6 @@ from fastapi import APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mosemo.identity.public import AccountDirectory
-from mosemo.infra.clock import utc_now
-from mosemo.infra.scheduling import BatchJob, every
 from mosemo.labeling.application.confirmations import (
     ConfirmSegmentLabel,
     ConfirmSegmentLabels,
@@ -32,6 +30,8 @@ from mosemo.labeling.presentation.error_docs import ERROR_DOCS
 from mosemo.labeling.presentation.router import create_router
 from mosemo.labels.public import LabelCatalog
 from mosemo.observation.public import ObservationTimeline
+from mosemo.platform.clock import utc_now
+from mosemo.platform.scheduling import BatchJob, every
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 

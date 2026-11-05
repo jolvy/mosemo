@@ -709,13 +709,13 @@ async def metadata_drift(database_url: str) -> list[tuple[str, ...]]:
     # Same mapping functions as migrations/env.py.
     from mosemo.identity import bootstrap as identity_bootstrap
     from mosemo.identity.infrastructure import tables as identity_tables
-    from mosemo.infra.persistence import ORM_METADATA
     from mosemo.labeling import bootstrap as labeling_bootstrap
     from mosemo.labeling.infrastructure import tables as labeling_tables
     from mosemo.labels import bootstrap as labels_bootstrap
     from mosemo.labels.infrastructure import tables as labels_tables
     from mosemo.observation import bootstrap as observation_bootstrap
     from mosemo.observation.infrastructure import tables as observation_tables
+    from mosemo.platform.database.persistence import ORM_METADATA
 
     identity_bootstrap.map_tables()
     labels_bootstrap.map_tables()

@@ -18,7 +18,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
-from mosemo.infra.persistence import ORM_METADATA, TimezoneStorage, mapper_registry
 from mosemo.observation.domain.activities import (
     ActivityBatchReceipt,
     ActivityRecord,
@@ -26,6 +25,11 @@ from mosemo.observation.domain.activities import (
 )
 from mosemo.observation.domain.focus_sessions import FocusSession
 from mosemo.observation.domain.timeline import ActivityTimelineSegment, SegmentType
+from mosemo.platform.database.persistence import (
+    ORM_METADATA,
+    TimezoneStorage,
+    mapper_registry,
+)
 
 
 def _string_enum(enum: type[StrEnum]) -> Enum:

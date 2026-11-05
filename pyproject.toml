@@ -75,9 +75,9 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "shared and infra do not import bounded contexts or assembly roots"
+name = "shared and platform do not import bounded contexts or assembly roots"
 type = "forbidden"
-source_modules = ["mosemo.shared", "mosemo.infra"]
+source_modules = ["mosemo.shared", "mosemo.platform"]
 forbidden_modules = [
     "mosemo.identity",
     "mosemo.labels",
@@ -116,19 +116,19 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "only infra.scheduling imports apscheduler"
+name = "only platform.scheduling imports apscheduler"
 type = "forbidden"
 source_modules = ["mosemo"]
 forbidden_modules = ["apscheduler"]
-ignore_imports = ["mosemo.infra.scheduling -> apscheduler"]
+ignore_imports = ["mosemo.platform.scheduling -> apscheduler"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "only infra imports faststream and aiokafka"
+name = "only platform imports faststream and aiokafka"
 type = "forbidden"
 source_modules = ["mosemo"]
 forbidden_modules = ["faststream", "aiokafka"]
-ignore_imports = ["mosemo.infra.** -> faststream", "mosemo.infra.** -> aiokafka"]
+ignore_imports = ["mosemo.platform.** -> faststream", "mosemo.platform.** -> aiokafka"]
 allow_indirect_imports = true
 
 # Direction between bounded contexts (ADR 0011 「Context Map」). analytics goes
@@ -175,61 +175,58 @@ protected_modules = ["mosemo.identity.bootstrap"]
 allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
 
 [[tool.importlinter.contracts]]
-name = "identity presentation imports only infra.providers from infra"
+name = "identity presentation imports only platform.providers from platform"
 type = "forbidden"
 source_modules = ["mosemo.identity.presentation"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.persistence",
-    "mosemo.infra.scheduling",
-    "mosemo.infra.transactions",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.persistence",
+    "mosemo.platform.database.transactions",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "identity application imports only infra.transactions from infra"
+name = "identity application imports only platform.database.transactions from platform"
 type = "forbidden"
 source_modules = ["mosemo.identity.application"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.persistence",
-    "mosemo.infra.providers",
-    "mosemo.infra.scheduling",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.persistence",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.providers",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "identity infrastructure imports only infra.persistence from infra"
+name = "identity infrastructure imports only platform.database.persistence from platform"
 type = "forbidden"
 source_modules = ["mosemo.identity.infrastructure"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.providers",
-    "mosemo.infra.scheduling",
-    "mosemo.infra.transactions",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.transactions",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.providers",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "identity domain does not import infra"
+name = "identity domain does not import platform"
 type = "forbidden"
 source_modules = ["mosemo.identity.domain"]
-forbidden_modules = ["mosemo.infra"]
+forbidden_modules = ["mosemo.platform"]
 
 [[tool.importlinter.contracts]]
 name = "identity domain does not import sqlalchemy, fastapi or pydantic"
@@ -291,61 +288,58 @@ protected_modules = ["mosemo.labels.bootstrap"]
 allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
 
 [[tool.importlinter.contracts]]
-name = "labels presentation imports only infra.providers from infra"
+name = "labels presentation imports only platform.providers from platform"
 type = "forbidden"
 source_modules = ["mosemo.labels.presentation"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.persistence",
-    "mosemo.infra.scheduling",
-    "mosemo.infra.transactions",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.persistence",
+    "mosemo.platform.database.transactions",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "labels application imports only infra.transactions from infra"
+name = "labels application imports only platform.database.transactions from platform"
 type = "forbidden"
 source_modules = ["mosemo.labels.application"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.persistence",
-    "mosemo.infra.providers",
-    "mosemo.infra.scheduling",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.persistence",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.providers",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "labels infrastructure imports only infra.persistence from infra"
+name = "labels infrastructure imports only platform.database.persistence from platform"
 type = "forbidden"
 source_modules = ["mosemo.labels.infrastructure"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.providers",
-    "mosemo.infra.scheduling",
-    "mosemo.infra.transactions",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.transactions",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.providers",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "labels domain does not import infra"
+name = "labels domain does not import platform"
 type = "forbidden"
 source_modules = ["mosemo.labels.domain"]
-forbidden_modules = ["mosemo.infra"]
+forbidden_modules = ["mosemo.platform"]
 
 [[tool.importlinter.contracts]]
 name = "labels domain does not import sqlalchemy, fastapi or pydantic"
@@ -410,61 +404,58 @@ protected_modules = ["mosemo.observation.bootstrap"]
 allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
 
 [[tool.importlinter.contracts]]
-name = "observation presentation imports only infra.providers from infra"
+name = "observation presentation imports only platform.providers from platform"
 type = "forbidden"
 source_modules = ["mosemo.observation.presentation"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.persistence",
-    "mosemo.infra.scheduling",
-    "mosemo.infra.transactions",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.persistence",
+    "mosemo.platform.database.transactions",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "observation application imports only infra.transactions from infra"
+name = "observation application imports only platform.database.transactions from platform"
 type = "forbidden"
 source_modules = ["mosemo.observation.application"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.persistence",
-    "mosemo.infra.providers",
-    "mosemo.infra.scheduling",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.persistence",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.providers",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "observation infrastructure imports only infra.persistence from infra"
+name = "observation infrastructure imports only platform.database.persistence from platform"
 type = "forbidden"
 source_modules = ["mosemo.observation.infrastructure"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.providers",
-    "mosemo.infra.scheduling",
-    "mosemo.infra.transactions",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.transactions",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.providers",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "observation domain does not import infra"
+name = "observation domain does not import platform"
 type = "forbidden"
 source_modules = ["mosemo.observation.domain"]
-forbidden_modules = ["mosemo.infra"]
+forbidden_modules = ["mosemo.platform"]
 
 [[tool.importlinter.contracts]]
 name = "observation domain does not import sqlalchemy, fastapi or pydantic"
@@ -529,61 +520,58 @@ protected_modules = ["mosemo.labeling.bootstrap"]
 allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
 
 [[tool.importlinter.contracts]]
-name = "labeling presentation imports only infra.providers from infra"
+name = "labeling presentation imports only platform.providers from platform"
 type = "forbidden"
 source_modules = ["mosemo.labeling.presentation"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.persistence",
-    "mosemo.infra.scheduling",
-    "mosemo.infra.transactions",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.persistence",
+    "mosemo.platform.database.transactions",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "labeling application imports only infra.transactions from infra"
+name = "labeling application imports only platform.database.transactions from platform"
 type = "forbidden"
 source_modules = ["mosemo.labeling.application"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.persistence",
-    "mosemo.infra.providers",
-    "mosemo.infra.scheduling",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.persistence",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.providers",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "labeling infrastructure imports only infra.persistence from infra"
+name = "labeling infrastructure imports only platform.database.persistence from platform"
 type = "forbidden"
 source_modules = ["mosemo.labeling.infrastructure"]
 forbidden_modules = [
-    "mosemo.infra.clock",
-    "mosemo.infra.config",
-    "mosemo.infra.database",
-    "mosemo.infra.kafka_compat",
-    "mosemo.infra.logging",
-    "mosemo.infra.messaging",
-    "mosemo.infra.providers",
-    "mosemo.infra.scheduling",
-    "mosemo.infra.transactions",
+    "mosemo.platform.clock",
+    "mosemo.platform.config",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.transactions",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.providers",
+    "mosemo.platform.scheduling",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "labeling domain does not import infra"
+name = "labeling domain does not import platform"
 type = "forbidden"
 source_modules = ["mosemo.labeling.domain"]
-forbidden_modules = ["mosemo.infra"]
+forbidden_modules = ["mosemo.platform"]
 
 [[tool.importlinter.contracts]]
 name = "labeling domain does not import sqlalchemy, fastapi or pydantic"
@@ -626,7 +614,7 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
                  "PLR0913"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/mosemo/infra/clock.py" = ["TID251"]
+"src/mosemo/platform/clock.py" = ["TID251"]
 "src/mosemo/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
@@ -641,12 +629,12 @@ max-positional-args = 2
 extend-ignore-names = ["*Exception"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.infra.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
-"time.time".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
-"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.infra.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.now".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.utcnow".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"datetime.datetime.today".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"datetime.date.today".msg = "CS-P15: 오늘 날짜는 `mosemo.platform.clock`의 clock을 주입받아 얻은 시각에서 계산한다."
+"time.time".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
+"time.time_ns".msg = "CS-P15: 현재 시각은 `mosemo.platform.clock`의 clock을 주입받아 얻는다."
 "sqlalchemy.orm.DeclarativeBase".msg = "ADR 0013: 엔티티는 domain dataclass로 두고 BC infrastructure의 `Table`과 imperative mapping으로 매핑한다."
 "sqlalchemy.orm.mapped_column".msg = "ADR 0013: 컬럼은 BC infrastructure의 `Table`에 `Column`으로 정의한다."
 

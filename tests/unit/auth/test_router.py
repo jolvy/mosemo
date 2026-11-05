@@ -29,7 +29,7 @@ from mosemo.identity.presentation.auth.router import (
     create_router,
 )
 from mosemo.identity.presentation.auth.schemas import KakaoCallback, TokenRequest
-from mosemo.infra.config import Config
+from mosemo.platform.config import Config
 from mosemo.shared.errors import ApiException
 
 CODE_VERIFIER = "A" * 43

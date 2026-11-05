@@ -7,15 +7,15 @@ from uuid import UUID
 from fastapi import FastAPI, Request
 
 from mosemo.api.middleware import BatchBodyLimitMiddleware
-from mosemo.infra.config import BatchDeliveryConfig
-from mosemo.infra.messaging.publisher import DeliveryUnavailableError, KafkaPublisher
-from mosemo.infra.messaging.runtime import kafka_publisher
 from mosemo.observation import bootstrap as observation_bootstrap
 from mosemo.observation.bootstrap import (
     ActivityBatchRequest,
     ActivityDeliveryUnavailableError,
     ActivityRegistrationRequested,
 )
+from mosemo.platform.config import BatchDeliveryConfig
+from mosemo.platform.messaging.publisher import DeliveryUnavailableError, KafkaPublisher
+from mosemo.platform.messaging.runtime import kafka_publisher
 
 
 class ActivityBatchPublisher:

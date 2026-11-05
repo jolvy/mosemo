@@ -12,15 +12,15 @@ from mosemo.api.activity_batches import compose_messaging_app, get_batch_publish
 from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.presentation.auth.router import get_token_service
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import BatchDeliveryConfig, Config, get_config
-from mosemo.infra.providers import get_session
 from mosemo.observation.application.activities import GetObservationTimeline
 from mosemo.observation.application.batches import (
     AcceptActivityBatch,
     ProcessLegacyActivityBatch,
 )
 from mosemo.observation.presentation.activities.router import create_router
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import BatchDeliveryConfig, Config, get_config
+from mosemo.platform.providers import get_session
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.component.test_activities_api import activity_request as payload
@@ -85,7 +85,7 @@ async def test_api_lifecycle_closes_producer_and_preserves_inner_state(
     if failure == "startup":
         producer.start.side_effect = RuntimeError("startup")
     constructor = Mock(return_value=producer)
-    monkeypatch.setattr("mosemo.infra.messaging.runtime.KafkaBroker", constructor)
+    monkeypatch.setattr("mosemo.platform.messaging.runtime.KafkaBroker", constructor)
     config = BatchDeliveryConfig(bootstrap_servers="test:9092", topic="custom")
     app = compose_messaging_app(FastAPI(lifespan=inner), config)
     try:
@@ -119,7 +119,7 @@ async def test_cancel_during_producer_start_closes_connection(monkeypatch):
 
     producer.start.side_effect = held
     monkeypatch.setattr(
-        "mosemo.infra.messaging.runtime.KafkaBroker", Mock(return_value=producer)
+        "mosemo.platform.messaging.runtime.KafkaBroker", Mock(return_value=producer)
     )
     app = compose_messaging_app(FastAPI(), BatchDeliveryConfig())
 
@@ -141,7 +141,7 @@ async def test_disabled_publication_still_runs_api_lifecycle(config, monkeypatch
     config.batch_delivery.enabled = False
     app, _, _, headers = make_app(config)
     constructor = Mock(side_effect=AssertionError("must not connect"))
-    monkeypatch.setattr("mosemo.infra.messaging.runtime.KafkaBroker", constructor)
+    monkeypatch.setattr("mosemo.platform.messaging.runtime.KafkaBroker", constructor)
     async with (
         LifespanManager(app) as manager,
         httpx2.AsyncClient(
@@ -160,7 +160,7 @@ async def test_disabled_publication_still_runs_api_lifecycle(config, monkeypatch
 async def test_legacy_waits_for_processing_without_admission_or_publish(
     config, monkeypatch, delivery_enabled
 ):
-    from mosemo.infra.database import get_session
+    from mosemo.platform.database.engine import get_session
 
     config.batch_delivery.enabled = delivery_enabled
     app, _, owner, headers = make_app(config)
@@ -213,7 +213,7 @@ async def test_legacy_waits_for_processing_without_admission_or_publish(
 
 @pytest.mark.asyncio
 async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
-    from mosemo.infra.database import get_session
+    from mosemo.platform.database.engine import get_session
 
     app, _, _, headers = make_app(config)
     app.dependency_overrides[get_session] = object
@@ -246,9 +246,9 @@ async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
     ],
 )
 async def test_legacy_processing_errors(config, monkeypatch, error, expected):
-    from mosemo.infra.database import get_session
     from mosemo.observation.application.batches import TerminalBatchError
     from mosemo.observation.domain.timeline import ActivityTimelineBusyError
+    from mosemo.platform.database.engine import get_session
 
     app, _, _, headers = make_app(config)
     app.dependency_overrides[get_session] = object
@@ -275,7 +275,7 @@ async def test_http_maps_publisher_failure_to_retryable_503(config, failure):
     from aiokafka.errors import KafkaConnectionError
 
     from mosemo.api.activity_batches import ActivityBatchPublisher
-    from mosemo.infra.messaging.publisher import KafkaPublisher
+    from mosemo.platform.messaging.publisher import KafkaPublisher
 
     app, _, _, headers = make_app(config)
     producer = AsyncMock()

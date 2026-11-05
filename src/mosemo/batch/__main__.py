@@ -18,16 +18,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 async def run(args: argparse.Namespace) -> int:
-    from mosemo.infra.logging import configure_logging
+    from mosemo.platform.logging import configure_logging
 
     configure_logging()
     # Configuration and engine initialization must also stay inside main's
     # protected boundary: validation errors can contain credential input values.
     from mosemo.batch.registry import build_jobs
-    from mosemo.infra.clock import utc_now
-    from mosemo.infra.config import get_config
-    from mosemo.infra.database import get_engine, get_session_factory
-    from mosemo.infra.scheduling import run_job_once, serve
+    from mosemo.platform.clock import utc_now
+    from mosemo.platform.config import get_config
+    from mosemo.platform.database.engine import get_engine, get_session_factory
+    from mosemo.platform.scheduling import run_job_once, serve
 
     engine = get_engine()
     session_factory = get_session_factory()

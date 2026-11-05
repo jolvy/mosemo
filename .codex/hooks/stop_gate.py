@@ -62,7 +62,7 @@ PYTEST = (
 )
 COMPONENT_TESTS = "tests/component"
 # Packages every API module depends on; a change selects all component tests.
-SHARED_PACKAGES = {"shared", "infra", "api", "consumer", "batch"}
+SHARED_PACKAGES = {"shared", "platform", "api", "consumer", "batch"}
 LOCATION = re.compile(r"(\S+?):\d+(?::\d+)?")
 PYTEST_PROBLEM = re.compile(r"^(?:FAILED|ERROR) (\S+)")
 

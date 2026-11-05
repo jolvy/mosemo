@@ -21,11 +21,11 @@ from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.pkce import create_code_challenge
 from mosemo.identity.infrastructure.kakao_client import KakaoClient
 from mosemo.identity.presentation.auth.router import get_token_service
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config, get_config
-from mosemo.infra.database import get_session
 from mosemo.labels.domain.labels import Label, default_labels
 from mosemo.labels.infrastructure.labels import LabelRepository
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config, get_config
+from mosemo.platform.database.engine import get_session
 from mosemo.shared.presentation.current_account import get_current_account
 
 

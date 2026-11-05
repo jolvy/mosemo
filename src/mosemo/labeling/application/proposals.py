@@ -8,7 +8,6 @@ from uuid import UUID, uuid4
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.infra.transactions import read_snapshot, reset_session, unit_of_work
 from mosemo.labeling.application.ports import LabelSuggester
 from mosemo.labeling.domain.confirmations import ActivityLabelConfirmation
 from mosemo.labeling.domain.proposals import (
@@ -35,6 +34,11 @@ from mosemo.observation.public import (
     DetailedActivityContext,
     ObservationTimeline,
     ObservedSegment,
+)
+from mosemo.platform.database.transactions import (
+    read_snapshot,
+    reset_session,
+    unit_of_work,
 )
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher

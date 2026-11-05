@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 from aiokafka import TopicPartition
 
-from mosemo.infra.kafka_compat import BatchPartition, BatchRebalanceAdapter
+from mosemo.platform.messaging.kafka_compat import BatchPartition, BatchRebalanceAdapter
 
 
 @pytest.mark.asyncio

@@ -14,7 +14,6 @@ from mosemo.identity.bootstrap import (
 )
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
-from mosemo.infra.clock import utc_now
 from mosemo.observation.domain.activities import ActivityRecord as StoredActivityRecord
 from mosemo.observation.domain.timeline import ActivityTimelineSegment, SegmentType
 from mosemo.observation.infrastructure.tables import (
@@ -29,6 +28,7 @@ from mosemo.observation.presentation.activities.schemas import (
     ActivitySegmentResponse,
     CaptureGapResponse,
 )
+from mosemo.platform.clock import utc_now
 from mosemo.shared.domain.timezones import Timezone
 from tests.clock_support import FakeClock
 from tests.identity_support import delete_accounts

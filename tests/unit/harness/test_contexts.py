@@ -34,7 +34,7 @@ VALID_CONTEXT = {
     ),
     f"{BC}/application/samples.py": (
         "from sqlalchemy.ext.asyncio import AsyncSession\n"
-        "from mosemo.infra.transactions import read_snapshot, unit_of_work\n"
+        "from mosemo.platform.database.transactions import read_snapshot, unit_of_work\n"
         "from mosemo.shared.application.use_case import UseCase\n\n"
         "class StartSample(UseCase):\n"
         "    def __init__(self, *, dispatcher):\n"
@@ -830,7 +830,7 @@ def test_context_transaction_calls_are_rejected_regardless_of_file_name(
     ]
 
     assert locations(errors) == [f"{BC}/{file}:1"]
-    assert "`infra.transactions`" in errors[0]
+    assert "`platform.database.transactions`" in errors[0]
 
 
 def test_transaction_calls_outside_contexts_are_allowed_only_in_helper(
@@ -839,7 +839,7 @@ def test_transaction_calls_outside_contexts_are_allowed_only_in_helper(
     files = {
         **MINIMAL_CONTEXT,
         "src/mosemo/old/service.py": "session.begin()\n",
-        "src/mosemo/infra/transactions.py": "session.commit()\n",
+        "src/mosemo/platform/database/transactions.py": "session.commit()\n",
     }
     write_files(tmp_path, files)
 

@@ -11,10 +11,6 @@ from mosemo.api.exception_handlers import register_exception_handlers
 from mosemo.api.middleware import BatchBodyLimitMiddleware
 from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.presentation.auth.router import get_token_service
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config, get_config
-from mosemo.infra.messaging.publisher import DeliveryUnavailableError
-from mosemo.infra.providers import get_session
 from mosemo.observation.application.activities import GetObservationTimeline
 from mosemo.observation.application.batches import (
     AcceptActivityBatch,
@@ -23,6 +19,10 @@ from mosemo.observation.application.batches import (
 from mosemo.observation.application.timeline import ObservedSegment
 from mosemo.observation.domain.timeline import ActivityTimelineKind
 from mosemo.observation.presentation.activities.router import create_router
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config, get_config
+from mosemo.platform.messaging.publisher import DeliveryUnavailableError
+from mosemo.platform.providers import get_session
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.use_case_support import record_transactions
 

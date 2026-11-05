@@ -34,8 +34,8 @@ from mosemo.identity.presentation.devices.router import (
     create_router as create_devices_router,
 )
 from mosemo.identity.presentation.error_docs import ERROR_DOCS
-from mosemo.infra.config import Config, KakaoConfig
-from mosemo.infra.providers import get_config, get_http_client
+from mosemo.platform.config import Config, KakaoConfig
+from mosemo.platform.providers import get_config, get_http_client
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 

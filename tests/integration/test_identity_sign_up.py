@@ -27,11 +27,11 @@ from mosemo.identity.infrastructure.authorization_codes import (
 from mosemo.identity.infrastructure.kakao_client import KakaoClient
 from mosemo.identity.infrastructure.tables import accounts
 from mosemo.identity.presentation.auth.router import get_token_service
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config, get_config
-from mosemo.infra.providers import get_session
 from mosemo.labels.domain.labels import DEFAULT_LABEL_NAMES, Label
 from mosemo.labels.infrastructure.tables import labels as label_table
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config, get_config
+from mosemo.platform.providers import get_session
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.clock_support import FakeClock

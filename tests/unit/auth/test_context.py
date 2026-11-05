@@ -9,8 +9,8 @@ from mosemo.identity.presentation.auth.router import (
     get_token_current_account,
     get_token_service,
 )
-from mosemo.infra.clock import utc_now
-from mosemo.infra.config import Config
+from mosemo.platform.clock import utc_now
+from mosemo.platform.config import Config
 from mosemo.shared.presentation.current_account import CurrentAccount
 
 

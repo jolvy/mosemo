@@ -31,7 +31,7 @@ from mosemo.identity.presentation.auth.schemas import (
 )
 from mosemo.identity.presentation.dependencies import ConfigDep, SessionDep
 from mosemo.identity.presentation.errors import IdentityErrorCode
-from mosemo.infra.providers import Config
+from mosemo.platform.providers import Config
 from mosemo.shared.errors import ApiException, CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 from mosemo.shared.presentation.current_account import (
