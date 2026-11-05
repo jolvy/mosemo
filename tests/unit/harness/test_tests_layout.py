@@ -127,9 +127,9 @@ def test_init_files_in_tests_root_support_and_ignored_entries_pass(
 @pytest.mark.parametrize(
     ("relative", "source"),
     [
-        ("tests/unit/test_a.py", "from tests.integration.test_b import helper"),
-        ("tests/unit/test_a.py", "import tests.unit.test_b"),
-        ("tests/unit/test_a.py", "from tests import conftest"),
+        ("tests/unit/shared/test_a.py", "from tests.integration.test_b import helper"),
+        ("tests/unit/shared/test_a.py", "import tests.unit.test_b"),
+        ("tests/unit/shared/test_a.py", "from tests import conftest"),
         ("tests/conftest.py", "from tests.unit.harness.conftest import REPOSITORY"),
         ("tests/support/clock.py", "from tests.unit.test_b import helper"),
         ("tests/support/clock.py", "def f():\n    import tests.e2e.test_c"),
@@ -145,7 +145,9 @@ def test_import_outside_support_direction_is_rejected(
 
 
 def test_imports_of_support_and_outside_tests_pass(tmp_path: Path) -> None:
-    write(tmp_path, "tests/unit/test_a.py", "import pytest\nimport tests.support")
+    write(
+        tmp_path, "tests/unit/shared/test_a.py", "import pytest\nimport tests.support"
+    )
     write(tmp_path, "tests/conftest.py", "from tests.support.clock import FakeClock")
     write(tmp_path, "tests/support/batches.py", "from tests.support import identity")
     write(tmp_path, "tests/support/processes/jobs.py", "from ..clock import FakeClock")
