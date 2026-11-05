@@ -199,7 +199,7 @@ docker volume rm <project>_kafka-data
 
 ```sh
 uv sync --locked
-uv run --locked pytest -q tests/unit/entrypoints/test_config.py tests/integration/test_kafka.py tests/integration/test_batch_publication.py tests/integration/test_batch_consumption.py
+uv run --locked pytest -q tests/unit/entrypoints/test_config.py tests/integration/platform/test_kafka.py tests/integration/entrypoints/test_batch_publication.py tests/integration/entrypoints/test_batch_consumption.py
 ```
 
 Docker must be running. Testcontainers starts the same pinned Kafka image with
@@ -235,15 +235,15 @@ recorded in [#66](https://github.com/jolvy/mosemo/issues/66), not inferred from 
 
 | Scenario | Test location and boundary |
 | --- | --- |
-| TC-1 Message contract | `tests/unit/entrypoints/test_delivery.py`, `tests/component/test_batch_consumer.py`, `tests/integration/test_batch_publication.py`: authenticated account key/value, schema and order |
-| TC-2 HTTP acceptance | `tests/integration/test_batch_publication.py`, `tests/component/test_batch_runtime.py`, `tests/component/test_batch_admission_timeout.py`: real ACK, 503 and admission deadlines |
-| TC-3 Atomic persistence | `tests/integration/test_activity_batches.py`: PostgreSQL receipt, raw records and timeline commit/rollback |
-| TC-4 Duplicate/conflict | `tests/integration/test_activity_batches.py`: normalized retry and changed content preserve existing results |
-| TC-5 Ordering/concurrency | `tests/integration/test_batch_consumption.py`: real partition assignment, DB/offset sequencing and parallel execution |
-| TC-6 Separate processes | `tests/integration/test_batch_consumption.py`: HTTP API and Consumer OS processes with real Kafka/PostgreSQL |
-| TC-7 Resume/shutdown | `tests/integration/test_batch_consumption.py`, `tests/component/test_batch_consumer.py`: committed offsets, earliest and bounded in-flight drain |
-| TC-8 Initial schema | `tests/integration/test_migrations.py::test_fresh_receipt_schema_has_no_source`: empty PostgreSQL migration and receipt columns |
-| TC-9 Commit gap replay | `tests/integration/test_batch_consumption.py`: process kill between DB and offset commits, replay and subsequent progress |
+| TC-1 Message contract | `tests/unit/entrypoints/test_delivery.py`, `tests/integration/entrypoints/test_batch_consumer.py`, `tests/integration/entrypoints/test_batch_publication.py`: authenticated account key/value, schema and order |
+| TC-2 HTTP acceptance | `tests/integration/entrypoints/test_batch_publication.py`, `tests/integration/entrypoints/test_batch_runtime.py`, `tests/integration/entrypoints/test_batch_admission_timeout.py`: real ACK, 503 and admission deadlines |
+| TC-3 Atomic persistence | `tests/integration/observation/test_activity_batches.py`: PostgreSQL receipt, raw records and timeline commit/rollback |
+| TC-4 Duplicate/conflict | `tests/integration/observation/test_activity_batches.py`: normalized retry and changed content preserve existing results |
+| TC-5 Ordering/concurrency | `tests/integration/entrypoints/test_batch_consumption.py`: real partition assignment, DB/offset sequencing and parallel execution |
+| TC-6 Separate processes | `tests/integration/entrypoints/test_batch_consumption.py`: HTTP API and Consumer OS processes with real Kafka/PostgreSQL |
+| TC-7 Resume/shutdown | `tests/integration/entrypoints/test_batch_consumption.py`, `tests/integration/entrypoints/test_batch_consumer.py`: committed offsets, earliest and bounded in-flight drain |
+| TC-8 Initial schema | `tests/integration/migrations/test_migrations.py::test_fresh_receipt_schema_has_no_source`: empty PostgreSQL migration and receipt columns |
+| TC-9 Commit gap replay | `tests/integration/entrypoints/test_batch_consumption.py`: process kill between DB and offset commits, replay and subsequent progress |
 
 Run all nine scopes and the existing business regressions with the repository
 quality gate (Docker must be running):

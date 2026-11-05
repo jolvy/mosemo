@@ -31,7 +31,7 @@ OPENAPI_TEST_ENVIRONMENT = {
     "AUTH_AUTHORIZATION_CODE_TTL_SECONDS": "60",
     "AUTH_MACOS_CALLBACK_URI": "com.example.mosemo:/auth/callback",
 }
-OPENAPI_SNAPSHOT_PATH = Path(__file__).resolve().parents[2] / "openapi" / "openapi.json"
+OPENAPI_SNAPSHOT_PATH = Path(__file__).resolve().parents[3] / "openapi" / "openapi.json"
 _PUBLIC_ERROR_SPECS = tuple(member for enum in REGISTERED_ERROR_DOCS for member in enum)
 ERROR_DOCS = {
     code: docs
