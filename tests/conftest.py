@@ -11,6 +11,20 @@ from tests.support.identity import sign_up_dispatcher
 identity_bootstrap.map_tables()
 labels_bootstrap.map_tables()
 
+# Container fixtures in tests/integration/conftest.py and the markers they imply.
+CONTAINER_MARKERS = {
+    "integration_database_url": "requires_db",
+    "integration_kafka_broker": "requires_kafka",
+}
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    for item in items:
+        fixtures = getattr(item, "fixturenames", ())
+        for fixture, marker in CONTAINER_MARKERS.items():
+            if fixture in fixtures:
+                item.add_marker(marker)
+
 
 @pytest.fixture
 def api_config() -> ApiConfig:
