@@ -8,9 +8,12 @@ async def run() -> None:
     # Configuration and engine initialization must also stay inside main's
     # protected boundary: validation errors can contain credential input values.
     from mosemo.entrypoints.consumer.activity_batches import run_consumer
-    from mosemo.platform.config import get_config
+    from mosemo.entrypoints.consumer.config import get_consumer_config
+    from mosemo.platform.database.config import get_database_settings
     from mosemo.platform.database.engine import get_engine, get_session_factory
 
+    get_database_settings()
+    config = get_consumer_config()
     engine = get_engine()
     session_factory = get_session_factory()
     stop = asyncio.Event()
@@ -19,7 +22,7 @@ async def run() -> None:
     for sig in signals:
         loop.add_signal_handler(sig, stop.set)
     try:
-        await run_consumer(get_config().batch_delivery, session_factory, stop=stop)
+        await run_consumer(config.batch_delivery, session_factory, stop=stop)
     finally:
         for sig in signals:
             loop.remove_signal_handler(sig)

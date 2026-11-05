@@ -9,8 +9,7 @@ from fastapi.testclient import TestClient
 from mosemo.entrypoints.api.activity_batches import get_batch_publisher
 from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.entrypoints.api.middleware import BatchBodyLimitMiddleware
-from mosemo.identity.bootstrap import get_token_current_account
-from mosemo.identity.presentation.auth.router import get_token_service
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.observation.application.activities import GetObservationTimeline
 from mosemo.observation.application.batches import (
     AcceptActivityBatch,
@@ -20,10 +19,10 @@ from mosemo.observation.application.timeline import ObservedSegment
 from mosemo.observation.domain.timeline import ActivityTimelineKind
 from mosemo.observation.presentation.activities.router import create_router
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config, get_config
 from mosemo.platform.messaging.publisher import DeliveryUnavailableError
 from mosemo.platform.providers import get_session
 from mosemo.shared.presentation.current_account import get_current_account
+from tests.identity_support import current_account_provider, token_service
 from tests.use_case_support import record_transactions
 
 
@@ -53,7 +52,12 @@ def activity_request():
     }
 
 
-def make_app(*, config: Config, account_id: UUID, service: GetObservationTimeline):
+def make_app(
+    *,
+    identity_config: IdentityConfig,
+    account_id: UUID,
+    service: GetObservationTimeline,
+):
     app = FastAPI()
     register_exception_handlers(app)
     app.add_middleware(BatchBodyLimitMiddleware)
@@ -70,17 +74,18 @@ def make_app(*, config: Config, account_id: UUID, service: GetObservationTimelin
         ),
         prefix="/api/v1",
     )
-    app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_session] = lambda: sentinel.db_session
-    app.dependency_overrides[get_current_account] = get_token_current_account
-    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
+    app.dependency_overrides[get_current_account] = current_account_provider(
+        identity_config
+    )
+    token = token_service(identity_config).issue_access_token(account_id, now=utc_now())
     return app, token
 
 
-def test_batch_response_preserves_camel_case_and_server_account(config):
+def test_batch_response_preserves_camel_case_and_server_account(identity_config):
     account_id = uuid4()
     app, token = make_app(
-        config=config,
+        identity_config=identity_config,
         account_id=account_id,
         service=create_autospec(GetObservationTimeline, instance=True),
     )
@@ -99,9 +104,9 @@ def test_batch_response_preserves_camel_case_and_server_account(config):
     assert len(message.records) == 1
 
 
-def test_batch_admission_hides_missing_and_foreign_devices(config):
+def test_batch_admission_hides_missing_and_foreign_devices(identity_config):
     app, token = make_app(
-        config=config,
+        identity_config=identity_config,
         account_id=uuid4(),
         service=create_autospec(GetObservationTimeline, instance=True),
     )
@@ -121,9 +126,9 @@ def test_batch_admission_hides_missing_and_foreign_devices(config):
     "invalid",
     ["legacy_device", "timezone", "record_type", "state", "privacy", "nested_device"],
 )
-def test_batch_rejects_invalid_record_before_admission(config, invalid):
+def test_batch_rejects_invalid_record_before_admission(identity_config, invalid):
     app, token = make_app(
-        config=config,
+        identity_config=identity_config,
         account_id=uuid4(),
         service=create_autospec(GetObservationTimeline, instance=True),
     )
@@ -155,9 +160,9 @@ def test_batch_rejects_invalid_record_before_admission(config, invalid):
     app.state.batch_publisher.publish.assert_not_called()
 
 
-def test_batch_admission_returns_common_retryable_delivery_error(config):
+def test_batch_admission_returns_common_retryable_delivery_error(identity_config):
     app, token = make_app(
-        config=config,
+        identity_config=identity_config,
         account_id=uuid4(),
         service=create_autospec(GetObservationTimeline, instance=True),
     )
@@ -173,7 +178,9 @@ def test_batch_admission_returns_common_retryable_delivery_error(config):
     assert response.json()["error"]["status"] == "ACTIVITY_DELIVERY_UNAVAILABLE"
 
 
-def test_timeline_returns_direct_discriminated_union_array(config: Config) -> None:
+def test_timeline_returns_direct_discriminated_union_array(
+    identity_config: IdentityConfig,
+) -> None:
     account_id = uuid4()
     service = create_autospec(GetObservationTimeline, instance=True)
     activity_id = uuid4()
@@ -204,7 +211,9 @@ def test_timeline_returns_direct_discriminated_union_array(config: Config) -> No
             version=None,
         ),
     ]
-    app, token = make_app(config=config, account_id=account_id, service=service)
+    app, token = make_app(
+        identity_config=identity_config, account_id=account_id, service=service
+    )
 
     with TestClient(app) as client:
         response = client.get(
@@ -237,10 +246,12 @@ def test_timeline_returns_direct_discriminated_union_array(config: Config) -> No
     )
 
 
-def test_timeline_requires_bearer_and_date(config: Config) -> None:
+def test_timeline_requires_bearer_and_date(identity_config: IdentityConfig) -> None:
     account_id = uuid4()
     service = create_autospec(GetObservationTimeline, instance=True)
-    app, token = make_app(config=config, account_id=account_id, service=service)
+    app, token = make_app(
+        identity_config=identity_config, account_id=account_id, service=service
+    )
 
     with TestClient(app) as client:
         missing_auth = client.get("/api/v1/activities/timeline?date=2026-09-14")
@@ -261,11 +272,13 @@ def test_timeline_requires_bearer_and_date(config: Config) -> None:
     service.execute.assert_not_awaited()
 
 
-def test_batch_body_limit_counts_complete_utf8_envelope_including_whitespace(config):
+def test_batch_body_limit_counts_complete_utf8_envelope_including_whitespace(
+    identity_config,
+):
     import json
 
     app, token = make_app(
-        config=config,
+        identity_config=identity_config,
         account_id=uuid4(),
         service=create_autospec(GetObservationTimeline, instance=True),
     )

@@ -16,6 +16,7 @@ from mosemo.identity.application.sign_in import (
     InvalidAuthorizationCodeError,
     LogIn,
 )
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.authorization_codes import NativeAuthCode
 from mosemo.identity.domain.pkce import create_code_challenge
@@ -25,14 +26,12 @@ from mosemo.identity.infrastructure.authorization_codes import (
 )
 from mosemo.identity.infrastructure.kakao_client import KakaoClient
 from mosemo.identity.infrastructure.tables import accounts as account_table
-from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.labels.domain.labels import Label, default_labels
 from mosemo.labels.infrastructure.tables import labels as label_table
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config
 from mosemo.shared.application.clock import Clock
 from tests.clock_support import FakeClock
-from tests.identity_support import delete_accounts, sign_up_dispatcher
+from tests.identity_support import delete_accounts, sign_up_dispatcher, token_service
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
@@ -47,12 +46,12 @@ class SignIn:
         session: AsyncSession,
         oauth_client: OAuthClient,
         auth_codes: NativeAuthCodeRepository,
-        config: Config,
+        identity_config: IdentityConfig,
         clock: Clock,
     ) -> None:
         self._session = session
         self._oauth_client = oauth_client
-        self._config = config
+        self._config = identity_config
         # The same temporary default label handler as the API (AccountCreated).
         dispatcher = sign_up_dispatcher()
         self._log_in = LogIn(
@@ -61,7 +60,7 @@ class SignIn:
             dispatcher=dispatcher,
             clock=clock,
             authorization_code_ttl=timedelta(
-                seconds=config.auth.authorization_code_ttl_seconds
+                seconds=identity_config.authorization_code_ttl_seconds
             ),
         )
         self._exchange = ExchangeAuthorizationCode(
@@ -86,7 +85,7 @@ class SignIn:
             self._session,
             authorization_code=authorization_code,
             code_verifier=code_verifier,
-            token_service=get_token_service(self._config),
+            token_service=token_service(self._config),
         )
 
 
@@ -102,14 +101,14 @@ async def find_account(session: AsyncSession, provider_subject: str) -> Account 
 def make_service(
     *,
     session: AsyncSession,
-    config: Config,
+    identity_config: IdentityConfig,
     clock: Clock,
 ) -> SignIn:
     return SignIn(
         session=session,
         oauth_client=create_autospec(KakaoClient, instance=True),
         auth_codes=NativeAuthCodeRepository(),
-        config=config,
+        identity_config=identity_config,
         clock=clock,
     )
 
@@ -117,7 +116,7 @@ def make_service(
 @pytest.mark.asyncio
 async def test_kakao_login_rolls_back_account_when_code_storage_fails(
     integration_session: AsyncSession,
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     provider_subject = f"integration-{secrets.token_hex(8)}"
     kakao_client = create_autospec(KakaoClient, instance=True)
@@ -131,7 +130,7 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
         session=integration_session,
         oauth_client=kakao_client,
         auth_codes=auth_code_repository,
-        config=config,
+        identity_config=identity_config,
         clock=FakeClock(utc_now()),
     )
 
@@ -149,7 +148,7 @@ async def test_kakao_login_rolls_back_account_when_code_storage_fails(
 @pytest.mark.asyncio
 async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
     integration_session: AsyncSession,
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     provider_subject = f"integration-{secrets.token_hex(8)}"
     kakao_client = create_autospec(KakaoClient, instance=True)
@@ -158,7 +157,7 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
         session=integration_session,
         oauth_client=kakao_client,
         auth_codes=NativeAuthCodeRepository(),
-        config=config,
+        identity_config=identity_config,
         clock=FakeClock(utc_now()),
     )
 
@@ -202,7 +201,7 @@ async def test_kakao_login_creates_defaults_once_and_keeps_label_ids(
 @pytest.mark.asyncio
 async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_fails(
     integration_database_url: str,
-    config: Config,
+    identity_config: IdentityConfig,
     monkeypatch,
 ) -> None:
     engine = create_async_engine(integration_database_url)
@@ -236,7 +235,7 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
                 session=session,
                 oauth_client=kakao_client,
                 auth_codes=auth_code_repository,
-                config=config,
+                identity_config=identity_config,
                 clock=FakeClock(utc_now()),
             )
 
@@ -269,7 +268,7 @@ async def test_kakao_login_rolls_back_existing_account_update_when_code_storage_
 @pytest.mark.asyncio
 async def test_authorization_code_is_hashed_and_consumed_once_concurrently(
     integration_database_url: str,
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     engine = create_async_engine(integration_database_url)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -311,7 +310,7 @@ async def test_authorization_code_is_hashed_and_consumed_once_concurrently(
                 try:
                     return await make_service(
                         session=session,
-                        config=config,
+                        identity_config=identity_config,
                         clock=fake_clock,
                     ).exchange_authorization_code(
                         authorization_code=authorization_code,
@@ -324,7 +323,9 @@ async def test_authorization_code_is_hashed_and_consumed_once_concurrently(
 
         tokens = [result for result in results if result is not None]
         assert len(tokens) == 1
-        assert get_token_service(config).decode_access_token(tokens[0]) == account_id
+        assert (
+            token_service(identity_config).decode_access_token(tokens[0]) == account_id
+        )
         async with session_factory() as session:
             assert await session.get(NativeAuthCode, code_digest) is None
     finally:
@@ -338,7 +339,7 @@ async def test_authorization_code_is_hashed_and_consumed_once_concurrently(
 @pytest.mark.asyncio
 async def test_expired_authorization_code_is_deleted(
     integration_database_url: str,
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     engine = create_async_engine(integration_database_url)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -373,7 +374,7 @@ async def test_expired_authorization_code_is_deleted(
             with pytest.raises(InvalidAuthorizationCodeError):
                 await make_service(
                     session=session,
-                    config=config,
+                    identity_config=identity_config,
                     clock=fake_clock,
                 ).exchange_authorization_code(
                     authorization_code=authorization_code,
@@ -394,7 +395,7 @@ async def test_expired_authorization_code_is_deleted(
 @pytest.mark.parametrize("first_login_commits", [True, False])
 async def test_concurrent_first_login_uses_account_created_by_other_request(
     integration_database_url: str,
-    config: Config,
+    identity_config: IdentityConfig,
     first_login_commits: bool,
 ) -> None:
     engine = create_async_engine(integration_database_url)
@@ -412,7 +413,7 @@ async def test_concurrent_first_login_uses_account_created_by_other_request(
                 session=session,
                 oauth_client=kakao_client,
                 auth_codes=NativeAuthCodeRepository(),
-                config=config,
+                identity_config=identity_config,
                 clock=FakeClock(login_time),
             )
             return await service.login(

@@ -11,18 +11,20 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.entrypoints.api.routes import v1_api_router
-from mosemo.identity.bootstrap import get_token_current_account
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
-from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.observation.domain.activities import ActivityRecord
 from mosemo.observation.infrastructure.tables import activity_records
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config, get_config
 from mosemo.platform.database.engine import get_session
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.batch_support import batch_client, post_activity, receipt_for
-from tests.identity_support import delete_accounts
+from tests.identity_support import (
+    current_account_provider,
+    delete_accounts,
+    token_service,
+)
 
 TIMELINE_URL = "/api/v1/activities/timeline?date=2026-09-14"
 
@@ -30,7 +32,7 @@ TIMELINE_URL = "/api/v1/activities/timeline?date=2026-09-14"
 @pytest_asyncio.fixture
 async def activity_api(
     integration_database_url: str,
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> AsyncIterator[
     tuple[httpx2.AsyncClient, async_sessionmaker[AsyncSession], list[UUID]]
 ]:
@@ -41,8 +43,9 @@ async def activity_api(
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(v1_api_router)
-    app.dependency_overrides[get_config] = lambda: config
-    app.dependency_overrides[get_current_account] = get_token_current_account
+    app.dependency_overrides[get_current_account] = current_account_provider(
+        identity_config
+    )
 
     async def override_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
@@ -86,8 +89,8 @@ async def create_account_with_devices(
     return account_id, device_ids
 
 
-def auth_headers(config: Config, account_id: UUID) -> dict[str, str]:
-    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
+def auth_headers(identity_config: IdentityConfig, account_id: UUID) -> dict[str, str]:
+    token = token_service(identity_config).issue_access_token(account_id, now=utc_now())
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -194,7 +197,7 @@ async def test_delayed_offline_replays_converge_with_chronological_http_timeline
     activity_api: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], list[UUID]
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, account_ids = activity_api
     ordered_account, [ordered_device] = await create_account_with_devices(
@@ -203,8 +206,8 @@ async def test_delayed_offline_replays_converge_with_chronological_http_timeline
     delayed_account, [delayed_device] = await create_account_with_devices(
         session_factory, account_ids
     )
-    ordered_headers = auth_headers(config, ordered_account)
-    delayed_headers = auth_headers(config, delayed_account)
+    ordered_headers = auth_headers(identity_config, ordered_account)
+    delayed_headers = auth_headers(identity_config, delayed_account)
     ordered = offline_records(ordered_device)
     delayed = offline_records(delayed_device)
 
@@ -294,7 +297,7 @@ async def test_rejected_activity_preserves_original_and_http_timeline(
     activity_api: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], list[UUID]
     ],
-    config: Config,
+    identity_config: IdentityConfig,
     scenario: str,
 ) -> None:
     client, session_factory, account_ids = activity_api
@@ -302,7 +305,7 @@ async def test_rejected_activity_preserves_original_and_http_timeline(
         session_factory, account_ids, device_count=2
     )
     foreign_account, _ = await create_account_with_devices(session_factory, account_ids)
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     original = activity_observation(
         device_id,
         sequence=10,
@@ -359,7 +362,7 @@ async def test_rejected_activity_preserves_original_and_http_timeline(
     request_headers = {
         "missing_auth": {},
         "invalid_auth": {"Authorization": "Bearer invalid-token"},
-        "foreign_device": auth_headers(config, foreign_account),
+        "foreign_device": auth_headers(identity_config, foreign_account),
     }.get(scenario, headers)
     status_code, error_status = expected_errors[scenario]
     response = await post_activity(
@@ -408,13 +411,13 @@ async def test_cross_device_chains_merge_by_observation_and_device_identity(
     activity_api: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], list[UUID]
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, account_ids = activity_api
     account_id, [first_device, second_device] = await create_account_with_devices(
         session_factory, account_ids, device_count=2
     )
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     low_event_id, high_event_id = sorted((uuid4(), uuid4()))
     later_observation = activity_observation(
         first_device,
@@ -469,13 +472,13 @@ async def test_sequence_orders_equal_observation_and_receive_times_over_http(
     activity_api: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], list[UUID]
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, account_ids = activity_api
     account_id, [device_id] = await create_account_with_devices(
         session_factory, account_ids
     )
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     low_event_id, high_event_id = sorted((uuid4(), uuid4()))
     high = activity_observation(
         device_id,

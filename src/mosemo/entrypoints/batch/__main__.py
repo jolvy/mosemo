@@ -23,12 +23,15 @@ async def run(args: argparse.Namespace) -> int:
     configure_logging()
     # Configuration and engine initialization must also stay inside main's
     # protected boundary: validation errors can contain credential input values.
+    from mosemo.entrypoints.batch.config import get_batch_jobs_config
     from mosemo.entrypoints.batch.registry import build_jobs
     from mosemo.platform.clock import utc_now
-    from mosemo.platform.config import get_config
+    from mosemo.platform.database.config import get_database_settings
     from mosemo.platform.database.engine import get_engine, get_session_factory
     from mosemo.platform.scheduling import run_job_once, serve
 
+    get_database_settings()
+    config = get_batch_jobs_config()
     engine = get_engine()
     session_factory = get_session_factory()
     stop = asyncio.Event()
@@ -37,7 +40,7 @@ async def run(args: argparse.Namespace) -> int:
     for sig in signals:
         loop.add_signal_handler(sig, stop.set)
     try:
-        jobs = build_jobs(session_factory, get_config())
+        jobs = build_jobs(session_factory, label_model=config.label_model)
         if args.command == "serve":
             await serve(jobs, stop, clock=utc_now)
             return 0

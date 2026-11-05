@@ -6,13 +6,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from mosemo.identity.application.accounts import AccountNotFoundError, GetAccount
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.presentation.accounts.router import create_router
-from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config
 from mosemo.shared.domain.timezones import Timezone
 from tests.component.identity_app import make_identity_app
+from tests.identity_support import token_service
 
 
 def make_account() -> Account:
@@ -30,13 +30,17 @@ def make_account() -> Account:
 
 def make_app(
     *,
-    config: Config,
+    identity_config: IdentityConfig,
     account_service: GetAccount,
 ) -> FastAPI:
-    return make_identity_app(create_router(get_account=account_service), config=config)
+    return make_identity_app(
+        create_router(get_account=account_service), identity_config=identity_config
+    )
 
 
-def test_accounts_me_returns_authenticated_account(config: Config) -> None:
+def test_accounts_me_returns_authenticated_account(
+    identity_config: IdentityConfig,
+) -> None:
     account = make_account()
     korean_standard_time = timezone(timedelta(hours=9))
     account.created_at = datetime(
@@ -61,8 +65,8 @@ def test_accounts_me_returns_authenticated_account(config: Config) -> None:
     )
     account_service = create_autospec(GetAccount, instance=True)
     account_service.execute.return_value = account
-    app = make_app(config=config, account_service=account_service)
-    access_token = get_token_service(config).issue_access_token(
+    app = make_app(identity_config=identity_config, account_service=account_service)
+    access_token = token_service(identity_config).issue_access_token(
         account.id, now=utc_now()
     )
 
@@ -85,9 +89,11 @@ def test_accounts_me_returns_authenticated_account(config: Config) -> None:
     account_service.execute.assert_awaited_once_with(sentinel.db_session, account.id)
 
 
-def test_accounts_me_rejects_missing_or_invalid_bearer(config: Config) -> None:
+def test_accounts_me_rejects_missing_or_invalid_bearer(
+    identity_config: IdentityConfig,
+) -> None:
     account_service = create_autospec(GetAccount, instance=True)
-    app = make_app(config=config, account_service=account_service)
+    app = make_app(identity_config=identity_config, account_service=account_service)
 
     with TestClient(app) as client:
         missing_response = client.get("/api/v1/accounts/me")
@@ -110,12 +116,12 @@ def test_accounts_me_rejects_missing_or_invalid_bearer(config: Config) -> None:
     account_service.execute.assert_not_awaited()
 
 
-def test_accounts_me_rejects_deleted_account(config: Config) -> None:
+def test_accounts_me_rejects_deleted_account(identity_config: IdentityConfig) -> None:
     account_id = uuid4()
     account_service = create_autospec(GetAccount, instance=True)
     account_service.execute.side_effect = AccountNotFoundError()
-    app = make_app(config=config, account_service=account_service)
-    access_token = get_token_service(config).issue_access_token(
+    app = make_app(identity_config=identity_config, account_service=account_service)
+    access_token = token_service(identity_config).issue_access_token(
         account_id, now=utc_now()
     )
 

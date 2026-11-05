@@ -17,14 +17,14 @@ from tests.use_case_support import record_transactions
 @pytest.mark.asyncio
 @pytest.mark.parametrize("maximum_body", [False, True])
 async def test_http_waits_for_real_publication_ack_without_running_db_processing(
-    integration_kafka, config, monkeypatch, maximum_body
+    integration_kafka, api_config, monkeypatch, maximum_body
 ):
-    config.batch_delivery = integration_kafka.config
+    api_config.batch_delivery = integration_kafka.config
     # make_app checks devices on a mocked directory, without a database.
     record_transactions(
         monkeypatch, "mosemo.observation.application.batches", "read_snapshot"
     )
-    app, _, owner, headers = make_app(config)
+    app, _, owner, headers = make_app(api_config)
     process = AsyncMock(side_effect=AssertionError("API must not run consumer"))
     monkeypatch.setattr(ActivityBatchProcessor, "process", process)
     payload = activity_request()
@@ -45,7 +45,7 @@ async def test_http_waits_for_real_publication_ack_without_running_db_processing
         assert len(body) == 512 * 1024
     headers |= {"Content-Type": "application/json"}
     entered, release, acknowledged = asyncio.Event(), asyncio.Event(), asyncio.Event()
-    async with capture_records(config.batch_delivery) as consumer:
+    async with capture_records(api_config.batch_delivery) as consumer:
         async with (
             LifespanManager(app) as manager,
             httpx2.AsyncClient(

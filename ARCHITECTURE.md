@@ -16,10 +16,10 @@
     ├── observation/       # BC: 활동 레코드, 관찰 타임라인 투영과 조회, 집중 세션
     ├── labeling/          # BC: 라벨 확정·정정, AI 라벨 제안과 제안 job, 라벨 타임라인
     ├── shared/            # 공용 커널(domain·application·presentation)
-    ├── platform/          # 누구 소유도 아닌 실행 기반: 설정·로깅·시계·provider·스케줄링
-    │   ├── database/      # DB 엔진·세션(engine), 매핑 registry·MetaData(persistence), 트랜잭션 헬퍼(transactions)
-    │   └── messaging/     # 업무 메시지를 모르는 Kafka 발행·구독·런타임 어댑터, Kafka 호환(kafka_compat)
-    └── entrypoints/       # 조립 루트(프로세스마다 하나)
+    ├── platform/          # 누구 소유도 아닌 실행 기반: 로깅·시계·provider·스케줄링
+    │   ├── database/      # DB 설정(config, `DB_*`), 엔진·세션(engine), 매핑 registry·MetaData(persistence), 트랜잭션 헬퍼(transactions)
+    │   └── messaging/     # Kafka 전달 설정 모델(config), 업무 메시지를 모르는 Kafka 발행·구독·런타임 어댑터, Kafka 호환(kafka_compat)
+    └── entrypoints/       # 조립 루트(프로세스마다 하나). 각 진입점의 config.py가 자기 프로세스의 환경 변수만 읽는다
         ├── api/           # FastAPI 앱, 미들웨어, 예외 handler
         ├── consumer/      # 활동 Consumer 진입점
         └── batch/         # 배치 job 등록과 진입점
@@ -30,5 +30,8 @@
   presentation → application → infrastructure → domain 방향으로만 의존한다.
 - BC는 `mosemo.entrypoints`를 직접·간접 모두 import하지 않는다. `shared`·`platform`은 BC와 진입점을
   import하지 않는다.
+- 설정은 ADR 0015 「설정 소유 규칙」을 따른다. BC는 설정 모듈(`platform.database.config`,
+  `platform.messaging.config`)을 직접 import하지 않고, 조립 루트가 BC `bootstrap.py`의 순수 타입
+  (예: identity의 `IdentityConfig`)으로 값을 넘긴다.
 - 테이블 메타데이터는 각 BC `bootstrap.py`의 매핑 함수가 `platform.database.persistence`의 `MetaData`에 등록하며,
   Alembic 환경(`migrations/env.py`)도 이 함수만 호출한다.

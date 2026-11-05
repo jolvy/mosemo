@@ -8,14 +8,14 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from mosemo.platform.config import get_config
+from mosemo.platform.database.config import get_database_settings
 
 
 # Created on first use so importing this module does not read the configuration.
 @cache
 def get_engine() -> AsyncEngine:
     return create_async_engine(
-        get_config().database.dsn,
+        get_database_settings().database.dsn,
         pool_pre_ping=True,
     )
 

@@ -12,7 +12,7 @@ from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.labeling import bootstrap as labeling_bootstrap
 from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.observation import bootstrap as observation_bootstrap
-from mosemo.platform.config import get_config
+from mosemo.platform.database.config import get_database_settings
 from mosemo.platform.database.persistence import ORM_METADATA
 
 identity_bootstrap.map_tables()
@@ -26,7 +26,7 @@ config = context.config
 if not config.get_main_option("sqlalchemy.url"):
     config.set_main_option(
         "sqlalchemy.url",
-        get_config().database.dsn.replace("%", "%%"),
+        get_database_settings().database.dsn.replace("%", "%%"),
     )
 
 # Interpret the config file for Python logging.

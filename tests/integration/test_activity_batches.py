@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from mosemo.identity.bootstrap import create_device_directory
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
-from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.observation.domain.activities import ActivityBatchReceipt, ActivityRecord
 from mosemo.observation.domain.timeline import ProjectedActivity, project_events
 from mosemo.observation.infrastructure.activity_records import (
@@ -34,7 +33,6 @@ from mosemo.observation.presentation.activities.mappers import (
 )
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config
 from mosemo.shared.application.events import EventDispatcher
 from tests.clock_support import FakeClock
 from tests.identity_support import delete_accounts
@@ -68,10 +66,11 @@ def fake_clock() -> FakeClock:
 
 @pytest_asyncio.fixture
 async def real_batch_app(
-    integration_database_url, config: Config, monkeypatch, fake_clock: FakeClock
+    integration_database_url, monkeypatch, fake_clock: FakeClock
 ) -> AsyncIterator:
     # Exercise the direct-processing route against isolated PostgreSQL. Kafka
     # publication is tested independently; Consumer execution belongs to #65.
+    from mosemo.entrypoints.api.contexts import IDENTITY
     from mosemo.entrypoints.api.main import create_app
     from mosemo.platform.database import engine as database
 
@@ -90,12 +89,10 @@ async def real_batch_app(
 
     factory = async_sessionmaker(engine, class_=ObservedSession, expire_on_commit=False)
     monkeypatch.setattr(database, "get_session_factory", lambda: factory)
-    # Main token config is the explicit non-secret test environment, overridden
-    # with the fixture config for matching signing claims.
-    from mosemo.platform.config import get_config
+    # Tokens are signed with the app's identity config, read from the explicit
+    # non-secret test environment.
     from mosemo.platform.providers import get_clock
 
-    app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_clock] = lambda: fake_clock
     accounts = []
     devices = []
@@ -126,7 +123,7 @@ async def real_batch_app(
             headers = [
                 {
                     "Authorization": "Bearer "
-                    + get_token_service(config).issue_access_token(owner, now=utc_now())
+                    + IDENTITY.token_service.issue_access_token(owner, now=utc_now())
                 }
                 for owner in accounts
             ]
@@ -357,17 +354,15 @@ async def test_regressing_clock_rolls_back_batch(real_batch_app):
 
 @pytest.mark.asyncio
 async def test_two_http_process_runtimes_reread_concurrent_event_id_winner(
-    real_batch_app, config, monkeypatch
+    real_batch_app, monkeypatch
 ):
     from mosemo.entrypoints.api.main import create_app
-    from mosemo.platform.config import get_config
 
     _app, client, factory, accounts, devices, headers, _ = real_batch_app
     second = create_app()
     second.state.batch_runtime.config = second.state.batch_runtime.config.model_copy(
         update={"enabled": False}
     )
-    second.dependency_overrides[get_config] = lambda: config
     entered = asyncio.Event()
     release = asyncio.Event()
     arrivals = 0

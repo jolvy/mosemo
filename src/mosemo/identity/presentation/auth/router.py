@@ -1,6 +1,6 @@
 import logging
 import secrets
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Annotated, Literal
 from urllib.parse import urlencode
 
@@ -29,9 +29,8 @@ from mosemo.identity.presentation.auth.schemas import (
     TokenRequest,
     TokenResponse,
 )
-from mosemo.identity.presentation.dependencies import ConfigDep, SessionDep
+from mosemo.identity.presentation.dependencies import SessionDep
 from mosemo.identity.presentation.errors import IdentityErrorCode
-from mosemo.platform.providers import Config
 from mosemo.shared.errors import ApiException, CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 from mosemo.shared.presentation.current_account import (
@@ -59,14 +58,14 @@ def _set_oauth_cookie(
     *,
     key: str,
     value: str,
-    config: Config,
+    secure: bool,
 ) -> None:
     response.set_cookie(
         key=key,
         value=value,
         max_age=OAUTH_COOKIE_MAX_AGE_SECONDS,
         httponly=True,
-        secure=config.app_env == "prod",
+        secure=secure,
         samesite="lax",
         path=OAUTH_COOKIE_PATH,
     )
@@ -75,21 +74,21 @@ def _set_oauth_cookie(
 def _clear_oauth_cookies(
     response: Response,
     *,
-    config: Config,
+    secure: bool,
 ) -> None:
     for key in (STATE_COOKIE, PKCE_CHALLENGE_COOKIE):
         response.delete_cookie(
             key=key,
             httponly=True,
-            secure=config.app_env == "prod",
+            secure=secure,
             samesite="lax",
             path=OAUTH_COOKIE_PATH,
         )
 
 
-def _app_redirect(config: Config, **query: str) -> RedirectResponse:
+def _app_redirect(callback_uri: str, **query: str) -> RedirectResponse:
     return RedirectResponse(
-        url=f"{config.auth.macos_callback_uri}?{urlencode(query)}",
+        url=f"{callback_uri}?{urlencode(query)}",
         status_code=status.HTTP_302_FOUND,
     )
 
@@ -101,10 +100,10 @@ def _invalid_state_response() -> JSONResponse:
 def _finalize_oauth_callback_response(
     response: Response,
     *,
-    config: Config,
+    secure: bool,
 ) -> None:
     _prevent_caching(response)
-    _clear_oauth_cookies(response, config=config)
+    _clear_oauth_cookies(response, secure=secure)
 
 
 LOGIN_RESPONSES = {
@@ -228,7 +227,7 @@ class OAuthCookies:
 
 
 def _checked_callback(
-    kakao_callback: KakaoCallback, cookies: OAuthCookies, *, config: Config
+    kakao_callback: KakaoCallback, cookies: OAuthCookies, *, callback_uri: str
 ) -> Response | tuple[str, str]:
     """Return the provider code and PKCE challenge to sign in with, or the
     response for a callback that must not sign in."""
@@ -252,51 +251,47 @@ def _checked_callback(
             logger.info("Kakao authorization cancelled")
         else:
             logger.warning("Kakao authorization failed")
-        return _app_redirect(config, error=public_error)
+        return _app_redirect(callback_uri, error=public_error)
     if kakao_callback.code is None:
-        return _app_redirect(config, error="authentication_failed")
+        return _app_redirect(callback_uri, error="authentication_failed")
     return kakao_callback.code, pkce_challenge_cookie
 
 
-def get_token_service(config: ConfigDep) -> TokenService:
-    return TokenService(
-        secret_key=config.auth.jwt_secret_key.get_secret_value(),
-        issuer=config.auth.jwt_issuer,
-        audience=config.auth.jwt_audience,
-        access_token_ttl_seconds=config.auth.access_token_ttl_seconds,
-    )
+def create_current_account_provider(
+    token_service: TokenService,
+) -> Callable[..., Awaitable[CurrentAccount]]:
+    async def get_token_current_account(
+        credentials: BearerCredentialsDep,
+    ) -> CurrentAccount:
+        """Current account provider: verifies only the access token (ADR 0011).
+
+        It checks the signature and expiry and does not query the database.
+        """
+        if credentials is None:
+            raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN)
+
+        try:
+            account_id = token_service.decode_access_token(credentials.credentials)
+        except InvalidAccessTokenError as exc:
+            raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
+
+        return CurrentAccount(account_id=account_id)
+
+    return get_token_current_account
 
 
-TokenServiceDep = Annotated[TokenService, Depends(get_token_service)]
-
-
-async def get_token_current_account(
-    credentials: BearerCredentialsDep,
-    token_service: TokenServiceDep,
-) -> CurrentAccount:
-    """Current account provider: verifies only the access token (ADR 0011).
-
-    It checks the signature and expiry and does not query the database.
-    """
-    if credentials is None:
-        raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN)
-
-    try:
-        account_id = token_service.decode_access_token(credentials.credentials)
-    except InvalidAccessTokenError as exc:
-        raise ApiException(CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN) from exc
-
-    return CurrentAccount(account_id=account_id)
-
-
-def create_router(
+def create_oauth_router(
     *,
     log_in: LogIn,
-    exchange_authorization_code: ExchangeAuthorizationCode,
     get_login_client: Callable[..., OAuthClient],
     get_oauth_clients: Callable[..., OAuthClientResolver],
+    macos_callback_uri: str,
+    secure_cookies: bool,
 ) -> APIRouter:
-    """Build the sign-in routes; the providers resolve OAuth clients per request."""
+    """Build the Kakao login and callback routes.
+
+    The providers resolve OAuth clients per request.
+    """
     router = APIRouter()
 
     @router.get(
@@ -313,7 +308,6 @@ def create_router(
         responses=LOGIN_RESPONSES,
     )
     def login(
-        config: ConfigDep,
         kakao_client: Annotated[OAuthClient, Depends(get_login_client)],
         *,
         code_challenge: Annotated[
@@ -337,12 +331,14 @@ def create_router(
             status_code=status.HTTP_302_FOUND,
         )
         _prevent_caching(response)
-        _set_oauth_cookie(response, key=STATE_COOKIE, value=state, config=config)
+        _set_oauth_cookie(
+            response, key=STATE_COOKIE, value=state, secure=secure_cookies
+        )
         _set_oauth_cookie(
             response,
             key=PKCE_CHALLENGE_COOKIE,
             value=code_challenge,
-            config=config,
+            secure=secure_cookies,
         )
         return response
 
@@ -361,13 +357,14 @@ def create_router(
     )
     async def callback(
         db_session: SessionDep,
-        config: ConfigDep,
         *,
         oauth_clients: Annotated[OAuthClientResolver, Depends(get_oauth_clients)],
         kakao_callback: Annotated[KakaoCallback, Query()],
         cookies: Annotated[OAuthCookies, Depends()],
     ):
-        checked = _checked_callback(kakao_callback, cookies, config=config)
+        checked = _checked_callback(
+            kakao_callback, cookies, callback_uri=macos_callback_uri
+        )
         if isinstance(checked, Response):
             response = checked
         else:
@@ -382,15 +379,31 @@ def create_router(
                 )
             except OAuthAuthenticationError:
                 logger.exception("Kakao authentication failed")
-                response = _app_redirect(config, error="authentication_failed")
+                response = _app_redirect(
+                    macos_callback_uri, error="authentication_failed"
+                )
             except Exception:
                 logger.exception("Native authorization code issuance failed")
-                response = _app_redirect(config, error="authentication_failed")
+                response = _app_redirect(
+                    macos_callback_uri, error="authentication_failed"
+                )
             else:
-                response = _app_redirect(config, code=authorization_code)
+                response = _app_redirect(macos_callback_uri, code=authorization_code)
 
-        _finalize_oauth_callback_response(response, config=config)
+        _finalize_oauth_callback_response(response, secure=secure_cookies)
         return response
+
+    return router
+
+
+def create_token_router(
+    *,
+    exchange_authorization_code: ExchangeAuthorizationCode,
+    token_service: TokenService,
+    access_token_ttl_seconds: int,
+) -> APIRouter:
+    """Build the route that exchanges a one-time code for an access token."""
+    router = APIRouter()
 
     @router.post(
         "/token",
@@ -408,8 +421,6 @@ def create_router(
         request: TokenRequest,
         db_session: SessionDep,
         *,
-        config: ConfigDep,
-        token_service: TokenServiceDep,
         response: Response,
     ) -> TokenResponse:
         try:
@@ -427,7 +438,7 @@ def create_router(
         _prevent_caching(response)
         return TokenResponse(
             access_token=access_token,
-            expires_in=config.auth.access_token_ttl_seconds,
+            expires_in=access_token_ttl_seconds,
         )
 
     return router

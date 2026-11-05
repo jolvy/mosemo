@@ -5,20 +5,19 @@ from unittest.mock import Mock
 import httpx2
 import pytest
 
-from mosemo.identity.bootstrap import get_oauth_client
+from mosemo.identity.bootstrap import IdentityConfig, get_oauth_client
 from mosemo.identity.domain.accounts import AccountProvider
 from mosemo.identity.infrastructure.kakao_client import KakaoClient
-from mosemo.platform.config import Config
 
 
 class OtherProvider(StrEnum):
     KAKAO = "KAKAO"
 
 
-def test_get_oauth_client_resolves_kakao(config: Config) -> None:
+def test_get_oauth_client_resolves_kakao(identity_config: IdentityConfig) -> None:
     client = get_oauth_client(
         AccountProvider.KAKAO,
-        config,
+        identity_config,
         http_client=cast(httpx2.AsyncClient, object()),
     )
 
@@ -27,7 +26,7 @@ def test_get_oauth_client_resolves_kakao(config: Config) -> None:
 
 @pytest.mark.parametrize("provider", ["KAKAO", OtherProvider.KAKAO])
 def test_get_oauth_client_asserts_account_provider_before_creating_client(
-    config: Config,
+    identity_config: IdentityConfig,
     monkeypatch: pytest.MonkeyPatch,
     provider: object,
 ) -> None:
@@ -37,7 +36,7 @@ def test_get_oauth_client_asserts_account_provider_before_creating_client(
     with pytest.raises(AssertionError):
         get_oauth_client(
             cast(AccountProvider, provider),
-            config,
+            identity_config,
             http_client=cast(httpx2.AsyncClient, object()),
         )
 

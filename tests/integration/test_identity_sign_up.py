@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.entrypoints.api.routes import v1_api_router
 from mosemo.identity.application.sign_in import LogIn
-from mosemo.identity.bootstrap import get_token_current_account
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.events import AccountCreated
 from mosemo.identity.domain.pkce import create_code_challenge
@@ -26,16 +26,18 @@ from mosemo.identity.infrastructure.authorization_codes import (
 )
 from mosemo.identity.infrastructure.kakao_client import KakaoClient
 from mosemo.identity.infrastructure.tables import accounts
-from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.labels.domain.labels import DEFAULT_LABEL_NAMES, Label
 from mosemo.labels.infrastructure.tables import labels as label_table
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config, get_config
 from mosemo.platform.providers import get_session
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.clock_support import FakeClock
-from tests.identity_support import delete_accounts
+from tests.identity_support import (
+    current_account_provider,
+    delete_accounts,
+    token_service,
+)
 
 CODE_CHALLENGE = create_code_challenge("A" * 43)
 
@@ -153,7 +155,7 @@ async def test_existing_account_login_records_no_account_created(
 
 @pytest_asyncio.fixture
 async def api_client(
-    integration_database_url: str, config: Config
+    integration_database_url: str, identity_config: IdentityConfig
 ) -> AsyncIterator[httpx2.AsyncClient]:
     engine = create_async_engine(integration_database_url)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -162,8 +164,7 @@ async def api_client(
         async with session_factory() as session:
             yield session
 
-    app = register_app()
-    app.dependency_overrides[get_config] = lambda: config
+    app = register_app(identity_config)
     app.dependency_overrides[get_session] = override_session
     try:
         async with httpx2.AsyncClient(
@@ -174,11 +175,13 @@ async def api_client(
         await engine.dispose()
 
 
-def register_app() -> FastAPI:
+def register_app(identity_config: IdentityConfig) -> FastAPI:
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(v1_api_router)
-    app.dependency_overrides[get_current_account] = get_token_current_account
+    app.dependency_overrides[get_current_account] = current_account_provider(
+        identity_config
+    )
     return app
 
 
@@ -194,9 +197,9 @@ def register_app() -> FastAPI:
     ],
 )
 async def test_valid_token_without_account_is_rejected(
-    api_client: httpx2.AsyncClient, config: Config, path: str
+    api_client: httpx2.AsyncClient, identity_config: IdentityConfig, path: str
 ) -> None:
-    token = get_token_service(config).issue_access_token(uuid4(), now=utc_now())
+    token = token_service(identity_config).issue_access_token(uuid4(), now=utc_now())
 
     response = await api_client.get(path, headers={"Authorization": f"Bearer {token}"})
 
@@ -209,7 +212,7 @@ async def test_valid_token_without_account_is_rejected(
 async def test_valid_token_with_account_passes_the_account_check(
     api_client: httpx2.AsyncClient,
     integration_database_url: str,
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     engine = create_async_engine(integration_database_url)
     account = Account(provider=AccountProvider.KAKAO, provider_subject=str(uuid4()))
@@ -217,7 +220,9 @@ async def test_valid_token_with_account_passes_the_account_check(
         async with AsyncSession(engine, expire_on_commit=False) as session:
             session.add(account)
             await session.commit()
-        token = get_token_service(config).issue_access_token(account.id, now=utc_now())
+        token = token_service(identity_config).issue_access_token(
+            account.id, now=utc_now()
+        )
 
         response = await api_client.get(
             "/api/v1/accounts/me", headers={"Authorization": f"Bearer {token}"}

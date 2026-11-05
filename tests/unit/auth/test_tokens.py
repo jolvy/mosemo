@@ -5,13 +5,13 @@ import jwt
 import pytest
 
 from mosemo.identity.application.tokens import InvalidAccessTokenError
-from mosemo.identity.presentation.auth.router import get_token_service
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config
+from tests.identity_support import token_service
 
 
-def test_issue_and_decode_access_token(config: Config) -> None:
-    service = get_token_service(config)
+def test_issue_and_decode_access_token(identity_config: IdentityConfig) -> None:
+    service = token_service(identity_config)
     account_id = uuid4()
 
     token = service.issue_access_token(account_id, now=utc_now())
@@ -26,12 +26,12 @@ def test_issue_and_decode_access_token(config: Config) -> None:
     assert isinstance(payload["jti"], str)
 
 
-def encode_token(config: Config, **overrides) -> str:
+def encode_token(identity_config: IdentityConfig, **overrides) -> str:
     now = utc_now()
     payload = {
         "sub": str(uuid4()),
-        "iss": config.auth.jwt_issuer,
-        "aud": config.auth.jwt_audience,
+        "iss": identity_config.jwt_issuer,
+        "aud": identity_config.jwt_audience,
         "iat": now,
         "exp": now + timedelta(minutes=5),
         "jti": str(uuid4()),
@@ -40,7 +40,7 @@ def encode_token(config: Config, **overrides) -> str:
     payload.update(overrides)
     return jwt.encode(
         payload,
-        config.auth.jwt_secret_key.get_secret_value(),
+        identity_config.jwt_secret_key,
         algorithm="HS256",
     )
 
@@ -57,11 +57,11 @@ def encode_token(config: Config, **overrides) -> str:
     ],
 )
 def test_decode_rejects_malformed_or_forged_token(
-    config: Config,
+    identity_config: IdentityConfig,
     token: str,
 ) -> None:
     with pytest.raises(InvalidAccessTokenError):
-        get_token_service(config).decode_access_token(token)
+        token_service(identity_config).decode_access_token(token)
 
 
 @pytest.mark.parametrize(
@@ -74,22 +74,24 @@ def test_decode_rejects_malformed_or_forged_token(
         {"sub": "not-a-uuid"},
     ],
 )
-def test_decode_rejects_invalid_claims(config: Config, overrides: dict) -> None:
-    token = encode_token(config, **overrides)
+def test_decode_rejects_invalid_claims(
+    identity_config: IdentityConfig, overrides: dict
+) -> None:
+    token = encode_token(identity_config, **overrides)
 
     with pytest.raises(InvalidAccessTokenError):
-        get_token_service(config).decode_access_token(token)
+        token_service(identity_config).decode_access_token(token)
 
 
-def test_decode_rejects_missing_required_claim(config: Config) -> None:
-    token = encode_token(config)
+def test_decode_rejects_missing_required_claim(identity_config: IdentityConfig) -> None:
+    token = encode_token(identity_config)
     payload = jwt.decode(token, options={"verify_signature": False})
     del payload["jti"]
     token = jwt.encode(
         payload,
-        config.auth.jwt_secret_key.get_secret_value(),
+        identity_config.jwt_secret_key,
         algorithm="HS256",
     )
 
     with pytest.raises(InvalidAccessTokenError):
-        get_token_service(config).decode_access_token(token)
+        token_service(identity_config).decode_access_token(token)

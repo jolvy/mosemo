@@ -14,6 +14,7 @@ from mosemo.identity.application.sign_in import (
     OAuthAuthenticationError,
 )
 from mosemo.identity.application.tokens import TokenService
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.authorization_codes import NativeAuthCode
 from mosemo.identity.domain.events import AccountCreated
@@ -23,7 +24,6 @@ from mosemo.identity.infrastructure.accounts import AccountRepository
 from mosemo.identity.infrastructure.authorization_codes import (
     NativeAuthCodeRepository,
 )
-from mosemo.platform.config import Config
 from mosemo.shared.application.events import EventDispatcher
 from tests.clock_support import FakeClock
 from tests.use_case_support import TransactionRecorder, record_transactions
@@ -40,7 +40,7 @@ def transactions(monkeypatch: pytest.MonkeyPatch) -> TransactionRecorder:
     )
 
 
-def make_login(config: Config, clock: FakeClock):
+def make_login(identity_config: IdentityConfig, clock: FakeClock):
     oauth_client = create_autospec(OAuthClient, instance=True)
     account_repository = create_autospec(AccountRepository, instance=True)
     auth_code_repository = create_autospec(NativeAuthCodeRepository, instance=True)
@@ -51,7 +51,7 @@ def make_login(config: Config, clock: FakeClock):
         dispatcher=EventDispatcher(),
         clock=clock,
         authorization_code_ttl=timedelta(
-            seconds=config.auth.authorization_code_ttl_seconds
+            seconds=identity_config.authorization_code_ttl_seconds
         ),
     )
     return use_case, get_oauth_client, account_repository, auth_code_repository
@@ -90,13 +90,13 @@ def exchange(use_case, token_service, *, code: str, verifier: str) -> str:
 
 
 def test_login_updates_existing_account_and_stores_code(
-    config: Config,
+    identity_config: IdentityConfig,
     monkeypatch,
     transactions: TransactionRecorder,
 ) -> None:
     fake_clock = FakeClock(NOW)
     use_case, get_oauth_client, account_repository, auth_code_repository = make_login(
-        config, fake_clock
+        identity_config, fake_clock
     )
     oauth_client = get_oauth_client.return_value
     existing_account = Account(
@@ -134,12 +134,12 @@ def test_login_updates_existing_account_and_stores_code(
 
 
 def test_login_records_account_created_and_stores_code_for_new_account(
-    config: Config,
+    identity_config: IdentityConfig,
     transactions: TransactionRecorder,
 ) -> None:
     fake_clock = FakeClock(NOW)
     use_case, get_oauth_client, account_repository, auth_code_repository = make_login(
-        config, fake_clock
+        identity_config, fake_clock
     )
     oauth_client = get_oauth_client.return_value
     account_id = uuid4()
@@ -163,12 +163,12 @@ def test_login_records_account_created_and_stores_code_for_new_account(
 
 
 def test_login_fails_when_account_conflict_cannot_be_resolved(
-    config: Config,
+    identity_config: IdentityConfig,
     transactions: TransactionRecorder,
 ) -> None:
     fake_clock = FakeClock(NOW)
     use_case, get_oauth_client, account_repository, auth_code_repository = make_login(
-        config, fake_clock
+        identity_config, fake_clock
     )
     get_oauth_client.return_value.get_user_id.return_value = "123456789"
     account_repository.get_or_create.side_effect = RuntimeError(
@@ -183,10 +183,12 @@ def test_login_fails_when_account_conflict_cannot_be_resolved(
 
 
 def test_login_converts_client_error(
-    config: Config, transactions: TransactionRecorder
+    identity_config: IdentityConfig, transactions: TransactionRecorder
 ) -> None:
     fake_clock = FakeClock(NOW)
-    use_case, get_oauth_client, account_repository, _ = make_login(config, fake_clock)
+    use_case, get_oauth_client, account_repository, _ = make_login(
+        identity_config, fake_clock
+    )
     get_oauth_client.return_value.get_user_id.side_effect = OAuthClientError()
 
     with pytest.raises(OAuthAuthenticationError):
