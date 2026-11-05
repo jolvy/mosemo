@@ -10,8 +10,8 @@ from mosemo.observation.application.batches import ActivityBatchProcessor
 from mosemo.observation.presentation.messages import ActivityRegistrationRequested
 from tests.component.test_activities_api import activity_request
 from tests.component.test_batch_runtime import make_app
-from tests.kafka_support import capture_records
-from tests.use_case_support import record_transactions
+from tests.support.kafka import capture_records
+from tests.support.use_cases import record_transactions
 
 
 @pytest.mark.asyncio

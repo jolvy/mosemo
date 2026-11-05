@@ -7,7 +7,7 @@ import pytest
 from mosemo.identity.application.tokens import InvalidAccessTokenError
 from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.platform.clock import utc_now
-from tests.identity_support import token_service
+from tests.support.identity import token_service
 
 
 def test_issue_and_decode_access_token(identity_config: IdentityConfig) -> None:

@@ -52,7 +52,11 @@ def test_startup_error_or_task_cancellation_exits_real_entrypoint(entrypoint, sc
                 else ["mosemo.entrypoints.consumer"]
             )
         else:
-            command = ["tests.messaging_startup_process", entrypoint, scenario]
+            command = [
+                "tests.support.processes.messaging_startup",
+                entrypoint,
+                scenario,
+            ]
         result = subprocess.run(
             [sys.executable, "-m", *command],
             cwd=ROOT,
@@ -79,7 +83,7 @@ async def test_sigterm_cancels_consumer_startup_and_exits_without_retry():
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
-        "tests.messaging_startup_process",
+        "tests.support.processes.messaging_startup",
         "consumer",
         "hold",
         cwd=ROOT,

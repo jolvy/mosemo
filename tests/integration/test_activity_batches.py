@@ -34,8 +34,8 @@ from mosemo.observation.presentation.activities.mappers import (
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
 from mosemo.platform.clock import utc_now
 from mosemo.shared.application.events import EventDispatcher
-from tests.clock_support import FakeClock
-from tests.identity_support import delete_accounts
+from tests.support.clock import FakeClock
+from tests.support.identity import delete_accounts
 
 
 def record(sequence, seconds, *, context=None, event_id=None):

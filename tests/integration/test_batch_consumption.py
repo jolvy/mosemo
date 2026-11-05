@@ -26,11 +26,11 @@ from mosemo.observation.presentation.messages import ActivityRegistrationRequest
 from mosemo.platform.clock import utc_now
 from mosemo.platform.messaging.kafka_compat import BatchPartition
 from mosemo.platform.messaging.subscriber import MessageConsumer
-from tests.clock_support import FakeClock
-from tests.identity_support import delete_accounts
 from tests.integration.test_activity_batches import batch, record
-from tests.kafka_support import GroupOffsets, KafkaTestAdmin
-from tests.observation_support import batch_executor
+from tests.support.clock import FakeClock
+from tests.support.identity import delete_accounts
+from tests.support.kafka import GroupOffsets, KafkaTestAdmin
+from tests.support.observation import batch_executor
 
 
 async def eventually(check, *, timeout=20):
@@ -312,7 +312,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
 
     import httpx2
 
-    from tests.identity_support import token_service
+    from tests.support.identity import token_service
 
     delivery = integration_kafka.config
     sessions, owners, devices = consumption_db
@@ -402,7 +402,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 crash = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "-m",
-                    "tests.batch_consumer_process",
+                    "tests.support.processes.batch_consumer",
                     env=env,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=output,

@@ -30,8 +30,8 @@ from mosemo.labels.domain.labels import Label, default_labels
 from mosemo.labels.infrastructure.tables import labels as label_table
 from mosemo.platform.clock import utc_now
 from mosemo.shared.application.clock import Clock
-from tests.clock_support import FakeClock
-from tests.identity_support import delete_accounts, sign_up_dispatcher, token_service
+from tests.support.clock import FakeClock
+from tests.support.identity import delete_accounts, sign_up_dispatcher, token_service
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)

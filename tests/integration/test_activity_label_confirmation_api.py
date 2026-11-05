@@ -54,14 +54,14 @@ from mosemo.platform.database.engine import get_session
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
-from tests.batch_support import batch_client, post_activity, receipt_for
-from tests.clock_support import FakeClock
-from tests.identity_support import (
+from tests.support.batches import batch_client, post_activity, receipt_for
+from tests.support.clock import FakeClock
+from tests.support.identity import (
     current_account_provider,
     delete_accounts,
     token_service,
 )
-from tests.labeling_support import ProposalProcessor, ProposalScanner
+from tests.support.labeling import ProposalProcessor, ProposalScanner
 
 ARCHIVED_AT = datetime(2026, 9, 14, 2, tzinfo=UTC)
 

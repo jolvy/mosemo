@@ -25,8 +25,8 @@ from mosemo.identity.infrastructure.authorization_codes import (
     NativeAuthCodeRepository,
 )
 from mosemo.shared.application.events import EventDispatcher
-from tests.clock_support import FakeClock
-from tests.use_case_support import TransactionRecorder, record_transactions
+from tests.support.clock import FakeClock
+from tests.support.use_cases import TransactionRecorder, record_transactions
 
 NOW = datetime(2026, 9, 1, tzinfo=UTC)
 CODE_VERIFIER = "A" * 43

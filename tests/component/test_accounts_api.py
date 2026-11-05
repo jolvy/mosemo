@@ -11,8 +11,8 @@ from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.presentation.accounts.router import create_router
 from mosemo.platform.clock import utc_now
 from mosemo.shared.domain.timezones import Timezone
-from tests.component.identity_app import make_identity_app
-from tests.identity_support import token_service
+from tests.support.identity import token_service
+from tests.support.identity_app import make_identity_app
 
 
 def make_account() -> Account:

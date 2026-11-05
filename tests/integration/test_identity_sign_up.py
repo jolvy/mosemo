@@ -32,8 +32,8 @@ from mosemo.platform.clock import utc_now
 from mosemo.platform.providers import get_session
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
-from tests.clock_support import FakeClock
-from tests.identity_support import (
+from tests.support.clock import FakeClock
+from tests.support.identity import (
     current_account_provider,
     delete_accounts,
     token_service,

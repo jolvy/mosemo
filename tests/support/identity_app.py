@@ -8,7 +8,7 @@ from mosemo.entrypoints.api.exception_handlers import register_exception_handler
 from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.platform.providers import get_session
 from mosemo.shared.presentation.current_account import get_current_account
-from tests.identity_support import current_account_provider
+from tests.support.identity import current_account_provider
 
 
 def make_identity_app(

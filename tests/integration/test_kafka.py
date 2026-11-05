@@ -6,7 +6,7 @@ import pytest
 from faststream.kafka import KafkaBroker
 
 from mosemo.platform.messaging.kafka_compat import BatchPartition
-from tests.kafka_support import KafkaResources, capture_records
+from tests.support.kafka import KafkaResources, capture_records
 
 
 @pytest.mark.asyncio

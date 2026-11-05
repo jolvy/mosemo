@@ -26,8 +26,8 @@ from mosemo.platform.providers import get_session
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.component.test_activities_api import activity_request as payload
-from tests.identity_support import current_account_provider, token_service
-from tests.use_case_support import record_transactions
+from tests.support.identity import current_account_provider, token_service
+from tests.support.use_cases import record_transactions
 
 
 @pytest.fixture(autouse=True)

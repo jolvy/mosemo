@@ -11,7 +11,7 @@ from mosemo.identity.presentation.auth.router import (
 )
 from mosemo.platform.clock import utc_now
 from mosemo.shared.presentation.current_account import CurrentAccount
-from tests.identity_support import token_service
+from tests.support.identity import token_service
 
 
 def test_authenticated_account_is_immutable() -> None:

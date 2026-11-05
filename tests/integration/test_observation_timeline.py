@@ -30,9 +30,9 @@ from mosemo.observation.presentation.activities.schemas import (
 )
 from mosemo.platform.clock import utc_now
 from mosemo.shared.domain.timezones import Timezone
-from tests.clock_support import FakeClock
-from tests.identity_support import delete_accounts
-from tests.observation_support import ActivityService
+from tests.support.clock import FakeClock
+from tests.support.identity import delete_accounts
+from tests.support.observation import ActivityService
 
 record_adapter = TypeAdapter(ActivityRecord)
 

@@ -22,7 +22,7 @@ from mosemo.shared.presentation.current_account import (
     CurrentAccountDep,
     get_current_account,
 )
-from tests.identity_support import current_account_provider, token_service
+from tests.support.identity import current_account_provider, token_service
 
 
 def test_get_clock_returns_utc_now() -> None:

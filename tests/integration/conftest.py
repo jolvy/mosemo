@@ -11,7 +11,7 @@ from testcontainers.community.kafka import KafkaContainer
 from testcontainers.community.postgres import PostgresContainer
 
 from mosemo.platform.messaging.config import BatchDeliveryConfig
-from tests.kafka_support import KAFKA_IMAGE, KafkaResources, KafkaTestAdmin
+from tests.support.kafka import KAFKA_IMAGE, KafkaResources, KafkaTestAdmin
 
 
 @pytest.fixture(scope="session")
