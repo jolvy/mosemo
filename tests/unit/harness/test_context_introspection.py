@@ -271,7 +271,7 @@ class Assembly:
 @pytest.fixture(scope="module")
 def assembly() -> Assembly:
     # 조립 루트가 BC의 매핑 함수를 호출한 뒤의 registry를 본다.
-    import_module("mosemo.api.main")
+    import_module("mosemo.entrypoints.api.main")
     contexts = context_names()
     return Assembly(
         contexts=contexts,
@@ -332,7 +332,7 @@ def test_real_public_modules_do_not_export_entities(assembly: Assembly) -> None:
 
 
 def test_real_routers_take_current_account_and_overrides() -> None:
-    app = import_module("mosemo.api.main").app
+    app = import_module("mosemo.entrypoints.api.main").app
 
     assert check_router_providers(app, bootstrapped_context_names()) == []
 

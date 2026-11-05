@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from faststream.kafka.message import KafkaAckableMessage
 
-from mosemo.consumer.__main__ import main
+from mosemo.entrypoints.consumer.__main__ import main
 
 
 async def hold_ack(self):

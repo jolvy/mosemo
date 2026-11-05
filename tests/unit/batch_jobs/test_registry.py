@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from mosemo.batch.registry import build_jobs, ensure_unique_names
+from mosemo.entrypoints.batch.registry import build_jobs, ensure_unique_names
 from mosemo.platform.config import Config
 from mosemo.platform.scheduling import BatchJob
 

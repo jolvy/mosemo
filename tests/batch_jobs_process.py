@@ -38,7 +38,7 @@ def build_jobs(session_factory, config) -> list[BatchJob]:
 
 if __name__ == "__main__":
     with (
-        patch("mosemo.batch.registry.build_jobs", build_jobs),
+        patch("mosemo.entrypoints.batch.registry.build_jobs", build_jobs),
         patch.object(
             scheduling,
             "run_job_once",
@@ -48,5 +48,5 @@ if __name__ == "__main__":
             scheduling, "serve", partial(scheduling.serve, shutdown_timeout=0.5)
         ),
     ):
-        sys.argv = ["mosemo.batch", *sys.argv[1:]]
-        runpy.run_module("mosemo.batch", run_name="__main__")
+        sys.argv = ["mosemo.entrypoints.batch", *sys.argv[1:]]
+        runpy.run_module("mosemo.entrypoints.batch", run_name="__main__")

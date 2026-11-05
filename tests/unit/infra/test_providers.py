@@ -5,8 +5,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mosemo.api.exception_handlers import register_exception_handlers
-from mosemo.api.main import app as api_app
+from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
+from mosemo.entrypoints.api.main import app as api_app
 from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.platform.clock import utc_now

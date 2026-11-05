@@ -9,7 +9,7 @@ import pytest
 from faststream import AckPolicy
 from faststream.kafka import KafkaBroker
 
-from mosemo.consumer.activity_batches import (
+from mosemo.entrypoints.consumer.activity_batches import (
     InvalidBatchMessageError,
     activity_batch_handler,
     decode_batch,
@@ -399,7 +399,7 @@ def test_cli_initialization_errors_never_expose_credentials():
         AUTH_JWT_SECRET_KEY="private-jwt-marker",
     )
     result = subprocess.run(
-        [sys.executable, "-m", "mosemo.consumer"],
+        [sys.executable, "-m", "mosemo.entrypoints.consumer"],
         env=env,
         capture_output=True,
         text=True,

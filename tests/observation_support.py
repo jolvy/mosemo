@@ -7,7 +7,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mosemo.consumer.activity_batches import BatchProcessingExecutor
+from mosemo.entrypoints.consumer.activity_batches import BatchProcessingExecutor
 from mosemo.identity.bootstrap import create_device_directory
 from mosemo.identity.public import AccountDirectory, DeviceDirectory
 from mosemo.observation.application.activities import (

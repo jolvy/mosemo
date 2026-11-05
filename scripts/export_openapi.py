@@ -27,7 +27,7 @@ OUTPUT_PATH = REPOSITORY_ROOT / "openapi" / "openapi.json"
 def main() -> None:
     os.environ.update(EXPORT_ENVIRONMENT)
 
-    from mosemo.api.main import app
+    from mosemo.entrypoints.api.main import app
 
     document = json.dumps(
         app.openapi(),

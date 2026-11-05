@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from mosemo.api.openapi import (
+from mosemo.entrypoints.api.openapi import (
     REGISTERED_ERROR_DOCS,
     fill_error_examples,
     merge_error_docs,

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, Request
 
-from mosemo.api.middleware import BatchBodyLimitMiddleware
+from mosemo.entrypoints.api.middleware import BatchBodyLimitMiddleware
 from mosemo.observation import bootstrap as observation_bootstrap
 from mosemo.observation.bootstrap import (
     ActivityBatchRequest,

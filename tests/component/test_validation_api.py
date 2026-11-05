@@ -4,7 +4,7 @@ from fastapi import Body, Cookie, FastAPI, Header, Path, Query
 from fastapi.testclient import TestClient
 from pydantic import Json
 
-from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.shared.presentation.schemas import ApiRequestModel
 
 

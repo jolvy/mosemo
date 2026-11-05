@@ -9,7 +9,7 @@ from faststream.kafka.message import KafkaAckableMessage
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from mosemo.consumer.activity_batches import activity_batch_handler
+from mosemo.entrypoints.consumer.activity_batches import activity_batch_handler
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
 from mosemo.observation.domain.activities import ActivityBatchReceipt, ActivityRecord
@@ -349,7 +349,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                     sys.executable,
                     "-m",
                     "uvicorn",
-                    "mosemo.api.main:app",
+                    "mosemo.entrypoints.api.main:app",
                     "--host",
                     "127.0.0.1",
                     "--port",
@@ -436,7 +436,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 replay = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "-m",
-                    "mosemo.consumer",
+                    "mosemo.entrypoints.consumer",
                     env=env,
                     stdout=output,
                     stderr=output,
@@ -504,7 +504,7 @@ async def test_registered_faststream_handler_rejects_invalid_message_without_pro
 ):
     from unittest.mock import AsyncMock
 
-    from mosemo.consumer.activity_batches import InvalidBatchMessageError
+    from mosemo.entrypoints.consumer.activity_batches import InvalidBatchMessageError
 
     config = integration_kafka.config
     _, owners, devices = consumption_db

@@ -8,8 +8,11 @@ import pytest
 from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
 
-from mosemo.api.activity_batches import compose_messaging_app, get_batch_publisher
-from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.entrypoints.api.activity_batches import (
+    compose_messaging_app,
+    get_batch_publisher,
+)
+from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.observation.application.activities import GetObservationTimeline
@@ -274,7 +277,7 @@ async def test_legacy_processing_errors(config, monkeypatch, error, expected):
 async def test_http_maps_publisher_failure_to_retryable_503(config, failure):
     from aiokafka.errors import KafkaConnectionError
 
-    from mosemo.api.activity_batches import ActivityBatchPublisher
+    from mosemo.entrypoints.api.activity_batches import ActivityBatchPublisher
     from mosemo.platform.messaging.publisher import KafkaPublisher
 
     app, _, _, headers = make_app(config)

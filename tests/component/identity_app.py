@@ -4,7 +4,7 @@ from unittest.mock import sentinel
 
 from fastapi import APIRouter, FastAPI
 
-from mosemo.api.exception_handlers import register_exception_handlers
+from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.identity.bootstrap import get_token_current_account
 from mosemo.platform.config import Config, get_config
 from mosemo.platform.providers import get_session

@@ -45,7 +45,7 @@ requires = ["uv_build>=0.11.21,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.fastapi]
-entrypoint = "mosemo.api.main:app"
+entrypoint = "mosemo.entrypoints.api.main:app"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
@@ -75,7 +75,7 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "shared and platform do not import bounded contexts or assembly roots"
+name = "shared and platform do not import bounded contexts or entrypoints"
 type = "forbidden"
 source_modules = ["mosemo.shared", "mosemo.platform"]
 forbidden_modules = [
@@ -83,9 +83,7 @@ forbidden_modules = [
     "mosemo.labels",
     "mosemo.observation",
     "mosemo.labeling",
-    "mosemo.api",
-    "mosemo.consumer",
-    "mosemo.batch",
+    "mosemo.entrypoints",
 ]
 
 [[tool.importlinter.contracts]]
@@ -107,12 +105,12 @@ type = "forbidden"
 source_modules = [
     "mosemo.shared.errors",
     "mosemo.shared.presentation.responses",
-    "mosemo.api.exception_handlers",
+    "mosemo.entrypoints.api.exception_handlers",
 ]
 forbidden_modules = [
     "mosemo.shared.openapi",
     "mosemo.shared.error_docs",
-    "mosemo.api.openapi",
+    "mosemo.entrypoints.api.openapi",
 ]
 
 [[tool.importlinter.contracts]]
@@ -169,10 +167,10 @@ protected_modules = [
 allowed_importers = ["mosemo.identity"]
 
 [[tool.importlinter.contracts]]
-name = "identity bootstrap is imported only by assembly roots"
+name = "identity bootstrap is imported only by entrypoints"
 type = "protected"
 protected_modules = ["mosemo.identity.bootstrap"]
-allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
+allowed_importers = ["mosemo.entrypoints"]
 
 [[tool.importlinter.contracts]]
 name = "identity presentation imports only platform.providers from platform"
@@ -282,10 +280,10 @@ protected_modules = [
 allowed_importers = ["mosemo.labels"]
 
 [[tool.importlinter.contracts]]
-name = "labels bootstrap is imported only by assembly roots"
+name = "labels bootstrap is imported only by entrypoints"
 type = "protected"
 protected_modules = ["mosemo.labels.bootstrap"]
-allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
+allowed_importers = ["mosemo.entrypoints"]
 
 [[tool.importlinter.contracts]]
 name = "labels presentation imports only platform.providers from platform"
@@ -398,10 +396,10 @@ protected_modules = [
 allowed_importers = ["mosemo.observation"]
 
 [[tool.importlinter.contracts]]
-name = "observation bootstrap is imported only by assembly roots"
+name = "observation bootstrap is imported only by entrypoints"
 type = "protected"
 protected_modules = ["mosemo.observation.bootstrap"]
-allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
+allowed_importers = ["mosemo.entrypoints"]
 
 [[tool.importlinter.contracts]]
 name = "observation presentation imports only platform.providers from platform"
@@ -514,10 +512,10 @@ protected_modules = [
 allowed_importers = ["mosemo.labeling"]
 
 [[tool.importlinter.contracts]]
-name = "labeling bootstrap is imported only by assembly roots"
+name = "labeling bootstrap is imported only by entrypoints"
 type = "protected"
 protected_modules = ["mosemo.labeling.bootstrap"]
-allowed_importers = ["mosemo.api", "mosemo.consumer", "mosemo.batch"]
+allowed_importers = ["mosemo.entrypoints"]
 
 [[tool.importlinter.contracts]]
 name = "labeling presentation imports only platform.providers from platform"
@@ -615,7 +613,7 @@ extend-select = ["I", "TID251", "DTZ", "RET505", "SIM102", "PLR5501", "SIM103", 
 
 [tool.ruff.lint.per-file-ignores]
 "src/mosemo/platform/clock.py" = ["TID251"]
-"src/mosemo/api/middleware.py" = ["PLR0917"]
+"src/mosemo/entrypoints/api/middleware.py" = ["PLR0917"]
 "tests/**" = ["PLR2004", "FBT", "ASYNC", "PLR0917", "PLR0913"]
 "scripts/**" = ["PLR2004"]
 "migrations/**" = ["PLR2004"]
@@ -648,12 +646,12 @@ cmd = "fastapi dev"
 envfile = [".env", ".env.local"]
 
 [tool.poe.tasks.batch-jobs]
-cmd = "python -m mosemo.batch"
+cmd = "python -m mosemo.entrypoints.batch"
 envfile = [".env", ".env.local"]
 help = "Run batch jobs: serve, or run JOB_NAME once"
 
 [tool.poe.tasks.batch-consumer]
-cmd = "python -m mosemo.consumer"
+cmd = "python -m mosemo.entrypoints.consumer"
 envfile = [".env", ".env.local"]
 help = "Run the separate activity batch Consumer"
 

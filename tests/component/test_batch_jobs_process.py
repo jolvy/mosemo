@@ -64,7 +64,7 @@ async def test_serve_runs_label_job_on_start_isolates_failure_and_stops_on_sigte
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
-        "mosemo.batch",
+        "mosemo.entrypoints.batch",
         "serve",
         cwd=ROOT,
         env=process_environment("openai:fake-model"),
@@ -111,7 +111,10 @@ async def test_serve_runs_label_job_on_start_isolates_failure_and_stops_on_sigte
 
 def test_run_reports_job_failure_with_exit_code_one():
     result = run_process(
-        "mosemo.batch", "run", "label-proposals", label_model="openai:fake-model"
+        "mosemo.entrypoints.batch",
+        "run",
+        "label-proposals",
+        label_model="openai:fake-model",
     )
 
     assert result.returncode == 1, result.stdout + result.stderr
@@ -137,7 +140,10 @@ def test_run_reports_job_success_with_exit_code_zero():
 
 def test_run_lists_available_jobs_for_an_unknown_name():
     result = run_process(
-        "mosemo.batch", "run", "no-such-job", label_model="openai:fake-model"
+        "mosemo.entrypoints.batch",
+        "run",
+        "no-such-job",
+        label_model="openai:fake-model",
     )
 
     assert result.returncode == 2
@@ -187,7 +193,7 @@ async def test_job_ignoring_cancellation_does_not_outlive_the_shutdown_deadline(
 
 @pytest.mark.parametrize("label_model", [None, "test"])
 def test_missing_or_malformed_label_model_fails_with_a_fixed_message(label_model):
-    result = run_process("mosemo.batch", "serve", label_model=label_model)
+    result = run_process("mosemo.entrypoints.batch", "serve", label_model=label_model)
 
     assert result.returncode == 1
     assert result.stderr == "Batch job process failed\n"

@@ -6,11 +6,11 @@ from typing import Any, TypedDict, cast
 import httpx2
 from fastapi import FastAPI
 
-from mosemo.api.activity_batches import compose_messaging_app
-from mosemo.api.exception_handlers import register_exception_handlers
-from mosemo.api.middleware import RedactSensitiveQueryStringMiddleware
-from mosemo.api.openapi import public_openapi
-from mosemo.api.routes import v1_api_router
+from mosemo.entrypoints.api.activity_batches import compose_messaging_app
+from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
+from mosemo.entrypoints.api.middleware import RedactSensitiveQueryStringMiddleware
+from mosemo.entrypoints.api.openapi import public_openapi
+from mosemo.entrypoints.api.routes import v1_api_router
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.platform.config import get_config
 from mosemo.platform.database.engine import get_engine

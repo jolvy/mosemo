@@ -32,7 +32,7 @@ if __name__ == "__main__":
         if entrypoint == "api":
             sys.argv = [
                 "uvicorn",
-                "mosemo.api.main:app",
+                "mosemo.entrypoints.api.main:app",
                 "--host",
                 "127.0.0.1",
                 "--port",
@@ -43,4 +43,4 @@ if __name__ == "__main__":
             ]
             runpy.run_module("uvicorn", run_name="__main__")
         else:
-            runpy.run_module("mosemo.consumer", run_name="__main__")
+            runpy.run_module("mosemo.entrypoints.consumer", run_name="__main__")
