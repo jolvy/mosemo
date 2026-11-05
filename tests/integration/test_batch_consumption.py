@@ -299,7 +299,11 @@ async def test_rebalance_between_group_members_cancels_old_session_before_replay
 
 @pytest.mark.asyncio
 async def test_separate_api_consumer_processes_crash_after_db_commit_replay_without_duplicates(
-    integration_kafka, integration_database_url, consumption_db, config, tmp_path
+    integration_kafka,
+    integration_database_url,
+    consumption_db,
+    identity_config,
+    tmp_path,
 ):
     import os
     import socket
@@ -308,7 +312,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
 
     import httpx2
 
-    from mosemo.identity.presentation.auth.router import get_token_service
+    from tests.identity_support import token_service
 
     delivery = integration_kafka.config
     sessions, owners, devices = consumption_db
@@ -325,10 +329,10 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
         BATCH_BOOTSTRAP_SERVERS=delivery.bootstrap_servers,
         BATCH_TOPIC=delivery.topic,
         BATCH_GROUP_ID=delivery.group_id,
-        AUTH_JWT_SECRET_KEY=config.auth.jwt_secret_key.get_secret_value(),
-        AUTH_JWT_ISSUER=config.auth.jwt_issuer,
-        AUTH_JWT_AUDIENCE=config.auth.jwt_audience,
-        AUTH_MACOS_CALLBACK_URI=config.auth.macos_callback_uri,
+        AUTH_JWT_SECRET_KEY=identity_config.jwt_secret_key,
+        AUTH_JWT_ISSUER=identity_config.jwt_issuer,
+        AUTH_JWT_AUDIENCE=identity_config.jwt_audience,
+        AUTH_MACOS_CALLBACK_URI=identity_config.macos_callback_uri,
         KAKAO_REST_API_KEY="test",
         KAKAO_CLIENT_SECRET="test",
         KAKAO_REDIRECT_URI="http://localhost/test",
@@ -371,7 +375,7 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 await eventually(api_ready)
                 headers = {
                     "Authorization": "Bearer "
-                    + get_token_service(config).issue_access_token(
+                    + token_service(identity_config).issue_access_token(
                         owners[0], now=utc_now()
                     )
                 }

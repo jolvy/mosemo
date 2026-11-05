@@ -1,28 +1,31 @@
 from types import SimpleNamespace
 from typing import cast
-from unittest.mock import ANY, create_autospec, sentinel
+from unittest.mock import ANY, Mock, create_autospec, sentinel
 
 import httpx2
 import pytest
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from mosemo.entrypoints.api.config import ApiConfig
 from mosemo.identity.application.sign_in import (
     ExchangeAuthorizationCode,
     InvalidAuthorizationCodeError,
     LogIn,
 )
 from mosemo.identity.bootstrap import (
+    IdentityConfig,
     create_kakao_client,
-    get_kakao_client,
-    get_oauth_client_resolver,
 )
 from mosemo.identity.domain.accounts import AccountProvider
 from mosemo.identity.domain.pkce import create_code_challenge
 from mosemo.identity.infrastructure.kakao_client import KAKAO_AUTHORIZE_URL
-from mosemo.identity.presentation.auth.router import create_router
-from mosemo.platform.config import Config
+from mosemo.identity.presentation.auth.router import (
+    create_oauth_router,
+    create_token_router,
+)
 from tests.component.identity_app import make_identity_app
+from tests.identity_support import token_service
 
 CODE_VERIFIER = "A" * 43
 CODE_CHALLENGE = create_code_challenge(CODE_VERIFIER)
@@ -37,25 +40,33 @@ def make_service() -> SimpleNamespace:
 
 def make_app(
     *,
-    config: Config,
+    identity_config: IdentityConfig,
     service: SimpleNamespace,
 ) -> FastAPI:
-    router = create_router(
-        log_in=service.log_in,
-        exchange_authorization_code=service.exchange,
-        get_login_client=get_kakao_client,
-        get_oauth_clients=get_oauth_client_resolver,
+    router = APIRouter()
+    router.include_router(
+        create_oauth_router(
+            log_in=service.log_in,
+            get_login_client=lambda: create_kakao_client(
+                identity_config, http_client=cast(httpx2.AsyncClient, object())
+            ),
+            get_oauth_clients=lambda: Mock(),
+            macos_callback_uri=identity_config.macos_callback_uri,
+            secure_cookies=identity_config.secure_cookies,
+        )
     )
-    app = make_identity_app(router, config=config, prefix="/auth")
-    app.dependency_overrides[get_kakao_client] = lambda: create_kakao_client(
-        config.kakao, http_client=cast(httpx2.AsyncClient, object())
+    router.include_router(
+        create_token_router(
+            exchange_authorization_code=service.exchange,
+            token_service=token_service(identity_config),
+            access_token_ttl_seconds=identity_config.access_token_ttl_seconds,
+        )
     )
-    app.dependency_overrides[get_oauth_client_resolver] = lambda: lambda provider: None
-    return app
+    return make_identity_app(router, identity_config=identity_config, prefix="/auth")
 
 
 def test_login_callback_and_token_exchange_flow(
-    config: Config,
+    identity_config: IdentityConfig,
     monkeypatch,
 ) -> None:
     service = make_service()
@@ -65,7 +76,7 @@ def test_login_callback_and_token_exchange_flow(
         "mosemo.identity.presentation.auth.router.secrets.token_urlsafe",
         lambda length: "fixed-state",
     )
-    app = make_app(config=config, service=service)
+    app = make_app(identity_config=identity_config, service=service)
 
     with TestClient(app) as client:
         login_response = client.get(
@@ -130,9 +141,37 @@ def test_login_callback_and_token_exchange_flow(
     )
 
 
-def test_callback_without_state_cookie_returns_bad_request(config: Config) -> None:
+@pytest.mark.parametrize(("app_env", "secure"), [("prod", True), ("test", False)])
+def test_oauth_cookies_are_secure_only_in_prod(
+    api_config: ApiConfig, app_env: str, *, secure: bool
+) -> None:
+    identity_config = api_config.model_copy(update={"app_env": app_env}).identity()
+    app = make_app(identity_config=identity_config, service=make_service())
+
+    with TestClient(app) as client:
+        login_response = client.get(
+            "/api/v1/auth/kakao/login",
+            params={
+                "code_challenge": CODE_CHALLENGE,
+                "code_challenge_method": "S256",
+            },
+            follow_redirects=False,
+        )
+        callback_response = client.get(
+            "/api/v1/auth/kakao/callback", follow_redirects=False
+        )
+
+    for response in (login_response, callback_response):
+        cookies = response.headers.get_list("set-cookie")
+        assert len(cookies) == 2
+        assert all(("; secure" in cookie.lower()) is secure for cookie in cookies)
+
+
+def test_callback_without_state_cookie_returns_bad_request(
+    identity_config: IdentityConfig,
+) -> None:
     service = make_service()
-    app = make_app(config=config, service=service)
+    app = make_app(identity_config=identity_config, service=service)
 
     with TestClient(app) as client:
         response = client.get(
@@ -154,7 +193,7 @@ def test_callback_without_state_cookie_returns_bad_request(config: Config) -> No
 
 
 def test_callback_maps_kakao_error_query_without_exposing_description(
-    config: Config,
+    identity_config: IdentityConfig,
     monkeypatch,
 ) -> None:
     service = make_service()
@@ -162,7 +201,7 @@ def test_callback_maps_kakao_error_query_without_exposing_description(
         "mosemo.identity.presentation.auth.router.secrets.token_urlsafe",
         lambda length: "fixed-state",
     )
-    app = make_app(config=config, service=service)
+    app = make_app(identity_config=identity_config, service=service)
 
     with TestClient(app) as client:
         client.get(
@@ -192,7 +231,7 @@ def test_callback_maps_kakao_error_query_without_exposing_description(
 
 
 def test_callback_without_code_redirects_authentication_failure(
-    config: Config,
+    identity_config: IdentityConfig,
     monkeypatch,
 ) -> None:
     service = make_service()
@@ -200,7 +239,7 @@ def test_callback_without_code_redirects_authentication_failure(
         "mosemo.identity.presentation.auth.router.secrets.token_urlsafe",
         lambda length: "fixed-state",
     )
-    app = make_app(config=config, service=service)
+    app = make_app(identity_config=identity_config, service=service)
 
     with TestClient(app) as client:
         client.get(
@@ -224,10 +263,12 @@ def test_callback_without_code_redirects_authentication_failure(
     service.log_in.execute.assert_not_awaited()
 
 
-def test_token_exchange_returns_documented_bad_request(config: Config) -> None:
+def test_token_exchange_returns_documented_bad_request(
+    identity_config: IdentityConfig,
+) -> None:
     service = make_service()
     service.exchange.execute.side_effect = InvalidAuthorizationCodeError()
-    app = make_app(config=config, service=service)
+    app = make_app(identity_config=identity_config, service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -265,11 +306,11 @@ def test_token_exchange_returns_documented_bad_request(config: Config) -> None:
     ],
 )
 def test_login_rejects_missing_or_invalid_pkce(
-    config: Config,
+    identity_config: IdentityConfig,
     params: dict[str, str],
 ) -> None:
     service = make_service()
-    app = make_app(config=config, service=service)
+    app = make_app(identity_config=identity_config, service=service)
 
     with TestClient(app) as client:
         response = client.get(
@@ -288,10 +329,10 @@ def test_login_rejects_missing_or_invalid_pkce(
 
 
 def test_token_validation_does_not_expose_input_or_framework_metadata(
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     service = make_service()
-    app = make_app(config=config, service=service)
+    app = make_app(identity_config=identity_config, service=service)
 
     with TestClient(app) as client:
         snake_case_response = client.post(
@@ -333,11 +374,11 @@ def test_token_validation_does_not_expose_input_or_framework_metadata(
     "body", [b"{", b'{"grantType":', b'{"code":"secret-value"} trailing']
 )
 def test_token_body_parsing_errors_follow_framework_detail(
-    config: Config,
+    identity_config: IdentityConfig,
     body: bytes,
 ) -> None:
     service = make_service()
-    app = make_app(config=config, service=service)
+    app = make_app(identity_config=identity_config, service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -362,11 +403,11 @@ def test_token_body_parsing_errors_follow_framework_detail(
 
 @pytest.mark.parametrize("body", [b"\xff", b"\xff\xfe{"])
 def test_token_invalid_encoding_uses_server_detail_type(
-    config: Config,
+    identity_config: IdentityConfig,
     body: bytes,
 ) -> None:
     service = make_service()
-    app = make_app(config=config, service=service)
+    app = make_app(identity_config=identity_config, service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -387,11 +428,11 @@ def test_token_invalid_encoding_uses_server_detail_type(
 
 @pytest.mark.parametrize("include_public_alias", [True, False])
 def test_token_unexpected_fields_point_to_the_containing_object(
-    config: Config,
+    identity_config: IdentityConfig,
     include_public_alias: bool,
 ) -> None:
     service = make_service()
-    app = make_app(config=config, service=service)
+    app = make_app(identity_config=identity_config, service=service)
     body = {
         "grantType": "authorization_code",
         "code": "secret-code",

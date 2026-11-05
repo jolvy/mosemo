@@ -10,21 +10,15 @@ import pytest_asyncio
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from mosemo.entrypoints.api.contexts import IDENTITY
 from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.entrypoints.api.routes import v1_api_router
-from mosemo.identity.bootstrap import (
-    get_kakao_client,
-    get_oauth_client_resolver,
-    get_token_current_account,
-)
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.pkce import create_code_challenge
 from mosemo.identity.infrastructure.kakao_client import KakaoClient
-from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.labels.domain.labels import Label, default_labels
 from mosemo.labels.infrastructure.labels import LabelRepository
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config, get_config
 from mosemo.platform.database.engine import get_session
 from mosemo.shared.presentation.current_account import get_current_account
 
@@ -32,7 +26,6 @@ from mosemo.shared.presentation.current_account import get_current_account
 @pytest_asyncio.fixture
 async def label_catalog_client(
     integration_database_url: str,
-    config: Config,
 ) -> AsyncIterator[tuple[httpx2.AsyncClient, async_sessionmaker[AsyncSession]]]:
     engine = create_async_engine(integration_database_url)
     try:
@@ -47,8 +40,9 @@ async def label_catalog_client(
             app = FastAPI()
             register_exception_handlers(app)
             app.include_router(v1_api_router)
-            app.dependency_overrides[get_config] = lambda: config
-            app.dependency_overrides[get_current_account] = get_token_current_account
+            app.dependency_overrides[get_current_account] = (
+                IDENTITY.current_account_provider()
+            )
 
             async def override_session() -> AsyncIterator[AsyncSession]:
                 async with session_factory() as session:
@@ -60,8 +54,8 @@ async def label_catalog_client(
             oauth_client.create_authorization_url.return_value = (
                 "https://kauth.kakao.com/oauth/authorize"
             )
-            app.dependency_overrides[get_kakao_client] = lambda: oauth_client
-            app.dependency_overrides[get_oauth_client_resolver] = lambda: (
+            app.dependency_overrides[IDENTITY.get_login_client] = lambda: oauth_client
+            app.dependency_overrides[IDENTITY.get_oauth_clients] = lambda: (
                 lambda provider: oauth_client
             )
             try:
@@ -134,7 +128,6 @@ async def test_http_login_prepares_defaults_once_and_preserves_catalog(
 @pytest.mark.asyncio
 async def test_label_catalog_returns_owned_active_and_archived_labels(
     label_catalog_client: tuple[httpx2.AsyncClient, async_sessionmaker[AsyncSession]],
-    config: Config,
 ) -> None:
     client, session_factory = label_catalog_client
     created_at = datetime(2026, 9, 25, 1, 2, 3, tzinfo=UTC)
@@ -180,7 +173,7 @@ async def test_label_catalog_returns_owned_active_and_archived_labels(
         }
         await session.commit()
 
-    token = get_token_service(config).issue_access_token(owner_id, now=utc_now())
+    token = IDENTITY.token_service.issue_access_token(owner_id, now=utc_now())
     response = await client.get(
         "/api/v1/labels",
         headers={"Authorization": f"Bearer {token}"},
@@ -217,7 +210,6 @@ async def test_label_catalog_returns_owned_active_and_archived_labels(
 @pytest.mark.asyncio
 async def test_label_catalog_returns_empty_array_for_account_without_labels(
     label_catalog_client: tuple[httpx2.AsyncClient, async_sessionmaker[AsyncSession]],
-    config: Config,
 ) -> None:
     client, session_factory = label_catalog_client
     async with session_factory() as session:
@@ -230,7 +222,7 @@ async def test_label_catalog_returns_empty_array_for_account_without_labels(
         account_id = account.id
         await session.commit()
 
-    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
+    token = IDENTITY.token_service.issue_access_token(account_id, now=utc_now())
     response = await client.get(
         "/api/v1/labels",
         headers={"Authorization": f"Bearer {token}"},
@@ -269,7 +261,6 @@ async def test_label_catalog_rejects_missing_and_invalid_tokens(
 @pytest.mark.asyncio
 async def test_label_catalog_rejects_token_for_deleted_account(
     label_catalog_client: tuple[httpx2.AsyncClient, async_sessionmaker[AsyncSession]],
-    config: Config,
 ) -> None:
     client, session_factory = label_catalog_client
     async with session_factory() as session:
@@ -279,7 +270,7 @@ async def test_label_catalog_rejects_token_for_deleted_account(
         )
         session.add(account)
         await session.flush()
-        token = get_token_service(config).issue_access_token(account.id, now=utc_now())
+        token = IDENTITY.token_service.issue_access_token(account.id, now=utc_now())
         await session.delete(account)
         await session.commit()
 

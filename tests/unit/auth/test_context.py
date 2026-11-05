@@ -5,13 +5,13 @@ from uuid import uuid4
 import pytest
 from fastapi.security import HTTPAuthorizationCredentials
 
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.presentation.auth.router import (
-    get_token_current_account,
-    get_token_service,
+    create_current_account_provider,
 )
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config
 from mosemo.shared.presentation.current_account import CurrentAccount
+from tests.identity_support import token_service
 
 
 def test_authenticated_account_is_immutable() -> None:
@@ -21,19 +21,18 @@ def test_authenticated_account_is_immutable() -> None:
         context.__setattr__("account_id", uuid4())
 
 
-def test_get_authenticated_account_decodes_account_id(config: Config) -> None:
+def test_get_authenticated_account_decodes_account_id(
+    identity_config: IdentityConfig,
+) -> None:
     account_id = uuid4()
-    token_service = get_token_service(config)
+    tokens = token_service(identity_config)
     credentials = HTTPAuthorizationCredentials(
         scheme="Bearer",
-        credentials=token_service.issue_access_token(account_id, now=utc_now()),
+        credentials=tokens.issue_access_token(account_id, now=utc_now()),
     )
 
     context = asyncio.run(
-        get_token_current_account(
-            credentials=credentials,
-            token_service=token_service,
-        )
+        create_current_account_provider(tokens)(credentials=credentials)
     )
 
     assert context == CurrentAccount(account_id=account_id)

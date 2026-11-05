@@ -37,6 +37,18 @@ uv run ruff format --check .
 uv run ty check
 ```
 
+### Environment variables per process
+
+Each process reads and validates only the variables it uses when it starts.
+`MOSEMO_ENV` is also the `environment` field of every process's logs.
+
+| Process | Required | Optional |
+| --- | --- | --- |
+| API (`mosemo.entrypoints.api`) | `DB_*`, `MOSEMO_ENV`, `KAKAO_*`, `AUTH_JWT_SECRET_KEY`, `AUTH_MACOS_CALLBACK_URI` | `BATCH_*`, other `AUTH_*` |
+| Activity Consumer (`mosemo.entrypoints.consumer`) | `DB_*` | `BATCH_*` |
+| Batch jobs (`mosemo.entrypoints.batch`) | `DB_*`, `LABEL_MODEL` and its provider key | — |
+| Migrations (`alembic`) | `DB_*` | — |
+
 Run every pre-commit check manually:
 
 ```sh

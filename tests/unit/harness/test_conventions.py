@@ -396,7 +396,7 @@ ALLOWED_BROAD_EXCEPTS = {
         "            raise error\n"
     ),
     "src/mosemo/identity/presentation/auth/router.py": (
-        "def create_router():\n"
+        "def create_oauth_router():\n"
         "    async def callback():\n"
         "        try:\n"
         "            pass\n"
@@ -500,7 +500,7 @@ def test_broad_excepts_reject_listed_function_without_handler(
     trees = broad_except_trees(
         **{
             "src/mosemo/identity/presentation/auth/router.py": (
-                "def create_router():\n    async def callback():\n        pass\n"
+                "def create_oauth_router():\n    async def callback():\n        pass\n"
             )
         }
     )

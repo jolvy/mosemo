@@ -18,6 +18,7 @@ from mosemo.entrypoints.consumer.activity_batches import (
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
 from mosemo.observation.presentation.messages import ActivityRegistrationRequested
 from mosemo.platform.clock import utc_now
+from mosemo.platform.messaging.config import BatchDeliveryConfig
 from mosemo.platform.messaging.kafka_compat import BatchPartition
 from mosemo.platform.messaging.subscriber import MessageConsumer
 from tests.clock_support import FakeClock
@@ -266,32 +267,31 @@ async def test_unexpected_execution_cancellation_cannot_skip_to_a_later_ack():
 
 
 @pytest.mark.asyncio
-async def test_runtime_refuses_to_consume_when_delivery_is_disabled(
-    config, monkeypatch
-):
-    config.batch_delivery.enabled = False
+async def test_runtime_refuses_to_consume_when_delivery_is_disabled(monkeypatch):
+    batch_delivery = BatchDeliveryConfig(enabled=False)
     constructor = Mock(side_effect=AssertionError("must not connect"))
     monkeypatch.setattr("mosemo.platform.messaging.runtime.KafkaBroker", constructor)
     with pytest.raises(ValueError, match="requires BATCH_ENABLED=true"):
-        await run_consumer(config.batch_delivery, AsyncMock(), stop=asyncio.Event())
+        await run_consumer(batch_delivery, AsyncMock(), stop=asyncio.Event())
 
 
 @pytest.mark.asyncio
-async def test_runtime_configures_manual_offsets_and_earliest(config, monkeypatch):
+async def test_runtime_configures_manual_offsets_and_earliest(monkeypatch):
+    batch_delivery = BatchDeliveryConfig()
     broker = Broker()
     constructor = Mock(return_value=broker)
     monkeypatch.setattr("mosemo.platform.messaging.runtime.KafkaBroker", constructor)
     stop = asyncio.Event()
     stop.set()
-    await run_consumer(config.batch_delivery, AsyncMock(), stop=stop)
+    await run_consumer(batch_delivery, AsyncMock(), stop=stop)
     constructor.assert_called_once_with(
-        config.batch_delivery.bootstrap_servers,
+        batch_delivery.bootstrap_servers,
         logger=None,
         graceful_timeout=0,
         consumer_only=True,
     )
     broker.stop.assert_awaited_once()
-    assert broker.options["group_id"] == config.batch_delivery.group_id
+    assert broker.options["group_id"] == batch_delivery.group_id
     assert broker.options["ack_policy"] is AckPolicy.MANUAL
     assert broker.options["auto_offset_reset"] == "earliest"
     assert broker.options["max_workers"] == 2

@@ -1,8 +1,9 @@
 import pytest
 
+from mosemo.entrypoints.api.config import ApiConfig
 from mosemo.identity import bootstrap as identity_bootstrap
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.labels import bootstrap as labels_bootstrap
-from mosemo.platform.config import Config
 from mosemo.shared.application.events import EventDispatcher
 from tests.identity_support import sign_up_dispatcher
 
@@ -12,16 +13,9 @@ labels_bootstrap.map_tables()
 
 
 @pytest.fixture
-def config() -> Config:
-    return Config(
+def api_config() -> ApiConfig:
+    return ApiConfig(
         app_env="test",
-        database={
-            "database": "mosemo_test",
-            "user": "mosemo",
-            "password": "mosemo",
-            "host": "localhost",
-            "port": 5432,
-        },
         kakao={
             "REST_API_KEY": "test-rest-api-key",
             "CLIENT_SECRET": "test-client-secret",
@@ -32,6 +26,11 @@ def config() -> Config:
             "MACOS_CALLBACK_URI": "com.example.mosemo:/auth/callback",
         },
     )
+
+
+@pytest.fixture
+def identity_config(api_config: ApiConfig) -> IdentityConfig:
+    return api_config.identity()
 
 
 @pytest.fixture

@@ -12,9 +12,8 @@ from mosemo.entrypoints.api.activity_batches import (
     compose_messaging_app,
     get_batch_publisher,
 )
+from mosemo.entrypoints.api.config import ApiConfig
 from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
-from mosemo.identity.bootstrap import get_token_current_account
-from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.observation.application.activities import GetObservationTimeline
 from mosemo.observation.application.batches import (
     AcceptActivityBatch,
@@ -22,11 +21,12 @@ from mosemo.observation.application.batches import (
 )
 from mosemo.observation.presentation.activities.router import create_router
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import BatchDeliveryConfig, Config, get_config
+from mosemo.platform.messaging.config import BatchDeliveryConfig
 from mosemo.platform.providers import get_session
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.component.test_activities_api import activity_request as payload
+from tests.identity_support import current_account_provider, token_service
 from tests.use_case_support import record_transactions
 
 
@@ -38,7 +38,8 @@ def no_database_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def make_app(config: Config):
+def make_app(api_config: ApiConfig):
+    identity_config = api_config.identity()
     api = FastAPI()
     devices = AsyncMock()
     api.include_router(
@@ -55,14 +56,15 @@ def make_app(config: Config):
         prefix="/api/v1",
     )
     register_exception_handlers(api)
-    api.dependency_overrides[get_config] = lambda: config
     api.dependency_overrides[get_session] = lambda: sentinel.db_session
-    api.dependency_overrides[get_current_account] = get_token_current_account
-    app = compose_messaging_app(api, config.batch_delivery)
+    api.dependency_overrides[get_current_account] = current_account_provider(
+        identity_config
+    )
+    app = compose_messaging_app(api, api_config.batch_delivery)
     account_id = uuid4()
     headers = {
         "Authorization": "Bearer "
-        + get_token_service(config).issue_access_token(account_id, now=utc_now())
+        + token_service(identity_config).issue_access_token(account_id, now=utc_now())
     }
     return app, devices, account_id, headers
 
@@ -140,9 +142,9 @@ async def test_cancel_during_producer_start_closes_connection(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_disabled_publication_still_runs_api_lifecycle(config, monkeypatch):
-    config.batch_delivery.enabled = False
-    app, _, _, headers = make_app(config)
+async def test_disabled_publication_still_runs_api_lifecycle(api_config, monkeypatch):
+    api_config.batch_delivery.enabled = False
+    app, _, _, headers = make_app(api_config)
     constructor = Mock(side_effect=AssertionError("must not connect"))
     monkeypatch.setattr("mosemo.platform.messaging.runtime.KafkaBroker", constructor)
     async with (
@@ -161,12 +163,12 @@ async def test_disabled_publication_still_runs_api_lifecycle(config, monkeypatch
 @pytest.mark.asyncio
 @pytest.mark.parametrize("delivery_enabled", [True, False])
 async def test_legacy_waits_for_processing_without_admission_or_publish(
-    config, monkeypatch, delivery_enabled
+    api_config, monkeypatch, delivery_enabled
 ):
     from mosemo.platform.database.engine import get_session
 
-    config.batch_delivery.enabled = delivery_enabled
-    app, _, owner, headers = make_app(config)
+    api_config.batch_delivery.enabled = delivery_enabled
+    app, _, owner, headers = make_app(api_config)
     session = object()
     app.dependency_overrides[get_session] = lambda: session
     entered, release = asyncio.Event(), asyncio.Event()
@@ -215,10 +217,10 @@ async def test_legacy_waits_for_processing_without_admission_or_publish(
 
 
 @pytest.mark.asyncio
-async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
+async def test_legacy_auth_validation_and_body_limit(api_config, monkeypatch):
     from mosemo.platform.database.engine import get_session
 
-    app, _, _, headers = make_app(config)
+    app, _, _, headers = make_app(api_config)
     app.dependency_overrides[get_session] = object
     process = AsyncMock()
     monkeypatch.setattr(ProcessLegacyActivityBatch, "execute", process)
@@ -248,12 +250,12 @@ async def test_legacy_auth_validation_and_body_limit(config, monkeypatch):
         ("busy", 503),
     ],
 )
-async def test_legacy_processing_errors(config, monkeypatch, error, expected):
+async def test_legacy_processing_errors(api_config, monkeypatch, error, expected):
     from mosemo.observation.application.batches import TerminalBatchError
     from mosemo.observation.domain.timeline import ActivityTimelineBusyError
     from mosemo.platform.database.engine import get_session
 
-    app, _, _, headers = make_app(config)
+    app, _, _, headers = make_app(api_config)
     app.dependency_overrides[get_session] = object
     failure = (
         ActivityTimelineBusyError() if error == "busy" else TerminalBatchError(error)
@@ -274,13 +276,13 @@ async def test_legacy_processing_errors(config, monkeypatch, error, expected):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["connection", "timeout"])
-async def test_http_maps_publisher_failure_to_retryable_503(config, failure):
+async def test_http_maps_publisher_failure_to_retryable_503(api_config, failure):
     from aiokafka.errors import KafkaConnectionError
 
     from mosemo.entrypoints.api.activity_batches import ActivityBatchPublisher
     from mosemo.platform.messaging.publisher import KafkaPublisher
 
-    app, _, _, headers = make_app(config)
+    app, _, _, headers = make_app(api_config)
     producer = AsyncMock()
     cleaned = asyncio.Event()
 

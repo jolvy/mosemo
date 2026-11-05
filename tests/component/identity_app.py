@@ -5,19 +5,20 @@ from unittest.mock import sentinel
 from fastapi import APIRouter, FastAPI
 
 from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
-from mosemo.identity.bootstrap import get_token_current_account
-from mosemo.platform.config import Config, get_config
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.platform.providers import get_session
 from mosemo.shared.presentation.current_account import get_current_account
+from tests.identity_support import current_account_provider
 
 
 def make_identity_app(
-    router: APIRouter, *, config: Config, prefix: str = ""
+    router: APIRouter, *, identity_config: IdentityConfig, prefix: str = ""
 ) -> FastAPI:
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(router, prefix=f"/api/v1{prefix}")
-    app.dependency_overrides[get_config] = lambda: config
     app.dependency_overrides[get_session] = lambda: sentinel.db_session
-    app.dependency_overrides[get_current_account] = get_token_current_account
+    app.dependency_overrides[get_current_account] = current_account_provider(
+        identity_config
+    )
     return app

@@ -142,6 +142,23 @@ source_modules = [
 ]
 forbidden_modules = ["mosemo.entrypoints"]
 
+# Settings belong to platform and entrypoints (ADR 0015 「설정 소유 규칙」); bounded
+# contexts receive values from their assembly root. Providers reach them indirectly.
+[[tool.importlinter.contracts]]
+name = "bounded contexts do not import settings modules"
+type = "forbidden"
+source_modules = [
+    "mosemo.identity",
+    "mosemo.labels",
+    "mosemo.observation",
+    "mosemo.labeling",
+]
+forbidden_modules = [
+    "mosemo.platform.database.config",
+    "mosemo.platform.messaging.config",
+]
+allow_indirect_imports = true
+
 # Direction between bounded contexts (ADR 0011 「Context Map」). analytics goes
 # above labeling when it is added.
 [[tool.importlinter.contracts]]
@@ -191,7 +208,6 @@ type = "forbidden"
 source_modules = ["mosemo.identity.presentation"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.persistence",
     "mosemo.platform.database.transactions",
@@ -207,7 +223,6 @@ type = "forbidden"
 source_modules = ["mosemo.identity.application"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.persistence",
     "mosemo.platform.logging",
@@ -223,7 +238,6 @@ type = "forbidden"
 source_modules = ["mosemo.identity.infrastructure"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.transactions",
     "mosemo.platform.logging",
@@ -304,7 +318,6 @@ type = "forbidden"
 source_modules = ["mosemo.labels.presentation"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.persistence",
     "mosemo.platform.database.transactions",
@@ -320,7 +333,6 @@ type = "forbidden"
 source_modules = ["mosemo.labels.application"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.persistence",
     "mosemo.platform.logging",
@@ -336,7 +348,6 @@ type = "forbidden"
 source_modules = ["mosemo.labels.infrastructure"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.transactions",
     "mosemo.platform.logging",
@@ -420,7 +431,6 @@ type = "forbidden"
 source_modules = ["mosemo.observation.presentation"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.persistence",
     "mosemo.platform.database.transactions",
@@ -436,7 +446,6 @@ type = "forbidden"
 source_modules = ["mosemo.observation.application"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.persistence",
     "mosemo.platform.logging",
@@ -452,7 +461,6 @@ type = "forbidden"
 source_modules = ["mosemo.observation.infrastructure"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.transactions",
     "mosemo.platform.logging",
@@ -536,7 +544,6 @@ type = "forbidden"
 source_modules = ["mosemo.labeling.presentation"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.persistence",
     "mosemo.platform.database.transactions",
@@ -552,7 +559,6 @@ type = "forbidden"
 source_modules = ["mosemo.labeling.application"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.persistence",
     "mosemo.platform.logging",
@@ -568,7 +574,6 @@ type = "forbidden"
 source_modules = ["mosemo.labeling.infrastructure"]
 forbidden_modules = [
     "mosemo.platform.clock",
-    "mosemo.platform.config",
     "mosemo.platform.database.engine",
     "mosemo.platform.database.transactions",
     "mosemo.platform.logging",

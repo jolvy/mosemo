@@ -6,31 +6,35 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from mosemo.identity.application.devices import RegisterDevice
-from mosemo.identity.presentation.auth.router import get_token_service
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.presentation.devices.router import create_router
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config
 from tests.component.identity_app import make_identity_app
+from tests.identity_support import token_service
 
 
 def make_app(
     *,
-    config: Config,
+    identity_config: IdentityConfig,
     account_id: UUID,
     service: RegisterDevice,
 ) -> tuple[FastAPI, str]:
-    app = make_identity_app(create_router(register_device=service), config=config)
-    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
+    app = make_identity_app(
+        create_router(register_device=service), identity_config=identity_config
+    )
+    token = token_service(identity_config).issue_access_token(account_id, now=utc_now())
     return app, token
 
 
-def test_devices_create_returns_server_id(config: Config) -> None:
+def test_devices_create_returns_server_id(identity_config: IdentityConfig) -> None:
     account_id = uuid4()
     service = create_autospec(RegisterDevice, instance=True)
     idempotency_key = uuid4()
     device_id = uuid4()
     service.execute.return_value = device_id
-    app, token = make_app(config=config, account_id=account_id, service=service)
+    app, token = make_app(
+        identity_config=identity_config, account_id=account_id, service=service
+    )
 
     with TestClient(app) as client:
         response = client.post(
@@ -52,12 +56,14 @@ def test_devices_create_returns_server_id(config: Config) -> None:
 
 @pytest.mark.parametrize("idempotency_key", [None, "not-a-uuid"])
 def test_devices_create_rejects_invalid_idempotency_key(
-    config: Config,
+    identity_config: IdentityConfig,
     idempotency_key: str | None,
 ) -> None:
     account_id = uuid4()
     service = create_autospec(RegisterDevice, instance=True)
-    app, token = make_app(config=config, account_id=account_id, service=service)
+    app, token = make_app(
+        identity_config=identity_config, account_id=account_id, service=service
+    )
     headers = {"Authorization": f"Bearer {token}"}
     if idempotency_key is not None:
         headers["Idempotency-Key"] = idempotency_key
@@ -72,12 +78,14 @@ def test_devices_create_rejects_invalid_idempotency_key(
 
 @pytest.mark.parametrize("authorization", [None, "Bearer invalid-token"])
 def test_devices_create_requires_authentication(
-    config: Config,
+    identity_config: IdentityConfig,
     authorization: str | None,
 ) -> None:
     account_id = uuid4()
     service = create_autospec(RegisterDevice, instance=True)
-    app, _ = make_app(config=config, account_id=account_id, service=service)
+    app, _ = make_app(
+        identity_config=identity_config, account_id=account_id, service=service
+    )
     headers = {"Idempotency-Key": str(uuid4())}
     if authorization is not None:
         headers["Authorization"] = authorization

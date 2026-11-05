@@ -3,17 +3,16 @@ from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
+from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.testclient import TestClient
 
+from mosemo.entrypoints.api.contexts import IDENTITY
 from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.entrypoints.api.main import app as api_app
-from mosemo.identity.bootstrap import get_token_current_account
-from mosemo.identity.presentation.auth.router import get_token_service
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config
 from mosemo.platform.providers import (
     get_clock,
-    get_config,
     get_event_dispatcher,
     get_session,
 )
@@ -23,6 +22,7 @@ from mosemo.shared.presentation.current_account import (
     CurrentAccountDep,
     get_current_account,
 )
+from tests.identity_support import current_account_provider, token_service
 
 
 def test_get_clock_returns_utc_now() -> None:
@@ -42,13 +42,20 @@ async def test_declared_current_account_provider_requires_override() -> None:
         await get_current_account(None)
 
 
-def test_api_app_overrides_current_account_with_token_verification() -> None:
-    assert api_app.dependency_overrides[get_current_account] is (
-        get_token_current_account
+@pytest.mark.asyncio
+async def test_api_app_overrides_current_account_with_token_verification() -> None:
+    provider = api_app.dependency_overrides[get_current_account]
+    account_id = uuid4()
+    token = IDENTITY.token_service.issue_access_token(account_id, now=utc_now())
+
+    account = await provider(
+        HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
     )
 
+    assert account == CurrentAccount(account_id=account_id)
 
-def make_client(config: Config) -> TestClient:
+
+def make_client(identity_config: IdentityConfig) -> TestClient:
     app = FastAPI()
     register_exception_handlers(app)
 
@@ -60,19 +67,20 @@ def make_client(config: Config) -> TestClient:
     def no_database() -> None:
         raise AssertionError("the current account provider must not use a session")
 
-    app.dependency_overrides[get_current_account] = get_token_current_account
-    app.dependency_overrides[get_config] = lambda: config
+    app.dependency_overrides[get_current_account] = current_account_provider(
+        identity_config
+    )
     app.dependency_overrides[get_session] = no_database
     return TestClient(app)
 
 
 def test_current_account_comes_from_valid_token_without_session(
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     account_id = uuid4()
-    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
+    token = token_service(identity_config).issue_access_token(account_id, now=utc_now())
 
-    response = make_client(config).get(
+    response = make_client(identity_config).get(
         "/me", headers={"Authorization": f"Bearer {token}"}
     )
 
@@ -82,15 +90,17 @@ def test_current_account_comes_from_valid_token_without_session(
 
 @pytest.mark.parametrize("authorization", [None, "Bearer not-a-token", "expired"])
 def test_current_account_rejects_missing_invalid_or_expired_token(
-    config: Config, authorization: str | None
+    identity_config: IdentityConfig, authorization: str | None
 ) -> None:
     if authorization == "expired":
         issued_at = datetime(2020, 1, 1, tzinfo=UTC) - timedelta(days=1)
-        token = get_token_service(config).issue_access_token(uuid4(), now=issued_at)
+        token = token_service(identity_config).issue_access_token(
+            uuid4(), now=issued_at
+        )
         authorization = f"Bearer {token}"
     headers = {} if authorization is None else {"Authorization": authorization}
 
-    response = make_client(config).get("/me", headers=headers)
+    response = make_client(identity_config).get("/me", headers=headers)
 
     assert response.status_code == 401
     assert response.json()["error"]["status"] == "AUTH_INVALID_ACCESS_TOKEN"

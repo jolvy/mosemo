@@ -14,7 +14,7 @@ from mosemo.observation.bootstrap import (
     ProcessActivityBatch,
 )
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import BatchDeliveryConfig
+from mosemo.platform.messaging.config import BatchDeliveryConfig
 from mosemo.platform.messaging.runtime import consumer_broker
 from mosemo.platform.messaging.subscriber import (
     MessageConsumer,

@@ -10,32 +10,37 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.entrypoints.api.routes import v1_api_router
-from mosemo.identity.bootstrap import get_token_current_account
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
-from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.labels.domain.labels import Label
 from mosemo.labels.infrastructure.tables import labels as label_table
 from mosemo.observation.domain.activities import ActivityRecord
 from mosemo.observation.domain.focus_sessions import FocusSession
 from mosemo.observation.infrastructure.tables import activity_records, focus_sessions
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config, get_config
 from mosemo.platform.database.engine import get_session
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.batch_support import batch_client, post_activity
-from tests.identity_support import delete_accounts
+from tests.identity_support import (
+    current_account_provider,
+    delete_accounts,
+    token_service,
+)
 
 
 @pytest_asyncio.fixture
-async def focus_client(integration_database_url: str, config: Config) -> AsyncIterator:
+async def focus_client(
+    integration_database_url: str, identity_config: IdentityConfig
+) -> AsyncIterator:
     engine = create_async_engine(integration_database_url)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(v1_api_router)
-    app.dependency_overrides[get_config] = lambda: config
-    app.dependency_overrides[get_current_account] = get_token_current_account
+    app.dependency_overrides[get_current_account] = current_account_provider(
+        identity_config
+    )
 
     async def session_override():
         async with factory() as session:
@@ -55,11 +60,13 @@ async def focus_client(integration_database_url: str, config: Config) -> AsyncIt
         await session.commit()
         headers = {
             "Authorization": "Bearer "
-            + get_token_service(config).issue_access_token(account.id, now=utc_now())
+            + token_service(identity_config).issue_access_token(
+                account.id, now=utc_now()
+            )
         }
         other_headers = {
             "Authorization": "Bearer "
-            + get_token_service(config).issue_access_token(other.id, now=utc_now())
+            + token_service(identity_config).issue_access_token(other.id, now=utc_now())
         }
     async with batch_client(app, factory) as client:
         yield (

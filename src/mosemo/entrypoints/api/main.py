@@ -7,12 +7,13 @@ import httpx2
 from fastapi import FastAPI
 
 from mosemo.entrypoints.api.activity_batches import compose_messaging_app
+from mosemo.entrypoints.api.config import get_api_config
+from mosemo.entrypoints.api.contexts import IDENTITY
 from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.entrypoints.api.middleware import RedactSensitiveQueryStringMiddleware
 from mosemo.entrypoints.api.openapi import public_openapi
 from mosemo.entrypoints.api.routes import v1_api_router
-from mosemo.identity import bootstrap as identity_bootstrap
-from mosemo.platform.config import get_config
+from mosemo.platform.database.config import get_database_settings
 from mosemo.platform.database.engine import get_engine
 from mosemo.platform.logging import configure_logging
 from mosemo.shared.presentation.current_account import get_current_account
@@ -77,12 +78,12 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.add_middleware(RedactSensitiveQueryStringMiddleware)
     app.include_router(v1_api_router)
-    app.dependency_overrides[get_current_account] = (
-        identity_bootstrap.get_token_current_account
-    )
+    app.dependency_overrides[get_current_account] = IDENTITY.current_account_provider()
     app.openapi = cast(Any, partial(public_openapi, app))
 
-    batch_config = get_config().batch_delivery
+    # Validate the DB_* settings at startup; the engine is created on first use.
+    get_database_settings()
+    batch_config = get_api_config().batch_delivery
     return compose_messaging_app(app, batch_config)
 
 

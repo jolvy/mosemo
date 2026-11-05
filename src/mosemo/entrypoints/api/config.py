@@ -1,34 +1,24 @@
-from functools import lru_cache
+"""Settings that the API process reads and validates at startup."""
+
+from functools import cache
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from mosemo.identity.bootstrap import IdentityConfig
+from mosemo.platform.messaging.config import BatchDeliveryConfig
+
 _MIN_JWT_SECRET_KEY_BYTES = 32
 
 
-class DatabaseConfig(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    database: str = Field(validation_alias="DATABASE")
-    user: str = Field(validation_alias="USER")
-    password: SecretStr = Field(validation_alias="PASSWORD")
-    host: str = Field(validation_alias="HOST")
-    port: int = Field(validation_alias="PORT")
-
-    @property
-    def dsn(self) -> str:
-        password = self.password.get_secret_value()
-        return f"postgresql+asyncpg://{self.user}:{password}@{self.host}:{self.port}/{self.database}"
-
-
-class KakaoConfig(BaseModel):
+class KakaoSettings(BaseModel):
     rest_api_key: str = Field(validation_alias="REST_API_KEY")
     client_secret: SecretStr = Field(validation_alias="CLIENT_SECRET")
     redirect_uri: str = Field(validation_alias="REDIRECT_URI")
 
 
-class AuthConfig(BaseModel):
+class AuthSettings(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     jwt_secret_key: SecretStr = Field(validation_alias="JWT_SECRET_KEY")
@@ -76,24 +66,13 @@ class AuthConfig(BaseModel):
         return value
 
 
-class BatchDeliveryConfig(BaseModel):
-    """Shared Kafka configuration for API publication and batch consumption."""
-
-    enabled: bool = True
-    topic: str = Field(default="activities.registration-requested", min_length=1)
-    bootstrap_servers: str = Field(default="localhost:9092", min_length=1)
-    group_id: str = Field(default="mosemo.activity-batches", min_length=1)
-
-
-class Config(BaseSettings):
+class ApiConfig(BaseSettings):
     app_env: str = Field(validation_alias="MOSEMO_ENV")
+    kakao: KakaoSettings = Field(validation_alias="KAKAO")
+    auth: AuthSettings = Field(validation_alias="AUTH")
     batch_delivery: BatchDeliveryConfig = Field(
         default_factory=BatchDeliveryConfig, validation_alias="BATCH"
     )
-    database: DatabaseConfig = Field(validation_alias="DB")
-    kakao: KakaoConfig = Field(validation_alias="KAKAO")
-    auth: AuthConfig = Field(validation_alias="AUTH")
-    label_model: str | None = Field(default=None, validation_alias="LABEL_MODEL")
 
     model_config = SettingsConfigDict(
         env_file_encoding="utf-8",
@@ -102,7 +81,21 @@ class Config(BaseSettings):
         populate_by_name=True,
     )
 
+    def identity(self) -> IdentityConfig:
+        return IdentityConfig(
+            kakao_rest_api_key=self.kakao.rest_api_key,
+            kakao_client_secret=self.kakao.client_secret.get_secret_value(),
+            kakao_redirect_uri=self.kakao.redirect_uri,
+            jwt_secret_key=self.auth.jwt_secret_key.get_secret_value(),
+            jwt_issuer=self.auth.jwt_issuer,
+            jwt_audience=self.auth.jwt_audience,
+            access_token_ttl_seconds=self.auth.access_token_ttl_seconds,
+            authorization_code_ttl_seconds=self.auth.authorization_code_ttl_seconds,
+            macos_callback_uri=self.auth.macos_callback_uri,
+            secure_cookies=self.app_env == "prod",
+        )
 
-@lru_cache
-def get_config() -> Config:
-    return Config()
+
+@cache
+def get_api_config() -> ApiConfig:
+    return ApiConfig()

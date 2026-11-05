@@ -8,7 +8,6 @@ from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.labeling import bootstrap as labeling_bootstrap
 from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.observation import bootstrap as observation_bootstrap
-from mosemo.platform.config import Config
 from mosemo.platform.providers import get_event_dispatcher
 from mosemo.platform.scheduling import BatchJob
 
@@ -21,10 +20,8 @@ def ensure_unique_names(jobs: Sequence[BatchJob]) -> None:
 
 
 def build_jobs(
-    session_factory: async_sessionmaker[AsyncSession], config: Config
+    session_factory: async_sessionmaker[AsyncSession], *, label_model: str
 ) -> list[BatchJob]:
-    if not config.label_model:
-        raise ValueError("LABEL_MODEL is required to run batch jobs")
     # Every context that owns tables maps them before a job touches the database.
     identity_bootstrap.map_tables()
     labels_bootstrap.map_tables()
@@ -33,7 +30,7 @@ def build_jobs(
     jobs = [
         labeling_bootstrap.create_label_proposal_job(
             session_factory,
-            model=config.label_model,
+            model=label_model,
             labels=labels_bootstrap.create_label_catalog(),
             timeline=observation_bootstrap.create_observation_timeline(),
             dispatcher=get_event_dispatcher(),

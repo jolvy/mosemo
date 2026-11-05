@@ -5,17 +5,18 @@ from urllib.parse import parse_qs, urlsplit
 import httpx2
 import pytest
 
-from mosemo.identity.bootstrap import create_kakao_client
+from mosemo.identity.bootstrap import IdentityConfig, create_kakao_client
 from mosemo.identity.infrastructure.kakao_client import (
     KAKAO_AUTHORIZE_URL,
     KAKAO_TOKEN_URL,
     KAKAO_USER_INFO_URL,
     KakaoClientError,
 )
-from mosemo.platform.config import Config
 
 
-def test_get_user_id_exchanges_code_and_fetches_user(config: Config) -> None:
+def test_get_user_id_exchanges_code_and_fetches_user(
+    identity_config: IdentityConfig,
+) -> None:
     requests: list[httpx2.Request] = []
 
     def handle_request(request: httpx2.Request) -> httpx2.Response:
@@ -30,7 +31,7 @@ def test_get_user_id_exchanges_code_and_fetches_user(config: Config) -> None:
         async with httpx2.AsyncClient(
             transport=httpx2.MockTransport(handle_request)
         ) as http_client:
-            client = create_kakao_client(config.kakao, http_client=http_client)
+            client = create_kakao_client(identity_config, http_client=http_client)
             return await client.get_user_id(code="authorization-code")
 
     provider_subject = asyncio.run(run())
@@ -55,7 +56,7 @@ def test_get_user_id_exchanges_code_and_fetches_user(config: Config) -> None:
     ],
 )
 def test_get_user_id_converts_token_failure(
-    config: Config,
+    identity_config: IdentityConfig,
     token_status: int,
     token_payload: dict,
 ) -> None:
@@ -66,14 +67,16 @@ def test_get_user_id_converts_token_failure(
         async with httpx2.AsyncClient(
             transport=httpx2.MockTransport(handle_request)
         ) as http_client:
-            client = create_kakao_client(config.kakao, http_client=http_client)
+            client = create_kakao_client(identity_config, http_client=http_client)
             with pytest.raises(KakaoClientError):
                 await client.get_user_id(code="authorization-code")
 
     asyncio.run(run())
 
 
-def test_get_user_id_converts_user_endpoint_failure(config: Config) -> None:
+def test_get_user_id_converts_user_endpoint_failure(
+    identity_config: IdentityConfig,
+) -> None:
     def handle_request(request: httpx2.Request) -> httpx2.Response:
         if request.url == httpx2.URL(KAKAO_TOKEN_URL):
             return httpx2.Response(200, json={"access_token": "provider-token"})
@@ -83,16 +86,18 @@ def test_get_user_id_converts_user_endpoint_failure(config: Config) -> None:
         async with httpx2.AsyncClient(
             transport=httpx2.MockTransport(handle_request)
         ) as http_client:
-            client = create_kakao_client(config.kakao, http_client=http_client)
+            client = create_kakao_client(identity_config, http_client=http_client)
             with pytest.raises(KakaoClientError):
                 await client.get_user_id(code="authorization-code")
 
     asyncio.run(run())
 
 
-def test_create_authorization_url_uses_config_and_state(config: Config) -> None:
+def test_create_authorization_url_uses_config_and_state(
+    identity_config: IdentityConfig,
+) -> None:
     client = create_kakao_client(
-        config.kakao, http_client=cast(httpx2.AsyncClient, object())
+        identity_config, http_client=cast(httpx2.AsyncClient, object())
     )
 
     location = urlsplit(client.create_authorization_url(state="fixed-state"))

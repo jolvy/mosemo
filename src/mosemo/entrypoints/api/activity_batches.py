@@ -13,7 +13,7 @@ from mosemo.observation.bootstrap import (
     ActivityDeliveryUnavailableError,
     ActivityRegistrationRequested,
 )
-from mosemo.platform.config import BatchDeliveryConfig
+from mosemo.platform.messaging.config import BatchDeliveryConfig
 from mosemo.platform.messaging.publisher import DeliveryUnavailableError, KafkaPublisher
 from mosemo.platform.messaging.runtime import kafka_publisher
 

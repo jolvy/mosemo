@@ -17,10 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from mosemo.entrypoints.api.contexts import LABELING
 from mosemo.entrypoints.api.exception_handlers import register_exception_handlers
 from mosemo.entrypoints.api.routes import v1_api_router
-from mosemo.identity.bootstrap import get_token_current_account
+from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
-from mosemo.identity.presentation.auth.router import get_token_service
 from mosemo.labeling.application.ports import LabelSuggester
 from mosemo.labeling.application.proposals import (
     NoProposalWorkError,
@@ -51,14 +50,17 @@ from mosemo.observation.infrastructure.timeline_segments import (
     activity_timeline_lock_key,
 )
 from mosemo.platform.clock import utc_now
-from mosemo.platform.config import Config, get_config
 from mosemo.platform.database.engine import get_session
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.batch_support import batch_client, post_activity, receipt_for
 from tests.clock_support import FakeClock
-from tests.identity_support import delete_accounts
+from tests.identity_support import (
+    current_account_provider,
+    delete_accounts,
+    token_service,
+)
 from tests.labeling_support import ProposalProcessor, ProposalScanner
 
 ARCHIVED_AT = datetime(2026, 9, 14, 2, tzinfo=UTC)
@@ -123,8 +125,8 @@ def state_change_request(
     }
 
 
-def auth_headers(config: Config, account_id: UUID) -> dict[str, str]:
-    token = get_token_service(config).issue_access_token(account_id, now=utc_now())
+def auth_headers(identity_config: IdentityConfig, account_id: UUID) -> dict[str, str]:
+    token = token_service(identity_config).issue_access_token(account_id, now=utc_now())
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -227,7 +229,7 @@ async def create_account_with_labels(
 @pytest_asyncio.fixture
 async def label_api_client(
     integration_database_url: str,
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> AsyncIterator[
     tuple[httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI]
 ]:
@@ -237,8 +239,9 @@ async def label_api_client(
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(v1_api_router)
-    app.dependency_overrides[get_config] = lambda: config
-    app.dependency_overrides[get_current_account] = get_token_current_account
+    app.dependency_overrides[get_current_account] = current_account_provider(
+        identity_config
+    )
 
     async def override_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
@@ -255,13 +258,13 @@ async def test_known_segment_version_survives_proposal_and_confirmation(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     # Captured from the pre-relocation implementation for this fixed observation.
     expected_version = (
         "2f8b6cd2456ac93d7acb7c1279860b144f49dac1aefad62f374b9169f425409b"
@@ -344,7 +347,7 @@ async def test_label_state_can_be_confirmed_and_corrected_over_http(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -353,7 +356,7 @@ async def test_label_state_can_be_confirmed_and_corrected_over_http(
         )
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
 
     try:
         first = await post_activity(
@@ -458,14 +461,14 @@ async def test_confirming_a_label_group_applies_to_every_member(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         for sequence, observed_at, context in [
             (1, "2026-09-14T00:00:00Z", detailed_context("Editor")),
@@ -531,14 +534,14 @@ async def test_batch_confirms_each_segment_in_a_group_with_its_own_selection(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         for sequence, observed_at, context in [
             (1, "2026-09-14T00:00:00Z", detailed_context("Editor")),
@@ -606,14 +609,14 @@ async def test_batch_confirms_different_choices_and_retries_without_changing_tim
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         await upload_closed_detail(
             client,
@@ -675,7 +678,7 @@ async def test_delayed_batch_retry_conflicts_after_a_put_correction(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -684,7 +687,7 @@ async def test_delayed_batch_retry_conflicts_after_a_put_correction(
         )
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         await upload_closed_detail(
             client,
@@ -755,7 +758,7 @@ async def test_batch_conflict_does_not_apply_earlier_items(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -764,7 +767,7 @@ async def test_batch_conflict_does_not_apply_earlier_items(
         )
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         await upload_closed_detail(
             client,
@@ -855,14 +858,14 @@ async def test_batch_with_stale_member_rolls_back_every_group_and_identifies_fai
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         await upload_closed_detail(
             client,
@@ -941,14 +944,14 @@ async def test_batch_accepts_one_segment_from_a_timeline_group(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         for sequence, observed_at, context in [
             (1, "2026-09-14T00:00:00Z", detailed_context("Editor")),
@@ -1010,14 +1013,14 @@ async def test_batch_rejects_duplicate_member_targets_before_any_write(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         await upload_closed_detail(
             client,
@@ -1071,14 +1074,14 @@ async def test_batch_and_late_observation_never_attach_label_to_changed_activity
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         await upload_closed_detail(
             client,
@@ -1138,7 +1141,7 @@ async def test_batch_rejects_foreign_segment_without_confirming_own_group(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -1146,8 +1149,8 @@ async def test_batch_rejects_foreign_segment_without_confirming_own_group(
         other_id, other_device, _, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
-    other_headers = auth_headers(config, other_id)
+    headers = auth_headers(identity_config, account_id)
+    other_headers = auth_headers(identity_config, other_id)
     try:
         await upload_closed_detail(
             client,
@@ -1213,14 +1216,14 @@ async def test_batch_rejects_archived_label(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         await upload_closed_detail(
             client,
@@ -1269,14 +1272,14 @@ async def test_batch_rejects_opaque_segment(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, _, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         await upload_closed_detail(
             client,
@@ -1335,12 +1338,12 @@ async def test_batch_rejects_empty_items(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, _, _ = label_api_client
     response = await client.post(
         "/api/v1/activities/label-confirmations",
-        headers=auth_headers(config, uuid4()),
+        headers=auth_headers(identity_config, uuid4()),
         json={"items": []},
     )
 
@@ -1354,14 +1357,14 @@ async def test_batch_lock_contention_returns_retry_after(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, _, _, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         async with session_factory() as holder, holder.begin():
             await holder.execute(
@@ -1413,7 +1416,7 @@ async def test_batch_uses_user_choices_with_ready_and_waiting_proposals(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -1422,7 +1425,7 @@ async def test_batch_uses_user_choices_with_ready_and_waiting_proposals(
         )
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         first_event_id, _, _ = await upload_closed_detail(
             client,
@@ -1579,7 +1582,7 @@ async def test_worker_proposal_is_visible_but_not_confirmed_over_http(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -1587,7 +1590,7 @@ async def test_worker_proposal_is_visible_but_not_confirmed_over_http(
             session
         )
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         browser_context = detailed_context("Editor")
         browser_context["web"] = {
@@ -1655,13 +1658,13 @@ async def test_user_can_confirm_unclassified_after_proposal_failure(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, _, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, segment_id, version = await upload_closed_detail(
             client,
@@ -1707,13 +1710,13 @@ async def test_failed_proposal_stays_pending_then_retries_as_unclassified(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, _, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, segment_id, _ = await upload_closed_detail(
             client,
@@ -1762,13 +1765,13 @@ async def test_three_failed_attempts_leave_the_proposal_pending_for_review(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, _, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, segment_id, _ = await upload_closed_detail(
             client,
@@ -1830,13 +1833,13 @@ async def test_claim_without_work_raises_and_commits_expired_final_lease(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, _, _ = await upload_closed_detail(
             client,
@@ -1901,15 +1904,15 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         open_account_id, open_device, _, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
-    open_headers = auth_headers(config, open_account_id)
+    headers = auth_headers(identity_config, account_id)
+    open_headers = auth_headers(identity_config, open_account_id)
     clock = FakeClock(utc_now())
     try:
         for sequence, observed_at, context in (
@@ -1999,13 +2002,13 @@ async def test_scanner_bounds_batches_and_skips_currently_completed_versions(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     clock = FakeClock(utc_now())
     records: list[tuple[UUID, str, str]] = []
     try:
@@ -2112,13 +2115,13 @@ async def test_scanner_sweep_processes_every_page_until_complete(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     clock = FakeClock(utc_now())
     event_ids: list[UUID] = []
     try:
@@ -2191,7 +2194,7 @@ async def test_next_proposal_uses_only_owners_latest_confirmation_and_stays_stab
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -2202,8 +2205,8 @@ async def test_next_proposal_uses_only_owners_latest_confirmation_and_stays_stab
             session
         )
         await session.commit()
-    headers = auth_headers(config, account_id)
-    other_headers = auth_headers(config, other_id)
+    headers = auth_headers(identity_config, account_id)
+    other_headers = auth_headers(identity_config, other_id)
     try:
         _, first_segment_id, first_version = await upload_closed_detail(
             client,
@@ -2303,7 +2306,7 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, session_factory, _ = label_api_client
@@ -2315,7 +2318,7 @@ async def test_proposal_examples_skip_stale_and_archived_confirmations(
             active_label_id,
         ) = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         target = await upload_closed_detail(
             client,
@@ -2431,14 +2434,14 @@ async def test_proposal_examples_skip_confirmations_whose_segment_is_gone(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, _, label_id = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         target = await upload_closed_detail(
             client,
@@ -2519,13 +2522,13 @@ async def test_archived_suggestion_is_retained_and_blocks_label_deletion(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, segment_id, version = await upload_closed_detail(
             client,
@@ -2583,13 +2586,13 @@ async def test_confirmation_during_model_call_does_not_publish_a_proposal(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, segment_id, version = await upload_closed_detail(
             client,
@@ -2637,14 +2640,14 @@ async def test_confirmation_and_activity_collection_continue_during_example_look
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, segment_id, version = await upload_closed_detail(
             client,
@@ -2744,13 +2747,13 @@ async def test_projection_change_during_model_call_discards_stale_result(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, segment_id, version = await upload_closed_detail(
             client,
@@ -2814,7 +2817,7 @@ async def test_expired_worker_lease_cannot_overwrite_newer_proposal(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -2825,7 +2828,7 @@ async def test_expired_worker_lease_cannot_overwrite_newer_proposal(
             second_label_id,
         ) = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, segment_id, _ = await upload_closed_detail(
             client,
@@ -2884,7 +2887,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -2892,8 +2895,8 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
         other_account_id, other_device, _, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
-    other_headers = auth_headers(config, other_account_id)
+    headers = auth_headers(identity_config, account_id)
+    other_headers = auth_headers(identity_config, other_account_id)
     account_ids = (account_id, other_account_id)
 
     async def reject_batch_segment(segment_id: UUID) -> None:
@@ -3065,7 +3068,7 @@ async def test_label_timeline_groups_adjacent_segments_with_same_confirmation(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -3075,7 +3078,7 @@ async def test_label_timeline_groups_adjacent_segments_with_same_confirmation(
         )
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         for sequence, observed_at, context in [
             (1, "2026-09-14T00:00:00Z", detailed_context("Editor")),
@@ -3178,7 +3181,7 @@ async def test_label_timeline_preserves_state_and_label_boundaries(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -3187,7 +3190,7 @@ async def test_label_timeline_preserves_state_and_label_boundaries(
         )
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         contexts = [
             "Editor",
@@ -3311,14 +3314,14 @@ async def test_label_timeline_keeps_zero_duration_order_and_capture_gap_boundary
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         observations = [
             (1, "2026-09-14T00:00:00Z", detailed_context("Editor")),
@@ -3430,14 +3433,14 @@ async def test_label_timeline_splits_same_label_at_zero_duration_capture_gap(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         requests = [
             activity_request(
@@ -3526,7 +3529,7 @@ async def test_label_timeline_defaults_to_account_local_today(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, session_factory, _ = label_api_client
@@ -3538,8 +3541,8 @@ async def test_label_timeline_defaults_to_account_local_today(
         other_account_id, _, _, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
-    other_headers = auth_headers(config, other_account_id)
+    headers = auth_headers(identity_config, account_id)
+    other_headers = auth_headers(identity_config, other_account_id)
     account_ids = (account_id, other_account_id)
     try:
         for sequence, observed_at, context in [
@@ -3615,14 +3618,14 @@ async def test_label_timeline_returns_open_detailed_activity_separately(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, _, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         observed_at = (
             utc_now().isoformat(timespec="microseconds").replace("+00:00", "Z")
@@ -3659,14 +3662,14 @@ async def test_label_timeline_reopens_confirmation_after_late_observation(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
 
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         for sequence, observed_at, context in [
             (1, "2026-09-14T00:00:00Z", detailed_context("Editor")),
@@ -3748,13 +3751,13 @@ async def test_projection_version_invalidates_only_changed_segments(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
 
     try:
         for sequence, observed_at, context in (
@@ -3837,13 +3840,13 @@ async def test_projection_version_survives_same_result_recalculation(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, coding_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
 
     try:
         for sequence, observed_at, context in (
@@ -3918,7 +3921,7 @@ async def test_new_label_selection_rejects_foreign_and_archived_catalog_labels(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
     batch: bool,
     unavailable: str,
 ) -> None:
@@ -3931,7 +3934,7 @@ async def test_new_label_selection_rejects_foreign_and_archived_catalog_labels(
             assert label is not None
             label.archived_at = ARCHIVED_AT
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     label_id = foreign_label_id if unavailable == "foreign" else own_label_id
     try:
         _, segment_id, version = await upload_closed_detail(
@@ -3981,13 +3984,13 @@ async def test_past_confirmation_keeps_archived_label_and_displays_current_name(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         _, segment_id, version = await upload_closed_detail(
             client,
@@ -4057,7 +4060,7 @@ async def test_worker_uses_owned_active_catalog_and_revalidates_suggestion(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
     suggestion: str,
 ) -> None:
     client, session_factory, _ = label_api_client
@@ -4070,7 +4073,7 @@ async def test_worker_uses_owned_active_catalog_and_revalidates_suggestion(
         assert archived_label is not None
         archived_label.archived_at = ARCHIVED_AT
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, segment_id, _ = await upload_closed_detail(
             client,
@@ -4154,13 +4157,13 @@ async def test_job_sweep_proposes_every_candidate_in_one_session(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         records = [
             await upload_closed_detail(
@@ -4219,13 +4222,13 @@ async def test_propose_label_reads_current_rows_on_a_reused_session(
     label_api_client: tuple[
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
-    config: Config,
+    identity_config: IdentityConfig,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
         account_id, device, label_id, _ = await create_account_with_labels(session)
         await session.commit()
-    headers = auth_headers(config, account_id)
+    headers = auth_headers(identity_config, account_id)
     try:
         event_id, _, _ = await upload_closed_detail(
             client,
