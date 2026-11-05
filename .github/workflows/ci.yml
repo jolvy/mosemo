@@ -61,7 +61,7 @@ jobs:
         run: uv run --locked lint-imports
 
       - name: Check OpenAPI snapshot
-        run: uv run --locked pytest -q tests/component/test_openapi_descriptions.py
+        run: uv run --locked pytest -q tests/integration/entrypoints/test_openapi_descriptions.py
 
       - name: Test
         env:

@@ -27,7 +27,7 @@ ALLOWED_METADATA_DRIFT = [
     ("remove_constraint", "accounts_account_provider_check"),
 ]
 LABEL_MIGRATION_PATH = (
-    Path(__file__).parents[2]
+    Path(__file__).parents[3]
     / "migrations/versions/2026-09-21_0000_e5f6a7b8c9d0_create_label_catalog.py"
 )
 

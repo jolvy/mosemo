@@ -15,7 +15,7 @@ from mosemo.entrypoints.batch.config import get_batch_jobs_config
 from mosemo.entrypoints.consumer.config import get_consumer_config
 from mosemo.platform.database.config import get_database_settings
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 SETTINGS_PREFIXES = ("DB_", "BATCH_", "MOSEMO_ENV", "KAKAO_", "AUTH_", "LABEL_MODEL")
 API_ENVIRONMENT = runpy.run_path(str(ROOT / "scripts/export_openapi.py"))[
     "EXPORT_ENVIRONMENT"
