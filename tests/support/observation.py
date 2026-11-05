@@ -2,8 +2,8 @@
 
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
-from datetime import date
-from uuid import UUID
+from datetime import UTC, date, datetime, timedelta
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -84,3 +84,42 @@ def batch_executor(
             clock=clock,
         ),
     )
+
+
+def activity_request():
+    return {
+        "batchId": str(uuid4()),
+        "deviceId": str(uuid4()),
+        "records": [
+            {
+                "eventId": str(uuid4()),
+                "sequence": 3,
+                "recordType": "activity_observation",
+                "observedAt": "2026-09-14T00:00:00Z",
+                "timezoneId": "Asia/Seoul",
+                "utcOffsetMinutes": 540,
+                "context": {"kind": "opaque"},
+            }
+        ],
+    }
+
+
+def record(sequence, seconds, *, context=None, event_id=None):
+    observed = datetime(2026, 9, 14, tzinfo=UTC) + timedelta(seconds=seconds)
+    return {
+        "eventId": str(event_id or uuid4()),
+        "sequence": sequence,
+        "recordType": "activity_observation",
+        "observedAt": observed.isoformat().replace("+00:00", "Z"),
+        "timezoneId": "Asia/Seoul",
+        "utcOffsetMinutes": 540,
+        "context": context or {"kind": "opaque"},
+    }
+
+
+def batch(device, records, *, batch_id=None):
+    return {
+        "batchId": str(batch_id or uuid4()),
+        "deviceId": str(device),
+        "records": records,
+    }

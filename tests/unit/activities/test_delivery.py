@@ -11,7 +11,7 @@ from mosemo.entrypoints.api.activity_batches import ActivityBatchPublisher
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
 from mosemo.observation.presentation.messages import ActivityRegistrationRequested
 from mosemo.platform.messaging.publisher import DeliveryUnavailableError, KafkaPublisher
-from tests.component.test_activities_api import activity_request
+from tests.support.observation import activity_request
 
 
 def test_message_roundtrip_preserves_record_order_precision_and_validation():

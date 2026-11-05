@@ -8,9 +8,9 @@ from asgi_lifespan import LifespanManager
 
 from mosemo.observation.application.batches import ActivityBatchProcessor
 from mosemo.observation.presentation.messages import ActivityRegistrationRequested
-from tests.component.test_activities_api import activity_request
-from tests.component.test_batch_runtime import make_app
+from tests.support.batches import make_app
 from tests.support.kafka import capture_records
+from tests.support.observation import activity_request
 from tests.support.use_cases import record_transactions
 
 

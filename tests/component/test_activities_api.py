@@ -23,6 +23,7 @@ from mosemo.platform.messaging.publisher import DeliveryUnavailableError
 from mosemo.platform.providers import get_session
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.support.identity import current_account_provider, token_service
+from tests.support.observation import activity_request
 from tests.support.use_cases import record_transactions
 
 
@@ -32,24 +33,6 @@ def no_database_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
     record_transactions(
         monkeypatch, "mosemo.observation.application.batches", "read_snapshot"
     )
-
-
-def activity_request():
-    return {
-        "batchId": str(uuid4()),
-        "deviceId": str(uuid4()),
-        "records": [
-            {
-                "eventId": str(uuid4()),
-                "sequence": 3,
-                "recordType": "activity_observation",
-                "observedAt": "2026-09-14T00:00:00Z",
-                "timezoneId": "Asia/Seoul",
-                "utcOffsetMinutes": 540,
-                "context": {"kind": "opaque"},
-            }
-        ],
-    }
 
 
 def make_app(
