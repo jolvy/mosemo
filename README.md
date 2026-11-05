@@ -199,7 +199,7 @@ docker volume rm <project>_kafka-data
 
 ```sh
 uv sync --locked
-uv run --locked pytest -q tests/unit/test_config.py tests/integration/test_kafka.py tests/integration/test_batch_publication.py tests/integration/test_batch_consumption.py
+uv run --locked pytest -q tests/unit/entrypoints/test_config.py tests/integration/test_kafka.py tests/integration/test_batch_publication.py tests/integration/test_batch_consumption.py
 ```
 
 Docker must be running. Testcontainers starts the same pinned Kafka image with
@@ -235,7 +235,7 @@ recorded in [#66](https://github.com/jolvy/mosemo/issues/66), not inferred from 
 
 | Scenario | Test location and boundary |
 | --- | --- |
-| TC-1 Message contract | `tests/unit/activities/test_delivery.py`, `tests/component/test_batch_consumer.py`, `tests/integration/test_batch_publication.py`: authenticated account key/value, schema and order |
+| TC-1 Message contract | `tests/unit/entrypoints/test_delivery.py`, `tests/component/test_batch_consumer.py`, `tests/integration/test_batch_publication.py`: authenticated account key/value, schema and order |
 | TC-2 HTTP acceptance | `tests/integration/test_batch_publication.py`, `tests/component/test_batch_runtime.py`, `tests/component/test_batch_admission_timeout.py`: real ACK, 503 and admission deadlines |
 | TC-3 Atomic persistence | `tests/integration/test_activity_batches.py`: PostgreSQL receipt, raw records and timeline commit/rollback |
 | TC-4 Duplicate/conflict | `tests/integration/test_activity_batches.py`: normalized retry and changed content preserve existing results |
