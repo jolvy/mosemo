@@ -36,12 +36,14 @@ src/mosemo/
 ├── identity/ labels/ observation/ labeling/   # BC (ADR 0011 그대로)
 ├── shared/                                    # 공용 커널 (ADR 0011 그대로)
 ├── platform/                                  # 누구 소유도 아닌 실행 기반
-│   ├── config.py  clock.py  logging.py  logging.json  providers.py  scheduling.py
+│   ├── clock.py  logging.py  logging.json  providers.py  scheduling.py
 │   ├── database/
+│   │   ├── config.py          # DB 설정(DatabaseSettings, DB_*)
 │   │   ├── engine.py          # DB 엔진·세션 팩토리·세션
 │   │   ├── persistence.py     # 매핑 registry, 이름 규칙 MetaData, 컬럼 타입
 │   │   └── transactions.py    # unit_of_work, read_snapshot, record_event
 │   └── messaging/
+│       ├── config.py          # Kafka 전달 설정 모델(BatchDeliveryConfig)
 │       ├── publisher.py  runtime.py  subscriber.py
 │       └── kafka_compat.py
 └── entrypoints/                               # 조립 루트, 프로세스마다 하나
@@ -85,12 +87,15 @@ BC 계층별로 import할 수 있는 `platform` 모듈은 ADR 0011의 `infra` �
 | application | `platform.database.transactions` |
 | infrastructure | `platform.database.persistence` |
 | domain | 없음 |
-| `bootstrap.py` | 위 셋과 `platform.clock`, `platform.config`, `platform.scheduling` |
+| `bootstrap.py` | 위 셋과 `platform.clock`, `platform.scheduling` |
 
 - BC 4개 전체(계층, `bootstrap.py`, `public.py` 포함)는 `mosemo.entrypoints`를 직접·간접 모두
   import하지 않는다(`forbidden`, `allow_indirect_imports` 미설정). 새 BC를 추가하면 이 계약의
   대상에도 넣는다.
 - `shared`·`platform`은 BC와 `mosemo.entrypoints`를 import하지 않는다.
+- BC 4개 전체는 설정 모듈(`platform.database.config`, `platform.messaging.config`)을 직접 import하지
+  않는다(`forbidden`, `allow_indirect_imports = true`). 값은 「설정 소유 규칙」대로 조립 루트가 넘긴다.
+  새 BC를 추가하면 이 계약의 대상에도 넣는다.
 - BC의 `bootstrap.py`를 import할 수 있는 것은 `mosemo.entrypoints`뿐이다(Alembic 환경은 `mosemo`
   밖이라 계약 대상이 아니다).
 - `faststream`·`aiokafka`는 `platform`만, `apscheduler`는 `platform.scheduling`만 import한다.
@@ -105,8 +110,6 @@ BC 계층별로 import할 수 있는 `platform` 모듈은 ADR 0011의 `infra` �
 - BC는 환경 변수나 설정 클래스를 읽지 않는다. 필요한 값은 BC `bootstrap.py`가 정의한 순수 타입
   (identity의 `IdentityConfig`)으로 조립 루트가 시작할 때 생성자에 넘기고, FastAPI `Depends`로
   설정을 받지 않는다. 환경 이름 같은 배포 판단은 진입점이 값으로 바꿔 넘긴다(`secure_cookies`).
-- #172가 완료되기 전까지는 `platform/config.py`의 `Config`와 BC `bootstrap.py`의 `platform.config`
-  import 허용을 그대로 둔다.
 
 ## 고려한 대안
 
