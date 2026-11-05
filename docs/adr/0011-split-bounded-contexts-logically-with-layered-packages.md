@@ -4,6 +4,11 @@ date: 2026-11-04
 ---
 # Bounded Context를 논리적으로 분리하고 BC마다 계층 패키지를 둔다
 
+> [ADR 0015](0015-group-entrypoints-and-platform-packages.md)가 이 ADR을 부분 대체한다.
+> 「패키지 구조」·「조립」의 `infra`와 조립 루트(`api`, `consumer`, `batch`)의 위치·이름, BC가
+> import할 수 있는 `infra` 모듈 표는 ADR 0015를 따르고, 「강제 방법」에는 ADR 0015의 BC →
+> `mosemo.entrypoints` 금지 계약이 더해진다.
+
 ## 맥락
 
 `src/mosemo`는 accounts, auth, devices, activities, focus_sessions, activity_labels,

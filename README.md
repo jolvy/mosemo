@@ -115,7 +115,7 @@ uv run --locked poe batch-jobs run label-proposals
 
 The Consumer uses a registered FastStream KafkaBroker subscriber with two native
 manual-ACK workers; no application-owned Kafka consumer or polling loop is used.
-`BatchRebalanceAdapter` in `infra/kafka_compat.py` translates revoked partitions
+`BatchRebalanceAdapter` in `platform/messaging/kafka_compat.py` translates revoked partitions
 and awaits Consumer-owned cancellation and session cleanup. This compatibility
 module also exports the Kafka publication error class propagated by FastStream;
 no raw producer/consumer or FastStream private state is accessed.
@@ -149,7 +149,7 @@ an unsuccessful exit status. Startup task cancellation also propagates to that
 process boundary; the application does not retry startup in the same process.
 An external supervisor owns restarting the process. No supervisor deployment or
 restart configuration is installed by this repository change. Use the single
-worker API entrypoint `uv run --locked uvicorn mosemo.api.main:app --lifespan on`;
+worker API entrypoint `uv run --locked uvicorn mosemo.entrypoints.api.main:app --lifespan on`;
 a development reloader is a separate parent process, outside this exit contract.
 The Consumer uses FastStream's public `consumer_only=True` option because it
 only consumes and ACKs; it creates no unused Producer/Admin client. A requested
