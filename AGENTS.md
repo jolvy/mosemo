@@ -5,6 +5,7 @@
 - 디렉터리와 모듈 책임의 탐색 시작점: [ARCHITECTURE.md](ARCHITECTURE.md)
 - 문서 탐색 시작점: [docs/index.md](docs/index.md)
 - `src/mosemo/` 코드를 수정하기 전에 [src/mosemo/AGENTS.md](src/mosemo/AGENTS.md)를 읽는다.
+- 테스트를 추가·이동하기 전에 [tests/AGENTS.md](tests/AGENTS.md)를 읽는다.
 
 - 애플리케이션 코드: `src/mosemo/` (FastAPI, Pydantic, SQLAlchemy)
 - 테스트: `tests/unit/{패키지}/`, `tests/integration/{패키지}/`, 공유 코드 `tests/support/` (pytest)
