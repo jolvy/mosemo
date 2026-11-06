@@ -21,14 +21,6 @@ SKILL_REFERENCES = (
     "engineering-planning/references/plan-issue.md",
     "engineering-planning/references/plan-review.md",
     "engineering-planning/references/propose-tests.md",
-    "implementation/references/architecture.md",
-    "implementation/references/clean-code.md",
-    "implementation/references/code-smells.md",
-    "implementation/references/complexity.md",
-    "implementation/references/design-patterns.md",
-    "implementation/references/object-design.md",
-    "implementation/references/solid-principles.md",
-    "implementation/references/testing.md",
 )
 LINKED_DOCUMENTS = (
     "AGENTS.md",

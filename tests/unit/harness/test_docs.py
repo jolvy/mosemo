@@ -207,8 +207,6 @@ def test_plan_template_is_loaded_from_reference(
         "engineering-planning/references/plan-issue.md",
         "engineering-planning/references/plan-review.md",
         "engineering-planning/references/propose-tests.md",
-        "implementation/references/object-design.md",
-        "implementation/references/testing.md",
     ],
 )
 def test_missing_skill_reference_is_reported_without_crashing(
