@@ -58,11 +58,13 @@ def top_level_errors(root: Path) -> list[str]:
     ]
 
 
+def source_packages(root: Path) -> set[str]:
+    _, folders = entries(root / "src/mosemo")
+    return {path.name for path in folders}
+
+
 def category_folder_errors(root: Path) -> list[str]:
-    packages = {
-        path.name for path in (root / "src/mosemo").iterdir() if has_python_file(path)
-    }
-    allowed = packages | NON_PACKAGE_FOLDERS
+    allowed = source_packages(root) | NON_PACKAGE_FOLDERS
     errors = []
     for category in CATEGORY_FOLDERS:
         folder = root / "tests" / category
@@ -253,6 +255,21 @@ def test_category_folders_of_packages_and_stale_cache_folders_pass(
         write(tmp_path, relative)
 
     assert category_folder_errors(tmp_path) == []
+
+
+def test_source_packages_skip_ignored_and_pyc_only_folders(tmp_path: Path) -> None:
+    for relative in [
+        "src/mosemo/__init__.py",
+        "src/mosemo/labels/__init__.py",
+        "src/mosemo/identity/domain/model.py",
+        "src/mosemo/__pycache__/x.py",
+        "src/mosemo/.hidden/x.py",
+        "src/mosemo/old/__pycache__/x.cpython-314.pyc",
+        "src/mosemo/stale/__pycache__/x.py",
+    ]:
+        write(tmp_path, relative)
+
+    assert source_packages(tmp_path) == {"labels", "identity"}
 
 
 def test_repository_keeps_init_files_in_tests_root_and_support(
