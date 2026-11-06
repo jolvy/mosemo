@@ -335,14 +335,23 @@ def code_tree_hash(listing: str) -> str:
 
 
 def file_signature(path: Path) -> bytes:
-    """일반 파일은 내용 해시, 없거나 일반 파일이 아니면 종류만. FIFO는 열지 않는다."""
+    """일반 파일은 내용, 링크는 대상 경로, 그 밖에는 모드. 없으면 `missing`.
+
+    링크를 따라가지 않고, 비차단으로 열어 확인 뒤 FIFO로 바뀐 파일에서도 멈추지 않는다.
+    """
     try:
         mode = path.lstat().st_mode
     except FileNotFoundError:
         return b"missing"
+    if stat.S_ISLNK(mode):
+        return f"link {path.readlink()}".encode()
     if not stat.S_ISREG(mode):
-        return f"mode {stat.S_IFMT(mode)}".encode()
-    return hashlib.sha256(path.read_bytes()).digest()
+        return f"mode {mode:o}".encode()
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    with os.fdopen(descriptor, "rb") as file:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            return b"changed type"
+        return f"{mode:o} ".encode() + hashlib.sha256(file.read()).digest()
 
 
 def state_digest(files: Iterable[Path]) -> str | None:
@@ -356,23 +365,28 @@ def state_digest(files: Iterable[Path]) -> str | None:
     return digest.hexdigest()
 
 
-def watched_files(git_dirs: Iterable[Path], *, home: Path, evals: Path) -> list[Path]:
-    """에이전트가 바꾸면 사용자 권한으로 코드가 실행되거나 판정이 흔들리는 사용자 파일.
+def watched_files(
+    git_dirs: Iterable[Path], *, home: Path, harness_files: Iterable[Path]
+) -> list[Path]:
+    """에이전트가 바꾸면 사용자 권한으로 코드가 실행되거나 평가가 흔들리는 사용자 파일.
 
     사용자 저장소 git 디렉터리의 설정·hook, 모든 worktree의 `config.worktree`, 전역 git 설정,
-    평가 세트(`results/` 제외)다.
+    사용자 작업 트리의 하네스 파일(평가 세트 포함, `harness_files`)이다.
     """
     files = [home / ".gitconfig", home / ".config" / "git" / "config"]
     for directory in git_dirs:
         files += [directory / "config", directory / "config.worktree"]
         files += (directory / "hooks").rglob("*")
         files += (directory / "worktrees").glob("*/config.worktree")
-    files += (
-        path
-        for path in evals.rglob("*")
-        if path.relative_to(evals).parts[0] != "results"
+    return [*files, *harness_files]
+
+
+def worktree_harness_files(env: Mapping[str, str]) -> list[Path]:
+    """사용자 작업 트리의 추적·미추적 하네스 파일(무시 파일인 `results/`·캐시 제외)."""
+    listed = git_bytes(
+        ["ls-files", "-z", "-co", "--exclude-standard", "--", *HARNESS_PATHS], env=env
     )
-    return files
+    return [ROOT / name for name in filter(None, listed.decode().split("\0"))]
 
 
 def result_line(
@@ -772,7 +786,8 @@ def run_once(
     git_dirs = [Path(path) for path in context["git_dirs"]]
 
     def watched() -> list[Path]:
-        return watched_files(git_dirs, home=Path.home(), evals=EVALS)
+        harness_files = worktree_harness_files(child_environment(os.environ, {}))
+        return watched_files(git_dirs, home=Path.home(), harness_files=harness_files)
 
     with (
         tempfile.TemporaryDirectory(prefix="mosemo-eval-") as directory,
@@ -784,10 +799,11 @@ def run_once(
         preflight(workspace, env=env, remote=context["remote"])
         before = state_digest(watched())
         outcome = run_claude(task, workspace, session=session, env=env)
-        after = state_digest(watched())
         judgement, error = judge_safely(
             task, workspace, env=env, acceptance=context["acceptance"]
         )
+        # 판정 명령도 에이전트가 쓴 코드를 실행하므로 판정이 끝난 뒤 비교한다.
+        after = state_digest(watched())
     run_context = {
         "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "run": number,

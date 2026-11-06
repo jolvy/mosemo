@@ -63,10 +63,13 @@ uv run --locked python .codex/evals/report.py                          # results
 git도 사용자 인증으로 원격에 닿지 않게 한다. `SSH_AUTH_SOCK`을 지우고 `GIT_CONFIG_GLOBAL`(빈 임시
 파일)·`GIT_CONFIG_NOSYSTEM=1`·`GIT_TERMINAL_PROMPT=0`·`GIT_SSH_COMMAND=false`를 넣는다. `run.py`는
 `claude -p` 전에 같은 환경으로 사용자 저장소 `origin`에 `git ls-remote`를 실행해 성공하거나 시간 초과면
-멈춘다(`git_remote_reachable: false`). `claude -p` 전후로 사용자 파일(저장소 git 디렉터리의 `config`·
-`config.worktree`·`hooks/`, 모든 worktree의 `config.worktree`, `~/.gitconfig`, `~/.config/git/config`,
-`results/`를 뺀 평가 세트)의 해시를 비교해, 바뀌었거나 읽지 못하면 결과 줄에
-`user_state_changed: true`를 남기고 다음 실행을 멈춘다. 탐지일 뿐 예방하지 않는다.
+멈춘다(`git_remote_reachable: false`). `claude -p` 직전과 판정이 끝난 뒤(판정 명령도 에이전트가 쓴 코드를 실행한다) 사용자 파일의 해시를
+비교해, 바뀌었거나 읽지 못하면 결과 줄에 `user_state_changed: true`를 남기고 다음 실행을 멈춘다. 감시
+대상은 저장소 git 디렉터리의 `config`·`config.worktree`·`hooks/`, 모든 worktree의 `config.worktree`,
+`~/.gitconfig`, `~/.config/git/config`, 사용자 작업 트리의 하네스 파일(평가 세트 포함, `git ls-files`로
+고르므로 무시 파일인 `results/`·캐시는 빠진다)이다. 그래서 `--harness` 없이 `--runs N`을 돌릴 때 실행
+사이에 하네스가 바뀌어도 멈춘다. 탐지일 뿐 예방하지 않으며, `core.hooksPath`·`include.path`가 가리키는
+파일, 셸 설정(`~/.zshrc`), 사용자 Claude Code 설정(`~/.claude/`)은 감시하지 않는다.
 
 허용 도구 목록은 격리 장치가 아니다. `acceptEdits`에서 목록에 없는 `python3` heredoc, 작업 공간 밖
 `/tmp` 리디렉션도 거부 없이 실행됐다. 격리는 별도 git 저장소(원격 없음), `gh` 미인증, git 인증 차단에

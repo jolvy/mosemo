@@ -229,25 +229,23 @@ def test_state_digest_changes_with_watched_files_and_skips_fifo(
     eval_runner: ModuleType, tmp_path: Path
 ) -> None:
     git_dir = tmp_path / "repo.git"
-    evals = tmp_path / "evals"
     (git_dir / "hooks").mkdir(parents=True)
     (git_dir / "worktrees" / "other").mkdir(parents=True)
-    (evals / "results").mkdir(parents=True)
     (git_dir / "config").write_text("[core]\n", encoding="utf-8")
-    (evals / "run.py").write_text("print()\n", encoding="utf-8")
+    skill = tmp_path / "worktree" / ".codex" / "skills" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("# skill\n", encoding="utf-8")
     home = tmp_path / "home"
 
     def digest() -> str | None:
-        files = eval_runner.watched_files([git_dir], home=home, evals=evals)
+        files = eval_runner.watched_files([git_dir], home=home, harness_files=[skill])
         return eval_runner.state_digest(files)
 
     digests = [digest()]
-    (evals / "results" / "r.jsonl").write_text("{}\n", encoding="utf-8")
-    digests.append(digest())
     changes = [
         git_dir / "hooks" / "pre-commit",
         git_dir / "worktrees" / "other" / "config.worktree",
-        evals / "acceptance.py",
+        skill,
     ]
     for path in changes:
         path.write_text("changed\n", encoding="utf-8")
@@ -255,10 +253,60 @@ def test_state_digest_changes_with_watched_files_and_skips_fifo(
     home.mkdir()
     os.mkfifo(home / ".gitconfig")
     digests.append(digest())
+    (home / ".config" / "git").mkdir(parents=True)
+    (home / ".config" / "git" / "config").symlink_to(tmp_path / "a")
+    digests.append(digest())
+    (home / ".config" / "git" / "config").unlink()
+    (home / ".config" / "git" / "config").symlink_to(tmp_path / "b")
+    digests.append(digest())
 
-    assert digests[0] == digests[1]
     assert None not in digests
-    assert len(set(digests[1:])) == len(digests) - 1
+    assert len(set(digests)) == len(digests)
+
+
+def test_state_digest_is_unknown_when_a_file_cannot_be_read(
+    eval_runner: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def unreadable(path: Path) -> bytes:
+        raise PermissionError(path)
+
+    monkeypatch.setattr(eval_runner, "file_signature", unreadable)
+
+    assert eval_runner.state_digest([tmp_path / "config"]) is None
+
+
+def test_remote_reachable_treats_timeout_as_reachable(
+    eval_runner: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def slow(*_: object, **__: object) -> None:
+        raise eval_runner.subprocess.TimeoutExpired("git", 60)
+
+    monkeypatch.setattr(eval_runner, "execute", slow)
+
+    assert eval_runner.remote_reachable(tmp_path, url="git@host:r.git", env={})
+
+
+def test_label_acceptance_writes_the_preloaded_judge(
+    eval_runner: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    target = tmp_path / eval_runner.ACCEPTANCE_TEST
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"tampered\n")
+    commands = []
+
+    def passing(command: list[str], **_: object) -> object:
+        commands.append(command)
+        return eval_runner.subprocess.CompletedProcess(command, 0, "1 passed\n", "")
+
+    monkeypatch.setattr(eval_runner, "execute", passing)
+
+    passed, detail = eval_runner.label_acceptance(
+        tmp_path, env={}, acceptance=b"judge\n"
+    )
+
+    assert target.read_bytes() == b"judge\n"
+    assert (passed, detail) == (True, {"pytest": "1 passed"})
+    assert commands[0][-1] == eval_runner.ACCEPTANCE_TEST
 
 
 def test_judge_safely_records_judgement_error(
