@@ -101,8 +101,7 @@ input parsing differs between the tools.
     otherwise `unknown`.
   - `model`: the last `"model":"claude-…"` value in the transcript, otherwise
     `null`.
-  - `harness_rev`, `harness_dirty`: `MOSEMO_HARNESS_REV` and
-    `MOSEMO_HARNESS_DIRTY` when set. Otherwise the last commit
+  - `harness_rev`, `harness_dirty`: The last commit
     (`git log -1 --format=%h`) and whether `git status --porcelain` shows
     uncommitted changes, both limited to `.codex/`, `.claude/`, `AGENTS.md`,
     `CLAUDE.md`, `src/mosemo/AGENTS.md`, `src/mosemo/CLAUDE.md`,
