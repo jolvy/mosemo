@@ -7,7 +7,27 @@ import pytest
 
 @pytest.fixture
 def document_root(tmp_path: Path, docs_validator: ModuleType) -> Path:
-    shutil.copytree(docs_validator.ROOT / ".codex", tmp_path / ".codex")
+    source = docs_validator.ROOT
+    shutil.copytree(source / ".codex", tmp_path / ".codex")
+    pending = list(docs_validator.link_checked_paths(source))
+    copied = set()
+    while pending:
+        path = pending.pop()
+        if path in copied or not path.is_relative_to(source):
+            continue
+        copied.add(path)
+        target = tmp_path / path.relative_to(source)
+        if path.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, target)
+        if path.suffix == ".md":
+            pending.extend(
+                resolved
+                for _, resolved in docs_validator.local_links(path.read_text(), path)
+                if resolved.exists()
+            )
     return tmp_path
 
 
@@ -73,7 +93,7 @@ def test_new_prd_rejects_missing_sections_and_broken_link(
     docs_validator: ModuleType, document_root: Path
 ) -> None:
     folder = document_root / "docs/prd"
-    folder.mkdir(parents=True)
+    folder.mkdir(parents=True, exist_ok=True)
     (folder / "new-feature.md").write_text("# 새 기능\n[근거](missing.md)")
     errors = docs_validator.validate(document_root)
     assert any("필수 섹션" in error for error in errors)
@@ -86,7 +106,7 @@ def test_complete_prd_passes_without_external_schema_files(
     document_root: Path,
 ) -> None:
     folder = document_root / "docs/prd"
-    folder.mkdir(parents=True)
+    folder.mkdir(parents=True, exist_ok=True)
     content = "\n\n".join(
         f"## {heading}\n"
         + ("AC-1 관찰 가능한 동작" if heading == "인수 조건" else "해당 없음")
@@ -114,7 +134,7 @@ def test_linked_prd_condition_missing_from_plan_is_rejected(
     document_root: Path,
 ) -> None:
     folder = document_root / "docs/prd"
-    folder.mkdir(parents=True)
+    folder.mkdir(parents=True, exist_ok=True)
     (folder / "feature.md").write_text("## 인수 조건\n- AC-1 하나\n- AC-2 둘")
     plan = plan_body.replace(
         "## 요구사항과 기존 결정", "## 요구사항과 기존 결정\n[PRD](docs/prd/feature.md)"
@@ -215,4 +235,18 @@ def test_broken_skill_reference_is_rejected(
     path.write_text(path.read_text() + "\n[추가 절차](references/missing.md)\n")
     assert any(
         "깨진 로컬 링크" in error for error in docs_validator.validate(document_root)
+    )
+
+
+@pytest.mark.parametrize(
+    "relative", ["docs/code-style-rubric.md", "src/mosemo/AGENTS.md"]
+)
+def test_broken_link_in_repository_document_is_rejected(
+    docs_validator: ModuleType, document_root: Path, relative: str
+) -> None:
+    path = document_root / relative
+    path.write_text(path.read_text() + "\n[없는 문서](missing.md)\n")
+    assert any(
+        relative in error and "깨진 로컬 링크" in error
+        for error in docs_validator.validate(document_root)
     )

@@ -30,6 +30,12 @@ SKILL_REFERENCES = (
     "implementation/references/solid-principles.md",
     "implementation/references/testing.md",
 )
+LINKED_DOCUMENTS = (
+    "AGENTS.md",
+    "ARCHITECTURE.md",
+    "src/mosemo/AGENTS.md",
+    "tests/AGENTS.md",
+)
 DOCUMENT_SKILLS = {
     "requirements": "requirement-discovery",
     "prd": "specification",
@@ -66,17 +72,36 @@ def required_headings(root: Path, skill: str) -> list[str]:
     return list(sections(template[1]))
 
 
-def check_links(content: str, path: Path, *, root: Path) -> list[str]:
-    errors = []
+def local_links(content: str, path: Path) -> list[tuple[str, Path]]:
+    links = []
     for target in re.findall(r"\[[^\]\n]*\]\(([^)\n]+)\)", content):
         target = target.strip().split(' "', 1)[0].strip("<>")
         parsed = urlsplit(target)
         if parsed.scheme or not parsed.path:
             continue  # 외부 URL과 문서 내 anchor는 오프라인 검사 대상 밖이다.
-        resolved = (path.parent / unquote(parsed.path)).resolve()
-        if not resolved.is_relative_to(root.resolve()) or not resolved.exists():
-            errors.append(f"깨진 로컬 링크: {target}")
-    return errors
+        links.append((target, (path.parent / unquote(parsed.path)).resolve()))
+    return links
+
+
+def check_links(content: str, path: Path, *, root: Path) -> list[str]:
+    return [
+        f"깨진 로컬 링크: {target}"
+        for target, resolved in local_links(content, path)
+        if not resolved.is_relative_to(root.resolve()) or not resolved.exists()
+    ]
+
+
+def link_checked_paths(root: Path) -> list[Path]:
+    return [
+        *(root / ".codex" / "skills" / name / "SKILL.md" for name in SKILLS),
+        *(root / ".codex" / "skills" / relative for relative in SKILL_REFERENCES),
+        *sorted((root / "docs").glob("*.md")),
+        *(
+            root / relative
+            for relative in LINKED_DOCUMENTS
+            if (root / relative).is_file()
+        ),
+    ]
 
 
 def check_document(
@@ -194,10 +219,7 @@ def validate(root: Path = ROOT) -> list[str]:
             errors.append(f"Skill 참조 문서 없음: {relative}")
     if errors:
         return errors
-    for path in [
-        *(root / ".codex" / "skills" / name / "SKILL.md" for name in SKILLS),
-        *(root / ".codex" / "skills" / relative for relative in SKILL_REFERENCES),
-    ]:
+    for path in link_checked_paths(root):
         errors.extend(
             f"{path.relative_to(root)}: {error}"
             for error in check_links(path.read_text(), path, root=root)
