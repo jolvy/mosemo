@@ -118,10 +118,10 @@ input parsing differs between the tools.
     session record of the state file. It is not reset when the failure
     changes or a stop passes.
   - `failed`: names of failed checks.
-  - `rules`: violation counts by Ruff rule code and `validate_conventions`
-    `CS-P..` ID. Other checks (`validate_architecture`, `ty check`,
-    `complexipy`, `pytest`, and hook failures) are keyed by check name and
-    count their failure lines.
+  - `rules`: violation counts by Ruff rule code (syntax errors under Ruff's
+    `invalid-syntax` label) and `validate_conventions` `CS-P..` ID. Other
+    checks (`validate_architecture`, `ty check`, `complexipy`, `pytest`, and
+    hook failures) are keyed by check name and count their failure lines.
 - The transcript (`transcript_path`, JSONL) is read line by line and
   unparsable lines are skipped. Without a readable path, `skills` is `[]` and
   `model` is `null`. The parser targets the Claude Code format; Codex runs are

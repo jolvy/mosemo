@@ -15,7 +15,8 @@ from typing import Any
 
 SKILL_FILE = re.compile(r"(?:^|/)\.(?:codex|claude)/skills/([^/]+)/SKILL\.md$")
 COMMAND_NAME = re.compile(r"<command-name>\s*/?([^<\s]+)\s*</command-name>")
-RUFF_CODE = re.compile(r"^\S+:\d+:\d+: ([A-Z]+[0-9]+)\b")
+# 규칙 코드, 또는 규칙 코드가 없는 구문 오류의 표시(`invalid-syntax`, 옛 `SyntaxError`).
+RUFF_CODE = re.compile(r"^.+?:\d+:\d+: ([A-Z]+[0-9]+\b|invalid-syntax|SyntaxError)")
 CONVENTION_CODE = re.compile(r"\b(CS-P\d+)\b")
 PYTEST_PROBLEM = re.compile(r"^(?:FAILED|ERROR) \S+")
 SUMMARY = re.compile(r"^Found \d+ ")

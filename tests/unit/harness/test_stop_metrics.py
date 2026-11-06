@@ -97,6 +97,24 @@ def test_rule_counts_use_ruff_codes(stop_metrics: ModuleType) -> None:
     }
 
 
+def test_rule_counts_keep_ruff_syntax_errors_next_to_codes(
+    stop_metrics: ModuleType,
+) -> None:
+    output = (
+        "src/a.py:1:7: invalid-syntax: Expected a parameter\n"
+        "src/a.py:1:8: invalid-syntax: Expected `)`, found newline\n"
+        "src/old.py:2:1: SyntaxError: Unexpected indentation\n"
+        "src/b.py:1:1: F401 [*] `os` imported but unused\n"
+        "Found 4 errors.\n"
+    )
+
+    assert stop_metrics.rule_counts([("ruff check", output)]) == {
+        "invalid-syntax": 2,
+        "SyntaxError": 1,
+        "F401": 1,
+    }
+
+
 def test_rule_counts_use_convention_codes(stop_metrics: ModuleType) -> None:
     output = (
         "src/a.py:12: CS-P23: `clock=`에 lambda를 넘기지 않는다.\n"
