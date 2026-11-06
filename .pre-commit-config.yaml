@@ -40,7 +40,7 @@ repos:
         always_run: true
       - id: harness-tests
         name: harness regression tests
-        entry: uv run --locked python -m pytest -q tests/unit/harness
+        entry: uv run --locked poe test -q tests/unit/harness
         language: system
         stages: [pre-commit, pre-push]
         pass_filenames: false
@@ -94,7 +94,7 @@ repos:
         always_run: true
       - id: pytest-push
         name: pytest (pre-push, including integration tests)
-        entry: uv run --locked --env-file .env pytest -q tests
+        entry: uv run --locked poe test -q tests
         language: system
         stages: [pre-push]
         pass_filenames: false
