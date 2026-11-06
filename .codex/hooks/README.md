@@ -104,7 +104,8 @@ input parsing differs between the tools.
     `MOSEMO_HARNESS_DIRTY` when set. Otherwise the last commit
     (`git log -1 --format=%h`) and whether `git status --porcelain` shows
     uncommitted changes, both limited to `.codex/`, `.claude/`, `AGENTS.md`,
-    `src/mosemo/AGENTS.md`, `tests/AGENTS.md`, `tests/unit/harness/`,
+    `CLAUDE.md`, `src/mosemo/AGENTS.md`, `src/mosemo/CLAUDE.md`,
+    `tests/AGENTS.md`, `tests/CLAUDE.md`, `tests/unit/harness/`,
     `docs/code-style-rubric.md`, and `docs/adr/`.
   - `skills`: Skill names from the transcript, deduplicated in order of
     appearance: `Skill` tool calls (`input.skill`), `<command-name>` values in
