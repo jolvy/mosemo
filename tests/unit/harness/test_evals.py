@@ -50,12 +50,7 @@ def test_harness_paths_match_stop_gate(
         )
     )
 
-    assert eval_runner.HARNESS_PATHS == (
-        *ast.literal_eval(assignment.value),
-        "CLAUDE.md",
-        "src/mosemo/CLAUDE.md",
-        "tests/CLAUDE.md",
-    )
+    assert ast.literal_eval(assignment.value) == eval_runner.HARNESS_PATHS
 
 
 def test_child_environment_drops_parent_session_and_keeps_auth(

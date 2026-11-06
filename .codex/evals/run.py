@@ -33,19 +33,20 @@ ROOT = Path(__file__).resolve().parents[2]
 EVALS = ROOT / ".codex" / "evals"
 RESULTS = EVALS / "results"
 MODEL = "claude-opus-5-5"
-# `@AGENTS.md` shim. 없는 revision에서는 건너뛴다.
-CLAUDE_MD_PATHS = ("CLAUDE.md", "src/mosemo/CLAUDE.md", "tests/CLAUDE.md")
-# `.codex/hooks/stop_gate.py`의 `HARNESS_PATHS`에 shim을 더한 목록(harness 테스트가 확인한다).
+# `.codex/hooks/stop_gate.py`의 `HARNESS_PATHS`와 같다(harness 테스트가 확인한다).
+# 없는 경로(예: shim이 생기기 전 revision의 `CLAUDE.md`)는 건너뛴다.
 HARNESS_PATHS = (
     ".codex/",
     ".claude/",
     "AGENTS.md",
+    "CLAUDE.md",
     "src/mosemo/AGENTS.md",
+    "src/mosemo/CLAUDE.md",
     "tests/AGENTS.md",
+    "tests/CLAUDE.md",
     "tests/unit/harness/",
     "docs/code-style-rubric.md",
     "docs/adr/",
-    *CLAUDE_MD_PATHS,
 )
 EVALS_PATH = ".codex/evals"
 # 평가 세트와 그 harness 테스트는 작업 공간에 두지 않는다(판정 파일을 숨기고 import 실패를 막는다).
