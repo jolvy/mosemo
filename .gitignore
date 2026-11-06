@@ -30,6 +30,3 @@ htmlcov/
 .DS_Store
 
 .worktrees
-
-# Claude Code evaluation results
-.codex/evals/results/

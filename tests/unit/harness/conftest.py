@@ -54,13 +54,3 @@ def stop_gate(monkeypatch: pytest.MonkeyPatch, stop_metrics: ModuleType) -> Modu
 @pytest.fixture(scope="session")
 def repository() -> Path:
     return REPOSITORY
-
-
-@pytest.fixture(scope="session")
-def eval_runner() -> ModuleType:
-    return load_script(REPOSITORY / ".codex/evals/run.py")
-
-
-@pytest.fixture(scope="session")
-def eval_report() -> ModuleType:
-    return load_script(REPOSITORY / ".codex/evals/report.py")
