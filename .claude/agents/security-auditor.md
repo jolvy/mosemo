@@ -1,6 +1,6 @@
 ---
 name: security-auditor
-description: Use when a task needs focused security review of code, auth flows, secrets handling, input validation, or infrastructure configuration.
+description: Read-only security reviewer of authentication, authorization, input handling, secrets, logging exposure, external calls, infrastructure configuration, and dependencies; reports findings without making changes.
 tools: Read, Grep, Glob, Bash
 ---
 

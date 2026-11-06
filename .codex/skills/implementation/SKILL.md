@@ -25,13 +25,24 @@ description: 사용자가 요청한 변경이나 승인된 계획을 구현하�
 관련 테스트를 실행한 뒤 `bash .codex/skills/verification/scripts/validate.sh`를 실행한다. 실패는 원인 기반으로 수정하되 **동일 원인 최대 3회**까지만 재시도한다. 매번 같은 수정을 반복하지 않으며, 검증을 비활성화하거나 요청한 코드를 지워서 통과시키지 않는다.
 
 ## 리뷰
-1. 테스트·검증을 통과한 구현을 `code-reviewer`, `domain-reviewer`, `security-auditor` 세 subagent에게 검토받는다. 각 subagent에 요청 범위, 변경 사항, 관련 요구사항·문서와 검증 결과를 제공하고, 저장소의 해당 agent 정의에 따라 읽기 전용으로 검토하도록 한다.
+1. 테스트·검증을 통과한 구현을 아래 기준에 해당하는 리뷰어 subagent에게 검토받는다. 기준은 변경 파일 경로와 내용으로 판단한다. 각 subagent에 요청 범위, 변경 사항, 관련 요구사항·문서와 검증 결과를 제공하고, 저장소의 해당 agent 정의에 따라 읽기 전용으로 검토하도록 한다.
+
+| 리뷰어 | 호출 조건 |
+| --- | --- |
+| `code-reviewer` | Python 파일(`*.py`)이나 `migrations/` 아래 파일을 바꿀 때 |
+| `security-auditor` | `src/` 아래 `.md`가 아닌 파일을 바꿀 때. 단, 변경이 `src/mosemo/*/domain/` 안에만 있으면 호출하지 않는다(`src/mosemo/identity/domain/`은 호출한다). 그 밖에 `pyproject.toml`, `uv.lock`, `.python-version`, `alembic.ini`, `docker-compose.yml`, `.env.example`, `.pre-commit-config.yaml`, `.github/workflows/`·`scripts/` 아래 파일, `.codex/hooks/` 아래 `.md`가 아닌 파일, `.claude/settings.json`, `.codex/hooks.json`을 바꿀 때 |
+| `domain-reviewer` | `src/mosemo/*/domain/`이나 `src/mosemo/*/application/` 아래 파일을 바꿀 때, 또는 `docs/prd/`의 PRD가 정한 동작을 추가하거나 바꿀 때(새 인수 조건 구현과 기존 인수 조건의 동작 수정 모두). Issue 본문의 완료 기준만 있는 작업과 동작이 그대로인 리팩터링은 PRD 조건에 해당하지 않는다. 관련 PRD가 있으면 함께 제공하고, 없으면 Issue 본문과 변경 범위를 제공한다 |
+
+- 해당 여부가 애매하면 호출한다.
+- 어느 조건에도 해당하지 않는 변경은 리뷰어를 호출하지 않는다.
+- 호출하지 않은 리뷰어는 보고에 이름, 사유 `해당 조건 없음`, 판단 근거가 된 변경 파일 목록을 적는다.
+
 2. 리뷰 피드백을 검토하고 유효한 지적을 수정한다. 반영하지 않는 지적에는 근거를 기록한다. 수정 후 관련 테스트·검증을 다시 실행하고, 해당 지적을 한 subagent에게 수정 사항과 영향을 재검토받는다. 새 지적도 같은 방식으로 처리하며, 동일 원인의 수정·재검토는 최대 3회로 제한한다. 해결하지 못한 지적이나 필요한 정책 결정은 남은 문제로 명시하고 완료로 보고하지 않는다.
 
 코드 스타일 지적의 판정은 [코드 스타일 평가 기준](../../../docs/code-style-rubric.md) 「LLM 채점과 재개발 규칙」을 따른다.
 
 ## 보고와 인계
-변경 파일, 완료한 인수 조건, 검증 증거, 세 subagent의 리뷰 결과와 피드백 처리 내역, 남은 위험을 보고한다. 요청 없이는 커밋하지 않는다.
+변경 파일, 완료한 인수 조건, 검증 증거, 호출한 리뷰어의 리뷰 결과와 피드백 처리 내역, 호출하지 않은 리뷰어와 그 사유, 남은 위험을 보고한다. 요청 없이는 커밋하지 않는다.
 
 - Plan이 있으면 현재 AC·T번호에 작업을 연결하고 실제 검증 증거·상태를 같은 Issue 본문에 반영한다. Plan이 없으면 사용자 요청의 기대 결과와 검증 증거를 최종 응답에 연결한다. 추적을 위해 별도 PRD나 Issue를 만들지 않으며, 증거 없는 항목은 완료 처리하지 않는다.
 - `uv run --locked python .codex/skills/verification/scripts/validate_architecture.py`로 의존성 경계를 검사한다. 검사 항목의 원본은 ADR 0011~0014 「강제 방법」이다. 위반을 숨기기 위한 제외 목록 추가는 하지 않는다.
