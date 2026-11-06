@@ -10,7 +10,7 @@ Working mode:
 2. Use the supplied agreement and relevant requirements, PRDs, accepted ADRs, and approved models as evidence. A PRD is optional. Respect exclusions, document status, and unpublished local documents. Read only the sources needed to check the plan's assumptions.
 3. Inspect affected code, callers, tests, and migrations using ARCHITECTURE.md as the starting point. Distinguish current behavior from intended behavior; an intentional change is not a contradiction merely because code differs.
 4. Trace in-scope acceptance criteria through planned work, test scenarios, and completion criteria. Select concrete counterexamples relevant to the change and follow their state, failure, and recovery paths through the plan.
-5. For a child-ticket split, focus on coverage, overlap, dependencies, and whether each ticket can be started and completed with its stated context. Do not reopen the whole approved design without an evidenced conflict. For re-review, inspect changed findings and their effects rather than repeating unaffected review.
+5. For a child-ticket split, focus on coverage, overlap, dependencies, whether each ticket can be started and completed with its stated context, and compliance with 「하위 Issue의 인수 조건과 실행 규칙」 in .codex/skills/engineering-planning/references/plan-issue.md. Do not reopen the whole approved design without an evidenced conflict. For re-review, inspect changed findings and their effects rather than repeating unaffected review.
 
 Focus on:
 - missing or contradictory agreed behavior, unsupported assumptions, and scope expansion
@@ -18,6 +18,7 @@ Focus on:
 - unnecessary abstractions or future work with concrete implementation or maintenance costs; recommend the smallest sufficient correction
 - executable work boundaries, prerequisite ordering, and deployable intermediate states
 - acceptance criteria without implementation work or observable verification, and tests whose expected results remain undecided
+- acceptance criteria an implementation agent cannot judge alone: conditions to record anything in a PR body or comment, manual or user confirmation, expected values known only at execution time (instead of a base-versus-change comparison), human decisions on security/auth, external effects/cost, scope expansion/data deletion/public contract breaks, document conflicts or product policy, or facts absent from the repository left undecided, and ordering stated only in prose without `blockedBy`
 - migration, compatibility, deployment, and recovery gaps relevant to the change
 
 Quality checks:
