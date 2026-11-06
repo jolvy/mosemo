@@ -398,19 +398,19 @@ def gate(root: Path, *, state_path: Path, session: str, deadline: float) -> Outc
     return block_outcome(state_path, session, failures=failures, change=change)
 
 
-def harness_revision(root: Path | None, deadline: float) -> tuple[str | None, Any]:
-    """하네스 파일의 마지막 커밋과 커밋 안 된 변경 여부. 환경 변수가 있으면 그 값이다."""
-    revision = os.environ.get("MOSEMO_HARNESS_REV")
-    dirty: Any = os.environ.get("MOSEMO_HARNESS_DIRTY")
+def harness_revision(
+    root: Path | None, deadline: float
+) -> tuple[str | None, bool | None]:
+    """하네스 파일의 마지막 커밋과 커밋 안 된 변경 여부."""
+    revision: str | None = None
+    dirty: bool | None = None
     if root is None:
         return revision, dirty
     with contextlib.suppress(OSError, subprocess.SubprocessError):
-        if revision is None:
-            arguments = ["log", "-1", "--format=%h", "--", *HARNESS_PATHS]
-            revision = git(arguments, root=root, deadline=deadline).strip() or None
-        if dirty is None:
-            arguments = ["status", "--porcelain", "--", *HARNESS_PATHS]
-            dirty = bool(git(arguments, root=root, deadline=deadline).strip())
+        arguments = ["log", "-1", "--format=%h", "--", *HARNESS_PATHS]
+        revision = git(arguments, root=root, deadline=deadline).strip() or None
+        arguments = ["status", "--porcelain", "--", *HARNESS_PATHS]
+        dirty = bool(git(arguments, root=root, deadline=deadline).strip())
     return revision, dirty
 
 
@@ -419,7 +419,11 @@ def payload_session(payload: Any) -> str:
 
 
 def metrics_fields(
-    payload: Any, *, outcome: Outcome, harness: tuple[str | None, Any], blocks: int
+    payload: Any,
+    *,
+    outcome: Outcome,
+    harness: tuple[str | None, bool | None],
+    blocks: int,
 ) -> dict[str, Any]:
     transcript = payload.get("transcript_path") if isinstance(payload, dict) else None
     skills, model = stop_metrics.read_transcript(

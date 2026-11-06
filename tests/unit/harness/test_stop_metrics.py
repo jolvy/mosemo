@@ -199,3 +199,46 @@ def test_append_metrics_replaces_unencodable_text(
     stop_metrics.append_metrics(log, "\ud800\n")
 
     assert log.read_bytes() == b"?\n"
+
+
+def fake_git(status: str, calls: list[list[str]]) -> object:
+    def git(arguments: list[str], *, root: Path, deadline: float) -> str:
+        calls.append(arguments)
+        return "abc1234\n" if arguments[0] == "log" else status
+
+    return git
+
+
+def test_harness_revision_ignores_environment_and_reads_git(
+    stop_gate: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setenv("MOSEMO_HARNESS_REV", "old")
+    monkeypatch.setenv("MOSEMO_HARNESS_DIRTY", "true")
+    monkeypatch.setattr(stop_gate, "git", fake_git("", calls))
+
+    result = stop_gate.harness_revision(Path("/repo"), time.monotonic() + 10)
+
+    assert result == ("abc1234", False)
+    assert [call[0] for call in calls] == ["log", "status"]
+    for call in calls:
+        assert set(stop_gate.HARNESS_PATHS) <= set(call)
+
+
+def test_harness_revision_reports_uncommitted_harness_changes(
+    stop_gate: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(stop_gate, "git", fake_git(" M AGENTS.md\n", []))
+
+    _, dirty = stop_gate.harness_revision(Path("/repo"), time.monotonic() + 10)
+
+    assert dirty is True
+
+
+def test_harness_revision_without_root_ignores_environment(
+    stop_gate: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MOSEMO_HARNESS_REV", "old")
+    monkeypatch.setenv("MOSEMO_HARNESS_DIRTY", "true")
+
+    assert stop_gate.harness_revision(None, time.monotonic() + 10) == (None, None)
