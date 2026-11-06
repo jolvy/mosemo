@@ -64,21 +64,21 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
 
 | ID | 차원 | 판정 질문 | 도구·규칙 | 근거 |
 | --- | --- | --- | --- | --- |
-| CS-P01 | 제어 흐름 | `src` 함수의 인지 복잡도가 15를 넘거나, 기준선 파일·설정으로 검사를 피하는가? | complexipy 고정 명령, 검사기 | [clean-code](../.codex/skills/implementation/references/clean-code.md) Avoid Deep Nesting, #102, #118 |
-| CS-P03 | 제어 흐름 | return 뒤 else, 합칠 수 있는 if, 불필요한 bool 반환, `try`-`except`-`pass`가 있는가? | Ruff `RET505`, `SIM102`, `PLR5501`, `SIM103`, `SIM105` | clean-code Prefer Clear Control Flow, #112 |
-| CS-P04 | 함수 구성 | 위치 인자가 2개를 넘거나 전체 인자가 5개를 넘는가? | Ruff `PLR0917`(`max-positional-args = 2`), `PLR0913` | clean-code Minimize Parameters, #102, #118 |
-| CS-P05 | 함수 구성 | bool 값을 위치 인자로 받거나 넘기는가? | Ruff `FBT001`, `FBT003` (`tests` 제외) | 같은 절, #102 |
-| CS-P06 | 함수 구성 | `src`에서 매직 넘버와 비교하는가? | Ruff `PLR2004` (`src`만) | clean-code Searchability, #102 |
-| CS-P07 | 이름 | Python 이름 표기 규칙을 어기거나, `...Exception` 이름과 `ApiException`을 HTTP 계층 밖에서 쓰는가? | Ruff `N`, 검사기 | clean-code Naming, #102 |
+| CS-P01 | 제어 흐름 | `src` 함수의 인지 복잡도가 15를 넘거나, 기준선 파일·설정으로 검사를 피하는가? | complexipy 고정 명령, 검사기 | #102, #118 |
+| CS-P03 | 제어 흐름 | return 뒤 else, 합칠 수 있는 if, 불필요한 bool 반환, `try`-`except`-`pass`가 있는가? | Ruff `RET505`, `SIM102`, `PLR5501`, `SIM103`, `SIM105` | #112 |
+| CS-P04 | 함수 구성 | 위치 인자가 2개를 넘거나 전체 인자가 5개를 넘는가? | Ruff `PLR0917`(`max-positional-args = 2`), `PLR0913` | #102, #118 |
+| CS-P05 | 함수 구성 | bool 값을 위치 인자로 받거나 넘기는가? | Ruff `FBT001`, `FBT003` (`tests` 제외) | #102 |
+| CS-P06 | 함수 구성 | `src`에서 매직 넘버와 비교하는가? | Ruff `PLR2004` (`src`만) | #102 |
+| CS-P07 | 이름 | Python 이름 표기 규칙을 어기거나, `...Exception` 이름과 `ApiException`을 HTTP 계층 밖에서 쓰는가? | Ruff `N`, 검사기 | #102 |
 | CS-P11 | 계층·경계 | 다른 모듈을 허용되지 않은 방향으로 import하는가? | import-linter(`poe lint-imports`) | [ADR 0011](adr/0011-split-bounded-contexts-logically-with-layered-packages.md) 「강제 방법」 |
 | CS-P12 | 계층·경계 | `exception_handlers.py` 밖에서 `HTTPException`을 쓰는가? | 검사기 | [ADR 0001](adr/0001-public-api-error-boundary.md) |
 | CS-P13 | 계층·경계 | 트랜잭션 헬퍼(`platform/database/transactions.py`) 밖에서 `begin`·`commit`·`rollback`을 직접 호출하는가? | 검사기 | [ADR 0007](adr/0007-store-batch-receipts-with-activity-transactions.md), [ADR 0012](adr/0012-notify-cross-context-changes-with-in-process-domain-events.md), 저장소 관례 |
 | CS-P15 | 저장소 관용구 | `src/mosemo/platform/clock.py` 밖에서 현재 시각 API를 호출하거나 `clock`을 키워드 전용 필수 인자로 받지 않는가? | Ruff `TID251`, 검사기 | #86 |
-| CS-P17 | 저장소 관용구 | FastAPI 의존성을 `Annotated` 없이 선언하는가? | Ruff `FAST002` | architecture FastAPI Request Boundaries |
+| CS-P17 | 저장소 관용구 | FastAPI 의존성을 `Annotated` 없이 선언하는가? | Ruff `FAST002` | [Ruff `FAST002`](https://docs.astral.sh/ruff/rules/fast-api-non-annotated-dependency/) |
 | CS-P18 | 오류 처리 | 넓은 `except`를 허용 위치 밖에서 쓰거나 예외를 조용히 삼키는가? | 검사기(`src`), Ruff `BLE001`(`src` 밖), `S110` | [ADR 0001](adr/0001-public-api-error-boundary.md), #102 |
-| CS-P19 | async 경계 | async 함수에서 블로킹 호출을 하는가? | Ruff `ASYNC` (`tests` 제외) | architecture FastAPI Request Boundaries |
-| CS-P20 | 테스트 | pytest 관용구를 어기는가? | Ruff `PT` | [testing](../.codex/skills/implementation/references/testing.md) |
-| CS-P21 | 주석 | 주석 처리된 코드가 있는가? | Ruff `ERA001` | clean-code Comments |
+| CS-P19 | async 경계 | async 함수에서 블로킹 호출을 하는가? | Ruff `ASYNC` (`tests` 제외) | [Ruff `ASYNC`](https://docs.astral.sh/ruff/rules/#flake8-async-async) |
+| CS-P20 | 테스트 | pytest 관용구를 어기는가? | Ruff `PT` | [Ruff `PT`](https://docs.astral.sh/ruff/rules/#flake8-pytest-style-pt) |
+| CS-P21 | 주석 | 주석 처리된 코드가 있는가? | Ruff `ERA001` | [Ruff `ERA001`](https://docs.astral.sh/ruff/rules/commented-out-code/) |
 | CS-P22 | 저장소 관용구 | 인라인 억제 주석을 쓰거나 검사 설정을 바꿔 규칙을 끄는가? | 검사기 | #102 |
 | CS-P23 | 테스트 | 테스트가 시각 공급원(clock 인자, `get_clock` 재정의)을 lambda로 공급하는가? | 검사기 | #86 |
 | CS-P24 | 저장소 관용구 | 시간대 없는 datetime을 만드는가? | Ruff `DTZ` | [ADR 0009](adr/0009-define-public-json-timestamps-and-responses.md) |
@@ -168,12 +168,12 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
 | Ruff `FAST001` (불필요한 `response_model`) | `response_model` 명시가 OpenAPI 계약을 위한 의도적 스타일일 수 있다. |
 | Ruff `TRY003` (예외 메시지 인자) | 정답이 정해져 있지 않다(기준 ②). |
 | Ruff `ANN` (타입 주석) | `ty`가 이미 타입을 검사하고, 누락은 일부 특수 메서드뿐이다. |
-| 업무 판단 위치의 일반 규칙(`XxxPolicy` 사용 기준) | 판단의 주어·출처를 가르는 기준마다 반례가 나와 정답 하나로 고정되지 않는다(기준 ②). 판단 위치는 CS-S02와 CS-J06·CS-J10·CS-J11로 채점하고, 기준은 object-design Tell, Don't Ask와 code-smells Feature Envy를 따른다(#118). |
+| 업무 판단 위치의 일반 규칙(`XxxPolicy` 사용 기준) | 판단의 주어·출처를 가르는 기준마다 반례가 나와 정답 하나로 고정되지 않는다(기준 ②). 판단 위치는 CS-S02와 CS-J06·CS-J10·CS-J11로 채점하고, 기준은 CS-S02를 따른다(#118). |
 | 허용 목록 밖의 로그 필드(옛 CS-P16) | `JsonFormatter`가 고정 필드와 `OPTIONAL_FIELDS`만 출력하므로 목록 밖 `extra=` 키는 런타임에 로그로 나가지 않는다. `extra=`에 함수 반환값을 넘기는 곳이 있어 정적 판정은 정상 코드를 잡거나 함수로 감싸 우회되며, 민감 값은 `SensitiveDataFilter`와 [로깅 규칙](logging.md)의 금지 목록이 다룬다. |
 
 ## 관련 문서
 
-- [구현 Skill](../.codex/skills/implementation/SKILL.md)과 참조 문서
+- [구현 Skill](../.codex/skills/implementation/SKILL.md)과 [src/mosemo/AGENTS.md](../src/mosemo/AGENTS.md)
 - [검증 Skill](../.codex/skills/verification/SKILL.md)
 - [도메인 용어집](ubiquitous-language.md)
 - [로깅 규칙](logging.md)
@@ -192,7 +192,7 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
 | ID | 차원 | 판정 질문 | 도구·규칙(예정) | 근거 | 현황(`e298365`) |
 | --- | --- | --- | --- | --- | --- |
 | CS-P08 | 이름 | 용어집의 `_Avoid_` 표현을 식별자에 쓰는가? | 검사기 | [용어집](ubiquitous-language.md) | 미측정 |
-| CS-P09 | 이름 | 허용 약어 목록 밖의 약어를 쓰는가? | 검사기 | clean-code Don't Abbreviate | 미측정, 허용 목록 미결정 |
+| CS-P09 | 이름 | 허용 약어 목록 밖의 약어를 쓰는가? | 검사기 | [미결정](#미결정)의 허용 약어 목록 | 미측정, 허용 목록 미결정 |
 | CS-P14 | 계층·경계 | 역할 목록에 없는 새 파일 이름을 쓰는가? | 미정 | [ARCHITECTURE](../ARCHITECTURE.md) | 처음부터 다시 논의(아래) |
 
 - **CS-P08**: 영어 `_Avoid_` 표현만 대상이다. `Device Registration`은 `device_registration`,
@@ -219,20 +219,20 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
 | ID | 차원 | 판정 질문 | 후보 탐지 | 근거 |
 | --- | --- | --- | --- | --- |
 | CS-J01 | 선례 일치 | 같은 역할의 기존 코드와 다른 방식으로 같은 종류의 문제를 풀었는가? | 프로그램이 다른 모듈의 같은 역할 파일을 비교 대상으로 제공 | 저장소 관례 |
-| CS-J02 | 단순성 | 구현이 하나뿐인 `Protocol`에 테스트 대역이나 경계 역전 같은 실제 이유가 없는가? | 새 `Protocol`과 구현 클래스 수 | [complexity](../.codex/skills/implementation/references/complexity.md) KISS |
-| CS-J03 | 단순성 | 호출하는 곳이 넘기지 않는 매개변수나 아무도 읽지 않는 필드가 현재 인수 조건에 근거 없이 있는가? | 미사용 매개변수·필드 | complexity YAGNI |
-| CS-J04 | 함수 구성 | 한 줄짜리 래퍼가 도메인 의미 없이 이름만 바꾸는가? | 본문이 다른 함수 호출 하나뿐인 함수 | clean-code Split Functions Reasonably |
-| CS-J05 | 중복 | 같은 업무 규칙이 세 곳 이상에 복제되어 있는가? | 유사 코드 탐지 | complexity Rule of Three |
-| CS-J06 | 배치 | 코드가 파일 역할과 맞지 않는 곳에 있는가? (예: service에서 SQL 조립, repository에서 업무 검증) | 없음 | architecture |
-| CS-J07 | 함수 구성 | 이름에 드러나지 않는 부작용(저장, 외부 호출, 상태 변경)이 있는가? | 없음 | clean-code Avoid Unexpected Side Effects |
-| CS-J08 | 이름 | 기존 코드가 같은 개념에 쓰는 이름과 다른 이름을 썼는가? | 없음 | clean-code Consistency & Uniqueness |
+| CS-J02 | 단순성 | 구현이 하나뿐인 `Protocol`이 외부 시스템 경계([ADR 0011](adr/0011-split-bounded-contexts-logically-with-layered-packages.md) 「결정」의 포트 규칙) 밖에 있는가? | 새 `Protocol`과 구현 클래스 수 | ADR 0011 「결정」의 포트 규칙 |
+| CS-J03 | 단순성 | 호출하는 곳이 넘기지 않는 매개변수나 아무도 읽지 않는 필드가 현재 인수 조건에 근거 없이 있는가? | 미사용 매개변수·필드 | 현재 인수 조건에 없는 필드·매개변수를 두지 않는다. |
+| CS-J04 | 함수 구성 | 한 줄짜리 래퍼가 도메인 의미 없이 이름만 바꾸는가? | 본문이 다른 함수 호출 하나뿐인 함수 | 생성자 호출 이름만 바꾸는 래퍼를 만들지 않는다. |
+| CS-J05 | 중복 | 같은 업무 규칙이 세 곳 이상에 복제되어 있는가? | 유사 코드 탐지 | 같은 업무 규칙이 세 번째로 나올 때 추출한다. |
+| CS-J06 | 배치 | 코드가 파일 역할과 맞지 않는 곳에 있는가? (예: service에서 SQL 조립, repository에서 업무 검증) | 없음 | [src/mosemo/AGENTS.md](../src/mosemo/AGENTS.md) 「역할 규칙」 |
+| CS-J07 | 함수 구성 | 이름에 드러나지 않는 부작용(저장, 외부 호출, 상태 변경)이 있는가? | 없음 | 이름에 드러나지 않는 저장·외부 호출·상태 변경을 두지 않는다. |
+| CS-J08 | 이름 | 기존 코드가 같은 개념에 쓰는 이름과 다른 이름을 썼는가? | 없음 | 같은 개념에 기존 이름과 [용어집](ubiquitous-language.md) 이름을 쓴다. |
 | CS-J09 | 이름 | 이름이 용어집의 정의와 모순되는가? | 없음 | 용어집 |
-| CS-J10 | 책임 | 객체의 불변식을 그 객체 밖에서 검사하거나 바꾸는가? | 없음 | [object-design](../.codex/skills/implementation/references/object-design.md) Encapsulation |
-| CS-J11 | 책임 | service가 조율(로딩, 트랜잭션, 순서) 외에 도메인 판단을 직접 하는가? | 없음 | [implementation 구현 원칙](../.codex/skills/implementation/SKILL.md) |
-| CS-J12 | 계층·경계 | ORM 모델의 필드로 도메인 판단을 하는가? | 없음 | implementation 절차 2 |
-| CS-J13 | 테스트 | 도메인 테스트의 mock을 fake나 실제 객체로 바꿀 수 있는가? | 도메인 테스트의 `unittest.mock` 사용 | testing Test Doubles |
-| CS-J14 | 테스트 | 테스트 이름이 행동 대신 구현 세부를 말하는가? | 없음 | testing Test Naming |
-| CS-J15 | 주석 | 코드를 되풀이하는 주석이 있는가? | 없음 | clean-code When to Write Comments |
+| CS-J10 | 책임 | 객체의 불변식을 그 객체 밖에서 검사하거나 바꾸는가? | 없음 | 불변식은 그 객체의 연산 하나로 지킨다. |
+| CS-J11 | 책임 | service가 조율(로딩, 트랜잭션, 순서) 외에 도메인 판단을 직접 하는가? | 없음 | [src/mosemo/AGENTS.md](../src/mosemo/AGENTS.md) 「설계 원칙」 |
+| CS-J12 | 계층·경계 | infrastructure의 `Table` 컬럼이나 조회한 행의 값으로 도메인 판단을 하는가? | 없음 | [ADR 0013](adr/0013-persist-dataclass-aggregates-with-imperative-mapping.md) 「영속화」 |
+| CS-J13 | 테스트 | 도메인 테스트의 mock을 fake나 실제 객체로 바꿀 수 있는가? | 도메인 테스트의 `unittest.mock` 사용 | 도메인 테스트는 mock보다 실제 객체·fake를 쓴다. |
+| CS-J14 | 테스트 | 테스트 이름이 행동 대신 구현 세부를 말하는가? | 없음 | 테스트 이름은 행동과 결과를 말한다. |
+| CS-J15 | 주석 | 코드를 되풀이하는 주석이 있는가? | 없음 | 코드에서 드러나지 않는 이유만 주석으로 쓴다. |
 
 - **CS-J06**: repository는 조회한 엔티티·값 객체의 필드를 Python 식으로 비교해 업무 결정을 내리지 않고, 그
   결정은 엔티티·값 객체의 메서드를 호출해 얻는다. 조회 조건(SQL), 키 조회, 사용한 ID 집합 같은 순회 관리는
@@ -251,8 +251,6 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
 | 1 | 주 흐름은 하나지만 다른 수준의 세부(SQL 조립, 문자열 파싱, 시간 계산)가 끼어 있다. |
 | 2 | 모든 문장이 같은 수준에서 읽히고 세부는 이름 있는 연산에 맡긴다. |
 
-근거: clean-code Do One Thing, Keep Functions Small.
-
 #### CS-S02 판단의 위치
 
 | 점수 | 기준 |
@@ -261,8 +259,6 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
 | 1 | 일부 판단만 데이터를 가진 객체에 있고 나머지는 호출하는 쪽에 남아 있다. |
 | 2 | 판단과 상태 변경을 데이터를 가진 객체나 협력하는 도메인 연산이 함께 소유한다. |
 
-근거: object-design Tell, Don't Ask, code-smells Feature Envy.
-
 #### CS-S03 테스트가 명세로 읽히는가
 
 | 점수 | 기준 |
@@ -270,8 +266,6 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
 | 0 | 준비·실행·검증이 섞여 무엇을 검증하는지 알기 어렵다. |
 | 1 | 구조는 보이지만 준비 과정이 길어 핵심 조건이 묻힌다. |
 | 2 | 조건·행동·결과가 한눈에 보이고 반복되는 준비는 builder나 fixture에 맡긴다. |
-
-근거: testing Arrange-Act-Assert, Test Builders.
 
 ### LLM 채점과 재개발 규칙
 
