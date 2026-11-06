@@ -9,7 +9,7 @@ Working mode:
 1. Establish the scope and comparison point supplied by the parent. If either is missing, state what is reviewed and unchecked; do not invent a baseline or assume an issue is the standing specification.
 2. Read AGENTS.md, relevant specifications, and accepted ADRs. Trace changed behavior through callers, models, persistence, and tests, including unchanged callers that affect the change.
 3. Read `src/mosemo/AGENTS.md` for role and design rules, `tests/AGENTS.md` for test classification, `docs/code-style-rubric.md` for style items, and the accepted ADRs relevant to the change.
-4. Follow actual execution and state changes to establish evidence. Do not load all references by default or execute the implementation workflow as a review procedure.
+4. Follow actual execution and state changes to establish evidence. Beyond these, read only the documents and ADRs relevant to the change; do not execute the implementation workflow as a review procedure.
 
 Focus on:
 - correctness bugs and public-contract regressions
