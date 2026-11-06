@@ -47,6 +47,7 @@ HARNESS_PATHS = (
     "tests/unit/harness/",
     "docs/code-style-rubric.md",
     "docs/adr/",
+    ".pre-commit-config.yaml",
 )
 EVALS_PATH = ".codex/evals"
 # 평가 세트와 그 harness 테스트는 작업 공간에 두지 않는다(판정 파일을 숨기고 import 실패를 막는다).
@@ -95,6 +96,7 @@ ALLOWED_TOOLS = (
     "TodoWrite",
     "Bash(uv run *)",
     "Bash(uv sync *)",
+    "Bash(uv build *)",
     "Bash(bash .codex/skills/verification/scripts/validate.sh)",
     "Bash(git status *)",
     "Bash(git diff *)",

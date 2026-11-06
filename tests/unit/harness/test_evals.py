@@ -53,6 +53,145 @@ def test_harness_paths_match_stop_gate(
     assert ast.literal_eval(assignment.value) == eval_runner.HARNESS_PATHS
 
 
+VALIDATE_SKIPPED_PREFIXES = ("#", "set ", "script_dir=", "cd ")
+
+
+def bash_rule_allows(rule: str, command: str) -> bool:
+    """Claude Code `Bash(...)` 규칙 중 끝 ` *` 하나 또는 와일드카드 없는 형태만 맞음으로 본다."""
+    if not (rule.startswith("Bash(") and rule.endswith(")")):
+        return False
+    body = rule[len("Bash(") : -1]
+    if "*" not in body:
+        return command == body
+    if body.endswith(" *") and body.count("*") == 1:
+        prefix = body[: -len(" *")]
+        return command == prefix or command.startswith(prefix + " ")
+    return False
+
+
+def validate_commands(script: str) -> list[str]:
+    return [
+        line
+        for line in (raw.strip() for raw in script.splitlines())
+        if line and not line.startswith(VALIDATE_SKIPPED_PREFIXES)
+    ]
+
+
+def test_bash_rule_allows_trailing_wildcard_and_exact_rules() -> None:
+    assert bash_rule_allows("Bash(uv run *)", "uv run --locked ruff check .")
+    assert not bash_rule_allows("Bash(uv run *)", "uv build")
+    assert bash_rule_allows("Bash(uv build *)", "uv build")
+    assert bash_rule_allows("Bash(git diff --check)", "git diff --check")
+    assert not bash_rule_allows("Bash(uv * build)", "uv x build")
+    assert not bash_rule_allows("Read", "uv build")
+
+
+def test_validate_commands_are_allowed_tools(
+    eval_runner: ModuleType, repository: Path
+) -> None:
+    script = (repository / ".codex/skills/verification/scripts/validate.sh").read_text(
+        encoding="utf-8"
+    )
+    commands = validate_commands(script)
+
+    denied = [
+        command
+        for command in commands
+        if not any(
+            bash_rule_allows(rule, command) for rule in eval_runner.ALLOWED_TOOLS
+        )
+    ]
+
+    assert "uv build" in commands
+    assert denied == []
+
+
+def repository_paths(source: str) -> set[str]:
+    """`repository`·`REPOSITORY`에서 시작하는 가장 바깥 `/` 식의 상수 경로 접두어."""
+    divisions = [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div)
+    ]
+    inner = {id(node.left) for node in divisions}
+    paths = set()
+    for node in divisions:
+        if id(node) in inner:
+            continue
+        path = division_path(node)
+        if path is not None and path not in {"", "/"}:
+            paths.add(path)
+    return paths
+
+
+def division_path(node: ast.BinOp) -> str | None:
+    operands: list[ast.expr] = []
+    left: ast.expr = node
+    while isinstance(left, ast.BinOp) and isinstance(left.op, ast.Div):
+        operands.append(left.right)
+        left = left.left
+    if not (isinstance(left, ast.Name) and left.id in {"repository", "REPOSITORY"}):
+        return None
+    path = ""
+    for operand in reversed(operands):
+        text, complete = constant_prefix(operand)
+        # 이어 붙일 때 앞 조각 끝의 `/`는 구분자 하나로 본다(`"docs/" / name` → `docs/`).
+        if text:
+            path = f"{path.rstrip('/')}/{text}" if path else text
+        if not complete:
+            return path if path.endswith("/") else path + "/"
+    return path
+
+
+def constant_prefix(node: ast.expr) -> tuple[str, bool]:
+    """조각의 앞쪽 상수 문자열과 조각 전체가 상수인지."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value, True
+    if isinstance(node, ast.JoinedStr):
+        prefix = ""
+        for value in node.values:
+            if not (isinstance(value, ast.Constant) and isinstance(value.value, str)):
+                return prefix, False
+            prefix += value.value
+        return prefix, True
+    return "", False
+
+
+def test_repository_paths_collects_outermost_constant_prefixes() -> None:
+    source = (
+        'a = repository / "pyproject.toml"\n'
+        'b = REPOSITORY / f"docs/{name}.md"\n'
+        'c = repository / ".codex" / "x"\n'
+        'd = repository / "a" / name\n'
+    )
+
+    assert repository_paths(source) == {"pyproject.toml", "docs/", ".codex/x", "a/"}
+
+
+def test_repository_paths_treats_trailing_slash_as_one_separator() -> None:
+    source = (
+        'a = repository / "docs/" / name\n'
+        'b = repository / "docs/" / "x"\n'
+        'c = repository / "docs/adr/"\n'
+        'd = repository / "e/" / f"f/{x}"\n'
+    )
+
+    assert repository_paths(source) == {"docs/", "docs/x", "docs/adr/", "e/f/"}
+
+
+def test_files_read_by_harness_tests_are_harness_paths(
+    eval_runner: ModuleType,
+) -> None:
+    paths = {
+        path
+        for module in sorted(Path(__file__).parent.glob("*.py"))
+        for path in repository_paths(module.read_text(encoding="utf-8"))
+    }
+
+    assert ".pre-commit-config.yaml" in paths
+    assert sorted(p for p in paths if not eval_runner.is_harness_path(p)) == []
+
+
 def test_child_environment_drops_parent_session_and_keeps_auth(
     eval_runner: ModuleType,
 ) -> None:

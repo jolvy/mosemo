@@ -39,6 +39,7 @@ HARNESS_PATHS = (
     "tests/unit/harness/",
     "docs/code-style-rubric.md",
     "docs/adr/",
+    ".pre-commit-config.yaml",
 )
 INSTRUCTION = (
     "코드 스타일 검사를 통과하지 못했다. 아래 위반을 고친 뒤 다시 끝내라. "

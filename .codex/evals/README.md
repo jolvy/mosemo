@@ -31,8 +31,10 @@ uv run --locked python .codex/evals/report.py                          # results
 1. 임시 디렉터리에 base commit을 `git archive`로 풀고 하네스 파일 목록(`stop_gate.py`의
    `HARNESS_PATHS`와 같고 `@AGENTS.md` shim `CLAUDE.md`·`src/mosemo/CLAUDE.md`·`tests/CLAUDE.md`를 포함,
    없는 경로는 건너뜀)을 지운 뒤 평가 대상 revision(`--harness`, 없으면 작업 트리의 추적·미추적 파일)에서
-   채운다. `.codex/evals/`와 `tests/unit/harness/test_evals.py`를 지우고 없음을 단언한 뒤 `git init`과
-   첫 커밋을 만들고 `uv sync --locked`를 실행한다. 원격·stash·`.git`을 사용자 저장소와 공유하지 않는다.
+   채운다. harness 테스트(`tests/unit/harness/`)가 `repository / "경로"`로 직접 읽는 저장소 파일은 하네스
+   파일 목록에 둔다(harness 테스트가 확인). `.codex/evals/`와 `tests/unit/harness/test_evals.py`를 지우고
+   없음을 단언한 뒤 `git init`과 첫 커밋을 만들고 `uv sync --locked`를 실행한다. 원격·stash·`.git`을 사용자
+   저장소와 공유하지 않는다.
 2. 부모 세션 변수를 지운 환경에 `MOSEMO_METRICS_LOG`(사용자 저장소 공통 git 디렉터리의 지표 로그)·
    `MOSEMO_HARNESS_REV`·`MOSEMO_HARNESS_DIRTY`·`MOSEMO_AGENT=claude`를 넣고, 지시문을 표준 입력으로
    `claude -p`에 넘긴다. 옵션은 `run.py`의 `claude_command`가 원본이다(`--model claude-opus-5-5`,

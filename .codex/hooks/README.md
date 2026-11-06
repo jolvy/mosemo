@@ -107,7 +107,7 @@ input parsing differs between the tools.
     uncommitted changes, both limited to `.codex/`, `.claude/`, `AGENTS.md`,
     `CLAUDE.md`, `src/mosemo/AGENTS.md`, `src/mosemo/CLAUDE.md`,
     `tests/AGENTS.md`, `tests/CLAUDE.md`, `tests/unit/harness/`,
-    `docs/code-style-rubric.md`, and `docs/adr/`.
+    `docs/code-style-rubric.md`, `docs/adr/`, and `.pre-commit-config.yaml`.
   - `skills`: Skill names from the transcript, deduplicated in order of
     appearance: `Skill` tool calls (`input.skill`), `<command-name>` values in
     user message text (without the leading `/`), and `Read` calls whose
