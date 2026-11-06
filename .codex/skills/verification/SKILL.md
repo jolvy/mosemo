@@ -29,7 +29,7 @@ description: 요구사항·모델 승인·문서 형식·품질 게이트·테�
 
 도구는 이 Skill의 `scripts/`에 둔다. 저장소 루트를 기준으로 다음 명령을 사용한다.
 
-- `uv run --locked python .codex/skills/verification/scripts/validate_docs.py`: 7개 Skill과 참조 문서의 형식과 Requirement·PRD·ADR의 파일명, 필수 섹션, 자리표시자, 로컬 링크, 인수 조건 ID를 검사한다. 필수 섹션은 생성 Skill의 내장 템플릿에서 읽고 모든 문서를 검사한다.
+- `uv run --locked python .codex/skills/verification/scripts/validate_docs.py`: 8개 Skill과 참조 문서의 형식과 Requirement·PRD·ADR의 파일명, 필수 섹션, 자리표시자, 로컬 링크, 인수 조건 ID를 검사한다. 필수 섹션은 생성 Skill의 내장 템플릿에서 읽고 모든 문서를 검사한다.
 - `uv run --locked python .codex/skills/verification/scripts/validate_docs.py --plan /tmp/plan.md`: 임시 내보낸 Plan Issue 본문의 승인 기록·작업 연결·검증 증거 형식과 연결한 로컬 문서의 AC 누락을 검사한다. 로컬 문서 링크는 저장소 루트 기준이다. 임시 본문을 Plan 복제본으로 저장소에 남기지 않는다.
 - `uv run --locked python .codex/skills/verification/scripts/validate_architecture.py`: import 경계와 BC 패키지 구조 규칙을 AST로 검사한다. 검사 항목의 원본은 스크립트와 ADR 0011~0014 「강제 방법」·`docs/code-style-rubric.md`다.
 - `uv run --locked python .codex/skills/verification/scripts/validate_conventions.py`: 코드 작성 규칙을 검사하고 위반마다 파일·라인·규칙 ID와 수정 안내를 출력한다. 검사 항목의 원본은 스크립트와 ADR 0011~0014 「강제 방법」·`docs/code-style-rubric.md`다.

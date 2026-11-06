@@ -66,6 +66,7 @@ STYLE_CHECKS = (
     ("validate_conventions", ("python", f"{SCRIPTS}/validate_conventions.py")),
     ("validate_architecture", ("python", f"{SCRIPTS}/validate_architecture.py")),
     ("ty check", ("ty", "check", "--output-format", "concise")),
+    ("lint-imports", ("poe", "lint-imports")),
 )
 PYTEST = (
     "--env-file",

@@ -61,8 +61,9 @@ input parsing differs between the tools.
   change fingerprint (every changed path and its content hash) equals the last
   pass or the last block of the same session.
 - Style checks: `ruff check --output-format concise .`, the fixed complexipy
-  command, `validate_conventions.py`, `validate_architecture.py`, and
-  `ty check --output-format concise`. If any fails, tests are not run.
+  command, `validate_conventions.py`, `validate_architecture.py`,
+  `ty check --output-format concise`, and `poe lint-imports`. If any fails,
+  tests are not run.
 - Tests: `uv run --locked --env-file .env.example pytest -q --tb=short -p
   no:cacheprovider -m "not requires_db and not requires_kafka" tests/unit`
   plus integration tests chosen by path, so tests that need Docker containers

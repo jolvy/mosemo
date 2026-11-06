@@ -14,6 +14,7 @@ SKILLS = (
     "engineering-planning",
     "implementation",
     "verification",
+    "pull-request",
 )
 SKILL_REFERENCES = (
     "engineering-planning/references/domain-modeling.md",

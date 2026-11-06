@@ -9,6 +9,7 @@ uv run --locked ruff check .
 uv run --locked complexipy src --max-complexity-allowed 15 --isolated --no-ignore
 uv run --locked ruff format --check .
 uv run --locked ty check
+uv run --locked poe lint-imports
 uv build
 uv run --locked poe coverage
 git diff --check
