@@ -37,10 +37,15 @@ uv run --locked python .codex/evals/report.py                          # results
    `claude -p`에 넘긴다. 옵션은 `run.py`의 `claude_command`가 원본이다(`--model claude-opus-5-5`,
    `--permission-mode acceptEdits`, 허용·금지 도구 목록, `--setting-sources project`,
    `--strict-mcp-config`, `--max-budget-usd`).
-3. 판정 파일 없이 `validate.sh`를 실행한 뒤 판정 파일을 복사해 판정 명령만 실행한다.
+3. 판정 파일 없이 `validate.sh`를 실행한 뒤 판정 파일을 복사해 판정 명령만 실행한다. 판정 명령은 각각
+   30분 제한이 있고, 판정 중 오류가 나도 결과 줄은 남긴다(`judgement_error`). `claude -p`는 새 프로세스
+   그룹으로 실행해 시간 초과(60분) 때 자손 프로세스까지 끝낸다.
 4. 결과 한 줄(작업, 실행 번호, `status`, 판정, `validate.sh` 통과, 지표 로그의 해당 `session` 줄,
    비용, CLI `num_turns`, 세션 기록에서 센 assistant 메시지 수(같은 API 메시지 id는 하나)·도구 호출 수,
-   권한 거부 수, `claude --version`, `harness_rev`, `src/` 트리 해시)을 쓰고 작업 공간을 지운다.
+   권한 거부 수, `claude --version`, `harness_rev`, `src/`의 작업 코드 해시(하네스 파일
+   `src/mosemo/AGENTS.md`·`CLAUDE.md`를 뺀 `git ls-tree` 항목의 SHA-256))을 쓰고 작업 공간을 지운다.
+   세션 기록을 찾지 못하면 메시지·도구 호출 수는 `null`이다. E3는 `src/` 변경 여부(`src_changed`)도
+   기록만 한다. `--harness` 값은 먼저 커밋 해시로 고정한다.
    `-p` 결과의 `num_turns`는 에이전트 반복 횟수가 아니다(E3 실측: `num_turns` 1, 메시지 23, 도구 호출 25).
    메시지·도구 호출 수는 본 세션 기록만 세고 subagent 기록은 세지 않는다.
 
@@ -53,9 +58,16 @@ uv run --locked python .codex/evals/report.py                          # results
 넣는다. `run.py`는 `claude -p` 전에 같은 환경으로 `gh auth status`를 실행해 성공하면 실행을 멈추고,
 결과 줄에 `gh_authenticated: false`를 남긴다.
 
+git도 사용자 인증으로 원격에 닿지 않게 한다. `SSH_AUTH_SOCK`을 지우고 `GIT_CONFIG_GLOBAL`(빈 임시
+파일)·`GIT_CONFIG_NOSYSTEM=1`·`GIT_TERMINAL_PROMPT=0`·`GIT_SSH_COMMAND=false`를 넣는다. `run.py`는
+`claude -p` 전에 같은 환경으로 사용자 저장소 `origin`에 `git ls-remote`를 실행해 성공하면 멈추고
+(`git_remote_reachable: false`), 실행 전후 사용자 저장소 git 디렉터리의 `config`·`config.worktree`·
+`hooks/` 해시를 비교해 바뀌면 결과 줄에 `user_git_changed: true`를 남기고 다음 실행을 멈춘다.
+
 허용 도구 목록은 격리 장치가 아니다. `acceptEdits`에서 목록에 없는 `python3` heredoc, 작업 공간 밖
-`/tmp` 리디렉션도 거부 없이 실행됐다. 격리는 별도 git 저장소(원격 없음)와 `gh` 미인증에 기대며,
-작업 공간 밖 파일 쓰기와 네트워크 접근은 막지 않는다.
+`/tmp` 리디렉션도 거부 없이 실행됐다. 격리는 별도 git 저장소(원격 없음), `gh` 미인증, git 인증 차단에
+기대며, 작업 공간 밖 파일 쓰기와 네트워크 접근은 막지 않는다. 에이전트가 일부러 `GIT_SSH_COMMAND`를 지우면
+`~/.ssh`의 키로 원격에 닿을 수 있다(`HOME`을 바꾸면 막히지만 `claude` 인증 영향을 확인하지 않았다).
 
 ## 지시 파일 로드 조건
 
@@ -63,7 +75,8 @@ Claude Code(2.1.319)는 프로젝트 계층(작업 공간과 그 상위 폴더)�
 `<폴더>/.claude/CLAUDE.md`)가 하나도 없을 때만 루트·하위 `AGENTS.md`를 읽는다. 작업 공간이 홈 아래에
 있으면 상위 탐색에서 `~/.claude/CLAUDE.md`가 프로젝트 지시로 잡혀 `AGENTS.md`가 빠지고 사용자 지시가
 들어온다. 그래서 `run.py`는 작업 공간을 홈 밖의 임시 디렉터리(macOS `$TMPDIR`, Linux `/tmp`)에 만들고,
-`claude -p` 전에 작업 공간이 홈 밖이고 상위 폴더에 `CLAUDE.md`가 없음을 단언한다
+`claude -p` 전에 작업 공간이 홈 밖이고 상위 폴더에 `CLAUDE.md`·`CLAUDE.local.md`·`.claude/CLAUDE.md`가
+없음을 단언한다
 (`instruction_conflicts`). 하나라도 어기면 실행을 멈춘다. 작업 공간 안의 `CLAUDE.md`는 하네스 파일 목록의
 shim에서만 온다(덮어쓰기 전에 base의 것을 지운다). shim이 있으면 `AGENTS.md`는 shim을 통해 읽힌다.
 
@@ -85,8 +98,10 @@ shim에서만 온다(덮어쓰기 전에 base의 것을 지운다). shim이 있�
 
 ## 판정
 
-- E1·E2: 판정 테스트 파일 전체 통과.
-- E3: base commit 대비 추가된 테스트 함수가 1개 이상이고 모두 `tests/unit/observation/` 아래,
+- E1·E2: 판정 테스트 파일 전체 통과. E2 판정 fixture는 바깥 트랜잭션 없이 요청마다 앱이 커밋하게 해서,
+  `archived_at`을 앱 시계(`utc_now()`)로 정하든 DB 시계(`func.now()`)로 정하든 요청 직전·직후 사이에 든다.
+- E3: base commit 대비 추가된 테스트 함수(`test_*.py`·`*_test.py`의 모듈 함수와 `Test*` 클래스 메서드)가
+  1개 이상이고 모두 `tests/unit/observation/` 아래,
   `pytest -m "requires_db or requires_kafka" --collect-only tests/unit`이 0개, 플러그인으로
   `validate_activity`를 바꾼 상태에서 새 테스트가 1개 이상 실패.
 

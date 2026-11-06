@@ -43,36 +43,30 @@ type Client = tuple[httpx2.AsyncClient, async_sessionmaker[AsyncSession]]
 
 @pytest_asyncio.fixture
 async def labels_client(integration_database_url: str) -> AsyncIterator[Client]:
+    """요청마다 앱이 자기 트랜잭션을 연다(바깥 트랜잭션 없음).
+
+    DB 시계(`now()`)는 트랜잭션 시작 시각이므로, 바깥 트랜잭션으로 감싸면 DB 시계로
+    `archived_at`을 정한 구현이 요청 직전 시각보다 이른 값을 남긴다. 계정은 실행마다 새로 만들고,
+    컨테이너는 판정 실행이 끝나면 버린다.
+    """
     engine = create_async_engine(integration_database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    app = FastAPI()
+    register_exception_handlers(app)
+    app.include_router(v1_api_router)
+    app.dependency_overrides[get_current_account] = IDENTITY.current_account_provider()
+
+    async def override_session() -> AsyncIterator[AsyncSession]:
+        async with session_factory() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
     try:
-        async with engine.connect() as connection:
-            transaction = await connection.begin()
-            session_factory = async_sessionmaker(
-                connection,
-                expire_on_commit=False,
-                join_transaction_mode="create_savepoint",
-            )
-            app = FastAPI()
-            register_exception_handlers(app)
-            app.include_router(v1_api_router)
-            app.dependency_overrides[get_current_account] = (
-                IDENTITY.current_account_provider()
-            )
-
-            async def override_session() -> AsyncIterator[AsyncSession]:
-                async with session_factory() as session:
-                    yield session
-
-            app.dependency_overrides[get_session] = override_session
-            try:
-                async with httpx2.AsyncClient(
-                    transport=httpx2.ASGITransport(app=app),
-                    base_url="http://testserver",
-                ) as client:
-                    yield client, session_factory
-            finally:
-                if transaction.is_active:
-                    await transaction.rollback()
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=app),
+            base_url="http://testserver",
+        ) as client:
+            yield client, session_factory
     finally:
         await engine.dispose()
 

@@ -82,6 +82,7 @@ def test_child_environment_drops_parent_session_and_keeps_auth(
         "GH_ENTERPRISE_TOKEN": "gh",
         "GITHUB_ENTERPRISE_TOKEN": "gh",
         "GH_CONFIG_DIR": "/home/me/.config/gh",
+        "SSH_AUTH_SOCK": "/tmp/agent.sock",
     }
 
     env = eval_runner.child_environment(
@@ -185,12 +186,77 @@ def test_added_tests_finds_new_functions_and_methods(eval_runner: ModuleType) ->
             "    def helper(self):\n        pass\n"
         ),
         "tests/unit/observation/test_broken.py": "def test_x(:\n",
+        "tests/unit/labels/focus_test.py": "def test_suffix():\n    pass\n",
     }
 
     assert eval_runner.added_tests(before, after) == [
+        "tests/unit/labels/focus_test.py::test_suffix",
         "tests/unit/labels/test_b.py::TestB::test_case",
         "tests/unit/observation/test_a.py::test_new",
     ]
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("tests/unit/observation/test_models.py", True),
+        ("tests/unit/observation/models_test.py", True),
+        ("tests/unit/observation/conftest.py", False),
+        ("tests/unit/observation/test_data.json", False),
+    ],
+)
+def test_is_test_file_follows_pytest_defaults(
+    eval_runner: ModuleType, name: str, expected: bool
+) -> None:
+    assert eval_runner.is_test_file(name) is expected
+
+
+def test_code_tree_hash_ignores_harness_files(eval_runner: ModuleType) -> None:
+    code = "100644 blob aaa\tsrc/mosemo/labels/router.py\n"
+    harness = (
+        "100644 blob bbb\tsrc/mosemo/AGENTS.md\n100644 blob ccc\tsrc/mosemo/CLAUDE.md\n"
+    )
+    changed = "100644 blob ddd\tsrc/mosemo/labels/router.py\n"
+
+    assert eval_runner.code_tree_hash(code + harness) == eval_runner.code_tree_hash(
+        code
+    )
+    assert eval_runner.code_tree_hash(changed) != eval_runner.code_tree_hash(code)
+
+
+def test_git_control_digest_changes_with_config_and_hooks(
+    eval_runner: ModuleType, tmp_path: Path
+) -> None:
+    (tmp_path / "config").write_text("[core]\n", encoding="utf-8")
+    (tmp_path / "hooks").mkdir()
+    before = eval_runner.git_control_digest([tmp_path])
+
+    (tmp_path / "hooks" / "pre-commit").write_text("#!/bin/sh\n", encoding="utf-8")
+    with_hook = eval_runner.git_control_digest([tmp_path])
+    (tmp_path / "config").write_text("[core]\nhooksPath = x\n", encoding="utf-8")
+
+    assert len({before, with_hook, eval_runner.git_control_digest([tmp_path])}) == 3
+
+
+def test_isolated_environment_blocks_user_credentials(
+    eval_runner: ModuleType, tmp_path: Path
+) -> None:
+    context = {"metrics_log": "/repo/.git/m.jsonl", "harness_rev": "abc"}
+
+    env = eval_runner.isolated_environment(
+        tmp_path, context={**context, "harness_dirty": False}
+    )
+
+    assert env["GH_CONFIG_DIR"] == str(tmp_path / "gh")
+    assert not any((tmp_path / "gh").iterdir())
+    assert env["GIT_CONFIG_GLOBAL"] == str(tmp_path / "gitconfig")
+    assert (tmp_path / "gitconfig").read_text(encoding="utf-8") == ""
+    assert env["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert env["GIT_SSH_COMMAND"] == "false"
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert env["MOSEMO_HARNESS_DIRTY"] == "false"
+    assert "SSH_AUTH_SOCK" not in env
+    assert not {"GH_TOKEN", "GITHUB_TOKEN"} & set(env)
 
 
 @pytest.mark.parametrize(
@@ -271,15 +337,18 @@ def test_instruction_conflicts_reports_home_and_ancestor_claude_md(
     (home / "CLAUDE.md").write_text("user\n", encoding="utf-8")
     (home / ".claude").mkdir()
     (home / ".claude" / "CLAUDE.md").write_text("user\n", encoding="utf-8")
+    (home / "projects" / "CLAUDE.local.md").write_text("local\n", encoding="utf-8")
 
     (workspace / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
 
     problems = eval_runner.instruction_conflicts(workspace, home=home)
 
+    found = "상위 폴더에 프로젝트 지시 파일이 있다"
     assert problems == [
         f"작업 공간이 홈 아래에 있다: {workspace.resolve()}",
-        f"상위 폴더에 CLAUDE.md가 있다: {home.resolve() / 'CLAUDE.md'}",
-        f"상위 폴더에 CLAUDE.md가 있다: {home.resolve() / '.claude' / 'CLAUDE.md'}",
+        f"{found}: {home.resolve() / 'projects' / 'CLAUDE.local.md'}",
+        f"{found}: {home.resolve() / 'CLAUDE.md'}",
+        f"{found}: {home.resolve() / '.claude' / 'CLAUDE.md'}",
     ]
 
 
@@ -304,6 +373,15 @@ def test_transcript_counts_dedupes_message_ids_and_counts_tool_uses(
     assert eval_runner.transcript_counts(lines) == {
         "assistant_messages": 2,
         "tool_uses": 3,
+    }
+
+
+def test_transcript_counts_are_unknown_without_transcript(
+    eval_runner: ModuleType,
+) -> None:
+    assert eval_runner.transcript_counts([]) == {
+        "assistant_messages": None,
+        "tool_uses": None,
     }
 
 

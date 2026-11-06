@@ -9,11 +9,13 @@
 
 import argparse
 import ast
+import hashlib
 import io
 import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
@@ -62,6 +64,8 @@ DROPPED_NAMES = frozenset(
         "GH_ENTERPRISE_TOKEN",
         "GITHUB_ENTERPRISE_TOKEN",
         "GH_CONFIG_DIR",
+        # git이 사용자 SSH 에이전트로 원격에 닿지 못하게 한다(`git_isolation`).
+        "SSH_AUTH_SOCK",
     }
 )
 DROPPED_PREFIXES = ("CLAUDE_CODE_", "HERDR_", "MOSEMO_", "GIT_")
@@ -105,7 +109,11 @@ E3_TESTS = "tests/unit/observation/"
 NO_TESTS_COLLECTED = 5
 COLLECTED = re.compile(r"^(\d+)(?:/\d+)? tests? collected", re.MULTILINE)
 CLAUDE_TIMEOUT = 3600
+JUDGE_TIMEOUT = 1800
 DETAIL_LINES = 20
+# Claude Code가 프로젝트 지시로 읽는 상위 폴더 파일. 하나라도 있으면 `AGENTS.md`가 빠진다.
+ANCESTOR_INSTRUCTIONS = ("CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md")
+JUDGE_ERRORS = (OSError, RuntimeError, ValueError, subprocess.SubprocessError)
 
 
 @dataclass(frozen=True)
@@ -212,6 +220,14 @@ def claude_outcome(stdout: str, returncode: int) -> ClaudeOutcome:
     )
 
 
+def is_test_file(name: str) -> bool:
+    """pytest 기본 `python_files`(`test_*.py`, `*_test.py`)에 맞는가."""
+    file = PurePosixPath(name).name
+    return file.endswith(".py") and (
+        file.startswith("test_") or file.endswith("_test.py")
+    )
+
+
 def test_names(source: str) -> list[str]:
     """모듈의 `test_*` 함수와 `Test*` 클래스의 `test_*` 메서드(`Class::name`)."""
     try:
@@ -266,14 +282,16 @@ def session_metrics(lines: Iterable[str], session: str) -> list[dict[str, Any]]:
     return found
 
 
-def transcript_counts(lines: Iterable[str]) -> dict[str, int]:
+def transcript_counts(lines: Iterable[str]) -> dict[str, int | None]:
     """세션 기록의 assistant 메시지 수(같은 API 메시지 id는 하나)와 도구 호출 수.
 
-    subagent의 기록은 별도 파일이라 세지 않는다.
+    기록이 없으면(빈 입력) 둘 다 `None`이다. subagent의 기록은 별도 파일이라 세지 않는다.
     """
     messages = set()
     tool_uses = 0
+    seen = False
     for line in lines:
+        seen = True
         try:
             entry = json.loads(line)
         except ValueError:
@@ -290,7 +308,39 @@ def transcript_counts(lines: Iterable[str]) -> dict[str, int]:
             isinstance(block, dict) and block.get("type") == "tool_use"
             for block in blocks
         )
+    if not seen:
+        return {"assistant_messages": None, "tool_uses": None}
     return {"assistant_messages": len(messages), "tool_uses": tool_uses}
+
+
+def is_harness_path(name: str) -> bool:
+    return any(
+        name == path or (path.endswith("/") and name.startswith(path))
+        for path in HARNESS_PATHS
+    )
+
+
+def code_tree_hash(listing: str) -> str:
+    """`git ls-tree -r HEAD -- src` 출력에서 하네스 파일을 뺀 항목의 해시(작업 코드 동일성)."""
+    kept = [
+        line
+        for line in listing.splitlines()
+        if line and not is_harness_path(line.partition("\t")[2])
+    ]
+    return hashlib.sha256("\n".join(kept).encode()).hexdigest()
+
+
+def git_control_digest(git_dirs: Iterable[Path]) -> str:
+    """사용자 저장소 git 디렉터리의 `config`·`config.worktree`·`hooks/` 내용 해시."""
+    digest = hashlib.sha256()
+    for directory in git_dirs:
+        files = [directory / "config", directory / "config.worktree"]
+        hooks = directory / "hooks"
+        files += sorted(hooks.rglob("*")) if hooks.is_dir() else []
+        for file in files:
+            content = file.read_bytes() if file.is_file() else b"-"
+            digest.update(f"{file}\0".encode() + hashlib.sha256(content).digest())
+    return digest.hexdigest()
 
 
 def result_line(
@@ -401,10 +451,20 @@ def overlay_harness(
             shutil.copy2(source, target)
 
 
+def resolve_revision(harness: str, *, env: Mapping[str, str]) -> str:
+    """`--harness` 값을 커밋 해시로 고정한다. `-`로 시작하는 값도 옵션으로 읽지 않는다."""
+    arguments = ["rev-parse", "--verify", "--end-of-options", f"{harness}^{{commit}}"]
+    return git_bytes(arguments, env=env).decode().strip()
+
+
 def harness_revision(
     harness: str | None, *, env: Mapping[str, str]
 ) -> tuple[str, bool]:
-    """하네스 파일의 마지막 커밋(stop_gate와 같은 정의)과 작업 트리 변경 여부."""
+    """하네스 파일 목록의 마지막 커밋과 작업 트리 변경 여부.
+
+    목록은 `stop_gate.py`의 것에 shim을 더한 것이다. 평가 실행에서는 이 값을
+    `MOSEMO_HARNESS_REV`로 넘기므로 지표 로그도 같은 값을 쓴다.
+    """
     if harness is not None:
         log = ["log", "-1", "--format=%h", harness, "--", *HARNESS_PATHS]
         return git_bytes(log, env=env).decode().strip(), False
@@ -419,7 +479,7 @@ def harness_revision(
 def build_workspace(
     task: Task, workspace: Path, *, harness: str | None, env: Mapping[str, str]
 ) -> str:
-    """작업 공간을 만들고 첫 커밋의 `src/` 트리 해시를 돌려준다."""
+    """작업 공간을 만들고 첫 커밋 `src/`의 작업 코드 해시(하네스 파일 제외)를 돌려준다."""
     extract(task.base, ["."], into=workspace, env=env)
     overlay_harness(workspace, harness=harness, env=env)
     for path in EVAL_ONLY_PATHS:
@@ -433,20 +493,33 @@ def build_workspace(
     commit = ["git", *identity, *no_hooks, "commit", "-q", "-m", "evaluation base"]
     checked(commit, cwd=workspace, env=env)
     checked(["uv", "sync", "--locked", "--quiet"], cwd=workspace, env=env)
-    return checked(["git", "rev-parse", "HEAD:src"], cwd=workspace, env=env).strip()
+    listing = checked(
+        ["git", "ls-tree", "-r", "HEAD", "--", "src"], cwd=workspace, env=env
+    )
+    return code_tree_hash(listing)
 
 
 def run_claude(
     task: Task, workspace: Path, *, session: str, env: Mapping[str, str]
 ) -> ClaudeOutcome:
-    command = claude_command(task, session=session)
+    """새 프로세스 그룹으로 실행하고, 시간 초과면 에이전트가 띄운 자손까지 함께 끝낸다."""
+    process = subprocess.Popen(
+        claude_command(task, session=session),
+        cwd=workspace,
+        env=dict(env),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
     try:
-        completed = execute(
-            command, cwd=workspace, env=env, input=task.prompt, timeout=CLAUDE_TIMEOUT
-        )
+        stdout, _ = process.communicate(task.prompt, timeout=CLAUDE_TIMEOUT)
     except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
         return ClaudeOutcome("error", None, None, None, f"timeout {CLAUDE_TIMEOUT}s")
-    return claude_outcome(completed.stdout, completed.returncode)
+    return claude_outcome(stdout, process.returncode)
 
 
 def label_acceptance(
@@ -454,7 +527,10 @@ def label_acceptance(
 ) -> tuple[bool, dict[str, Any]]:
     shutil.copy2(EVALS / "acceptance" / f"{task.name}.py", workspace / ACCEPTANCE_TEST)
     completed = execute(
-        [*PYTEST, *PYTEST_ARGS, ACCEPTANCE_TEST], cwd=workspace, env=env
+        [*PYTEST, *PYTEST_ARGS, ACCEPTANCE_TEST],
+        cwd=workspace,
+        env=env,
+        timeout=JUDGE_TIMEOUT,
     )
     return completed.returncode == 0, {"pytest": tail(completed)}
 
@@ -468,7 +544,7 @@ def committed_tests(workspace: Path, *, env: Mapping[str, str]) -> dict[str, str
     return {
         name: checked(["git", "show", f"HEAD:{name}"], cwd=workspace, env=env)
         for name in names
-        if PurePosixPath(name).name.startswith("test_") and name.endswith(".py")
+        if is_test_file(name)
     }
 
 
@@ -477,7 +553,8 @@ def current_tests(workspace: Path) -> dict[str, str]:
         path.relative_to(workspace).as_posix(): path.read_text(
             encoding="utf-8", errors="replace"
         )
-        for path in (workspace / "tests").rglob("test_*.py")
+        for path in (workspace / "tests").rglob("*.py")
+        if is_test_file(path.name)
     }
 
 
@@ -498,25 +575,34 @@ def placement_acceptance(
         ],
         cwd=workspace,
         env=env,
+        timeout=JUDGE_TIMEOUT,
     )
     container_tests = collected_count(marked.stdout, marked.returncode)
     killed = None
     if added:
         shutil.copy2(EVALS / "acceptance" / "E3.py", workspace / f"{MUTANT_PLUGIN}.py")
         mutant = execute(
-            [*PYTEST, *PYTEST_ARGS, "-p", MUTANT_PLUGIN, *added], cwd=workspace, env=env
+            [*PYTEST, *PYTEST_ARGS, "-p", MUTANT_PLUGIN, *added],
+            cwd=workspace,
+            env=env,
+            timeout=JUDGE_TIMEOUT,
         )
         killed = mutant.returncode == 1
+    source = checked(
+        ["git", "status", "--porcelain", "--", "src"], cwd=workspace, env=env
+    )
     detail = {
         "added": added,
         "container_tests": container_tests,
         "mutant_failed": killed,
+        # 지시문의 "제품 코드는 바꾸지 않는다". 판정에는 쓰지 않고 기록만 한다.
+        "src_changed": bool(source.strip()),
     }
     return placed and container_tests == 0 and killed is True, detail
 
 
 def judge(task: Task, workspace: Path, *, env: Mapping[str, str]) -> Judgement:
-    validated = execute(VALIDATE, cwd=workspace, env=env)
+    validated = execute(VALIDATE, cwd=workspace, env=env, timeout=JUDGE_TIMEOUT)
     if task.name == "E3":
         passed, detail = placement_acceptance(workspace, env=env)
     else:
@@ -546,9 +632,9 @@ def instruction_conflicts(workspace: Path, *, home: Path) -> list[str]:
     if resolved.is_relative_to(home.resolve()):
         problems.append(f"작업 공간이 홈 아래에 있다: {resolved}")
     problems += [
-        f"상위 폴더에 CLAUDE.md가 있다: {path}"
+        f"상위 폴더에 프로젝트 지시 파일이 있다: {path}"
         for parent in resolved.parents
-        for path in (parent / "CLAUDE.md", parent / ".claude" / "CLAUDE.md")
+        for path in (parent / name for name in ANCESTOR_INSTRUCTIONS)
         if path.exists()
     ]
     return problems
@@ -573,55 +659,110 @@ def gh_authenticated(workspace: Path, *, env: Mapping[str, str]) -> bool:
     return completed.returncode == 0
 
 
+def remote_reachable(workspace: Path, *, url: str, env: Mapping[str, str]) -> bool:
+    """평가 환경에서 사용자 원격에 `git ls-remote`가 성공하는가."""
+    try:
+        completed = execute(
+            ["git", "ls-remote", "--", url], cwd=workspace, env=env, timeout=60
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    return completed.returncode == 0
+
+
+def isolated_environment(config: Path, *, context: Mapping[str, Any]) -> dict[str, str]:
+    """`claude -p`와 판정 명령의 환경. `gh`와 git이 사용자 인증을 쓰지 못하게 한다."""
+    (config / "gh").mkdir()
+    gitconfig = config / "gitconfig"
+    gitconfig.touch()
+    return child_environment(
+        os.environ,
+        {
+            "MOSEMO_METRICS_LOG": str(context["metrics_log"]),
+            "MOSEMO_HARNESS_REV": context["harness_rev"],
+            "MOSEMO_HARNESS_DIRTY": str(context["harness_dirty"]).lower(),
+            "MOSEMO_AGENT": "claude",
+            "GH_CONFIG_DIR": str(config / "gh"),
+            "GIT_CONFIG_GLOBAL": str(gitconfig),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_SSH_COMMAND": "false",
+        },
+    )
+
+
+def preflight(workspace: Path, *, env: Mapping[str, str], remote: str | None) -> None:
+    """비용을 쓰기 전에 지시 파일 조건과 인증 차단을 단언한다."""
+    problems = instruction_conflicts(workspace, home=Path.home())
+    if gh_authenticated(workspace, env=env):
+        problems.append("평가 환경에서 gh가 인증돼 있다")
+    if remote and remote_reachable(workspace, url=remote, env=env):
+        problems.append(f"평가 환경에서 git 원격에 닿는다: {remote}")
+    if problems:
+        raise RuntimeError("; ".join(problems))
+
+
+def judge_safely(
+    task: Task, workspace: Path, *, env: Mapping[str, str]
+) -> tuple[Judgement | None, str]:
+    """판정 실패도 결과 줄에 남기도록 오류를 문자열로 돌려준다."""
+    try:
+        return judge(task, workspace, env=env), ""
+    except JUDGE_ERRORS as error:
+        return None, f"{type(error).__name__}: {error}"
+
+
 def run_once(
     task: Task, *, number: int, harness: str | None, context: dict[str, Any]
 ) -> dict[str, Any]:
     session = str(uuid.uuid4())
-    metrics_log = Path(context["metrics_log"])
-    revision, dirty = context["harness_rev"], context["harness_dirty"]
+    git_dirs = [Path(path) for path in context["git_dirs"]]
     with (
         tempfile.TemporaryDirectory(prefix="mosemo-eval-") as directory,
-        tempfile.TemporaryDirectory(prefix="mosemo-eval-gh-") as gh_config,
+        tempfile.TemporaryDirectory(prefix="mosemo-eval-config-") as config,
     ):
-        env = child_environment(
-            os.environ,
-            {
-                "MOSEMO_METRICS_LOG": str(metrics_log),
-                "MOSEMO_HARNESS_REV": revision,
-                "MOSEMO_HARNESS_DIRTY": str(dirty).lower(),
-                "MOSEMO_AGENT": "claude",
-                "GH_CONFIG_DIR": gh_config,
-            },
-        )
+        env = isolated_environment(Path(config), context=context)
         workspace = Path(directory)
         src_tree = build_workspace(task, workspace, harness=harness, env=env)
-        conflicts = instruction_conflicts(workspace, home=Path.home())
-        if conflicts:
-            raise RuntimeError("; ".join(conflicts))
-        if gh_authenticated(workspace, env=env):
-            raise RuntimeError("평가 환경에서 gh가 인증돼 있다")
+        preflight(workspace, env=env, remote=context["remote"])
+        before = git_control_digest(git_dirs)
         outcome = run_claude(task, workspace, session=session, env=env)
-        judgement = judge(task, workspace, env=env)
+        judgement, error = judge_safely(task, workspace, env=env)
     run_context = {
         "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "run": number,
         "session": session,
         "claude_version": context["claude_version"],
-        "harness_rev": revision,
-        "harness_dirty": dirty,
+        "harness_rev": context["harness_rev"],
+        "harness_dirty": context["harness_dirty"],
         "src_tree": src_tree,
-        "metrics": session_metrics(read_lines(metrics_log), session),
+        "metrics": session_metrics(read_lines(Path(context["metrics_log"])), session),
         "gh_authenticated": False,
+        "git_remote_reachable": False,
+        "user_git_changed": git_control_digest(git_dirs) != before,
+        "judgement_error": error,
         **transcript_counts(transcript_lines(session, env=env)),
     }
     return result_line(task, outcome, judgement=judgement, context=run_context)
 
 
-def metrics_log_path(env: Mapping[str, str]) -> Path:
-    common = git_bytes(
-        ["rev-parse", "--path-format=absolute", "--git-common-dir"], env=env
+def user_repository(env: Mapping[str, str]) -> dict[str, Any]:
+    """사용자 저장소의 지표 로그 경로, 감시할 git 디렉터리, `origin` URL."""
+    common, git_dir = (
+        git_bytes(["rev-parse", "--path-format=absolute", flag], env=env)
+        .decode()
+        .strip()
+        for flag in ("--git-common-dir", "--git-dir")
     )
-    return Path(common.decode().strip()) / "mosemo-agent-metrics.jsonl"
+    try:
+        remote = git_bytes(["remote", "get-url", "origin"], env=env).decode().strip()
+    except RuntimeError:
+        remote = None
+    return {
+        "metrics_log": str(Path(common) / "mosemo-agent-metrics.jsonl"),
+        "git_dirs": sorted({common, git_dir}),
+        "remote": remote,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -633,10 +774,11 @@ def main(argv: list[str] | None = None) -> int:
     task_file = EVALS / "tasks" / f"{arguments.task}.md"
     task = parse_task(arguments.task, task_file.read_text(encoding="utf-8"))
     env = child_environment(os.environ, {})
-    revision, dirty = harness_revision(arguments.harness, env=env)
+    harness = arguments.harness and resolve_revision(arguments.harness, env=env)
+    revision, dirty = harness_revision(harness, env=env)
     version = checked(["claude", "--version"], cwd=ROOT, env=env).strip()
     context = {
-        "metrics_log": str(metrics_log_path(env)),
+        **user_repository(env),
         "harness_rev": revision,
         "harness_dirty": dirty,
         "claude_version": version,
@@ -644,7 +786,7 @@ def main(argv: list[str] | None = None) -> int:
     RESULTS.mkdir(exist_ok=True)
     output = RESULTS / f"{time.strftime('%Y%m%d', time.gmtime())}-{revision}.jsonl"
     for number in range(1, arguments.runs + 1):
-        line = run_once(task, number=number, harness=arguments.harness, context=context)
+        line = run_once(task, number=number, harness=harness, context=context)
         with output.open("a", encoding="utf-8") as file:
             file.write(json.dumps(line, ensure_ascii=False) + "\n")
         print(
@@ -663,6 +805,12 @@ def main(argv: list[str] | None = None) -> int:
                 }
             )
         )
+        if line["user_git_changed"]:
+            print(
+                "사용자 저장소의 git 설정·hook이 바뀌었다. 실행을 멈춘다.",
+                file=sys.stderr,
+            )
+            return 1
     print(f"결과: {output}", file=sys.stderr)
     return 0
 
