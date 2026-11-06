@@ -9,6 +9,7 @@
 
 import argparse
 import ast
+import contextlib
 import hashlib
 import io
 import json
@@ -16,6 +17,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tarfile
@@ -110,6 +112,8 @@ NO_TESTS_COLLECTED = 5
 COLLECTED = re.compile(r"^(\d+)(?:/\d+)? tests? collected", re.MULTILINE)
 CLAUDE_TIMEOUT = 3600
 JUDGE_TIMEOUT = 1800
+# 시간 초과로 그룹을 끝낸 뒤 남은 출력을 기다리는 시간(`setsid`로 빠져나간 자손이 파이프를 잡아도 멈추지 않게).
+DRAIN_TIMEOUT = 30
 DETAIL_LINES = 20
 # Claude Code가 프로젝트 지시로 읽는 상위 폴더 파일. 하나라도 있으면 `AGENTS.md`가 빠진다.
 ANCESTOR_INSTRUCTIONS = ("CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md")
@@ -330,17 +334,45 @@ def code_tree_hash(listing: str) -> str:
     return hashlib.sha256("\n".join(kept).encode()).hexdigest()
 
 
-def git_control_digest(git_dirs: Iterable[Path]) -> str:
-    """사용자 저장소 git 디렉터리의 `config`·`config.worktree`·`hooks/` 내용 해시."""
+def file_signature(path: Path) -> bytes:
+    """일반 파일은 내용 해시, 없거나 일반 파일이 아니면 종류만. FIFO는 열지 않는다."""
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return b"missing"
+    if not stat.S_ISREG(mode):
+        return f"mode {stat.S_IFMT(mode)}".encode()
+    return hashlib.sha256(path.read_bytes()).digest()
+
+
+def state_digest(files: Iterable[Path]) -> str | None:
+    """감시 파일들의 해시. 읽을 수 없으면 `None`이고, 호출자는 바뀐 것으로 본다."""
     digest = hashlib.sha256()
-    for directory in git_dirs:
-        files = [directory / "config", directory / "config.worktree"]
-        hooks = directory / "hooks"
-        files += sorted(hooks.rglob("*")) if hooks.is_dir() else []
-        for file in files:
-            content = file.read_bytes() if file.is_file() else b"-"
-            digest.update(f"{file}\0".encode() + hashlib.sha256(content).digest())
+    try:
+        for path in sorted(set(files)):
+            digest.update(f"{path}\0".encode() + file_signature(path))
+    except OSError:
+        return None
     return digest.hexdigest()
+
+
+def watched_files(git_dirs: Iterable[Path], *, home: Path, evals: Path) -> list[Path]:
+    """에이전트가 바꾸면 사용자 권한으로 코드가 실행되거나 판정이 흔들리는 사용자 파일.
+
+    사용자 저장소 git 디렉터리의 설정·hook, 모든 worktree의 `config.worktree`, 전역 git 설정,
+    평가 세트(`results/` 제외)다.
+    """
+    files = [home / ".gitconfig", home / ".config" / "git" / "config"]
+    for directory in git_dirs:
+        files += [directory / "config", directory / "config.worktree"]
+        files += (directory / "hooks").rglob("*")
+        files += (directory / "worktrees").glob("*/config.worktree")
+    files += (
+        path
+        for path in evals.rglob("*")
+        if path.relative_to(evals).parts[0] != "results"
+    )
+    return files
 
 
 def result_line(
@@ -373,24 +405,46 @@ def tail(completed: subprocess.CompletedProcess[str]) -> str:
     return "\n".join(lines[-DETAIL_LINES:])
 
 
+def stop_group(process: subprocess.Popen[str]) -> None:
+    """프로세스 그룹에 남은 자손을 끝낸다. 이미 없으면 아무것도 하지 않는다."""
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(process.pid, signal.SIGKILL)
+
+
 def execute(
-    command: Iterable[str], *, cwd: Path, env: Mapping[str, str], **options: Any
+    command: Iterable[str],
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+    stdin: str | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        list(command),
+    """새 프로세스 그룹으로 실행하고, 끝나거나 시간 초과면 남은 자손까지 끝낸다."""
+    arguments = list(command)
+    with subprocess.Popen(
+        arguments,
         cwd=cwd,
         env=dict(env),
-        capture_output=True,
+        stdin=subprocess.DEVNULL if stdin is None else subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        check=False,
-        **options,
-    )
+        start_new_session=True,
+    ) as process:
+        try:
+            stdout, stderr = process.communicate(stdin, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            stop_group(process)
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                process.communicate(timeout=DRAIN_TIMEOUT)
+            raise
+        finally:
+            stop_group(process)
+    return subprocess.CompletedProcess(arguments, process.returncode, stdout, stderr)
 
 
-def checked(
-    command: Iterable[str], *, cwd: Path, env: Mapping[str, str], **options: Any
-) -> str:
-    completed = execute(command, cwd=cwd, env=env, **options)
+def checked(command: Iterable[str], *, cwd: Path, env: Mapping[str, str]) -> str:
+    completed = execute(command, cwd=cwd, env=env)
     if completed.returncode != 0:
         raise RuntimeError(f"{' '.join(completed.args)}: {tail(completed)}")
     return completed.stdout
@@ -502,30 +556,23 @@ def build_workspace(
 def run_claude(
     task: Task, workspace: Path, *, session: str, env: Mapping[str, str]
 ) -> ClaudeOutcome:
-    """새 프로세스 그룹으로 실행하고, 시간 초과면 에이전트가 띄운 자손까지 함께 끝낸다."""
-    process = subprocess.Popen(
-        claude_command(task, session=session),
-        cwd=workspace,
-        env=dict(env),
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
     try:
-        stdout, _ = process.communicate(task.prompt, timeout=CLAUDE_TIMEOUT)
+        completed = execute(
+            claude_command(task, session=session),
+            cwd=workspace,
+            env=env,
+            stdin=task.prompt,
+            timeout=CLAUDE_TIMEOUT,
+        )
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.communicate()
         return ClaudeOutcome("error", None, None, None, f"timeout {CLAUDE_TIMEOUT}s")
-    return claude_outcome(stdout, process.returncode)
+    return claude_outcome(completed.stdout, completed.returncode)
 
 
 def label_acceptance(
-    task: Task, workspace: Path, *, env: Mapping[str, str]
+    workspace: Path, *, env: Mapping[str, str], acceptance: bytes
 ) -> tuple[bool, dict[str, Any]]:
-    shutil.copy2(EVALS / "acceptance" / f"{task.name}.py", workspace / ACCEPTANCE_TEST)
+    (workspace / ACCEPTANCE_TEST).write_bytes(acceptance)
     completed = execute(
         [*PYTEST, *PYTEST_ARGS, ACCEPTANCE_TEST],
         cwd=workspace,
@@ -559,7 +606,7 @@ def current_tests(workspace: Path) -> dict[str, str]:
 
 
 def placement_acceptance(
-    workspace: Path, *, env: Mapping[str, str]
+    workspace: Path, *, env: Mapping[str, str], acceptance: bytes
 ) -> tuple[bool, dict[str, Any]]:
     """E3: 새 테스트가 `tests/unit/observation/`에만 있고, 컨테이너 마커가 없고, 변이를 잡는다."""
     added = added_tests(committed_tests(workspace, env=env), current_tests(workspace))
@@ -580,7 +627,7 @@ def placement_acceptance(
     container_tests = collected_count(marked.stdout, marked.returncode)
     killed = None
     if added:
-        shutil.copy2(EVALS / "acceptance" / "E3.py", workspace / f"{MUTANT_PLUGIN}.py")
+        (workspace / f"{MUTANT_PLUGIN}.py").write_bytes(acceptance)
         mutant = execute(
             [*PYTEST, *PYTEST_ARGS, "-p", MUTANT_PLUGIN, *added],
             cwd=workspace,
@@ -601,12 +648,15 @@ def placement_acceptance(
     return placed and container_tests == 0 and killed is True, detail
 
 
-def judge(task: Task, workspace: Path, *, env: Mapping[str, str]) -> Judgement:
+def judge(
+    task: Task, workspace: Path, *, env: Mapping[str, str], acceptance: bytes
+) -> Judgement:
+    """`acceptance`는 실행 전에 읽어 둔 판정 파일 내용이다(실행 중 변조를 판정에 쓰지 않는다)."""
     validated = execute(VALIDATE, cwd=workspace, env=env, timeout=JUDGE_TIMEOUT)
     if task.name == "E3":
-        passed, detail = placement_acceptance(workspace, env=env)
+        passed, detail = placement_acceptance(workspace, env=env, acceptance=acceptance)
     else:
-        passed, detail = label_acceptance(task, workspace, env=env)
+        passed, detail = label_acceptance(workspace, env=env, acceptance=acceptance)
     detail["validate"] = "" if validated.returncode == 0 else tail(validated)
     return Judgement(
         acceptance=passed, validate=validated.returncode == 0, detail=detail
@@ -660,13 +710,16 @@ def gh_authenticated(workspace: Path, *, env: Mapping[str, str]) -> bool:
 
 
 def remote_reachable(workspace: Path, *, url: str, env: Mapping[str, str]) -> bool:
-    """평가 환경에서 사용자 원격에 `git ls-remote`가 성공하는가."""
+    """평가 환경에서 사용자 원격에 `git ls-remote`가 성공하는가.
+
+    시간 초과는 차단을 확인하지 못한 것이므로 닿는 것으로 본다.
+    """
     try:
         completed = execute(
             ["git", "ls-remote", "--", url], cwd=workspace, env=env, timeout=60
         )
     except subprocess.TimeoutExpired:
-        return False
+        return True
     return completed.returncode == 0
 
 
@@ -703,11 +756,11 @@ def preflight(workspace: Path, *, env: Mapping[str, str], remote: str | None) ->
 
 
 def judge_safely(
-    task: Task, workspace: Path, *, env: Mapping[str, str]
+    task: Task, workspace: Path, *, env: Mapping[str, str], acceptance: bytes
 ) -> tuple[Judgement | None, str]:
     """판정 실패도 결과 줄에 남기도록 오류를 문자열로 돌려준다."""
     try:
-        return judge(task, workspace, env=env), ""
+        return judge(task, workspace, env=env, acceptance=acceptance), ""
     except JUDGE_ERRORS as error:
         return None, f"{type(error).__name__}: {error}"
 
@@ -717,6 +770,10 @@ def run_once(
 ) -> dict[str, Any]:
     session = str(uuid.uuid4())
     git_dirs = [Path(path) for path in context["git_dirs"]]
+
+    def watched() -> list[Path]:
+        return watched_files(git_dirs, home=Path.home(), evals=EVALS)
+
     with (
         tempfile.TemporaryDirectory(prefix="mosemo-eval-") as directory,
         tempfile.TemporaryDirectory(prefix="mosemo-eval-config-") as config,
@@ -725,9 +782,12 @@ def run_once(
         workspace = Path(directory)
         src_tree = build_workspace(task, workspace, harness=harness, env=env)
         preflight(workspace, env=env, remote=context["remote"])
-        before = git_control_digest(git_dirs)
+        before = state_digest(watched())
         outcome = run_claude(task, workspace, session=session, env=env)
-        judgement, error = judge_safely(task, workspace, env=env)
+        after = state_digest(watched())
+        judgement, error = judge_safely(
+            task, workspace, env=env, acceptance=context["acceptance"]
+        )
     run_context = {
         "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "run": number,
@@ -739,7 +799,7 @@ def run_once(
         "metrics": session_metrics(read_lines(Path(context["metrics_log"])), session),
         "gh_authenticated": False,
         "git_remote_reachable": False,
-        "user_git_changed": git_control_digest(git_dirs) != before,
+        "user_state_changed": before is None or after != before,
         "judgement_error": error,
         **transcript_counts(transcript_lines(session, env=env)),
     }
@@ -777,8 +837,10 @@ def main(argv: list[str] | None = None) -> int:
     harness = arguments.harness and resolve_revision(arguments.harness, env=env)
     revision, dirty = harness_revision(harness, env=env)
     version = checked(["claude", "--version"], cwd=ROOT, env=env).strip()
+    acceptance = EVALS / "acceptance" / f"{arguments.task}.py"
     context = {
         **user_repository(env),
+        "acceptance": acceptance.read_bytes(),
         "harness_rev": revision,
         "harness_dirty": dirty,
         "claude_version": version,
@@ -805,9 +867,9 @@ def main(argv: list[str] | None = None) -> int:
                 }
             )
         )
-        if line["user_git_changed"]:
+        if line["user_state_changed"]:
             print(
-                "사용자 저장소의 git 설정·hook이 바뀌었다. 실행을 멈춘다.",
+                "사용자 git 설정·hook 또는 평가 세트가 바뀌었다. 실행을 멈춘다.",
                 file=sys.stderr,
             )
             return 1

@@ -1,5 +1,6 @@
 import ast
 import json
+import os
 from pathlib import Path
 from types import ModuleType
 
@@ -224,18 +225,61 @@ def test_code_tree_hash_ignores_harness_files(eval_runner: ModuleType) -> None:
     assert eval_runner.code_tree_hash(changed) != eval_runner.code_tree_hash(code)
 
 
-def test_git_control_digest_changes_with_config_and_hooks(
+def test_state_digest_changes_with_watched_files_and_skips_fifo(
     eval_runner: ModuleType, tmp_path: Path
 ) -> None:
-    (tmp_path / "config").write_text("[core]\n", encoding="utf-8")
-    (tmp_path / "hooks").mkdir()
-    before = eval_runner.git_control_digest([tmp_path])
+    git_dir = tmp_path / "repo.git"
+    evals = tmp_path / "evals"
+    (git_dir / "hooks").mkdir(parents=True)
+    (git_dir / "worktrees" / "other").mkdir(parents=True)
+    (evals / "results").mkdir(parents=True)
+    (git_dir / "config").write_text("[core]\n", encoding="utf-8")
+    (evals / "run.py").write_text("print()\n", encoding="utf-8")
+    home = tmp_path / "home"
 
-    (tmp_path / "hooks" / "pre-commit").write_text("#!/bin/sh\n", encoding="utf-8")
-    with_hook = eval_runner.git_control_digest([tmp_path])
-    (tmp_path / "config").write_text("[core]\nhooksPath = x\n", encoding="utf-8")
+    def digest() -> str | None:
+        files = eval_runner.watched_files([git_dir], home=home, evals=evals)
+        return eval_runner.state_digest(files)
 
-    assert len({before, with_hook, eval_runner.git_control_digest([tmp_path])}) == 3
+    digests = [digest()]
+    (evals / "results" / "r.jsonl").write_text("{}\n", encoding="utf-8")
+    digests.append(digest())
+    changes = [
+        git_dir / "hooks" / "pre-commit",
+        git_dir / "worktrees" / "other" / "config.worktree",
+        evals / "acceptance.py",
+    ]
+    for path in changes:
+        path.write_text("changed\n", encoding="utf-8")
+        digests.append(digest())
+    home.mkdir()
+    os.mkfifo(home / ".gitconfig")
+    digests.append(digest())
+
+    assert digests[0] == digests[1]
+    assert None not in digests
+    assert len(set(digests[1:])) == len(digests) - 1
+
+
+def test_judge_safely_records_judgement_error(
+    eval_runner: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def broken_judge(*_: object, **__: object) -> None:
+        raise RuntimeError("git show failed")
+
+    monkeypatch.setattr(eval_runner, "judge", broken_judge)
+    task = eval_runner.Task(name="E3", base=BASE, budget_usd=3.0, prompt="하라\n")
+
+    judgement, error = eval_runner.judge_safely(task, tmp_path, env={}, acceptance=b"")
+    line = eval_runner.result_line(
+        eval_runner.Task(name="E3", base=BASE, budget_usd=3.0, prompt="하라\n"),
+        eval_runner.ClaudeOutcome("completed", 1.0, 1, 0),
+        judgement=judgement,
+        context={"judgement_error": error},
+    )
+
+    assert (judgement, error) == (None, "RuntimeError: git show failed")
+    assert (line["acceptance"], line["validate"], line["judgement"]) == (None, None, {})
 
 
 def test_isolated_environment_blocks_user_credentials(
@@ -399,6 +443,7 @@ def result_row(
         "validate": True,
         "cost_usd": cost,
         "turns": 1,
+        "judgement_error": "",
         "assistant_messages": 20,
         "tool_uses": 12,
         "metrics": metrics,
@@ -435,11 +480,11 @@ def test_report_groups_by_revision_and_summarizes_metrics(
     assert lines[1].count("---") == lines[0].count("|") - 1
     assert lines[2] == (
         "| aaa | False | claude-opus-5-5 | 2.1.319 (Claude Code) | E3 | 2 | completed 2 "
-        "| 0 / 0.5 / 1 | 1 / 1 / 1 | F401 0 / 1 / 2 | 1 / 1 / 1 | 1 / 1.5 / 2 "
+        "| 0/2 | 0 / 0.5 / 1 | 1 / 1 / 1 | F401 0 / 1 / 2 | 1 / 1 / 1 | 1 / 1.5 / 2 "
         "| 1 / 1 / 1 | 20 / 20 / 20 | 12 / 12 / 12 | implementation 2/2 |"
     )
     assert lines[3] == (
         "| bbb | False | claude-opus-5-5 | 2.1.319 (Claude Code) | E3 | 1 | completed 1 "
-        "| 1 / 1 / 1 | 1 / 1 / 1 | - | - | 0.5 / 0.5 / 0.5 | 1 / 1 / 1 "
+        "| 0/1 | 1 / 1 / 1 | 1 / 1 / 1 | - | - | 0.5 / 0.5 / 0.5 | 1 / 1 / 1 "
         "| 20 / 20 / 20 | 12 / 12 / 12 | - |"
     )

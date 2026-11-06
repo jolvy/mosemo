@@ -17,7 +17,7 @@ from typing import Any
 
 RESULTS = Path(__file__).resolve().parent / "results"
 HEADER = (
-    "| harness_rev | dirty | model | claude | 작업 | 실행 | status | 판정 통과 | validate 통과 "
+    "| harness_rev | dirty | model | claude | 작업 | 실행 | status | 판정 오류 | 판정 통과 | validate 통과 "
     "| 첫 Stop 규칙별 위반 | session_blocks | 비용 USD | 턴(num_turns) | assistant 메시지 "
     "| 도구 호출 | Skill |"
 )
@@ -94,6 +94,12 @@ def skills_cell(rows: Sequence[dict[str, Any]]) -> str:
     )
 
 
+def judgement_error_cell(rows: Sequence[dict[str, Any]]) -> str:
+    """판정 단계 오류가 난 실행 수 / 전체. 그 실행은 판정 통과 칸에서 빠진다."""
+    failed = sum(bool(row.get("judgement_error")) for row in rows)
+    return f"{failed}/{len(rows)}"
+
+
 def status_cell(rows: Sequence[dict[str, Any]]) -> str:
     counts = Counter(str(row.get("status")) for row in rows)
     return ", ".join(f"{status} {count}" for status, count in sorted(counts.items()))
@@ -115,6 +121,7 @@ def report(rows: Iterable[dict[str, Any]]) -> str:
             *key,
             str(len(group)),
             status_cell(group),
+            judgement_error_cell(group),
             spread([flag(row.get("acceptance")) for row in group]),
             spread([flag(row.get("validate")) for row in group]),
             rules_cell(group),

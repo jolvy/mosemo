@@ -8,7 +8,8 @@ commit에 고정하고 하네스 파일만 평가 대상 revision으로 바꿔 �
 
 - `tasks/E1.md`~`E3.md`: 지시문(`## 지시문` 아래), 고정 base commit(`- base:`), 실행당 비용 상한
   (`- budget_usd:`). base commit은 바꾸지 않는다.
-- `acceptance/`: 판정 파일. 작업 공간에는 판정 명령 직전에만 복사한다.
+- `acceptance/`: 판정 파일. `run.py`가 시작할 때 내용을 읽어 두고, 작업 공간에는 판정 명령 직전에 그 내용을
+  쓴다(실행 중 작업 트리의 판정 파일이 바뀌어도 판정에 쓰지 않는다).
   - `E1.py`·`E2.py`: HTTP 블랙박스 Integration 테스트. `tests/integration/labels/test_eval_acceptance.py`로
     복사해 실행한다. base commit에 있던 심볼과 fixture만 쓴다.
   - `E3.py`: `FocusSession.validate_activity`를 항상 통과하는 구현으로 바꾸는 pytest 플러그인.
@@ -38,8 +39,9 @@ uv run --locked python .codex/evals/report.py                          # results
    `--permission-mode acceptEdits`, 허용·금지 도구 목록, `--setting-sources project`,
    `--strict-mcp-config`, `--max-budget-usd`).
 3. 판정 파일 없이 `validate.sh`를 실행한 뒤 판정 파일을 복사해 판정 명령만 실행한다. 판정 명령은 각각
-   30분 제한이 있고, 판정 중 오류가 나도 결과 줄은 남긴다(`judgement_error`). `claude -p`는 새 프로세스
-   그룹으로 실행해 시간 초과(60분) 때 자손 프로세스까지 끝낸다.
+   30분 제한이 있고, 판정 중 오류가 나도 결과 줄은 남긴다(`judgement_error`, `report.py`의 「판정 오류」
+   열). 모든 자식 명령(`claude -p` 60분 제한 포함)은 새 프로세스 그룹으로 실행해, 끝나거나 시간 초과면
+   그룹에 남은 자손까지 끝낸다. `setsid`로 그룹을 벗어난 자손은 끝내지 못한다.
 4. 결과 한 줄(작업, 실행 번호, `status`, 판정, `validate.sh` 통과, 지표 로그의 해당 `session` 줄,
    비용, CLI `num_turns`, 세션 기록에서 센 assistant 메시지 수(같은 API 메시지 id는 하나)·도구 호출 수,
    권한 거부 수, `claude --version`, `harness_rev`, `src/`의 작업 코드 해시(하네스 파일
@@ -60,9 +62,11 @@ uv run --locked python .codex/evals/report.py                          # results
 
 git도 사용자 인증으로 원격에 닿지 않게 한다. `SSH_AUTH_SOCK`을 지우고 `GIT_CONFIG_GLOBAL`(빈 임시
 파일)·`GIT_CONFIG_NOSYSTEM=1`·`GIT_TERMINAL_PROMPT=0`·`GIT_SSH_COMMAND=false`를 넣는다. `run.py`는
-`claude -p` 전에 같은 환경으로 사용자 저장소 `origin`에 `git ls-remote`를 실행해 성공하면 멈추고
-(`git_remote_reachable: false`), 실행 전후 사용자 저장소 git 디렉터리의 `config`·`config.worktree`·
-`hooks/` 해시를 비교해 바뀌면 결과 줄에 `user_git_changed: true`를 남기고 다음 실행을 멈춘다.
+`claude -p` 전에 같은 환경으로 사용자 저장소 `origin`에 `git ls-remote`를 실행해 성공하거나 시간 초과면
+멈춘다(`git_remote_reachable: false`). `claude -p` 전후로 사용자 파일(저장소 git 디렉터리의 `config`·
+`config.worktree`·`hooks/`, 모든 worktree의 `config.worktree`, `~/.gitconfig`, `~/.config/git/config`,
+`results/`를 뺀 평가 세트)의 해시를 비교해, 바뀌었거나 읽지 못하면 결과 줄에
+`user_state_changed: true`를 남기고 다음 실행을 멈춘다. 탐지일 뿐 예방하지 않는다.
 
 허용 도구 목록은 격리 장치가 아니다. `acceptEdits`에서 목록에 없는 `python3` heredoc, 작업 공간 밖
 `/tmp` 리디렉션도 거부 없이 실행됐다. 격리는 별도 git 저장소(원격 없음), `gh` 미인증, git 인증 차단에
@@ -100,6 +104,7 @@ shim에서만 온다(덮어쓰기 전에 base의 것을 지운다). shim이 있�
 
 - E1·E2: 판정 테스트 파일 전체 통과. E2 판정 fixture는 바깥 트랜잭션 없이 요청마다 앱이 커밋하게 해서,
   `archived_at`을 앱 시계(`utc_now()`)로 정하든 DB 시계(`func.now()`)로 정하든 요청 직전·직후 사이에 든다.
+  DB 시계 구현은 호스트와 DB 컨테이너 시계가 1초 안에서 맞을 때만 통과한다(응답은 초 단위).
 - E3: base commit 대비 추가된 테스트 함수(`test_*.py`·`*_test.py`의 모듈 함수와 `Test*` 클래스 메서드)가
   1개 이상이고 모두 `tests/unit/observation/` 아래,
   `pytest -m "requires_db or requires_kafka" --collect-only tests/unit`이 0개, 플러그인으로
