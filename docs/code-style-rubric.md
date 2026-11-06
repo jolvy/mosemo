@@ -175,6 +175,7 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
 
 - [구현 Skill](../.codex/skills/implementation/SKILL.md)과 [src/mosemo/AGENTS.md](../src/mosemo/AGENTS.md)
 - [검증 Skill](../.codex/skills/verification/SKILL.md)
+- [tests/AGENTS.md](../tests/AGENTS.md)
 - [도메인 용어집](ubiquitous-language.md)
 - [로깅 규칙](logging.md)
 - [ADR 0001](adr/0001-public-api-error-boundary.md),
