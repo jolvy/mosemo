@@ -38,6 +38,15 @@ OPEN_BEFORE = re.compile(r"\bopen\(\s*(?:Path\(\s*)?['\"]?$")
 OPEN_AFTER = re.compile(r"^['\"]?\)?(?:\.\w+\(\))*\s*,\s*(?:mode\s*=\s*)?['\"][wax]")
 COMMAND_SEPARATOR = re.compile(r"&&|\|\||[;|]")
 ADD_FILE = "*** Add File: "
+# 세션 기록 종류와 진입점 원문의 분류. 실측한 값만 두고, 그 밖은 `unknown`이다.
+ENTRYPOINT_CLASSES = {
+    ("claude", "cli"): "interactive",
+    ("claude", "sdk-cli"): "non_interactive",
+    ("codex", "codex-tui"): "interactive",
+    ("codex", "Codex Desktop"): "interactive",
+    ("codex", "codex_exec"): "non_interactive",
+}
+ENTRYPOINT_KINDS = ("interactive", "non_interactive", "unknown")
 
 
 class Transcript(NamedTuple):
@@ -350,6 +359,34 @@ def transcript_session(transcript: Transcript) -> str:
     return Path(transcript.path).stem
 
 
+def transcript_entrypoint(transcript: Transcript) -> str | None:
+    """Claude Code는 처음 나오는 `entrypoint`, Codex는 첫 줄 `session_meta`의 `payload.originator`."""
+    if transcript.kind == "codex":
+        return text_or_none(codex_meta(transcript.lines).get("originator"))
+    return next(
+        (
+            value
+            for entry in json_lines(transcript.lines)
+            if (value := text_or_none(entry.get("entrypoint")))
+        ),
+        None,
+    )
+
+
+def session_entrypoints(
+    transcripts: Sequence[Transcript],
+) -> dict[str, tuple[str, str]]:
+    """세션마다 `transcripts` 순서에서 진입점 원문이 있는 첫 기록의 (종류, 원문)."""
+    entrypoints: dict[str, tuple[str, str]] = {}
+    for transcript in transcripts:
+        raw = transcript_entrypoint(transcript)
+        if raw is not None:
+            entrypoints.setdefault(
+                transcript_session(transcript), (transcript.kind, raw)
+            )
+    return entrypoints
+
+
 def is_review_subagent(transcript: Transcript) -> bool:
     source = codex_meta(transcript.lines).get("source")
     subagent = source.get("subagent") if isinstance(source, dict) else None
@@ -539,6 +576,29 @@ def session_files(
     )
 
 
+def by_entrypoint(
+    window: Sequence[Record], transcripts: Sequence[Transcript]
+) -> dict[str, Any]:
+    """세션을 진입점으로 대화형·비대화형·미상으로 나눈 `line_stats`와 원문별 세션 수.
+
+    `session`이 빈 줄과 고른 기록에 없는 세션은 `unknown`(원문 `null`)이다.
+    """
+    entrypoints = session_entrypoints(transcripts)
+    groups: dict[str, list[Record]] = {kind: [] for kind in ENTRYPOINT_KINDS}
+    for record in window:
+        entry = entrypoints.get(text_or_none(record.line.get("session")) or "")
+        kind = ENTRYPOINT_CLASSES.get(entry, "unknown") if entry else "unknown"
+        groups[kind].append(record)
+    result = {}
+    for kind, group in groups.items():
+        raws = Counter(
+            entrypoints.get(session, (None, "null"))[1]
+            for session in session_lines(group)
+        )
+        result[kind] = {**line_stats(group), "entrypoints": dict(sorted(raws.items()))}
+    return result
+
+
 # 시간과 전체 집계
 
 
@@ -552,19 +612,47 @@ def trend_days(end: datetime) -> list[date]:
     return [last - timedelta(days=offset) for offset in range(TREND_DAYS - 1, -1, -1)]
 
 
-def harness_rev_changes(records: Sequence[Record]) -> list[dict[str, str]]:
-    changes: list[dict[str, str]] = []
-    previous = None
+def harness_rev_stats(records: Sequence[Record]) -> list[dict[str, Any]]:
+    """`edit`·`stop` 줄을 `harness_rev`(비어 있지 않은 문자열, 아니면 `null`)별로 묶은 값.
+
+    `(first_at, harness_rev)` 순이고 같은 `first_at`이면 `null`이 먼저다.
+    """
+    groups: dict[str | None, list[Record]] = {}
     for record in sorted(records, key=lambda record: (record.at, record.order)):
-        rev = record.line.get("harness_rev")
-        if rev is not None and rev != previous:
-            changes.append({"at": format_at(record.at), "harness_rev": str(rev)})
-            previous = rev
-    return changes
+        if record.line["event"] in SESSION_EVENTS:
+            rev = text_or_none(record.line.get("harness_rev"))
+            groups.setdefault(rev, []).append(record)
+    items = []
+    for rev, group in groups.items():
+        lines = [record.line for record in group]
+        sessions = {s for line in lines if (s := text_or_none(line.get("session")))}
+        items.append(
+            {
+                "harness_rev": rev,
+                "first_at": format_at(group[0].at),
+                "last_at": format_at(group[-1].at),
+                "sessions": len(sessions),
+                "dirty_lines": sum(line.get("harness_dirty") is True for line in lines),
+                **stop_stats(lines),
+                "edit": edit_stats(lines),
+                "rules": {event: rule_counts(lines, event) for event in SESSION_EVENTS},
+            }
+        )
+    return sorted(
+        items,
+        key=lambda item: (
+            item["first_at"],
+            item["harness_rev"] is not None,
+            item["harness_rev"] or "",
+        ),
+    )
 
 
 def trend(records: Sequence[Record], end: datetime) -> dict[str, Any]:
-    """`end`의 Asia/Seoul 날짜 D를 포함한 D-6~D의 일별 값(`end` 이후 줄은 제외)."""
+    """`end`의 Asia/Seoul 날짜 D를 포함한 D-6~D의 일별 값과 `harness_rev`별 값.
+
+    `end` 이후 줄은 제외한다.
+    """
     days = trend_days(end)
     daily: dict[date, list[Record]] = {day: [] for day in days}
     for record in records:
@@ -573,7 +661,7 @@ def trend(records: Sequence[Record], end: datetime) -> dict[str, Any]:
             daily[day].append(record)
     return {
         "days": [{"date": day.isoformat(), **line_stats(daily[day])} for day in days],
-        "harness_rev_changes": harness_rev_changes(
+        "by_harness_rev": harness_rev_stats(
             [record for day in days for record in daily[day]]
         ),
     }
@@ -601,6 +689,7 @@ def aggregate(
             "reviews": review_stats([*log_reviews(window), *panel]),
             "panel_unreadable_sessions": unreadable,
             "session_files": session_files(transcripts, start=start, end=end),
+            "by_entrypoint": by_entrypoint(window, transcripts),
         },
         "trend": trend(records, end),
     }
