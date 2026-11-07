@@ -44,6 +44,11 @@ def stop_metrics() -> ModuleType:
     return load_script(REPOSITORY / ".codex/hooks/stop_metrics.py")
 
 
+@pytest.fixture(scope="session")
+def report_aggregate() -> ModuleType:
+    return load_script(REPOSITORY / ".codex/reports/aggregate.py")
+
+
 @pytest.fixture
 def stop_gate(monkeypatch: pytest.MonkeyPatch, stop_metrics: ModuleType) -> ModuleType:
     # stop_gate.py는 최상위에서 `import stop_metrics`를 하므로 sys.path 대신 sys.modules에 넣는다.
