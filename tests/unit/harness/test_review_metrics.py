@@ -26,9 +26,15 @@ REVIEWERS = ("code-reviewer", "domain-reviewer", "security-auditor")
 REPORT_FORMAT = "Report format (identical for every reviewer):"
 
 
-def assistant(text: str, *, identifier: str = "m1", block: str = "text") -> str:
+def assistant(
+    text: str,
+    *,
+    identifier: str = "m1",
+    block: str = "text",
+    model: str = "claude-opus-5-5",
+) -> str:
     content = [{"type": block, block: text}]
-    message = {"id": identifier, "model": "claude-opus-5-5", "content": content}
+    message = {"id": identifier, "model": model, "content": content}
     return json.dumps({"type": "assistant", "message": message})
 
 
@@ -221,7 +227,8 @@ def test_record_review_reads_session_transcript_after_agent_stop(
     transcript = tmp_path / "session.jsonl"
     transcript.write_text("\n".join(TRANSCRIPT) + "\n", encoding="utf-8")
     other = tmp_path / "other.jsonl"
-    other.write_text(assistant("REVIEW high=7 medium=7 low=7") + "\n", "utf-8")
+    other_line = assistant("REVIEW high=7 medium=7 low=7", model="claude-haiku-5-5")
+    other.write_text(other_line + "\n", encoding="utf-8")
     monkeypatch.setenv("MOSEMO_METRICS_LOG", str(log))
     payload = {
         **agent_stop(None),
@@ -237,6 +244,25 @@ def test_record_review_reads_session_transcript_after_agent_stop(
         assert fields["via"] == "agent_stop"
         assert fields["model"] == "claude-opus-5-5"
         assert fields["findings"] == {"high": 0, "medium": 1, "low": 2}
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        "  \n  REVIEW high=3 medium=0 low=12  \n본문",
+        "REVIEW high=0 medium=0 low=0",
+        "## 리뷰 결과\nREVIEW high=1 medium=2 low=0",
+        "**REVIEW high=1 medium=2 low=0**",
+        "REVIEW high=1 medium=2",
+        "",
+    ],
+)
+def test_parse_report_matches_report_aggregation(
+    review_metrics: ModuleType, report_aggregate: ModuleType, report: str
+) -> None:
+    assert review_metrics.parse_report(report) == report_aggregate.review_findings(
+        report
+    )
 
 
 def test_first_line_rule_matches_report_aggregation(
