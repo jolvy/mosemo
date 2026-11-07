@@ -15,7 +15,7 @@ SKILLS = (
     "implementation",
     "verification",
     "pull-request",
-    "agent-daily-report",
+    "agent-metrics-analysis",
 )
 SKILL_REFERENCES = (
     "engineering-planning/references/domain-modeling.md",
