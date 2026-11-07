@@ -275,10 +275,12 @@ def review_stats(reports: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
             {"reports": 0, "format_ok": 0, "findings": dict.fromkeys(SEVERITIES, 0)},
         )
         group["reports"] += 1
-        findings = report["findings"]
-        if not report["format_ok"] or not isinstance(findings, dict):
+        if not report["format_ok"]:
             continue
         group["format_ok"] += 1
+        findings = report["findings"]
+        if not isinstance(findings, dict):
+            continue
         for severity in SEVERITIES:
             count = findings.get(severity)
             group["findings"][severity] += count if isinstance(count, int) else 0
