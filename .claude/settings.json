@@ -22,6 +22,17 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && MOSEMO_AGENT=claude uv run --locked python .codex/hooks/review_metrics.py",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
