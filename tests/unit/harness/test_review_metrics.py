@@ -209,6 +209,43 @@ def failing_git(arguments: list[str]) -> str:
     raise OSError(arguments[0])
 
 
+@pytest.mark.parametrize(("code", "written"), [(0, True), (2, False)])
+def test_record_review_reads_session_transcript_after_agent_stop(
+    review_metrics: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    code: int,
+    written: bool,
+) -> None:
+    log = tmp_path / "m.jsonl"
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text("\n".join(TRANSCRIPT) + "\n", encoding="utf-8")
+    other = tmp_path / "other.jsonl"
+    other.write_text(assistant("REVIEW high=7 medium=7 low=7") + "\n", "utf-8")
+    monkeypatch.setenv("MOSEMO_METRICS_LOG", str(log))
+    payload = {
+        **agent_stop(None),
+        "transcript_path": str(transcript),
+        "agent_transcript_path": str(other),
+    }
+
+    review_metrics.record_review(payload, code=code, git=failing_git)
+
+    assert log.exists() is written
+    if written:
+        fields = json.loads(log.read_text(encoding="utf-8"))
+        assert fields["via"] == "agent_stop"
+        assert fields["model"] == "claude-opus-5-5"
+        assert fields["findings"] == {"high": 0, "medium": 1, "low": 2}
+
+
+def test_first_line_rule_matches_report_aggregation(
+    review_metrics: ModuleType, report_aggregate: ModuleType
+) -> None:
+    assert review_metrics.FIRST_LINE.pattern == report_aggregate.REVIEW_LINE.pattern
+    assert review_metrics.REVIEWERS == report_aggregate.REVIEW_AGENTS
+
+
 def test_record_review_skips_other_agent_without_git(
     review_metrics: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
