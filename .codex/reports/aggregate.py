@@ -36,6 +36,7 @@ TEE_BEFORE = re.compile(r"\btee(?:\s+-\S+)*\s+['\"]?$")
 WRITE_TEXT_AFTER = re.compile(r"^['\"]?\)?(?:\.\w+\(\))*\.write_text\(")
 OPEN_BEFORE = re.compile(r"\bopen\(\s*(?:Path\(\s*)?['\"]?$")
 OPEN_AFTER = re.compile(r"^['\"]?\)?(?:\.\w+\(\))*\s*,\s*(?:mode\s*=\s*)?['\"][wax]")
+COMMAND_SEPARATOR = re.compile(r"&&|\|\||[;|]")
 ADD_FILE = "*** Add File: "
 
 
@@ -360,12 +361,20 @@ def panel_key(path: str) -> tuple[str, str] | None:
 
 
 def heredoc_writes(command: str) -> Iterator[tuple[tuple[str, str], str]]:
-    """`cat > PATH <<'EOF'` 형태의 heredoc 본문(구분자 줄 앞까지)."""
+    """`cat > PATH <<'EOF'` 형태의 heredoc 본문(구분자 줄 앞까지).
+
+    리다이렉트는 같은 줄에서 heredoc 연산자가 있는 명령 조각(`&&`·`||`·`;`·`|` 사이)에서만 찾는다.
+    """
     lines = command.split("\n")
     for index, line in enumerate(lines):
-        heredoc = HEREDOC.search(line)
-        target = REDIRECT_TARGET.search(line)
-        key = panel_key(target.group(2)) if heredoc and target else None
+        segment = next(
+            (part for part in COMMAND_SEPARATOR.split(line) if HEREDOC.search(part)),
+            None,
+        )
+        heredoc = HEREDOC.search(segment) if segment else None
+        targets = REDIRECT_TARGET.finditer(segment) if segment else ()
+        keys = (key for target in targets if (key := panel_key(target.group(2))))
+        key = next(keys, None)
         if heredoc is None or key is None:
             continue
         tag = heredoc.group(2)
@@ -440,8 +449,10 @@ def claude_writes(entry: dict[str, Any], at: datetime) -> Iterator[PanelWrite]:
     message = entry.get("message")
     content = message.get("content") if isinstance(message, dict) else None
     for block in content if isinstance(content, list) else []:
-        tool = block.get("input") if isinstance(block, dict) else None
-        if block.get("type") != "tool_use" or not isinstance(tool, dict):
+        if not isinstance(block, dict) or block.get("type") != "tool_use":
+            continue
+        tool = block.get("input")
+        if not isinstance(tool, dict):
             continue
         if block.get("name") == "Write":
             key = panel_key(str(tool.get("file_path", "")))

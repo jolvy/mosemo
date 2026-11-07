@@ -659,3 +659,51 @@ def test_is_selected_compares_real_paths(
     assert report_aggregate.is_selected(str(real / "issue-1"), [link])
     assert not report_aggregate.is_selected(str(tmp_path / "mosemo-server-old"), [real])
     assert not report_aggregate.is_selected(None, [real])
+
+
+def test_heredoc_writes_find_panel_path_after_other_redirects(
+    report_aggregate: ModuleType,
+) -> None:
+    command = (
+        f"mkdir -p {TILDE_REVIEW} 2>/dev/null && cat > {TILDE_REVIEW}/a.md <<'EOF'\n"
+        "REVIEW high=0 medium=0 low=1\nEOF"
+    )
+
+    assert list(report_aggregate.heredoc_writes(command)) == [
+        (("issue-9-review", "a"), "REVIEW high=0 medium=0 low=1")
+    ]
+
+
+def test_claude_writes_skip_content_blocks_that_are_not_objects(
+    report_aggregate: ModuleType,
+) -> None:
+    write = {
+        "file_path": f"{TILDE_REVIEW}/a.md",
+        "content": "REVIEW high=0 medium=0 low=0",
+    }
+    entry = claude_tool(70, "Write", write, "/repo")
+    entry["message"]["content"] = ["text", None, *entry["message"]["content"]]
+    at = datetime(2026, 11, 7, 1, 10, tzinfo=UTC)
+
+    assert list(report_aggregate.claude_writes(entry, at)) == [
+        report_aggregate.PanelWrite(
+            at, ("issue-9-review", "a"), "REVIEW high=0 medium=0 low=0"
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "first_line",
+    [
+        f"cat > /tmp/notes.md <<'EOF' && echo x > {TILDE_REVIEW}/a.md",
+        f"echo x > {TILDE_REVIEW}/a.md; cat <<'EOF' > /tmp/notes.md",
+    ],
+)
+def test_shell_writes_keep_heredoc_body_with_its_own_command(
+    report_aggregate: ModuleType, first_line: str
+) -> None:
+    command = f"{first_line}\nREVIEW high=9 medium=9 low=9\nEOF"
+
+    writes = list(report_aggregate.shell_writes(command, END))
+
+    assert writes == [report_aggregate.PanelWrite(END, ("issue-9-review", "a"), None)]
