@@ -1,6 +1,7 @@
 ---
 name: security-auditor
 description: Read-only security reviewer of authentication, authorization, input handling, secrets, logging exposure, external calls, infrastructure configuration, and dependencies; reports findings without making changes.
+effort: high
 tools: Read, Grep, Glob, Bash
 ---
 

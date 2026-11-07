@@ -1,6 +1,7 @@
 ---
 name: code-reviewer
 description: Code reviewer focused on correctness, public contracts, domain responsibilities, and missing tests; reports findings without making changes.
+effort: medium
 tools: Read, Grep, Glob, Bash
 ---
 
