@@ -707,3 +707,23 @@ def test_shell_writes_keep_heredoc_body_with_its_own_command(
     writes = list(report_aggregate.shell_writes(command, END))
 
     assert writes == [report_aggregate.PanelWrite(END, ("issue-9-review", "a"), None)]
+
+
+def test_review_stats_count_format_ok_without_findings(
+    report_aggregate: ModuleType,
+) -> None:
+    reports = [
+        {"reviewer": "r", "source": "log", "format_ok": True, "findings": None},
+        {"reviewer": "r", "source": "log", "format_ok": True, "findings": FOUND},
+        {"reviewer": "r", "source": "log", "format_ok": False, "findings": FOUND},
+    ]
+
+    assert report_aggregate.review_stats(reports) == [
+        {
+            "reviewer": "r",
+            "source": "log",
+            "reports": 3,
+            "format_ok": 2,
+            "findings": FOUND,
+        }
+    ]
