@@ -224,6 +224,19 @@ def test_record_review_skips_other_agent_without_git(
     assert not (tmp_path / "m.jsonl").exists()
 
 
+@pytest.mark.parametrize("agent_type", [["code-reviewer"], {"name": "x"}, None])
+def test_non_string_agent_type_is_not_a_review(
+    review_metrics: ModuleType, agent_type: object
+) -> None:
+    payload = {"session_id": "s1", "agent_type": agent_type}
+
+    def unexpected_git(arguments: list[str]) -> str:
+        raise AssertionError(arguments)
+
+    assert line(review_metrics, payload) is None
+    review_metrics.record_review(payload, code=0, git=unexpected_git)
+
+
 def test_record_review_failure_prints_one_stderr_line(
     review_metrics: ModuleType,
     tmp_path: Path,

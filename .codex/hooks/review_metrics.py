@@ -82,12 +82,12 @@ def review_report(payload: Mapping[str, Any], transcript: list[str]) -> str:
 
 
 def is_review(payload: Any, *, code: int | None) -> bool:
-    """리뷰 에이전트의 `SubagentStop`(`code`가 `None`)이거나 통과한 Stop인가."""
-    return (
-        isinstance(payload, dict)
-        and payload.get("agent_type") in REVIEWERS
-        and code in (None, 0)
-    )
+    """리뷰 에이전트의 `SubagentStop`(`code`가 `None`)이거나 통과한 Stop인가.
+
+    문자열이 아닌 `agent_type`은 집합 검사에서 `TypeError`를 내므로 먼저 거른다.
+    """
+    agent_type = payload.get("agent_type") if isinstance(payload, dict) else None
+    return isinstance(agent_type, str) and agent_type in REVIEWERS and code in (None, 0)
 
 
 def review_line(
