@@ -306,6 +306,35 @@ def test_read_transcript_model_skips_cut_first_line(
     assert stop_metrics.read_transcript_model(str(transcript)) == "claude-opus-5-5"
 
 
+def test_read_transcript_model_splits_only_on_newline(
+    stop_metrics: ModuleType, tmp_path: Path
+) -> None:
+    transcript = tmp_path / "t.jsonl"
+    entry = {
+        "type": "assistant",
+        "message": {"model": "claude-sonnet-5-5", "content": "a\u2028b\u2029c\x85d"},
+    }
+    transcript.write_text(
+        SKILL_CALL + "\n" + json.dumps(entry, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    assert stop_metrics.read_transcript_model(str(transcript)) == "claude-sonnet-5-5"
+    assert stop_metrics.read_transcript(str(transcript))[1] == "claude-sonnet-5-5"
+
+
+def test_read_transcript_model_keeps_whole_first_line_at_tail_start(
+    stop_metrics: ModuleType, tmp_path: Path
+) -> None:
+    transcript = tmp_path / "t.jsonl"
+    tail = SKILL_READ + "\n"
+    transcript.write_text("x" * 50 + "\n" + tail, encoding="utf-8")
+
+    model = stop_metrics.read_transcript_model(str(transcript), size=len(tail))
+
+    assert model == "claude-sonnet-5-5"
+
+
 def test_read_transcript_model_returns_none_without_readable_file(
     stop_metrics: ModuleType, tmp_path: Path
 ) -> None:
