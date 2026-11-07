@@ -40,7 +40,7 @@ uv run --locked python .codex/reports/install_launchd.py
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.jolvy.mosemo-agent-report.plist
 ```
 
-`install_launchd.py`는 plist 파일만 쓰고 등록은 하지 않는다. `--plist`·`--reports-dir`로 경로를 바꿀 수 있다.
+`install_launchd.py`는 plist 파일과 launchd 로그 폴더(`.logs/`, launchd가 만들지 않는다)만 만들고 등록은 하지 않는다. 보고서 폴더가 저장소 안이면 아무것도 쓰지 않고 실패한다. `--plist`·`--reports-dir`로 경로를 바꿀 수 있다.
 
 롤백:
 

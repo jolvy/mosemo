@@ -588,6 +588,9 @@ def test_writes_same_plist_twice(report_launchd: ModuleType, tmp_path: Path) -> 
     assert data["StandardOutPath"] == f"{logs}/launchd.out"
     assert data["StandardErrorPath"] == f"{logs}/launchd.err"
     assert data["RunAtLoad"] is False
+    # launchd는 로그 폴더를 만들지 않으므로 설치 때 있어야 첫 실행이 시작된다.
+    assert logs.is_dir()
+    assert list(logs.iterdir()) == []
 
 
 @pytest.mark.parametrize("missing", ["uv", "claude"])
@@ -598,9 +601,51 @@ def test_fails_without_uv_or_claude(
     found = {"uv": "/opt/uv/bin/uv", "claude": "/opt/claude/bin/claude"}
     del found[missing]
 
+    reports = tmp_path / "reports"
+
     code = report_launchd.main(
-        ["--plist", str(plist)], which=tools(found), repository=tmp_path / "repo"
+        ["--plist", str(plist), "--reports-dir", str(reports)],
+        which=tools(found),
+        repository=tmp_path / "repo",
     )
 
     assert code == 1
     assert not plist.exists()
+    assert not reports.exists()
+
+
+def test_rejects_reports_inside_repository(
+    report_launchd: ModuleType, tmp_path: Path
+) -> None:
+    plist = tmp_path / "agent.plist"
+    repository = tmp_path / "repo"
+    reports = repository / "reports"
+    which = tools({"uv": "/opt/uv/bin/uv", "claude": "/opt/claude/bin/claude"})
+
+    code = report_launchd.main(
+        ["--plist", str(plist), "--reports-dir", str(reports)],
+        which=which,
+        repository=repository,
+    )
+
+    assert code == 1
+    assert not plist.exists()
+    assert not repository.exists()
+
+
+def test_allows_reports_next_to_repository(
+    report_launchd: ModuleType, tmp_path: Path
+) -> None:
+    plist = tmp_path / "agent.plist"
+    reports = tmp_path / "repo-reports"
+    which = tools({"uv": "/opt/uv/bin/uv", "claude": "/opt/claude/bin/claude"})
+
+    code = report_launchd.main(
+        ["--plist", str(plist), "--reports-dir", str(reports)],
+        which=which,
+        repository=tmp_path / "repo",
+    )
+
+    assert code == 0
+    assert plist.is_file()
+    assert (reports / ".logs").is_dir()

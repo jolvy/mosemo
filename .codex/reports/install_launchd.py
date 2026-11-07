@@ -1,6 +1,7 @@
 """일일 보고서 실행기를 매일 09:00(시스템 현지 시각)에 실행하는 launchd plist를 쓴다.
 
-plist 파일만 쓰고 `launchctl`은 부르지 않는다. 같은 입력이면 같은 바이트를 쓴다.
+plist 파일과 launchd 로그 폴더(`보고서 폴더/.logs`)만 만들고 `launchctl`은 부르지 않는다.
+같은 입력이면 같은 바이트를 쓴다.
 """
 
 import argparse
@@ -90,12 +91,20 @@ def main(
         missing = "uv" if uv is None else "claude"
         sys.stderr.write(f"{missing}를 PATH에서 찾지 못함\n")
         return 1
+    repository = repository or main_checkout()
+    reports = args.reports_dir.expanduser().resolve()
+    if reports.is_relative_to(repository.resolve()):
+        sys.stderr.write(f"보고서 폴더가 저장소 안에 있음: {reports}\n")
+        return 1
     data = plist_data(
         uv=str(Path(uv).absolute()),
         claude=str(Path(claude).absolute()),
-        repository=repository or main_checkout(),
-        reports=args.reports_dir.expanduser().resolve(),
+        repository=repository,
+        reports=reports,
     )
+    # launchd는 StandardOutPath·StandardErrorPath의 폴더를 만들지 않고, 폴더가 없으면
+    # 첫 실행이 실행기를 시작하기 전에 실패한다. 그래서 로그 폴더를 미리 만든다.
+    (reports / ".logs").mkdir(parents=True, exist_ok=True)
     plist = args.plist.expanduser()
     plist.parent.mkdir(parents=True, exist_ok=True)
     plist.write_bytes(plistlib.dumps(data, sort_keys=True))
