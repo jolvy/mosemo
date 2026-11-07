@@ -50,6 +50,20 @@ def report_aggregate() -> ModuleType:
 
 
 @pytest.fixture
+def report_runner(
+    monkeypatch: pytest.MonkeyPatch, report_aggregate: ModuleType
+) -> ModuleType:
+    # run_daily.py는 최상위에서 `import aggregate`를 하므로 sys.path 대신 sys.modules에 넣는다.
+    monkeypatch.setitem(sys.modules, "aggregate", report_aggregate)
+    return load_script(REPOSITORY / ".codex/reports/run_daily.py")
+
+
+@pytest.fixture(scope="session")
+def report_launchd() -> ModuleType:
+    return load_script(REPOSITORY / ".codex/reports/install_launchd.py")
+
+
+@pytest.fixture
 def stop_gate(monkeypatch: pytest.MonkeyPatch, stop_metrics: ModuleType) -> ModuleType:
     # stop_gate.py는 최상위에서 `import stop_metrics`를 하므로 sys.path 대신 sys.modules에 넣는다.
     monkeypatch.setitem(sys.modules, "stop_metrics", stop_metrics)
