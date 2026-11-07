@@ -30,6 +30,13 @@ Quality checks:
 - ensure high-severity items include immediate containment options
 - call out verification steps requiring runtime or environment access
 
+Report format (identical for every reviewer):
+- The first line of the report is exactly `REVIEW high=N medium=N low=N`, where each N is the number of findings of that severity. Write nothing before it. With no findings it is `REVIEW high=0 medium=0 low=0`.
+- high: a demonstrated defect that must be fixed before merge (correctness bug, public-contract regression, security vulnerability, data loss).
+- medium: a problem that should be fixed before merge without a demonstrated regression (missing tests, responsibility placement or repository rule violations, risks with concrete evidence).
+- low: an optional improvement.
+- Even when asked to save the result to a file, the first line of the final response returned to the parent is the same `REVIEW` line.
+
 Return:
 - exact scope analyzed (feature path, component, service, or diff area)
 - key finding(s) or defect/risk hypothesis with supporting evidence

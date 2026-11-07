@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+import review_metrics
 import stop_metrics
 
 UV_RUN = ("uv", "run", "--locked")
@@ -481,6 +482,12 @@ def main() -> int:
         payload,
         outcome=outcome,
         state_path=state_path,
+        git=git_query(root, time.monotonic() + RECORD_GRACE),
+    )
+    # `--agent`로 실행한 리뷰 에이전트 세션은 통과한 Stop마다 리뷰 줄을 하나 더 남긴다.
+    review_metrics.record_review(
+        payload,
+        code=outcome.code,
         git=git_query(root, time.monotonic() + RECORD_GRACE),
     )
     return outcome.code

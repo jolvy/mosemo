@@ -129,10 +129,10 @@ def read_transcript(path: str | None) -> tuple[list[str], str | None]:
         return [], None
 
 
-def read_transcript_model(path: str | None, *, size: int = TAIL_BYTES) -> str | None:
-    """세션 기록 끝 `size` 바이트에서 마지막 Claude 모델을 찾는다. 모르면 `None`이다."""
+def read_tail_lines(path: str | None, *, size: int = TAIL_BYTES) -> list[str]:
+    """세션 기록 끝 `size` 바이트의 온전한 줄. 없거나 읽을 수 없으면 빈 목록이다."""
     if not path:
-        return None
+        return []
     try:
         with Path(path).open("rb") as file:
             # 끝부분 바로 앞 1바이트도 읽어 첫 줄이 잘렸는지 판단한다.
@@ -140,11 +140,16 @@ def read_transcript_model(path: str | None, *, size: int = TAIL_BYTES) -> str | 
             file.seek(offset)
             lines = file.read(size + 1).split(b"\n")
     except OSError:
-        return None
+        return []
     # 중간에서 읽기 시작했으면 첫 조각은 앞 줄의 끝이거나 잘린 줄이다.
     # JSON 문자열 안에 그대로 올 수 있는 U+2028 등에서 줄을 나누지 않도록 `\n`으로만 나눈다.
     kept = lines[1:] if offset else lines
-    return transcript_facts(line.decode(errors="replace") for line in kept)[1]
+    return [line.decode(errors="replace") for line in kept]
+
+
+def read_transcript_model(path: str | None, *, size: int = TAIL_BYTES) -> str | None:
+    """세션 기록 끝 `size` 바이트에서 마지막 Claude 모델을 찾는다. 모르면 `None`이다."""
+    return transcript_facts(read_tail_lines(path, size=size))[1]
 
 
 def failure_lines(name: str, output: str) -> list[str]:
