@@ -135,13 +135,16 @@ def read_transcript_model(path: str | None, *, size: int = TAIL_BYTES) -> str | 
         return None
     try:
         with Path(path).open("rb") as file:
-            offset = max(file.seek(0, os.SEEK_END) - size, 0)
+            # 끝부분 바로 앞 1바이트도 읽어 첫 줄이 잘렸는지 판단한다.
+            offset = max(file.seek(0, os.SEEK_END) - size - 1, 0)
             file.seek(offset)
-            lines = file.read().decode(errors="replace").splitlines()
+            lines = file.read(size + 1).split(b"\n")
     except OSError:
         return None
-    # 중간에서 읽기 시작하면 첫 줄은 잘린 줄이다.
-    return transcript_facts(lines[1:] if offset else lines)[1]
+    # 중간에서 읽기 시작했으면 첫 조각은 앞 줄의 끝이거나 잘린 줄이다.
+    # JSON 문자열 안에 그대로 올 수 있는 U+2028 등에서 줄을 나누지 않도록 `\n`으로만 나눈다.
+    kept = lines[1:] if offset else lines
+    return transcript_facts(line.decode(errors="replace") for line in kept)[1]
 
 
 def failure_lines(name: str, output: str) -> list[str]:
