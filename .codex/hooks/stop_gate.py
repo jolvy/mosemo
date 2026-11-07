@@ -26,20 +26,6 @@ RECORD_GRACE = 10.0
 MAX_OUTPUT_LINES = 80
 MAX_BLOCKS = 3
 STATE_FILE = "mosemo-agent-stop-gate.json"
-METRICS_FILE = "mosemo-agent-metrics.jsonl"
-HARNESS_PATHS = (
-    ".codex/",
-    ".claude/",
-    "AGENTS.md",
-    "CLAUDE.md",
-    "src/mosemo/AGENTS.md",
-    "src/mosemo/CLAUDE.md",
-    "tests/AGENTS.md",
-    "tests/CLAUDE.md",
-    "tests/unit/harness/",
-    "docs/code-style-rubric.md",
-    "docs/adr/",
-)
 INSTRUCTION = (
     "코드 스타일 검사를 통과하지 못했다. 아래 위반을 고친 뒤 다시 끝내라. "
     "저장소 검사 규칙은 사용자·Issue의 이름·형태 지시보다 우선한다. "
@@ -398,20 +384,18 @@ def gate(root: Path, *, state_path: Path, session: str, deadline: float) -> Outc
     return block_outcome(state_path, session, failures=failures, change=change)
 
 
-def harness_revision(
-    root: Path | None, deadline: float
-) -> tuple[str | None, bool | None]:
-    """하네스 파일의 마지막 커밋과 커밋 안 된 변경 여부."""
-    revision: str | None = None
-    dirty: bool | None = None
-    if root is None:
-        return revision, dirty
-    with contextlib.suppress(OSError, subprocess.SubprocessError):
-        arguments = ["log", "-1", "--format=%h", "--", *HARNESS_PATHS]
-        revision = git(arguments, root=root, deadline=deadline).strip() or None
-        arguments = ["status", "--porcelain", "--", *HARNESS_PATHS]
-        dirty = bool(git(arguments, root=root, deadline=deadline).strip())
-    return revision, dirty
+def git_query(root: Path | None, deadline: float) -> stop_metrics.Git:
+    """지표 기록용 git 조회. 실패는 `OSError`로 알린다."""
+
+    def query(arguments: list[str]) -> str:
+        if root is None:
+            raise OSError("git 저장소를 찾지 못했다")
+        try:
+            return git(arguments, root=root, deadline=deadline)
+        except subprocess.SubprocessError as error:
+            raise OSError(error) from error
+
+    return query
 
 
 def payload_session(payload: Any) -> str:
@@ -422,19 +406,20 @@ def metrics_fields(
     payload: Any,
     *,
     outcome: Outcome,
-    harness: tuple[str | None, bool | None],
+    git: dict[str, Any],
     blocks: int,
 ) -> dict[str, Any]:
     transcript = payload.get("transcript_path") if isinstance(payload, dict) else None
     skills, model = stop_metrics.read_transcript(
         transcript if isinstance(transcript, str) else None
     )
+    source = stop_metrics.Source(
+        session=payload_session(payload),
+        agent=os.environ.get("MOSEMO_AGENT"),
+        model=model,
+    )
     return {
-        "session": payload_session(payload),
-        "agent": os.environ.get("MOSEMO_AGENT") or "unknown",
-        "model": model,
-        "harness_rev": harness[0],
-        "harness_dirty": harness[1],
+        **stop_metrics.common_fields("stop", source=source, git=git),
         "skills": skills,
         "result": outcome.result,
         "session_blocks": blocks,
@@ -446,31 +431,21 @@ def metrics_fields(
 
 
 def record_metrics(
-    root: Path | None, *, payload: Any, outcome: Outcome, state_path: Path | None
+    payload: Any, *, outcome: Outcome, state_path: Path | None, git: stop_metrics.Git
 ) -> None:
-    """지표 한 줄을 남긴다. 실패해도 Stop 판정은 바꾸지 않는다."""
-    deadline = time.monotonic() + RECORD_GRACE
-    path = os.environ.get("MOSEMO_METRICS_LOG")
-    harness = harness_revision(root, deadline)
-    if not path and root is not None:
-        with contextlib.suppress(OSError, subprocess.SubprocessError):
-            common = git(
-                ["rev-parse", "--git-common-dir"], root=root, deadline=deadline
-            )
-            path = str(root / common.strip() / METRICS_FILE)
-    if not path:
-        print("지표 로그 기록 실패: 공통 git 디렉터리를 찾지 못했다", file=sys.stderr)
-        return
-    record = session_record(load_state(state_path), payload_session(payload))
-    blocks = record.get("blocks", 0)
-    fields = metrics_fields(
-        payload,
-        outcome=outcome,
-        harness=harness,
-        blocks=blocks if isinstance(blocks, int) else 0,
-    )
-    line = stop_metrics.metrics_line(fields, at=time.gmtime())
-    stop_metrics.append_metrics(Path(path), line)
+    """Stop 줄을 남긴다. 실패해도 Stop 판정은 바꾸지 않는다."""
+
+    def build() -> dict[str, Any]:
+        record = session_record(load_state(state_path), payload_session(payload))
+        blocks = record.get("blocks", 0)
+        return metrics_fields(
+            payload,
+            outcome=outcome,
+            git=stop_metrics.query_git_facts(git),
+            blocks=blocks if isinstance(blocks, int) else 0,
+        )
+
+    stop_metrics.record(build, git=git)
 
 
 def main() -> int:
@@ -502,7 +477,12 @@ def main() -> int:
         outcome = block_outcome(
             state_path, payload_session(payload), failures=[failure], change=None
         )
-    record_metrics(root, payload=payload, outcome=outcome, state_path=state_path)
+    record_metrics(
+        payload,
+        outcome=outcome,
+        state_path=state_path,
+        git=git_query(root, time.monotonic() + RECORD_GRACE),
+    )
     return outcome.code
 
 

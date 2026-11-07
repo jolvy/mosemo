@@ -56,6 +56,14 @@ def stop_gate(monkeypatch: pytest.MonkeyPatch, stop_metrics: ModuleType) -> Modu
     return load_script(REPOSITORY / ".codex/hooks/stop_gate.py")
 
 
+@pytest.fixture
+def post_edit_feedback(
+    monkeypatch: pytest.MonkeyPatch, stop_metrics: ModuleType
+) -> ModuleType:
+    monkeypatch.setitem(sys.modules, "stop_metrics", stop_metrics)
+    return load_script(REPOSITORY / ".codex/hooks/post_edit_feedback.py")
+
+
 @pytest.fixture(scope="session")
 def repository() -> Path:
     return REPOSITORY
