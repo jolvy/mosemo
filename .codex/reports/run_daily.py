@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol
@@ -31,6 +31,7 @@ FAILURE_TITLE = "mosemo 보고서 실패"
 METRICS_FILE = "mosemo-agent-metrics.jsonl"
 WORKTREES = ".herdr/worktrees/mosemo-server"
 SKILL = Path(__file__).resolve().parents[1] / "skills/agent-daily-report/SKILL.md"
+CHECKOUT = Path(__file__).resolve().parents[2]
 
 
 class Config(NamedTuple):
@@ -449,46 +450,82 @@ def run(config: Config, *, now: datetime, analyze: Analyze, notify: Notify) -> i
     if not is_outside(config.reports, config.main_checkout):
         notify(FAILURE_TITLE, f"보고서 폴더가 저장소 안에 있음 · {paths.runs}")
         return 1
+    # `.runs.jsonl`의 `start`·`end`·`sessions`. 알게 되는 대로 채운다.
     window: dict[str, Any] = {"end": aggregate.format_at(now)}
-    sessions = None
     try:
         for folder in (paths.reports, paths.logs, paths.work):
             folder.mkdir(parents=True, exist_ok=True)
         start = read_boundary(paths.state) or now - FIRST_WINDOW
         window["start"] = aggregate.format_at(start)
         result = collect(config, start=start, now=now)
-        sessions = result["interval"]["sessions"]
+        sessions = window["sessions"] = result["interval"]["sessions"]
         if result["interval"]["new_sessions"] < MIN_NEW_SESSIONS:
             append_run(
                 paths.runs, now=now, window=window, status="skipped", sessions=sessions
             )
             return 0
+        previous = paths.state.read_bytes() if paths.state.is_file() else None
         report, cost = publish(config, result, now=now, analyze=analyze)
-    except FAILURES as error:
-        reason = one_line(error)
-        # 보고서 폴더를 만들지 못한 실패도 알림은 보낸다.
-        with contextlib.suppress(OSError):
+        try:
             append_run(
                 paths.runs,
                 now=now,
                 window=window,
-                status="failed",
+                status="report",
                 sessions=sessions,
-                error=reason,
+                cost_usd=cost,
+                report=str(report),
             )
-        notify(FAILURE_TITLE, f"{reason} · {paths.runs}")
-        return 1
-    append_run(
-        paths.runs,
-        now=now,
-        window=window,
-        status="report",
-        sessions=sessions,
-        cost_usd=cost,
-        report=str(report),
-    )
+        except OSError:
+            # 실행 기록을 남기지 못한 실행은 실패이므로 보고서와 경계를 되돌린다.
+            report.unlink(missing_ok=True)
+            if previous is None:
+                paths.state.unlink(missing_ok=True)
+            else:
+                paths.state.write_bytes(previous)
+            raise
+    except FAILURES as error:
+        return fail(paths, error, now=now, window=window, notify=notify)
     notify(SUCCESS_TITLE, str(report))
     return 0
+
+
+def fail(
+    paths: Paths,
+    error: BaseException,
+    *,
+    now: datetime,
+    window: dict[str, Any],
+    notify: Notify,
+) -> int:
+    """`.runs.jsonl`에 `failed`를 남기고(쓸 수 없으면 건너뛴다) 실패 알림을 보낸다."""
+    reason = one_line(error)
+    # 보고서 폴더를 만들지 못한 실패도 알림은 보낸다.
+    with contextlib.suppress(OSError):
+        paths.reports.mkdir(parents=True, exist_ok=True)
+        append_run(
+            paths.runs,
+            now=now,
+            window=window,
+            status="failed",
+            sessions=window.get("sessions"),
+            error=reason,
+        )
+    notify(FAILURE_TITLE, f"{reason} · {paths.runs}")
+    return 1
+
+
+def build_config(
+    reports: Path, *, common: Path, home: Path, metrics: str | None
+) -> Config:
+    """공통 git 디렉터리와 홈에서 실행 설정. 지표 로그는 `metrics`가 있으면 그 경로."""
+    return Config(
+        reports=reports,
+        home=home,
+        metrics_log=Path(metrics) if metrics else common / METRICS_FILE,
+        main_checkout=common.parent,
+        worktrees_root=home / WORKTREES,
+    )
 
 
 # 외부 명령 연결
@@ -530,20 +567,36 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: Sequence[str] | None = None, *, now: datetime | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    now: datetime | None = None,
+    common_dir: Callable[[Path], Path] = git_common_dir,
+    analyze: Analyze = run_analysis,
+    notify: Notify = send_notification,
+) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     now = now or datetime(*time.gmtime()[:6], tzinfo=UTC)
-    common = git_common_dir(Path(__file__).resolve().parent)
-    home = Path.home()
-    metrics = os.environ.get("MOSEMO_METRICS_LOG")
-    config = Config(
-        reports=args.reports_dir.expanduser(),
-        home=home,
-        metrics_log=Path(metrics) if metrics else common / METRICS_FILE,
-        main_checkout=common.parent,
-        worktrees_root=home / WORKTREES,
+    try:
+        reports = args.reports_dir.expanduser()
+    except FAILURES as error:
+        # 홈을 알 수 없으면 보고서 폴더도 모르므로 알림만 보낸다.
+        notify(FAILURE_TITLE, one_line(error))
+        return 1
+    try:
+        common = common_dir(Path(__file__).resolve().parent)
+        home = Path.home()
+    except FAILURES as error:
+        # 저장소 본체를 모르므로 이 실행기 파일의 checkout 안이면 아무것도 쓰지 않는다.
+        if not is_outside(reports, CHECKOUT):
+            notify(FAILURE_TITLE, f"{one_line(error)} · {report_paths(reports).runs}")
+            return 1
+        window = {"start": None, "end": aggregate.format_at(now)}
+        return fail(report_paths(reports), error, now=now, window=window, notify=notify)
+    config = build_config(
+        reports, common=common, home=home, metrics=os.environ.get("MOSEMO_METRICS_LOG")
     )
-    return run(config, now=now, analyze=run_analysis, notify=send_notification)
+    return run(config, now=now, analyze=analyze, notify=notify)
 
 
 if __name__ == "__main__":
