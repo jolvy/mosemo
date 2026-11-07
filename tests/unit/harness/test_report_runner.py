@@ -328,6 +328,142 @@ def test_unwritable_reports_folder_still_notifies(
     ]
 
 
+def no_git(directory: Path) -> Path:
+    message = f"git 없음: {directory}"
+    raise FileNotFoundError(message)
+
+
+def test_prerun_failure_is_recorded_and_notified(
+    report_runner: ModuleType, tmp_path: Path
+) -> None:
+    reports = tmp_path / "reports"
+    recorder = Recorder(report_runner, (0, SUCCESS))
+
+    code = report_runner.main(
+        ["--reports-dir", str(reports)],
+        now=NOW,
+        common_dir=no_git,
+        analyze=recorder.analyze,
+        notify=recorder.notify,
+    )
+
+    assert code == 1
+    [line] = [
+        json.loads(text) for text in (reports / ".runs.jsonl").read_text().splitlines()
+    ]
+    assert line["status"] == "failed"
+    assert (line["start"], line["end"]) == (None, "2026-11-08T00:30:00Z")
+    assert "git 없음" in line["error"]
+    assert recorder.analyses == []
+    [(title, body)] = recorder.notifications
+    assert title == report_runner.FAILURE_TITLE
+    assert str(reports / ".runs.jsonl") in body
+
+
+def test_prerun_failure_inside_checkout_writes_nothing(
+    report_runner: ModuleType,
+) -> None:
+    reports = report_runner.CHECKOUT / "never-created-reports"
+    recorder = Recorder(report_runner, (0, SUCCESS))
+
+    code = report_runner.main(
+        ["--reports-dir", str(reports)],
+        now=NOW,
+        common_dir=no_git,
+        analyze=recorder.analyze,
+        notify=recorder.notify,
+    )
+
+    assert code == 1
+    assert not reports.exists()
+    assert [title for title, _ in recorder.notifications] == [
+        report_runner.FAILURE_TITLE
+    ]
+
+
+def test_main_runs_with_config_from_common_git_dir(
+    report_runner: ModuleType, home: Home, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    five_new_sessions(home)
+    monkeypatch.setenv("HOME", str(home.root))
+    monkeypatch.delenv("MOSEMO_METRICS_LOG", raising=False)
+    recorder = Recorder(report_runner, (0, SUCCESS))
+
+    code = report_runner.main(
+        ["--reports-dir", str(home.reports)],
+        now=NOW,
+        common_dir=lambda _: home.repository / ".git",
+        analyze=recorder.analyze,
+        notify=recorder.notify,
+    )
+
+    assert code == 0
+    assert home.runs()[-1]["status"] == "report"
+
+
+def test_unknown_home_notifies_without_writing(
+    report_runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_home(path: Path) -> Path:
+        message = "Could not determine home directory."
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(Path, "expanduser", no_home)
+    recorder = Recorder(report_runner, (0, SUCCESS))
+
+    code = report_runner.main(
+        [], now=NOW, common_dir=no_git, analyze=recorder.analyze, notify=recorder.notify
+    )
+
+    assert code == 1
+    assert list(tmp_path.iterdir()) == []
+    [(title, body)] = recorder.notifications
+    assert title == report_runner.FAILURE_TITLE
+    assert "home directory" in body
+
+
+def test_runs_write_failure_rolls_back_report_and_boundary(
+    report_runner: ModuleType, home: Home, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    five_new_sessions(home)
+    state = (home.reports / ".state.json").read_bytes()
+    original = Path.open
+
+    def open_file(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path.name == ".runs.jsonl":
+            message = "disk full"
+            raise OSError(message)
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", open_file)
+
+    code, recorder = run(report_runner, home)
+
+    assert code == 1
+    assert list(home.reports.glob("*.md")) == []
+    assert (home.reports / ".state.json").read_bytes() == state
+    assert [title for title, _ in recorder.notifications] == [
+        report_runner.FAILURE_TITLE
+    ]
+
+
+def test_build_config_prefers_metrics_env(report_runner: ModuleType) -> None:
+    common = Path("/Users/x/repo/.git")
+    home = Path("/Users/x")
+
+    default = report_runner.build_config(
+        Path("/r"), common=common, home=home, metrics=None
+    )
+    custom = report_runner.build_config(
+        Path("/r"), common=common, home=home, metrics="/tmp/m.jsonl"
+    )
+
+    assert default.metrics_log == common / "mosemo-agent-metrics.jsonl"
+    assert default.main_checkout == Path("/Users/x/repo")
+    assert default.worktrees_root == home / ".herdr/worktrees/mosemo-server"
+    assert custom.metrics_log == Path("/tmp/m.jsonl")
+
+
 def test_sections_must_follow_heading_order(report_runner: ModuleType) -> None:
     reordered = "## 2. 최근 며칠의 양상\n나\n## 1. 결과\n가\n## 3. 개선해야 할 점\n다"
 
