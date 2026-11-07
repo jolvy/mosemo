@@ -51,8 +51,10 @@ input parsing differs between the tools.
 ## Before finishing: `stop_gate.py`
 
 - Event: `Stop`. Timeout 300 seconds; the script stops itself after 240
-  seconds so that the tool does not treat a timeout as a pass. `SubagentStop`
-  is not registered: the parent session's `Stop` judges the whole work tree.
+  seconds so that the tool does not treat a timeout as a pass. `stop_gate.py`
+  is not registered for `SubagentStop`: the parent session's `Stop` judges the
+  whole work tree. Claude Code registers only `review_metrics.py` there (see
+  "Review lines" below).
 - Changed paths come from
   `git status --porcelain=v1 -z --untracked-files=all`, so files edited by
   shell commands, untracked files in new directories, deletions, and both
@@ -91,15 +93,16 @@ input parsing differs between the tools.
 
 ### Metrics log
 
-- Every stop, and every edit whose `ruff check` finished, appends one JSON
-  line to `MOSEMO_METRICS_LOG` when set, otherwise to
+- Every stop, every edit whose `ruff check` finished, and every finished
+  review appends one JSON line to `MOSEMO_METRICS_LOG` when set, otherwise to
   `$(git rev-parse --git-common-dir)/mosemo-agent-metrics.jsonl`, outside the
   work tree and shared by all worktrees. Each line is written with one `write`
   in append mode (`stop_metrics.append_metrics`) so that concurrent sessions
   do not interleave.
 - Common fields, in this order, on every new line:
   - `at`: UTC time, `%Y-%m-%dT%H:%M:%SZ`.
-  - `event`: `edit` (`post_edit_feedback.py`) or `stop` (`stop_gate.py`).
+  - `event`: `edit` (`post_edit_feedback.py`), `stop` (`stop_gate.py`), or
+    `review` (`review_metrics.py`).
   - `session`: hook input `session_id`, otherwise an empty string.
   - `agent`: `MOSEMO_AGENT` (`claude` or `codex` in the hook commands),
     otherwise `unknown`.
@@ -155,10 +158,43 @@ input parsing differs between the tools.
   edit hook still writes its violation notice and exits 0, and the stop hook
   keeps its exit code.
 - The parsers, the common fields, and the writer live in `stop_metrics.py`;
+  review lines live in `review_metrics.py`;
   the hooks pass their Git query as a function. Their tests and the edit line
   tests (`tests/unit/harness/test_stop_metrics.py`,
-  `tests/unit/harness/test_edit_metrics.py`) use no Git or subprocess and do
+  `tests/unit/harness/test_edit_metrics.py`,
+  `tests/unit/harness/test_review_metrics.py`) use no Git or subprocess and do
   not run the hooks' `main`.
+
+### Review lines
+
+- The three review agents (`code-reviewer`, `domain-reviewer`,
+  `security-auditor`) are told in their `developer_instructions` to start the
+  report, and the final response even when the result is saved to a file,
+  with exactly `REVIEW high=N medium=N low=N`. The sentence is identical in
+  the three `.codex/agents/*.toml` files.
+- The report's first non-empty line, stripped, is matched against
+  `^REVIEW high=(\d+) medium=(\d+) low=(\d+)$`. Review lines add:
+  - `reviewer`: the hook input `agent_type`.
+  - `findings`: `{"high": n, "medium": n, "low": n}` when the line matches,
+    otherwise `null`.
+  - `format_ok`: whether the line matches.
+  - `via`: `subagent_stop` or `agent_stop`.
+- `SubagentStop` (Claude Code, `.claude/settings.json`, timeout 10 seconds):
+  `MOSEMO_AGENT=claude uv run --locked python .codex/hooks/review_metrics.py`.
+  An `agent_type` other than the three reviewers writes nothing, so internal
+  agents that also fire `SubagentStop` are skipped. The report is
+  `last_assistant_message`, otherwise the last assistant message text of
+  `agent_transcript_path`. `model` comes from that transcript's last 1 MiB.
+  It never blocks: exit 0, no stdout, failures as one stderr line.
+- `--agent` sessions: after writing its stop line, `stop_gate.py` writes a
+  review line (`via` `agent_stop`) when `agent_type` is a reviewer and the
+  stop exits 0. A blocked stop writes none, because the agent keeps working
+  and stops again. The report is `last_assistant_message`, otherwise the
+  joined `text` blocks of the last assistant message (same `message.id`) in
+  the last 1 MiB of `transcript_path`. The stop decision does not change.
+  Aggregation counts only the last `agent_stop` line per session and
+  reviewer.
+- Codex `SubagentStop` is not registered yet.
 
 ## Trust and limits
 
