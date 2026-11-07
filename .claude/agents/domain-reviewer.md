@@ -1,6 +1,7 @@
 ---
 name: domain-reviewer
 description: Read-only reviewer that checks the current implementation against its PRD's business rules, acceptance criteria, and domain state behavior; consults related PRDs and ADRs when needed.
+effort: medium
 tools: Read, Grep, Glob, Bash
 ---
 

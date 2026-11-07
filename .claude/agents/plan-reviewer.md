@@ -1,6 +1,7 @@
 ---
 name: plan-reviewer
 description: Read-only reviewer of Plan Issue drafts for requirement coverage, design consistency, implementation feasibility, and verifiable completion before final user approval.
+effort: medium
 tools: Read, Grep, Glob, Bash
 ---
 

@@ -1,5 +1,6 @@
 """Claude Code agent 래퍼(`.claude/agents/<이름>.md`)가 `.codex/agents/<이름>.toml`과
-1:1로 대응하고 toml을 가리키기만 하는지 검사한다."""
+1:1로 대응하고, effort가 toml의 model_reasoning_effort와 같으며, toml을 가리키기만 하는지
+검사한다."""
 
 import tomllib
 from pathlib import Path
@@ -42,6 +43,11 @@ def wrapper_errors_for(path: Path, agent: dict[str, str]) -> list[str]:
         errors.append(f"{path}: name이 toml의 name({name})과 다르다")
     if fields.get("description") != agent["description"]:
         errors.append(f"{path}: description이 toml의 description과 다르다")
+    if fields.get("effort") != agent.get("model_reasoning_effort"):
+        errors.append(
+            f"{path}: effort가 toml의 model_reasoning_effort"
+            f"({agent.get('model_reasoning_effort')})와 다르다"
+        )
     if body != expected_body(name):
         errors.append(f"{path}: 본문이 toml을 가리키는 두 문장과 다르다")
     return errors
@@ -72,12 +78,15 @@ def write(root: Path, relative: str, source: str) -> None:
     path.write_text(source, encoding="utf-8")
 
 
-def write_agent(root: Path, name: str = "reviewer") -> None:
+def write_agent(
+    root: Path, name: str = "reviewer", effort: str | None = "medium"
+) -> None:
+    effort_line = "" if effort is None else f'model_reasoning_effort = "{effort}"\n'
     write(
         root,
         f"{AGENTS}/{name}.toml",
         f'name = "{name}"\ndescription = "Read-only reviewer."\n'
-        'developer_instructions = "Review."\n',
+        f'{effort_line}developer_instructions = "Review."\n',
     )
 
 
@@ -85,9 +94,11 @@ def wrapper_source(
     name: str = "reviewer",
     body: str | None = None,
     description: str = "Read-only reviewer.",
+    effort: str | None = "medium",
 ) -> str:
+    effort_line = "" if effort is None else f"effort: {effort}\n"
     return (
-        f"---\nname: {name}\ndescription: {description}\n"
+        f"---\nname: {name}\ndescription: {description}\n{effort_line}"
         "tools: Read, Grep, Glob, Bash\n---\n\n"
         f"{expected_body(name) if body is None else body}\n"
     )
@@ -125,6 +136,8 @@ def test_wrapper_without_toml_is_rejected(tmp_path: Path) -> None:
             wrapper_source().replace("name: reviewer", "name: other"), id="name"
         ),
         pytest.param(wrapper_source(description="Copied loosely."), id="description"),
+        pytest.param(wrapper_source(effort="high"), id="effort"),
+        pytest.param(wrapper_source(effort=None), id="missing-effort"),
         pytest.param(wrapper_source(body="Review."), id="body"),
         pytest.param(
             wrapper_source(body=f"{expected_body('reviewer')}\n\nReview."),
@@ -136,5 +149,12 @@ def test_wrapper_without_toml_is_rejected(tmp_path: Path) -> None:
 def test_invalid_wrapper_is_rejected(tmp_path: Path, source: str) -> None:
     write_agent(tmp_path)
     write(tmp_path, f"{WRAPPERS}/reviewer.md", source)
+
+    assert len(wrapper_errors(tmp_path)) >= 1
+
+
+def test_effort_without_toml_key_is_rejected(tmp_path: Path) -> None:
+    write_agent(tmp_path, effort=None)
+    write(tmp_path, f"{WRAPPERS}/reviewer.md", wrapper_source())
 
     assert len(wrapper_errors(tmp_path)) >= 1
