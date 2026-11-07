@@ -2,18 +2,25 @@
 
 Claude Code(`Edit`·`Write`)와 Codex(`apply_patch`)의 `PostToolUse` 입력을 받는다.
 막지 않으며 언제나 exit 0이다. 남은 위반이 있을 때만 stdout에 JSON 한 줄을 쓴다.
+Ruff 검사가 끝나면 지표 로그에 편집 줄을 남긴다.
 """
 
 import json
+import os
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import stop_metrics
+
 UV_RUN = ("uv", "run", "--locked")
-# hook 설정 timeout(10초)보다 먼저 끝내기 위한 내부 제한
-TIME_LIMIT = 8.0
+# hook 설정 timeout(10초) 안에서 `uv run` 시작과 지표 기록 시간을 남기는 Ruff 내부 제한
+TIME_LIMIT = 7.0
+# 지표 기록(git 조회, 세션 기록 끝 읽기, 쓰기)의 마감
+RECORD_LIMIT = 1.5
 # 작성 도중 생기는 지적은 종료 전 hook이 판정한다.
 DEFERRED_RULES = "F401,F841"
 PATCH_PREFIXES = ("*** Add File: ", "*** Update File: ", "*** Move to: ")
@@ -21,6 +28,16 @@ PATCH_PREFIXES = ("*** Add File: ", "*** Update File: ", "*** Move to: ")
 
 class CommandFailedError(OSError):
     pass
+
+
+@dataclass
+class Edit:
+    """편집 하나의 검사 결과. `output`은 Ruff 검사 출력이고 `None`은 검사 실패다."""
+
+    payload: dict[str, Any]
+    root: Path
+    targets: list[str]
+    output: str | None = None
 
 
 def edited_paths(payload: dict[str, Any]) -> list[Path]:
@@ -105,12 +122,82 @@ def feedback(targets: list[str], root: Path) -> str:
     ).strip()
 
 
+def violation_notice(violations: str | None) -> dict[str, Any] | None:
+    """남은 위반을 모델에 알리는 hook 출력. 위반이 없거나 검사가 실패하면 `None`이다."""
+    if not violations:
+        return None
+    context = "Ruff 위반이 남아 있다. 저장소 규칙에 맞게 고쳐라.\n" + violations
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PostToolUse",
+            "additionalContext": context,
+        }
+    }
+
+
+def edit_line(
+    targets: list[str],
+    output: str | None,
+    *,
+    source: stop_metrics.Source,
+    git: dict[str, Any],
+) -> dict[str, Any] | None:
+    """편집 줄. 대상 `.py`가 있고 Ruff 검사가 끝났을 때만 만든다."""
+    if not targets or output is None:
+        return None
+    return {
+        **stop_metrics.common_fields("edit", source=source, git=git),
+        "rules": stop_metrics.ruff_rules(output),
+    }
+
+
+def git_query(root: Path, deadline: float) -> stop_metrics.Git:
+    """지표 기록용 git 조회. 실패와 마감 초과는 `OSError`로 알린다."""
+
+    def query(arguments: list[str]) -> str:
+        try:
+            return subprocess.run(
+                ["git", *arguments],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=max(deadline - time.monotonic(), 0.001),
+                check=True,
+            ).stdout
+        except subprocess.SubprocessError as error:
+            raise OSError(error) from error
+
+    return query
+
+
+def record_edit(edit: Edit, *, git: stop_metrics.Git, deadline: float) -> None:
+    """편집 줄을 남긴다. 실패해도 hook 출력과 종료 코드는 바꾸지 않는다."""
+    if not edit.targets or edit.output is None:
+        return
+
+    def build() -> dict[str, Any] | None:
+        transcript = edit.payload.get("transcript_path")
+        model = None
+        if isinstance(transcript, str) and time.monotonic() < deadline:
+            model = stop_metrics.read_transcript_model(transcript)
+        source = stop_metrics.Source(
+            session=str(edit.payload.get("session_id", "")),
+            agent=os.environ.get("MOSEMO_AGENT"),
+            model=model,
+        )
+        git_facts = stop_metrics.query_git_facts(git)
+        return edit_line(edit.targets, edit.output, source=source, git=git_facts)
+
+    stop_metrics.record(build, git=git)
+
+
 def main() -> int:
+    edit = None
     try:
         payload = json.load(sys.stdin)
         root = repository_root()
-        targets = python_targets(edited_paths(payload), root)
-        violations = feedback(targets, root) if targets else ""
+        edit = Edit(payload, root, python_targets(edited_paths(payload), root))
+        edit.output = feedback(edit.targets, root) if edit.targets else ""
     # 수정 직후 hook은 어떤 실패에도 막지 않는다.
     except (
         OSError,
@@ -121,16 +208,12 @@ def main() -> int:
         subprocess.SubprocessError,
     ) as error:
         print(f"post_edit_feedback: {type(error).__name__}: {error}", file=sys.stderr)
-        return 0
-    if violations:
-        context = "Ruff 위반이 남아 있다. 저장소 규칙에 맞게 고쳐라.\n" + violations
-        output = {
-            "hookSpecificOutput": {
-                "hookEventName": "PostToolUse",
-                "additionalContext": context,
-            }
-        }
-        print(json.dumps(output, ensure_ascii=False))
+    notice = violation_notice(edit.output if edit is not None else None)
+    if notice is not None:
+        print(json.dumps(notice, ensure_ascii=False))
+    if edit is not None:
+        deadline = time.monotonic() + RECORD_LIMIT
+        record_edit(edit, git=git_query(edit.root, deadline), deadline=deadline)
     return 0
 
 

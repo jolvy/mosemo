@@ -91,22 +91,33 @@ input parsing differs between the tools.
 
 ### Metrics log
 
-- Every stop appends one JSON line to `MOSEMO_METRICS_LOG` when set, otherwise
-  to `$(git rev-parse --git-common-dir)/mosemo-agent-metrics.jsonl`, outside
-  the work tree and shared by all worktrees. The line is written with one
-  `write` in append mode so that concurrent sessions do not interleave.
-- Fields:
-  - `at`: UTC time, ISO 8601. `session`: hook input `session_id`.
+- Every stop, and every edit whose `ruff check` finished, appends one JSON
+  line to `MOSEMO_METRICS_LOG` when set, otherwise to
+  `$(git rev-parse --git-common-dir)/mosemo-agent-metrics.jsonl`, outside the
+  work tree and shared by all worktrees. Each line is written with one `write`
+  in append mode (`stop_metrics.append_metrics`) so that concurrent sessions
+  do not interleave.
+- Common fields, in this order, on every new line:
+  - `at`: UTC time, `%Y-%m-%dT%H:%M:%SZ`.
+  - `event`: `edit` (`post_edit_feedback.py`) or `stop` (`stop_gate.py`).
+  - `session`: hook input `session_id`, otherwise an empty string.
   - `agent`: `MOSEMO_AGENT` (`claude` or `codex` in the hook commands),
     otherwise `unknown`.
   - `model`: the last `"model":"claude-…"` value in the transcript, otherwise
-    `null`.
+    `null`. Stop lines read the whole transcript; edit lines read only its
+    last 1 MiB.
   - `harness_rev`, `harness_dirty`: The last commit
-    (`git log -1 --format=%h`) and whether `git status --porcelain` shows
-    uncommitted changes, both limited to `.codex/`, `.claude/`, `AGENTS.md`,
-    `CLAUDE.md`, `src/mosemo/AGENTS.md`, `src/mosemo/CLAUDE.md`,
-    `tests/AGENTS.md`, `tests/CLAUDE.md`, `tests/unit/harness/`,
-    `docs/code-style-rubric.md`, and `docs/adr/`.
+    (`git log -1 --format=%h`, `null` when unknown) and whether
+    `git status --porcelain` shows uncommitted changes, both limited to
+    `.codex/`, `.claude/`, `AGENTS.md`, `CLAUDE.md`, `src/mosemo/AGENTS.md`,
+    `src/mosemo/CLAUDE.md`, `tests/AGENTS.md`, `tests/CLAUDE.md`,
+    `tests/unit/harness/`, `docs/code-style-rubric.md`, and `docs/adr/`.
+    `harness_dirty` is always a boolean: when Git fails or times out it is
+    `true`, so that lines of unknown state are not mixed with a clean
+    revision.
+  - `branch`: `git branch --show-current`; `null` on a detached HEAD (empty
+    output) or when Git fails.
+- Stop lines add:
   - `skills`: Skill names from the transcript, deduplicated in order of
     appearance: `Skill` tool calls (`input.skill`), `<command-name>` values in
     user message text (without the leading `/`), and `Read` calls whose
@@ -123,14 +134,31 @@ input parsing differs between the tools.
     `invalid-syntax` label) and `validate_conventions` `CS-P..` ID. Other
     checks (`validate_architecture`, `ty check`, `complexipy`, `pytest`, and
     hook failures) are keyed by check name and count their failure lines.
+- Edit lines add `rules`: counts by Ruff rule code of the violations left
+  after the edit hook's `ruff check`, `{}` when none remain. `F401` and `F841`
+  never appear because the edit hook ignores them. An edit line is written
+  only when the edit has an existing `.py` target and `ruff check` finished;
+  edits without a `.py` target and Ruff failures or timeouts write nothing,
+  so the pass rate counts only finished Python checks.
+- Time: the edit hook keeps the 10-second hook timeout. Ruff gets 7 seconds,
+  and recording (Git queries for the log path, harness revision, harness
+  changes, and branch; the transcript tail; the write) gets a 1.5-second
+  deadline. Fields past the deadline take their unknown value and the line is
+  still written.
 - The transcript (`transcript_path`, JSONL) is read line by line and
   unparsable lines are skipped. Without a readable path, `skills` is `[]` and
   `model` is `null`. The parser targets the Claude Code format; Codex runs are
   told apart only by `agent`.
-- Logging never changes the decision. A write failure prints one stderr line
-  and the hook keeps its exit code; nothing is written to stdout.
-- The parsers and the writer live in `stop_metrics.py`; their tests in
-  `tests/unit/harness/test_stop_metrics.py` use no Git or subprocess.
+- Logging never changes the decision. The hooks decide their output and exit
+  code first and then call one recording function that swallows failures: a
+  failure prints one stderr line starting with `지표 로그 기록 실패`, the
+  edit hook still writes its violation notice and exits 0, and the stop hook
+  keeps its exit code.
+- The parsers, the common fields, and the writer live in `stop_metrics.py`;
+  the hooks pass their Git query as a function. Their tests and the edit line
+  tests (`tests/unit/harness/test_stop_metrics.py`,
+  `tests/unit/harness/test_edit_metrics.py`) use no Git or subprocess and do
+  not run the hooks' `main`.
 
 ## Trust and limits
 
