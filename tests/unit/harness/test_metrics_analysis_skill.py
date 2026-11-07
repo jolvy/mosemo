@@ -5,6 +5,7 @@
 
 import re
 import shlex
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 
@@ -100,7 +101,14 @@ def test_headings_outside_fences_are_the_six_sections(skill: str) -> None:
                 "같은 실패의 반복",
                 "리뷰 지적 종류",
                 "비교 불가(편집 줄 없음)",
+                "interval.by_entrypoint",
+                "비대화형이라는 이유로",
+                "작업 중 하네스 변경 포함",
             ],
+        ),
+        (
+            "보고서 형식",
+            ["`harness_rev`별 표", "세션 구분(대화형·비대화형·미상)별 표"],
         ),
         ("금지", ["`gh`", "`git push`", "session_files"]),
     ],
@@ -128,6 +136,38 @@ def test_report_template_has_sections_in_order(skill: str) -> None:
 
 def test_document_does_not_use_forbidden_word(skill: str) -> None:
     assert "주간" not in skill
+
+
+def mapping_keys(skill: str) -> list[str]:
+    """대응표 둘째 열의 `interval.`·`trend.` 토큰에서 `[]`를 뗀 앞 두 단계."""
+    body = outside_fences(section(skill, "보고서 형식"))
+    keys = []
+    for line in body.splitlines():
+        cells = line.split("|")
+        if not line.startswith("|") or len(cells) < 4:
+            continue
+        for token in re.findall(r"`([^`]+)`", cells[2]):
+            if token.startswith(("interval.", "trend.")):
+                keys.append(".".join(token.replace("[]", "").split(".")[:2]))
+    return keys
+
+
+def test_mapping_table_keys_exist_in_aggregate_output(
+    skill: str, report_aggregate: ModuleType
+) -> None:
+    end = datetime(2026, 11, 7, tzinfo=UTC)
+    output = report_aggregate.aggregate([], [], start=None, end=end)
+    keys = mapping_keys(skill)
+
+    assert "interval.by_entrypoint" in keys
+    assert "trend.by_harness_rev" in keys
+    for key in keys:
+        top, child = key.split(".")
+        assert child in output[top], key
+
+
+def test_document_does_not_mention_removed_trend_key(skill: str) -> None:
+    assert "harness_rev_changes" not in skill
 
 
 # TC-15 집계 명령 일치

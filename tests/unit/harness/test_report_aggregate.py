@@ -1,5 +1,6 @@
 import json
 import os
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
@@ -279,11 +280,73 @@ def test_aggregate_builds_seven_day_trend(report_aggregate: ModuleType) -> None:
     ]
     assert trend["days"][5] == {"date": "2026-11-06", **OLD_LINE_DAY}
     assert trend["days"][6] == {"date": "2026-11-07", **INTERVAL_STATS}
-    assert trend["harness_rev_changes"] == [
-        {"at": "2026-11-06T10:00:00Z", "harness_rev": "aaa1111"},
-        {"at": "2026-11-07T01:10:00Z", "harness_rev": "bbb2222"},
-        {"at": "2026-11-07T02:00:00Z", "harness_rev": "aaa1111"},
+    assert set(trend) == {"days", "by_harness_rev"}
+    assert trend["by_harness_rev"] == [
+        {
+            "harness_rev": "aaa1111",
+            "first_at": "2026-11-06T10:00:00Z",
+            "last_at": "2026-11-07T02:00:00Z",
+            "sessions": 2,
+            "dirty_lines": 1,
+            "stop_results": {"block": 1},
+            "blocks": 1,
+            "capped": 0,
+            "edit": {"lines": 2, "clean_lines": 1, "pass_rate": 0.5},
+            "rules": {"edit": {"E501": 2}, "stop": {"E501": 1}},
+        },
+        {
+            "harness_rev": None,
+            "first_at": "2026-11-07T01:05:00Z",
+            "last_at": "2026-11-07T06:40:00Z",
+            "sessions": 4,
+            "dirty_lines": 0,
+            "stop_results": {"allow": 2, "block": 1, "capped": 1, "error": 1},
+            "blocks": 2,
+            "capped": 1,
+            "edit": {"lines": 2, "clean_lines": 1, "pass_rate": 0.5},
+            "rules": {"edit": {"E501": 1}, "stop": {"E501": 4, "pytest": 1}},
+        },
+        {
+            "harness_rev": "bbb2222",
+            "first_at": "2026-11-07T01:10:00Z",
+            "last_at": "2026-11-07T01:10:00Z",
+            "sessions": 1,
+            "dirty_lines": 0,
+            "stop_results": {"block": 1},
+            "blocks": 1,
+            "capped": 0,
+            "edit": no_edits(),
+            "rules": {"edit": {}, "stop": {"E501": 1, "F401": 2}},
+        },
     ]
+
+
+def test_by_harness_rev_orders_null_first_and_groups_non_text_as_null(
+    report_aggregate: ModuleType,
+) -> None:
+    log = [
+        stop("07T01:00:00", "a", "claude", OPUS, result="allow", harness_rev="zzz"),
+        stop("07T01:00:00", "b", "claude", OPUS, result="allow", harness_rev="aaa"),
+        stop("07T01:00:00", "c", "claude", OPUS, result="allow", harness_rev=""),
+        stop("07T01:00:00", "d", "claude", OPUS, result="allow", harness_rev=5),
+        stop("07T01:00:00", "e", "claude", OPUS, result="allow"),
+    ]
+
+    items = report_aggregate.aggregate(log, [], start=None, end=END)["trend"][
+        "by_harness_rev"
+    ]
+
+    assert [(item["harness_rev"], item["sessions"]) for item in items] == [
+        (None, 3),
+        ("aaa", 1),
+        ("zzz", 1),
+    ]
+
+
+def test_by_harness_rev_is_empty_without_lines(report_aggregate: ModuleType) -> None:
+    trend = report_aggregate.aggregate([], [], start=None, end=END)["trend"]
+
+    assert trend["by_harness_rev"] == []
 
 
 def test_aggregate_without_start_counts_every_session_as_new(
@@ -313,8 +376,16 @@ def claude_tool(minute: int, name: str, tool_input: dict, cwd: str) -> dict:
     }
 
 
-def codex_meta(minute: int, session: str, cwd: str, source: Any = "cli") -> dict:
+def codex_meta(
+    minute: int,
+    session: str,
+    cwd: str,
+    source: Any = "cli",
+    originator: str | None = None,
+) -> dict:
     payload = {"id": session, "cwd": cwd, "source": source}
+    if originator is not None:
+        payload["originator"] = originator
     return {"timestamp": stamp(minute), "type": "session_meta", "payload": payload}
 
 
@@ -570,6 +641,133 @@ def test_main_prints_same_output_twice(
     output = json.loads(first)
     assert output["interval"]["sessions"] == 4
     assert output["interval"]["panel_unreadable_sessions"] == ["codex-c"]
+
+
+# 세션 구분(진입점)
+
+
+ENTRYPOINT_LOG = [
+    stop("07T01:00:00", "claude-cli", "claude", OPUS, result="block"),
+    edit("07T01:01:00", "claude-cli", "claude", OPUS, {}),
+    stop("07T01:02:00", "claude-sdk", "claude", OPUS, result="block"),
+    stop("07T01:03:00", "claude-sdk", "claude", OPUS, result="allow"),
+    stop("07T01:04:00", "claude-ide", "claude", OPUS, result="allow"),
+    edit("07T01:05:00", "codex-tui", "codex", GPT, {"E501": 1}),
+    stop("07T01:06:00", "codex-exec", "codex", GPT, result="capped"),
+    stop("07T01:07:00", "missing", "claude", OPUS, result="error"),
+    stop("07T01:08:00", "", "claude", OPUS, result="block"),
+]
+
+
+def claude_entry(minute: int, cwd: str, entrypoint: str | None) -> dict:
+    entry = {"type": "user", "cwd": cwd, "timestamp": stamp(minute)}
+    if entrypoint is not None:
+        entry["entrypoint"] = entrypoint
+    return entry
+
+
+def entrypoint_home(root: Path) -> Home:
+    home = Home(root)
+    cwd = str(home.repo)
+    home.claude("claude-cli", [claude_entry(60, cwd, ""), claude_entry(61, cwd, "cli")])
+    home.claude("claude-sdk", [claude_entry(62, cwd, "sdk-cli")])
+    home.claude("claude-ide", [claude_entry(63, cwd, "claude-vscode")])
+    home.codex("codex-tui", [codex_meta(64, "codex-tui", cwd, originator="codex-tui")])
+    home.codex(
+        "codex-exec",
+        [codex_meta(65, "codex-exec", cwd, source="exec", originator="codex_exec")],
+    )
+    return home
+
+
+def test_by_entrypoint_splits_sessions_by_transcript_entrypoint(
+    report_aggregate: ModuleType, tmp_path: Path
+) -> None:
+    home = entrypoint_home(tmp_path)
+    transcripts = report_aggregate.read_transcripts(
+        home.home, start=START, roots=[home.repo, home.worktrees]
+    )
+
+    interval = report_aggregate.aggregate(
+        ENTRYPOINT_LOG, transcripts, start=START, end=END
+    )["interval"]
+
+    groups = interval["by_entrypoint"]
+    assert set(groups) == {"interactive", "non_interactive", "unknown"}
+    assert {
+        kind: (g["sessions"], g["entrypoints"], g["blocks"], g["edit"])
+        for kind, g in groups.items()
+    } == {
+        "interactive": (
+            2,
+            {"cli": 1, "codex-tui": 1},
+            1,
+            {"lines": 2, "clean_lines": 1, "pass_rate": 0.5},
+        ),
+        "non_interactive": (2, {"codex_exec": 1, "sdk-cli": 1}, 1, no_edits()),
+        "unknown": (2, {"claude-vscode": 1, "null": 1}, 2, no_edits()),
+    }
+    total: Counter[str] = Counter()
+    for group in groups.values():
+        total.update(group["stop_results"])
+    assert dict(total) == interval["stop_results"]
+    assert interval["sessions"] == 6
+
+
+def test_by_entrypoint_uses_first_transcript_with_entrypoint(
+    report_aggregate: ModuleType,
+) -> None:
+    transcripts = [
+        report_aggregate.Transcript(
+            path, "codex", [json.dumps(codex_meta(60, "cx", "/repo", originator=raw))]
+        )
+        for path, raw in (
+            ("a.jsonl", None),
+            ("b.jsonl", "codex_exec"),
+            ("c.jsonl", "codex-tui"),
+        )
+    ]
+    log = [stop("07T01:00:00", "cx", "codex", GPT, result="allow")]
+
+    groups = report_aggregate.aggregate(log, transcripts, start=START, end=END)[
+        "interval"
+    ]["by_entrypoint"]
+
+    assert groups["non_interactive"]["entrypoints"] == {"codex_exec": 1}
+    assert groups["interactive"]["sessions"] == 0
+
+
+def test_by_entrypoint_without_transcripts_is_all_unknown(
+    report_aggregate: ModuleType,
+) -> None:
+    groups = report_aggregate.aggregate(LOG, [], start=START, end=END)["interval"][
+        "by_entrypoint"
+    ]
+
+    assert groups == {
+        "interactive": {**EMPTY_DAY, "entrypoints": {}},
+        "non_interactive": {**EMPTY_DAY, "entrypoints": {}},
+        "unknown": {**INTERVAL_STATS, "entrypoints": {"null": 4}},
+    }
+
+
+def test_main_prints_same_output_twice_with_entrypoints(
+    report_aggregate: ModuleType,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = entrypoint_home(tmp_path)
+    log = tmp_path / "metrics.jsonl"
+    log.write_text("\n".join(ENTRYPOINT_LOG) + "\n", encoding="utf-8")
+
+    assert report_aggregate.main(home.args(log)) == 0
+    first = capsys.readouterr().out
+    assert report_aggregate.main(home.args(log)) == 0
+    second = capsys.readouterr().out
+
+    assert first == second
+    groups = json.loads(first)["interval"]["by_entrypoint"]
+    assert groups["non_interactive"]["entrypoints"] == {"codex_exec": 1, "sdk-cli": 1}
 
 
 @pytest.mark.parametrize(
