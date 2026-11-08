@@ -6,3 +6,4 @@
 - [아키텍처 결정(ADR)](adr/)
 - [로깅 규칙](logging.md)
 - [코드 스타일 평가 기준](code-style-rubric.md)
+- [부하 테스트 시드 적재](load-test-seeding.md)
