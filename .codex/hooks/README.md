@@ -93,22 +93,26 @@ input parsing differs between the tools.
 
 ### Metrics log
 
-- Every stop, every edit whose `ruff check` finished, and every finished
-  review appends one JSON line to `MOSEMO_METRICS_LOG` when set, otherwise to
+- Every stop, every edit whose `ruff check` finished, every finished review,
+  and every full verification run
+  (`.codex/skills/verification/scripts/validate.py`) appends one JSON line to
+  `MOSEMO_METRICS_LOG` when set, otherwise to
   `$(git rev-parse --git-common-dir)/mosemo-agent-metrics.jsonl`, outside the
   work tree and shared by all worktrees. Each line is written with one `write`
   in append mode (`stop_metrics.append_metrics`) so that concurrent sessions
   do not interleave.
 - Common fields, in this order, on every new line:
   - `at`: UTC time, `%Y-%m-%dT%H:%M:%SZ`.
-  - `event`: `edit` (`post_edit_feedback.py`), `stop` (`stop_gate.py`), or
-    `review` (`review_metrics.py`).
-  - `session`: hook input `session_id`, otherwise an empty string.
+  - `event`: `edit` (`post_edit_feedback.py`), `stop` (`stop_gate.py`),
+    `review` (`review_metrics.py`), or `verify` (`validate.py`).
+  - `session`: hook input `session_id`, otherwise an empty string. Verify
+    lines use `CLAUDE_CODE_SESSION_ID`, otherwise `null`.
   - `agent`: `MOSEMO_AGENT` (`claude` or `codex` in the hook commands),
-    otherwise `unknown`.
+    otherwise `unknown`. Verify lines use `claude` when
+    `CLAUDE_CODE_SESSION_ID` is set, otherwise `unknown`.
   - `model`: the last `"model":"claude-…"` value in the transcript, otherwise
-    `null`. Stop lines read the whole transcript; edit lines read only its
-    last 1 MiB.
+    `null`. Verify lines always use `null`. Stop lines read the whole
+    transcript; edit lines read only its last 1 MiB.
   - `harness_rev`, `harness_dirty`: The last commit
     (`git log -1 --format=%h`, `null` when unknown) and whether
     `git status --porcelain` shows uncommitted changes, both limited to
@@ -143,6 +147,11 @@ input parsing differs between the tools.
   only when the edit has an existing `.py` target and `ruff check` finished;
   edits without a `.py` target and Ruff failures or timeouts write nothing,
   so the pass rate counts only finished Python checks.
+- Verify lines add:
+  - `ok`, `failed`, `not_run`: the same values as the `VERIFY_RESULT` line.
+  - `durations`: seconds (float) by check name for the checks that ran.
+  A recording failure leaves one line on stderr and changes neither the exit
+  code nor `VERIFY_RESULT`.
 - Time: the edit hook keeps the 10-second hook timeout. Ruff gets 7 seconds,
   and recording (Git queries for the log path, harness revision, harness
   changes, and branch; the transcript tail; the write) gets a 1.5-second

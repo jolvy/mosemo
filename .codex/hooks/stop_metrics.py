@@ -51,9 +51,9 @@ type Git = Callable[[list[str]], str]
 
 @dataclass(frozen=True)
 class Source:
-    """줄을 남기는 세션: hook 입력 `session_id`, `MOSEMO_AGENT` 값, 모델."""
+    """줄을 남기는 세션: hook 입력 `session_id`(verify 줄은 모르면 `None`), `MOSEMO_AGENT` 값, 모델."""
 
-    session: str = ""
+    session: str | None = ""
     agent: str | None = None
     model: str | None = None
 

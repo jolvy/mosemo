@@ -36,6 +36,10 @@ dev = [
     "ty>=0.0.75",
 ]
 
+# validate.py imports .codex/hooks/stop_metrics.py by adding that directory to sys.path.
+[tool.ty.environment]
+extra-paths = [".codex/hooks"]
+
 [tool.uv]
 # APScheduler dependency: tzlocal 5.4.5 has no PyPI provenance; keep 5.4.4.
 constraint-dependencies = ["tzlocal==5.4.4"]
