@@ -134,6 +134,11 @@ LOG = [
 ]
 
 
+def no_roots(report_aggregate: ModuleType) -> Any:
+    """세션 기록 없이 부르는 집계의 루트(어느 경로도 쓰이지 않는다)."""
+    return report_aggregate.Roots(Path("/main"), Path("/worktrees"))
+
+
 def rule(count: int, sessions: int) -> dict[str, int]:
     return {"count": count, "sessions": sessions}
 
@@ -239,7 +244,9 @@ def test_normalize_line_reads_old_lines(report_aggregate: ModuleType) -> None:
 
 
 def test_aggregate_counts_metric_lines(report_aggregate: ModuleType) -> None:
-    result = report_aggregate.aggregate(LOG, [], start=START, end=END)
+    result = report_aggregate.aggregate(
+        LOG, [], start=START, end=END, roots=no_roots(report_aggregate)
+    )
 
     interval = result["interval"]
     assert result["window"] == {
@@ -270,7 +277,9 @@ def test_aggregate_counts_metric_lines(report_aggregate: ModuleType) -> None:
 
 
 def test_aggregate_builds_seven_day_trend(report_aggregate: ModuleType) -> None:
-    trend = report_aggregate.aggregate(LOG, [], start=START, end=END)["trend"]
+    trend = report_aggregate.aggregate(
+        LOG, [], start=START, end=END, roots=no_roots(report_aggregate)
+    )["trend"]
 
     assert [day["date"] for day in trend["days"]] == [
         f"2026-11-0{day}" for day in range(1, 8)
@@ -332,9 +341,9 @@ def test_by_harness_rev_orders_null_first_and_groups_non_text_as_null(
         stop("07T01:00:00", "e", "claude", OPUS, result="allow"),
     ]
 
-    items = report_aggregate.aggregate(log, [], start=None, end=END)["trend"][
-        "by_harness_rev"
-    ]
+    items = report_aggregate.aggregate(
+        log, [], start=None, end=END, roots=no_roots(report_aggregate)
+    )["trend"]["by_harness_rev"]
 
     assert [(item["harness_rev"], item["sessions"]) for item in items] == [
         (None, 3),
@@ -344,7 +353,9 @@ def test_by_harness_rev_orders_null_first_and_groups_non_text_as_null(
 
 
 def test_by_harness_rev_is_empty_without_lines(report_aggregate: ModuleType) -> None:
-    trend = report_aggregate.aggregate([], [], start=None, end=END)["trend"]
+    trend = report_aggregate.aggregate(
+        [], [], start=None, end=END, roots=no_roots(report_aggregate)
+    )["trend"]
 
     assert trend["by_harness_rev"] == []
 
@@ -352,7 +363,9 @@ def test_by_harness_rev_is_empty_without_lines(report_aggregate: ModuleType) -> 
 def test_aggregate_without_start_counts_every_session_as_new(
     report_aggregate: ModuleType,
 ) -> None:
-    result = report_aggregate.aggregate(LOG, [], start=None, end=END)
+    result = report_aggregate.aggregate(
+        LOG, [], start=None, end=END, roots=no_roots(report_aggregate)
+    )
 
     assert result["window"]["start"] is None
     assert result["interval"]["sessions"] == 4
@@ -423,6 +436,9 @@ class Home:
     def codex(self, name: str, entries: list[dict]) -> None:
         self.files[name] = self.home / f".codex/sessions/2026/11/07/{name}.jsonl"
         write_jsonl(self.files[name], entries)
+
+    def roots(self, report_aggregate: ModuleType) -> Any:
+        return report_aggregate.Roots(self.repo, self.worktrees)
 
     def args(self, log: Path) -> list[str]:
         return [
@@ -577,7 +593,11 @@ def test_aggregate_extracts_panel_reviews(
     )
 
     result = report_aggregate.aggregate(
-        [REVIEWER_LINE], transcripts, start=START, end=END
+        [REVIEWER_LINE],
+        transcripts,
+        start=START,
+        end=END,
+        roots=home.roots(report_aggregate),
     )
 
     interval = result["interval"]
@@ -610,9 +630,9 @@ def test_aggregate_ignores_panel_writes_outside_window(
     )
     end = datetime(2026, 11, 7, 1, 15, tzinfo=UTC)
 
-    interval = report_aggregate.aggregate([], transcripts, start=None, end=end)[
-        "interval"
-    ]
+    interval = report_aggregate.aggregate(
+        [], transcripts, start=None, end=end, roots=home.roots(report_aggregate)
+    )["interval"]
 
     assert interval["reviews"] == [
         {**panel("code", 2, 0, 4), "reports": 2, "format_ok": 2}
@@ -689,7 +709,11 @@ def test_by_entrypoint_splits_sessions_by_transcript_entrypoint(
     )
 
     interval = report_aggregate.aggregate(
-        ENTRYPOINT_LOG, transcripts, start=START, end=END
+        ENTRYPOINT_LOG,
+        transcripts,
+        start=START,
+        end=END,
+        roots=home.roots(report_aggregate),
     )["interval"]
 
     groups = interval["by_entrypoint"]
@@ -729,9 +753,9 @@ def test_by_entrypoint_uses_first_transcript_with_entrypoint(
     ]
     log = [stop("07T01:00:00", "cx", "codex", GPT, result="allow")]
 
-    groups = report_aggregate.aggregate(log, transcripts, start=START, end=END)[
-        "interval"
-    ]["by_entrypoint"]
+    groups = report_aggregate.aggregate(
+        log, transcripts, start=START, end=END, roots=no_roots(report_aggregate)
+    )["interval"]["by_entrypoint"]
 
     assert groups["non_interactive"]["entrypoints"] == {"codex_exec": 1}
     assert groups["interactive"]["sessions"] == 0
@@ -740,9 +764,9 @@ def test_by_entrypoint_uses_first_transcript_with_entrypoint(
 def test_by_entrypoint_without_transcripts_is_all_unknown(
     report_aggregate: ModuleType,
 ) -> None:
-    groups = report_aggregate.aggregate(LOG, [], start=START, end=END)["interval"][
-        "by_entrypoint"
-    ]
+    groups = report_aggregate.aggregate(
+        LOG, [], start=START, end=END, roots=no_roots(report_aggregate)
+    )["interval"]["by_entrypoint"]
 
     assert groups == {
         "interactive": {**EMPTY_DAY, "entrypoints": {}},
@@ -836,7 +860,9 @@ def test_trend_splits_days_at_seoul_midnight_and_stops_at_end(
         stop("07T14:30:00", "c", "claude", OPUS, result="allow"),
     ]
 
-    days = report_aggregate.aggregate(log, [], start=None, end=END)["trend"]["days"]
+    days = report_aggregate.aggregate(
+        log, [], start=None, end=END, roots=no_roots(report_aggregate)
+    )["trend"]["days"]
 
     assert [(day["date"], day["sessions"]) for day in days[5:]] == [
         ("2026-11-06", 1),
@@ -925,3 +951,368 @@ def test_review_stats_count_format_ok_without_findings(
             "findings": FOUND,
         }
     ]
+
+
+# T3 기대 행동 집계(TC-A1~A8)와 전체 검증 통계(TC-A9)
+
+
+MAIN = Path("/repo")
+WORKTREES = Path("/home/.herdr/worktrees/mosemo-server")
+RULES = {
+    "src_tests_edit": "skill:implementation",
+    "src_tests_edit_verify": "verify",
+    "pr_create": "skill:pull-request",
+    "plan_issue_create": "skill:engineering-planning",
+    "adr_edit": "skill:architecture-decision",
+    "prd_edit": "skill:specification",
+    "glossary_edit": "skill:ubiquitous-language",
+}
+
+
+def counts(
+    rule_id: str, sessions: int = 0, missing: list[str] | None = None, no_stop: int = 0
+) -> dict[str, Any]:
+    missing = missing or []
+    return {
+        "expect": RULES[rule_id],
+        "sessions": sessions,
+        "missing": len(missing),
+        "missing_sessions": missing,
+        "no_stop": no_stop,
+    }
+
+
+def claude_session(report_aggregate: ModuleType, session: str, entries: list) -> Any:
+    lines = [json.dumps(entry) for entry in entries]
+    return report_aggregate.Transcript(f"/p/{session}.jsonl", "claude", lines)
+
+
+def codex_session(report_aggregate: ModuleType, session: str, entries: list) -> Any:
+    lines = [json.dumps(entry) for entry in entries]
+    return report_aggregate.Transcript(f"/c/{session}.jsonl", "codex", lines)
+
+
+def edit_tool(minute: int, path: str, name: str = "Edit", cwd: Path = MAIN) -> dict:
+    key = "notebook_path" if name == "NotebookEdit" else "file_path"
+    return claude_tool(minute, name, {key: path}, str(cwd))
+
+
+def bash_tool(minute: int, command: str) -> dict:
+    return claude_tool(minute, "Bash", {"command": command}, str(MAIN))
+
+
+def skills_stop(session: str, skills: list[str], agent: str = "claude") -> str:
+    return stop("07T05:00:00", session, agent, OPUS, result="allow", skills=skills)
+
+
+def verify_line(at: str, session: str, **fields: Any) -> str:
+    fields = {"agent": "claude", "ok": True, "failed": [], "not_run": [], **fields}
+    return metric(at, "verify", session, **fields)
+
+
+def run_aggregate(
+    report_aggregate: ModuleType, log: list[str], transcripts: list
+) -> dict[str, Any]:
+    roots = report_aggregate.Roots(MAIN, WORKTREES)
+    return report_aggregate.aggregate(
+        log, transcripts, start=START, end=END, roots=roots
+    )
+
+
+def expected(
+    report_aggregate: ModuleType, log: list[str], transcripts: list
+) -> dict[str, Any]:
+    return run_aggregate(report_aggregate, log, transcripts)["interval"][
+        "expected_actions"
+    ]
+
+
+def test_expected_actions_and_verify_keys_without_input(
+    report_aggregate: ModuleType,
+) -> None:
+    interval = run_aggregate(report_aggregate, [], [])["interval"]
+
+    assert interval["expected_actions"] == {
+        agent: {rule_id: counts(rule_id) for rule_id in RULES}
+        for agent in ("claude", "codex")
+    }
+    empty = {"runs": 0, "ok_runs": 0, "failed_checks": [], "not_run": {}}
+    assert interval["verify"] == {"claude": empty, "unknown": empty}
+
+
+def test_src_edit_without_skill_or_verify_is_missing(
+    report_aggregate: ModuleType,
+) -> None:
+    transcript = claude_session(
+        report_aggregate, "s1", [edit_tool(60, f"{MAIN}/src/mosemo/x.py")]
+    )
+
+    claude = expected(report_aggregate, [skills_stop("s1", [])], [transcript])["claude"]
+
+    assert claude["src_tests_edit"] == counts("src_tests_edit", 1, ["s1"])
+    assert claude["src_tests_edit_verify"] == counts("src_tests_edit_verify", 1, ["s1"])
+    assert claude["pr_create"] == counts("pr_create")
+
+
+@pytest.mark.parametrize(
+    ("edits", "verify_at", "verify_missing"),
+    [
+        ([60], "07T01:05:00", []),
+        ([60], "07T01:00:00", []),
+        ([60], "07T00:59:00", ["s1"]),
+        ([60, 80], "07T01:05:00", ["s1"]),
+    ],
+    ids=["after", "same-second", "before", "edited-again"],
+)
+def test_skill_and_verify_after_last_edit_satisfy_rules(
+    report_aggregate: ModuleType,
+    edits: list[int],
+    verify_at: str,
+    verify_missing: list[str],
+) -> None:
+    entries = [edit_tool(minute, f"{MAIN}/tests/unit/x.py") for minute in edits]
+    log = [
+        skills_stop("s1", ["implementation"]),
+        verify_line(verify_at, "s1", ok=False, failed=["ruff check"]),
+    ]
+
+    claude = expected(
+        report_aggregate, log, [claude_session(report_aggregate, "s1", entries)]
+    )["claude"]
+
+    assert claude["src_tests_edit"] == counts("src_tests_edit", 1)
+    assert claude["src_tests_edit_verify"] == counts(
+        "src_tests_edit_verify", 1, verify_missing
+    )
+
+
+@pytest.mark.parametrize(
+    "patch_input",
+    [
+        "*** Begin Patch\n*** Update File: tests/unit/x.py\n@@\n-a\n+b\n*** End Patch",
+        (
+            'text(await tools.apply_patch("*** Begin Patch\\n'
+            '*** Update File: tests/unit/x.py\\n@@\\n-a\\n+b\\n*** End Patch"));'
+        ),
+    ],
+    ids=["apply_patch", "exec-wrapped"],
+)
+def test_codex_patch_counts_only_under_codex(
+    report_aggregate: ModuleType, patch_input: str
+) -> None:
+    transcript = codex_session(
+        report_aggregate,
+        "cx",
+        [codex_meta(59, "cx", str(WORKTREES / "w1")), codex_patch(60, patch_input)],
+    )
+
+    result = expected(report_aggregate, [skills_stop("cx", [], "codex")], [transcript])
+
+    assert result["codex"]["src_tests_edit"] == counts("src_tests_edit", 1, ["cx"])
+    assert result["claude"]["src_tests_edit"] == counts("src_tests_edit")
+
+
+def test_codex_actions_cut_patch_paths_at_escaped_newline(
+    report_aggregate: ModuleType,
+) -> None:
+    code = (
+        'text(await tools.apply_patch("*** Begin Patch\\n*** Add File: a.md\\n+x\\n'
+        '*** Delete File: /repo/b.py\\n*** End Patch"));'
+    )
+
+    actions = list(report_aggregate.codex_actions(codex_patch(60, code)))
+
+    assert actions == [("command", code), ("edit", "a.md"), ("edit", "/repo/b.py")]
+
+
+def test_edit_paths_inside_either_root_count(report_aggregate: ModuleType) -> None:
+    transcripts = [
+        claude_session(
+            report_aggregate, "inside", [edit_tool(60, f"{WORKTREES}/w1/src/a.py")]
+        ),
+        claude_session(report_aggregate, "outside", [edit_tool(60, "/tmp/src/a.py")]),
+    ]
+    log = [skills_stop("inside", []), skills_stop("outside", [])]
+
+    claude = expected(report_aggregate, log, transcripts)["claude"]
+
+    assert claude["src_tests_edit"] == counts("src_tests_edit", 1, ["inside"])
+
+
+@pytest.mark.parametrize(
+    ("path", "cwd", "relative"),
+    [
+        ("src/a.py", MAIN, "src/a.py"),
+        ("./tests/../src/a.py", WORKTREES / "w1", "src/a.py"),
+        (f"{MAIN}/docs/adr/x.md", WORKTREES / "w1", "docs/adr/x.md"),
+        (f"{WORKTREES}/w1/src/a.py", MAIN, "src/a.py"),
+        (f"{WORKTREES}/w1", MAIN, None),
+        ("/repository/src/a.py", MAIN, None),
+        ("src/a.py", None, None),
+    ],
+)
+def test_repo_path_strips_main_or_one_worktree_level(
+    report_aggregate: ModuleType, path: str, cwd: Path | None, relative: str | None
+) -> None:
+    roots = report_aggregate.Roots(MAIN, WORKTREES)
+    folder = str(cwd) if cwd is not None else None
+
+    assert report_aggregate.repo_path(path, cwd=folder, roots=roots) == relative
+
+
+def test_command_rules_match_pr_and_plan_issue_creation(
+    report_aggregate: ModuleType,
+) -> None:
+    function_call = {
+        "type": "function_call",
+        "name": "exec_command",
+        "arguments": json.dumps({"cmd": 'gh issue create --title "[Plan] y"'}),
+    }
+    transcripts = [
+        claude_session(
+            report_aggregate,
+            "pr",
+            [bash_tool(60, "env -u GH_TOKEN gh pr create --title t --body-file b")],
+        ),
+        claude_session(
+            report_aggregate,
+            "plan",
+            [bash_tool(60, 'gh issue create --title "[Plan] x" --body-file b')],
+        ),
+        claude_session(
+            report_aggregate, "fix", [bash_tool(60, 'gh issue create --title "fix"')]
+        ),
+        codex_session(
+            report_aggregate,
+            "cx",
+            [
+                codex_meta(59, "cx", str(MAIN)),
+                codex_command(60, "gh pr create --fill"),
+                {
+                    "timestamp": stamp(61),
+                    "type": "response_item",
+                    "payload": function_call,
+                },
+            ],
+        ),
+    ]
+    log = [
+        skills_stop("pr", []),
+        skills_stop("plan", ["engineering-planning"]),
+        skills_stop("fix", []),
+        skills_stop("cx", ["pull-request"], "codex"),
+    ]
+
+    result = expected(report_aggregate, log, transcripts)
+
+    assert result["claude"]["pr_create"] == counts("pr_create", 1, ["pr"])
+    assert result["claude"]["plan_issue_create"] == counts("plan_issue_create", 1)
+    assert result["codex"]["pr_create"] == counts("pr_create", 1)
+    assert result["codex"]["plan_issue_create"] == counts(
+        "plan_issue_create", 1, ["cx"]
+    )
+
+
+def test_document_edits_match_their_rules(report_aggregate: ModuleType) -> None:
+    entries = [
+        edit_tool(60, f"{MAIN}/docs/adr/0016-x.md"),
+        edit_tool(61, f"{MAIN}/docs/prd/a.md", "Write"),
+        edit_tool(62, f"{MAIN}/docs/ubiquitous-language.md", "MultiEdit"),
+        edit_tool(63, f"{MAIN}/docs/index.md", "NotebookEdit"),
+    ]
+    log = [skills_stop("s1", ["architecture-decision"])]
+
+    claude = expected(
+        report_aggregate, log, [claude_session(report_aggregate, "s1", entries)]
+    )["claude"]
+
+    assert claude["adr_edit"] == counts("adr_edit", 1)
+    assert claude["prd_edit"] == counts("prd_edit", 1, ["s1"])
+    assert claude["glossary_edit"] == counts("glossary_edit", 1, ["s1"])
+    assert claude["src_tests_edit"] == counts("src_tests_edit")
+
+
+def test_notebook_edit_reads_notebook_path(report_aggregate: ModuleType) -> None:
+    entries = [edit_tool(60, f"{MAIN}/tests/a.ipynb", "NotebookEdit")]
+
+    claude = expected(
+        report_aggregate,
+        [skills_stop("s1", [])],
+        [claude_session(report_aggregate, "s1", entries)],
+    )["claude"]
+
+    assert claude["src_tests_edit"] == counts("src_tests_edit", 1, ["s1"])
+
+
+def test_sessions_without_stop_outside_window_or_review_subagent(
+    report_aggregate: ModuleType,
+) -> None:
+    late = {**edit_tool(0, f"{MAIN}/src/a.py"), "timestamp": "2026-11-07T15:00:00Z"}
+    reviewer = {"subagent": {"agent_role": "code-reviewer"}}
+    patch = "*** Begin Patch\n*** Update File: src/a.py\n*** End Patch"
+    transcripts = [
+        claude_session(
+            report_aggregate, "no-stop", [edit_tool(60, f"{MAIN}/src/a.py")]
+        ),
+        claude_session(report_aggregate, "late", [late]),
+        codex_session(
+            report_aggregate,
+            "review",
+            [
+                codex_meta(59, "review", str(MAIN), source=reviewer),
+                codex_patch(60, patch),
+            ],
+        ),
+    ]
+    log = [skills_stop("late", []), skills_stop("review", [], "codex")]
+
+    result = expected(report_aggregate, log, transcripts)
+
+    assert result["claude"]["src_tests_edit"] == counts("src_tests_edit", no_stop=1)
+    assert result["codex"]["src_tests_edit"] == counts("src_tests_edit")
+
+
+VERIFY_LOG = [
+    verify_line("07T02:00:00", "s1"),
+    verify_line("07T02:10:00", "s1", ok=False, failed=["ty check", "poe coverage", 3]),
+    verify_line(
+        "07T02:20:00",
+        "s1",
+        ok=False,
+        failed=["poe coverage", "git diff --check"],
+        not_run=[{"check": "poe coverage", "reason": "docker"}, "broken"],
+    ),
+    verify_line("07T02:30:00", "s9", agent="unknown", ok=False, failed=None),
+    verify_line("07T20:00:00", "s1", ok=False, failed=["ruff check"]),
+]
+
+
+def test_verify_stats_count_runs_failed_checks_and_not_run(
+    report_aggregate: ModuleType,
+) -> None:
+    verify = run_aggregate(report_aggregate, VERIFY_LOG, [])["interval"]["verify"]
+
+    assert verify == {
+        "claude": {
+            "runs": 3,
+            "ok_runs": 1,
+            "failed_checks": [
+                {"check": "poe coverage", "count": 2},
+                {"check": "git diff --check", "count": 1},
+                {"check": "ty check", "count": 1},
+            ],
+            "not_run": {"docker": 1},
+        },
+        "unknown": {"runs": 1, "ok_runs": 0, "failed_checks": [], "not_run": {}},
+    }
+
+
+def test_verify_lines_leave_existing_keys_unchanged(
+    report_aggregate: ModuleType,
+) -> None:
+    without = run_aggregate(report_aggregate, LOG, [])
+    with_verify = run_aggregate(report_aggregate, [*LOG, *VERIFY_LOG], [])
+    for result in (without, with_verify):
+        del result["interval"]["verify"]
+
+    assert with_verify == without
