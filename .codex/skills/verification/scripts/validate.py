@@ -17,13 +17,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[4]
-HOOKS = str(ROOT / ".codex/hooks")
-if HOOKS not in sys.path:
-    sys.path.insert(0, HOOKS)
-
+# `.codex/hooks/stop_metrics.py`를 불러온다. 경로 변경만 import 사이에 둔다(E402).
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "hooks"))
 import stop_metrics
 
+ROOT = Path(__file__).resolve().parents[4]
 SESSION_VARIABLE = "CLAUDE_CODE_SESSION_ID"
 SCRIPTS = ".codex/skills/verification/scripts"
 COVERAGE = "poe coverage"
