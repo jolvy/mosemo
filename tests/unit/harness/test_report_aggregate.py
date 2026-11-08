@@ -16,7 +16,7 @@ GPT = "gpt-6.1-sol"
 FOUND = {"high": 0, "medium": 1, "low": 0}
 
 
-def metric(at: str, event: str | None, session: str, **fields: Any) -> str:
+def metric(at: str, event: str | None, session: str | None, **fields: Any) -> str:
     line = {"at": f"2026-11-{at}Z", "session": session, **fields}
     if event is not None:
         line["event"] = event
@@ -1005,7 +1005,7 @@ def skills_stop(session: str, skills: list[str], agent: str = "claude") -> str:
     return stop("07T05:00:00", session, agent, OPUS, result="allow", skills=skills)
 
 
-def verify_line(at: str, session: str, **fields: Any) -> str:
+def verify_line(at: str, session: str | None, **fields: Any) -> str:
     fields = {"agent": "claude", "ok": True, "failed": [], "not_run": [], **fields}
     return metric(at, "verify", session, **fields)
 
@@ -1087,6 +1087,43 @@ def test_skill_and_verify_after_last_edit_satisfy_rules(
 
 
 @pytest.mark.parametrize(
+    "verify",
+    [
+        verify_line("07T01:05:00", "other"),
+        verify_line("07T01:05:00", None),
+        verify_line("07T01:05:00", ""),
+        verify_line("07T20:00:00", "s1"),
+    ],
+    ids=["other-session", "null-session", "empty-session", "after-end"],
+)
+def test_verify_counts_only_same_session_up_to_end(
+    report_aggregate: ModuleType, verify: str
+) -> None:
+    entries = [edit_tool(60, f"{MAIN}/src/a.py")]
+    log = [skills_stop("s1", ["implementation"]), verify]
+
+    claude = expected(
+        report_aggregate, log, [claude_session(report_aggregate, "s1", entries)]
+    )["claude"]
+
+    assert claude["src_tests_edit_verify"] == counts("src_tests_edit_verify", 1, ["s1"])
+
+
+def test_missing_sessions_are_sorted_by_session_id(
+    report_aggregate: ModuleType,
+) -> None:
+    transcripts = [
+        claude_session(report_aggregate, name, [edit_tool(60, f"{MAIN}/src/a.py")])
+        for name in ("s3", "s1", "s2")
+    ]
+    log = [skills_stop(name, []) for name in ("s2", "s3", "s1")]
+
+    claude = expected(report_aggregate, log, transcripts)["claude"]
+
+    assert claude["src_tests_edit"] == counts("src_tests_edit", 3, ["s1", "s2", "s3"])
+
+
+@pytest.mark.parametrize(
     "patch_input",
     [
         "*** Begin Patch\n*** Update File: tests/unit/x.py\n@@\n-a\n+b\n*** End Patch",
@@ -1122,7 +1159,33 @@ def test_codex_actions_cut_patch_paths_at_escaped_newline(
 
     actions = list(report_aggregate.codex_actions(codex_patch(60, code)))
 
-    assert actions == [("command", code), ("edit", "a.md"), ("edit", "/repo/b.py")]
+    assert actions == [
+        ("command", 'text(await tools.apply_patch(""));'),
+        ("edit", "a.md"),
+        ("edit", "/repo/b.py"),
+    ]
+
+
+def test_codex_patch_body_is_not_a_command(report_aggregate: ModuleType) -> None:
+    code = (
+        'text(await tools.exec_command({cmd:"cat a"}));\n'
+        'text(await tools.apply_patch("*** Begin Patch\\n'
+        "*** Update File: /repo/tests/x.py\\n"
+        "+    bash_tool(60, 'gh pr create --fill')\\n"
+        "+    bash_tool(61, 'gh issue create --title \\\"[Plan] x\\\"')\\n"
+        '*** End Patch"));'
+    )
+    transcript = codex_session(
+        report_aggregate, "cx", [codex_meta(59, "cx", str(MAIN)), codex_patch(60, code)]
+    )
+
+    codex = expected(
+        report_aggregate, [skills_stop("cx", ["implementation"], "codex")], [transcript]
+    )["codex"]
+
+    assert codex["src_tests_edit"] == counts("src_tests_edit", 1)
+    assert codex["pr_create"] == counts("pr_create")
+    assert codex["plan_issue_create"] == counts("plan_issue_create")
 
 
 def test_edit_paths_inside_either_root_count(report_aggregate: ModuleType) -> None:

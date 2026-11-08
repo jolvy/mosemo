@@ -52,6 +52,8 @@ VERIFY_AGENTS = ("claude", "unknown")
 CLAUDE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 # 줄바꿈이 실제 줄바꿈이든 Codex `exec` 코드 문자열 안의 `\n`이든 경로는 그 앞에서 끝난다.
 PATCH_FILE = re.compile(r"\*\*\* (?:Add|Update|Delete) File: ([^\n\\\"]+)")
+# 명령 문자열 검사 전에 지우는 패치 본문(편집할 파일 내용은 명령이 아니다).
+PATCH_BODY = re.compile(r"\*\*\* Begin Patch.*?(?:\*\*\* End Patch|$)", re.DOTALL)
 
 
 class ExpectedRule(NamedTuple):
@@ -709,7 +711,7 @@ def codex_actions(entry: dict[str, Any]) -> Iterator[tuple[str, str]]:
         yield "command", str(last or "")
     if entry.get("type") == "response_item":
         for text in tool_inputs(payload):
-            yield "command", text
+            yield "command", PATCH_BODY.sub("", text)
             for match in PATCH_FILE.finditer(text):
                 yield "edit", match.group(1).strip()
 
@@ -774,12 +776,12 @@ def stop_skills(window: Sequence[Record]) -> dict[str, set[str]]:
     return skills
 
 
-def verify_times(records: Sequence[Record]) -> dict[str, list[datetime]]:
-    """세션마다 `verify` 줄의 `at`(구간과 무관하게 모든 줄)."""
+def verify_times(records: Sequence[Record], end: datetime) -> dict[str, list[datetime]]:
+    """세션마다 `end` 이전(`at` ≤ `end`) `verify` 줄의 `at`. 구간 시작 전 줄도 넣는다."""
     times: defaultdict[str, list[datetime]] = defaultdict(list)
     for record in records:
         session = text_or_none(record.line.get("session"))
-        if record.line["event"] == "verify" and session is not None:
+        if record.line["event"] == "verify" and session and record.at <= end:
             times[session].append(record.at)
     return times
 
@@ -960,7 +962,7 @@ def aggregate(
             "expected_actions": expected_actions(
                 last_events(transcripts, roots, start=start, end=end),
                 skills=stop_skills(window),
-                verified=verify_times(records),
+                verified=verify_times(records, end),
             ),
             "verify": verify_stats(window),
         },
