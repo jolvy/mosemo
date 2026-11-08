@@ -109,6 +109,8 @@ def test_headings_outside_fences_are_the_six_sections(skill: str) -> None:
                 "#226",
                 "heredoc",
                 "`end`",
+                "CLAUDE_CODE_SESSION_ID",
+                "no_stop",
             ],
         ),
         (
