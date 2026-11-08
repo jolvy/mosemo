@@ -36,7 +36,8 @@ dev = [
     "ty>=0.0.75",
 ]
 
-# validate.py imports .codex/hooks/stop_metrics.py by adding that directory to sys.path.
+# validate.py and .codex/evals/run.py import .codex/hooks/stop_metrics.py by adding that
+# directory to sys.path.
 [tool.ty.environment]
 extra-paths = [".codex/hooks"]
 
@@ -703,6 +704,10 @@ cmd = "python scripts/export_openapi.py"
 [tool.poe.tasks.lint-imports]
 cmd = "lint-imports"
 help = "Check import contracts between packages"
+
+[tool.poe.tasks.eval]
+cmd = "python .codex/evals/run.py"
+help = "Run Skill trigger evals with Claude Code and Codex (costs money; --case ID)"
 
 [tool.poe.tasks.ci]
 cmd = "act pull_request -j quality"
