@@ -12,8 +12,8 @@ Terraform state·plan, 로컬 handoff·Secret은 이미지에 복사하지 않�
 
 | 프로세스 | manifest | 실행 |
 | --- | --- | --- |
-| API | deployment.yaml | uvicorn mosemo.main:app, port 8000 |
-| Activity consumer | consumer-deployment.yaml | python -m mosemo.activities.consumer |
+| API | deployment.yaml | uvicorn mosemo.entrypoints.api.main:app, port 8000 |
+| Activity consumer | consumer-deployment.yaml | python -m mosemo.entrypoints.consumer |
 | Migration | migration-job.yaml | alembic upgrade head |
 | Lab Kafka | kafka.yaml | StatefulSet 1개, cp-kafka 7.8.0, KRaft broker/controller |
 | Topic 초기화 | kafka-init-job.yaml | 2 partitions, replication factor 1 |

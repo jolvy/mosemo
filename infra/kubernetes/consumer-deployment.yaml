@@ -51,7 +51,7 @@ spec:
         command:
         - python
         - -m
-        - mosemo.activities.consumer
+        - mosemo.entrypoints.consumer
       volumes:
       - name: rds-ca
         configMap:

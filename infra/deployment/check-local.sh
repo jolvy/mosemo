@@ -91,15 +91,16 @@ docker run --rm --platform linux/amd64 --network "$task_id" \
   --env-file "$task_tmp/test.env" "$image" python -c '
 import asyncio
 from sqlalchemy import text
-from mosemo.database import engine
+from mosemo.platform.database.engine import get_engine
 async def check():
+    engine = get_engine()
     async with engine.connect() as connection:
         assert await connection.scalar(text("SELECT count(*) FROM accounts")) == 0
         print("Application DB query: OK")
     await engine.dispose()
 asyncio.run(check())'
 docker run -d --platform linux/amd64 --memory 512m --memory-swap 512m --name "$task_id-consumer" --network "$task_id" \
-  --env-file "$task_tmp/test.env" "$image" python -m mosemo.activities.consumer >/dev/null
+  --env-file "$task_tmp/test.env" "$image" python -m mosemo.entrypoints.consumer >/dev/null
 ready=false
 for ((i=0; i<30; i++)); do
   if docker exec -e KAFKA_HEAP_OPTS='-Xms32m -Xmx64m' "$task_id-kafka" kafka-consumer-groups --bootstrap-server kafka:29092 \
