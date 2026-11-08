@@ -1,18 +1,31 @@
-"""Deterministic load-test seed data.
+"""Deterministic load-test seed data and its loader.
 
 The generator yields, per day of the period, ``table name -> rows`` where each
 row maps every column (server defaults included) to its value. It never reads
 the current time: the period is fixed by ``end_date`` (inclusive) and ``days``.
+
+The loader copies the users one by one into the ``DB_*`` database, one
+transaction per user, and skips users whose seed device already exists.
+Usage: docs/load-test-seeding.md.
 """
 
+import argparse
+import asyncio
 import bisect
+import json
 import random
-from collections.abc import Iterator, Sequence
+import sys
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from typing import cast
 from uuid import UUID, uuid5
 from zoneinfo import ZoneInfo
+
+import asyncpg
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from mosemo.labels.domain.labels import DEFAULT_LABEL_NAMES
 from mosemo.observation.domain.activities import ActivityRecord
@@ -24,6 +37,7 @@ from mosemo.observation.domain.timeline import (
 )
 from mosemo.observation.presentation.activities.mappers import activity_batch
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
+from mosemo.platform.database.config import DatabaseSettings
 from mosemo.shared.domain.timezones import Timezone
 
 type Row = dict[str, object]
@@ -207,6 +221,11 @@ def generate_account_user(
     return user.days({})
 
 
+def device_idempotency_key(seed: int, user_key: str) -> UUID:
+    """The seed device key of ``user_key``; its presence marks the user as loaded."""
+    return uuid5(DEVICE_NAMESPACE, f"{seed}:{user_key}")
+
+
 def _user_random(period: SeedPeriod, user_key: str) -> random.Random:
     return random.Random(f"{period.seed}:{user_key}")
 
@@ -256,7 +275,7 @@ class _UserGenerator:
         self._account_id = account_id
         self._label_ids = label_ids
         self._device_id = seeded_uuid7(rng, period.start)
-        self._device_key = uuid5(DEVICE_NAMESPACE, f"{period.seed}:{device_key}")
+        self._device_key = device_idempotency_key(period.seed, device_key)
         self._sequence = 0
         self._open_segment: ProjectedSegment | None = None
         self._confirmations: list[tuple[datetime, str]] = []
@@ -633,3 +652,255 @@ def _record_row(record: ActivityRecord, *, received_at: datetime) -> Row:
         "payload": record.payload,
         "received_at": received_at,
     }
+
+
+# Loader -----------------------------------------------------------------------
+
+EXIT_FAILED = 1
+EXIT_USAGE = 2
+# Database and connection failures; other errors propagate and also exit with 1.
+LOAD_ERRORS = (SQLAlchemyError, asyncpg.PostgresError, asyncpg.InterfaceError, OSError)
+JSON_COLUMNS = frozenset({"payload", "context", "results", "retrieved_example_ids"})
+
+
+class RejectedAccountError(Exception):
+    """The ``--account-id`` account cannot take seed data; nothing is written."""
+
+
+@dataclass(frozen=True, slots=True)
+class LoadResult:
+    loaded: int
+    skipped: int
+
+
+async def load_users(
+    connection: AsyncConnection,
+    period: SeedPeriod,
+    *,
+    users: int,
+    account_id: UUID | None,
+) -> LoadResult:
+    """Load the existing account first (if any), then dummies up to ``users``."""
+    outcomes: list[bool] = []
+    if account_id is not None:
+        outcomes.append(
+            await _load_account_user(connection, period, account_id=account_id)
+        )
+    dummies = users - len(outcomes)
+    for index in range(1, dummies + 1):
+        outcomes.append(await _load_dummy_user(connection, period, index=index))
+    loaded = sum(outcomes)
+    return LoadResult(loaded=loaded, skipped=len(outcomes) - loaded)
+
+
+async def _load_dummy_user(
+    connection: AsyncConnection, period: SeedPeriod, *, index: int
+) -> bool:
+    user_key = f"dummy:{index}"
+    async with connection.begin():
+        # The SQLAlchemy asyncpg adapter sends BEGIN with the first statement, so
+        # this lookup opens the transaction the COPY below runs in.
+        if await _device_exists(connection, period, user_key=user_key):
+            return _report_user(user_key, loaded=False)
+        await copy_days(connection, generate_dummy_user(period, index))
+    return _report_user(user_key, loaded=True)
+
+
+async def _load_account_user(
+    connection: AsyncConnection, period: SeedPeriod, *, account_id: UUID
+) -> bool:
+    user_key = f"account:{account_id}"
+    async with connection.begin():
+        exists = await connection.scalar(
+            text("SELECT EXISTS (SELECT 1 FROM accounts WHERE id = :id)"),
+            {"id": account_id},
+        )
+        if not exists:
+            raise RejectedAccountError(f"account {account_id} does not exist")
+        if await _device_exists(connection, period, user_key=user_key):
+            return _report_user(user_key, loaded=False)
+        label_ids = await _account_label_ids(connection, account_id)
+        days = generate_account_user(period, account_id=account_id, label_ids=label_ids)
+        await copy_days(connection, days)
+    return _report_user(user_key, loaded=True)
+
+
+async def _device_exists(
+    connection: AsyncConnection, period: SeedPeriod, *, user_key: str
+) -> bool:
+    return bool(
+        await connection.scalar(
+            text("SELECT EXISTS (SELECT 1 FROM devices WHERE idempotency_key = :key)"),
+            {"key": device_idempotency_key(period.seed, user_key)},
+        )
+    )
+
+
+async def _account_label_ids(
+    connection: AsyncConnection, account_id: UUID
+) -> list[UUID]:
+    """Active label IDs of an account without activity data, else rejected.
+
+    The service projects all devices of an account together, so seed records
+    mixed with existing ones would break the timeline and label versions.
+    """
+    has_activity = await connection.scalar(
+        text(
+            "SELECT EXISTS (SELECT 1 FROM activity_records r"
+            " JOIN devices d ON d.id = r.device_id WHERE d.account_id = :id)"
+            " OR EXISTS (SELECT 1 FROM activity_timeline_segments"
+            " WHERE account_id = :id)"
+        ),
+        {"id": account_id},
+    )
+    if has_activity:
+        raise RejectedAccountError(f"account {account_id} already has activity data")
+    result = await connection.scalars(
+        text(
+            "SELECT id FROM labels WHERE account_id = :id AND archived_at IS NULL"
+            " ORDER BY id"
+        ),
+        {"id": account_id},
+    )
+    label_ids = list(result)
+    if not label_ids:
+        raise RejectedAccountError(f"account {account_id} has no active label")
+    return label_ids
+
+
+def _report_user(user_key: str, *, loaded: bool) -> bool:
+    print(f"{'loaded' if loaded else 'skipped'} {user_key}", flush=True)
+    return loaded
+
+
+async def copy_days(connection: AsyncConnection, days: Iterable[Tables]) -> None:
+    """COPY each day's rows in foreign key order on the connection's transaction."""
+    raw = await connection.get_raw_connection()
+    driver = cast(asyncpg.Connection, raw.driver_connection)
+    for tables in days:
+        for table in TABLE_ORDER:
+            if rows := tables.get(table):
+                await copy_rows(driver, table=table, rows=rows)
+
+
+async def copy_rows(driver: asyncpg.Connection, *, table: str, rows: list[Row]) -> None:
+    columns = list(rows[0])
+    await driver.copy_records_to_table(
+        table,
+        columns=columns,
+        records=[
+            tuple(_copy_value(column, row[column]) for column in columns)
+            for row in rows
+        ],
+    )
+
+
+def _copy_value(column: str, value: object) -> object:
+    # SQLAlchemy registers a JSONB codec that takes JSON text.
+    if column in JSON_COLUMNS and value is not None:
+        return json.dumps(value, ensure_ascii=False)
+    return value
+
+
+async def measure_sizes(connection: AsyncConnection) -> list[tuple[str, int]]:
+    """``ANALYZE`` the seeded tables, then their total sizes and the database size."""
+    async with connection.begin():
+        await connection.execute(text(f"ANALYZE {', '.join(TABLE_ORDER)}"))
+        sizes = [
+            (
+                table,
+                cast(
+                    int,
+                    await connection.scalar(
+                        text("SELECT pg_total_relation_size(CAST(:name AS regclass))"),
+                        {"name": table},
+                    ),
+                ),
+            )
+            for table in TABLE_ORDER
+        ]
+        database = await connection.scalar(
+            text("SELECT pg_database_size(current_database())")
+        )
+    return [*sizes, ("(database)", cast(int, database))]
+
+
+def print_report(result: LoadResult, sizes: Sequence[tuple[str, int]]) -> None:
+    print(f"{'loaded users':<30} {result.loaded:>16}")
+    print(f"{'skipped users':<30} {result.skipped:>16}")
+    print(f"{'table':<30} {'total bytes':>16}")
+    for name, size in sizes:
+        print(f"{name:<30} {size:>16}")
+
+
+def _positive_int(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"must be 1 or more: {value}")
+    return number
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Load deterministic load-test seed data into the DB_* database."
+    )
+    parser.add_argument("--users", type=_positive_int, required=True)
+    parser.add_argument(
+        "--confirm-host", required=True, help="must equal DB_HOST exactly"
+    )
+    parser.add_argument(
+        "--end-date",
+        type=date.fromisoformat,
+        required=True,
+        help="last day of the period (ISO date)",
+    )
+    parser.add_argument("--account-id", type=UUID)
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--days", type=_positive_int, default=365)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the CLI; argument errors exit with 2 before connecting."""
+    args = _parser().parse_args(argv)
+    config = DatabaseSettings().database
+    if args.confirm_host != config.host:
+        print(
+            f"--confirm-host {args.confirm_host!r} does not match DB_HOST",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    period = SeedPeriod(seed=args.seed, end_date=args.end_date, days=args.days)
+    return asyncio.run(
+        _run(config.dsn, period, users=args.users, account_id=args.account_id)
+    )
+
+
+async def _run(
+    dsn: str, period: SeedPeriod, *, users: int, account_id: UUID | None
+) -> int:
+    engine = create_async_engine(dsn)
+    try:
+        async with engine.connect() as connection:
+            try:
+                result = await load_users(
+                    connection, period, users=users, account_id=account_id
+                )
+            except RejectedAccountError as exc:
+                print(f"rejected: {exc}", file=sys.stderr)
+                return EXIT_USAGE
+            except LOAD_ERRORS as exc:
+                print(
+                    f"stopped; the failing user was rolled back: {exc!r}",
+                    file=sys.stderr,
+                )
+                return EXIT_FAILED
+            sizes = await measure_sizes(connection)
+    finally:
+        await engine.dispose()
+    print_report(result, sizes)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
