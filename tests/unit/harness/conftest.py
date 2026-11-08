@@ -1,4 +1,4 @@
-"""검증 Skill과 hook의 스크립트를 배포 패키지나 sys.path 변경 없이 불러온다."""
+"""검증 Skill과 hook의 스크립트를 배포 패키지 없이 불러온다. sys.path 변경은 되돌린다."""
 
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
@@ -39,8 +39,14 @@ def conventions_validator() -> ModuleType:
     return load_validator("validate_conventions")
 
 
-@pytest.fixture(scope="session")
-def full_validator() -> ModuleType:
+@pytest.fixture
+def full_validator(
+    monkeypatch: pytest.MonkeyPatch, stop_metrics: ModuleType
+) -> ModuleType:
+    # validate.py는 `.codex/hooks`를 sys.path에 넣고 `import stop_metrics`를 하므로
+    # sys.modules에 넣고 sys.path는 테스트 뒤 되돌린다.
+    monkeypatch.setitem(sys.modules, "stop_metrics", stop_metrics)
+    monkeypatch.setattr(sys, "path", list(sys.path))
     return load_validator("validate")
 
 
