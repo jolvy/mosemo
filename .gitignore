@@ -30,3 +30,6 @@ htmlcov/
 .DS_Store
 
 .worktrees
+
+# Skill eval results
+.codex/evals/results/

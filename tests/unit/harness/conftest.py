@@ -89,6 +89,17 @@ def post_edit_feedback(
     return load_script(REPOSITORY / ".codex/hooks/post_edit_feedback.py")
 
 
+@pytest.fixture
+def skill_evals(
+    monkeypatch: pytest.MonkeyPatch, stop_metrics: ModuleType
+) -> ModuleType:
+    # run.py는 `.codex/hooks`를 sys.path에 넣고 `import stop_metrics`를 하므로
+    # sys.modules에 넣고 sys.path는 테스트 뒤 되돌린다.
+    monkeypatch.setitem(sys.modules, "stop_metrics", stop_metrics)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    return load_script(REPOSITORY / ".codex/evals/run.py")
+
+
 @pytest.fixture(scope="session")
 def repository() -> Path:
     return REPOSITORY
