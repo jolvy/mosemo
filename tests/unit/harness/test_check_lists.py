@@ -15,16 +15,17 @@ def test_docs_validator_checks_every_skill(
     assert set(docs_validator.SKILLS) == skills
 
 
-def test_validate_sh_runs_every_agents_md_verification(repository: Path) -> None:
+def test_validate_py_runs_every_agents_md_verification(
+    repository: Path, full_validator: ModuleType
+) -> None:
     agents = (repository / "AGENTS.md").read_text()
     section = agents.split("## 빌드와 검증", 1)[1]
     block = re.search(r"```sh\n(.*?)```", section, re.DOTALL)
     assert block is not None
     required = {line.strip() for line in block.group(1).splitlines() if line.strip()}
-    script = repository / ".codex/skills/verification/scripts/validate.sh"
-    lines = {line.strip() for line in script.read_text().splitlines()}
+    commands = {command for _, command in full_validator.CHECKS}
 
-    assert required - lines == set()
+    assert required - commands == set()
 
 
 def test_stop_gate_style_checks_include_lint_imports(stop_gate: ModuleType) -> None:
