@@ -1188,6 +1188,30 @@ def test_codex_patch_body_is_not_a_command(report_aggregate: ModuleType) -> None
     assert codex["plan_issue_create"] == counts("plan_issue_create")
 
 
+@pytest.mark.parametrize(
+    ("entry", "command"),
+    [
+        (
+            codex_command(
+                60,
+                "apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: a.md\n"
+                "+gh pr create\n*** End Patch\nEOF\necho done",
+            ),
+            "apply_patch <<'EOF'\n\nEOF\necho done",
+        ),
+        (
+            codex_command(60, 'rg "*** Begin Patch" .codex && gh pr create --fill'),
+            'rg "*** Begin Patch" .codex && gh pr create --fill',
+        ),
+    ],
+    ids=["command-execution-patch", "unpaired-begin"],
+)
+def test_codex_commands_drop_only_paired_patch_bodies(
+    report_aggregate: ModuleType, entry: dict, command: str
+) -> None:
+    assert list(report_aggregate.codex_actions(entry)) == [("command", command)]
+
+
 def test_edit_paths_inside_either_root_count(report_aggregate: ModuleType) -> None:
     transcripts = [
         claude_session(

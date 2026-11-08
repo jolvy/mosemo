@@ -53,7 +53,8 @@ CLAUDE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 # 줄바꿈이 실제 줄바꿈이든 Codex `exec` 코드 문자열 안의 `\n`이든 경로는 그 앞에서 끝난다.
 PATCH_FILE = re.compile(r"\*\*\* (?:Add|Update|Delete) File: ([^\n\\\"]+)")
 # 명령 문자열 검사 전에 지우는 패치 본문(편집할 파일 내용은 명령이 아니다).
-PATCH_BODY = re.compile(r"\*\*\* Begin Patch.*?(?:\*\*\* End Patch|$)", re.DOTALL)
+# `*** End Patch`와 짝이 맞는 것만 지운다(패치 문법을 검색하는 명령의 뒤를 지우지 않게).
+PATCH_BODY = re.compile(r"\*\*\* Begin Patch.*?\*\*\* End Patch", re.DOTALL)
 
 
 class ExpectedRule(NamedTuple):
@@ -708,7 +709,7 @@ def codex_actions(entry: dict[str, Any]) -> Iterator[tuple[str, str]]:
     ):
         command = item.get("command")
         last = command[-1] if isinstance(command, list) and command else command
-        yield "command", str(last or "")
+        yield "command", PATCH_BODY.sub("", str(last or ""))
     if entry.get("type") == "response_item":
         for text in tool_inputs(payload):
             yield "command", PATCH_BODY.sub("", text)
