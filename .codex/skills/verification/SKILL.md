@@ -10,7 +10,7 @@ description: 요구사항·모델 승인·문서 형식·품질 게이트·테�
 ## 절차
 1. 검증 범위를 명확히 하고 `uv run --locked python .codex/skills/verification/scripts/validate_docs.py`로 신규 문서의 기본 규격을 검사한다.
 2. 변경 유형에 적합한 Unit·Integration(마이그레이션·공개 API 계약 포함) 테스트를 수행한다.
-3. `bash .codex/skills/verification/scripts/validate.sh`의 프로젝트 검사(코드 스타일·타입·빌드·테스트·diff)를 가능한 환경에서 실행한다.
+3. `bash .codex/skills/verification/scripts/validate.sh`의 프로젝트 검사(코드 스타일·타입·빌드·테스트·diff)를 가능한 환경에서 실행한다. 최종 보고의 검증 증거로 `VERIFY_RESULT` 줄을 인용한다.
 4. PRD가 있으면 인수 조건별로, 없으면 요청의 기대 결과별로 **통과/실패/미검증** 및 증거를 연결한다. 테스트 통과가 의미적 요구사항의 정당성을 자동 보장하지는 않는다.
 5. 변경에 관련된 객체의 책임과 협력, 엔티티와 `Table` 매핑의 분리(ADR 0013), 데이터 정합성, 선언된 확장 지점의 결합을 검토한다. 기존 모델 승인이 있으면 그 범위와도 대조한다.
 6. 오류는 원인과 영향을 먼저 설명하고 관련 범위 안에서 수정한다. **동일 실패 원인 최대 3회** 재시도하며 실패를 숨기거나 검증 조건을 완화하지 않는다.
@@ -34,7 +34,7 @@ description: 요구사항·모델 승인·문서 형식·품질 게이트·테�
 - `uv run --locked python .codex/skills/verification/scripts/validate_architecture.py`: import 경계와 BC 패키지 구조 규칙을 AST로 검사한다. 검사 항목의 원본은 스크립트와 ADR 0011~0014 「강제 방법」·`docs/code-style-rubric.md`다.
 - `uv run --locked python .codex/skills/verification/scripts/validate_conventions.py`: 코드 작성 규칙을 검사하고 위반마다 파일·라인·규칙 ID와 수정 안내를 출력한다. 검사 항목의 원본은 스크립트와 ADR 0011~0014 「강제 방법」·`docs/code-style-rubric.md`다.
 - `uv run --locked complexipy src --max-complexity-allowed 15 --isolated --no-ignore`: `src` 함수의 인지 복잡도를 검사한다. 기준선 없이 15 초과는 실패하며, 기준선 파일 `complexipy-snapshot.json`을 만들지 않는다. `--isolated`·`--no-ignore`로 설정 파일의 제외와 인라인 `# complexipy: ignore`를 무효로 하며, 명령 인자를 바꾸지 않는다.
-- `bash .codex/skills/verification/scripts/validate.sh`: 문서·구조·코드 규칙 검사와 Ruff·complexipy·포맷·타입·빌드·전체 테스트·diff 검사를 실행한다. 스크립트 위치에서 저장소 루트를 찾아 실행한다.
+- `bash .codex/skills/verification/scripts/validate.sh`: 문서·구조·코드 규칙 검사와 Ruff·complexipy·포맷·타입·빌드·전체 테스트·diff 검사를 실행한다. 스크립트 위치에서 저장소 루트를 찾아 `validate.py`를 실행한다. `validate.py`는 앞 검사가 실패해도 모든 검사를 실행하고 요약표와 마지막 줄 `VERIFY_RESULT` JSON을 출력한다. Docker가 없으면 `poe coverage`를 `not_run`으로 남기고, `failed`·`not_run`이 모두 비었을 때만 종료 코드 0이다.
 
 검사기 회귀 테스트는 `tests/unit/harness/`에 둔다. 문서·구조 검사와 회귀 테스트는 Git 훅과 CI에서도 실행한다. 로컬 훅 설치는 `uv run --locked pre-commit install --hook-type pre-commit --hook-type pre-push`로 수행한다. 훅은 우회 가능하며 원격 필수 체크 설정은 별도 확인한다.
 

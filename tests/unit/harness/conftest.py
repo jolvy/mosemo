@@ -40,6 +40,11 @@ def conventions_validator() -> ModuleType:
 
 
 @pytest.fixture(scope="session")
+def full_validator() -> ModuleType:
+    return load_validator("validate")
+
+
+@pytest.fixture(scope="session")
 def stop_metrics() -> ModuleType:
     return load_script(REPOSITORY / ".codex/hooks/stop_metrics.py")
 
