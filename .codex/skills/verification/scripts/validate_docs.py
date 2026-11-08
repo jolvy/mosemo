@@ -37,6 +37,20 @@ DOCUMENT_SKILLS = {
 }
 SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 PLACEHOLDER = re.compile(r"<!--|<[^>\n]+>|\b(?:TODO|TBD)\b|(?<!date=)YYYY-MM-DD")
+PATH_PREFIXES = (
+    "src/",
+    "tests/",
+    "docs/",
+    "migrations/",
+    "scripts/",
+    "openapi/",
+    ".codex/",
+    ".claude/",
+    ".github/",
+)
+# 문서가 일부러 "만들지 않는다"고 적은 경로만 둔다.
+MISSING_PATH_ALLOWLIST = ("docs/plans/", "tests/e2e/")
+MODULE = re.compile(r"mosemo(?:\.[A-Za-z_]\w*)+")
 
 
 def sections(content: str) -> dict[str, str]:
@@ -83,6 +97,44 @@ def check_links(content: str, path: Path, *, root: Path) -> list[str]:
         for target, resolved in local_links(content, path)
         if not resolved.is_relative_to(root.resolve()) or not resolved.exists()
     ]
+
+
+def inline_code(content: str) -> list[str]:
+    content = re.sub(r"```.*?```", "", content, flags=re.DOTALL)
+    return re.findall(r"`([^`\n]+)`", content)
+
+
+def path_exists(token: str, root: Path) -> bool:
+    path = re.sub(r":\d+$", "", token.split("::", 1)[0])
+    if path.startswith(MISSING_PATH_ALLOWLIST):
+        return True
+    if "*" in path:
+        return any(root.glob(path))
+    return (root / path).exists()
+
+
+def module_exists(token: str, root: Path) -> bool:
+    parts = token.split(".")
+    # 마지막 한 단계는 모듈 안의 속성 이름일 수 있다.
+    for candidate in (parts, parts[:-1]):
+        path = root / "src" / Path(*candidate)
+        if path.is_dir() or path.with_name(f"{path.name}.py").is_file():
+            return True
+    return False
+
+
+def check_paths(content: str, root: Path) -> list[str]:
+    errors = []
+    for token in inline_code(content):
+        if MODULE.fullmatch(token):
+            exists = module_exists(token, root)
+        elif token.startswith(PATH_PREFIXES) and not re.search(r"[<{\s]", token):
+            exists = path_exists(token, root)
+        else:
+            continue
+        if not exists:
+            errors.append(f"없는 경로: {token}")
+    return errors
 
 
 def link_checked_paths(root: Path) -> list[Path]:
@@ -214,9 +266,13 @@ def validate(root: Path = ROOT) -> list[str]:
     if errors:
         return errors
     for path in link_checked_paths(root):
+        content = path.read_text()
         errors.extend(
             f"{path.relative_to(root)}: {error}"
-            for error in check_links(path.read_text(), path, root=root)
+            for error in [
+                *check_links(content, path, root=root),
+                *check_paths(content, root),
+            ]
         )
     for folder, skill in DOCUMENT_SKILLS.items():
         headings = required_headings(root, skill)
@@ -233,6 +289,9 @@ def validate(root: Path = ROOT) -> list[str]:
                 for error in check_document(content, headings, path=path, root=root)
             )
             if folder in {"requirements", "prd"}:
+                errors.extend(
+                    f"{relative}: {error}" for error in check_paths(content, root)
+                )
                 identifiers = re.findall(
                     r"\bAC-\d+\b", sections(content).get("인수 조건", "")
                 )
