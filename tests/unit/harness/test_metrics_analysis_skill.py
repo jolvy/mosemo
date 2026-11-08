@@ -104,11 +104,25 @@ def test_headings_outside_fences_are_the_six_sections(skill: str) -> None:
                 "interval.by_entrypoint",
                 "비대화형이라는 이유로",
                 "작업 중 하네스 변경 포함",
+                "interval.expected_actions",
+                "interval.verify",
+                "#226",
+                "heredoc",
+                "`end`",
             ],
         ),
         (
             "보고서 형식",
-            ["`harness_rev`별 표", "세션 구분(대화형·비대화형·미상)별 표"],
+            [
+                "`harness_rev`별 표",
+                "세션 구분(대화형·비대화형·미상)별 표",
+                "`interval.expected_actions`",
+                "`interval.verify`",
+                "장치 종류",
+                "평가 문제 후보",
+                "검사 > hook > Skill·문서 > 평가 문제",
+                "should_trigger",
+            ],
         ),
         ("금지", ["`gh`", "`git push`", "session_files"]),
     ],
@@ -166,6 +180,8 @@ def test_mapping_table_keys_exist_in_aggregate_output(
     keys = mapping_keys(skill)
 
     assert "interval.by_entrypoint" in keys
+    assert "interval.expected_actions" in keys
+    assert "interval.verify" in keys
     assert "trend.by_harness_rev" in keys
     for key in keys:
         top, child = key.split(".")

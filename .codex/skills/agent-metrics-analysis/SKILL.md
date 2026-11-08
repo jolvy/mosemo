@@ -43,6 +43,9 @@ description: 소유자가 요청할 때 mosemo 에이전트 지표 로그를 지
 - 에이전트 간 비교: `interval.by_agent_model`의 키(`agent/model`) 중 `edit.lines`가 0인 키가 있으면 편집 통과율을 키 사이에서 비교하지 않고 그 키에 「비교 불가(편집 줄 없음)」로 적는다. 근거: Codex `PostToolUse`가 `exec` 안 `apply_patch`에 발화하는지 확인되지 않았다.
 - 세션 구분: `interval.by_entrypoint`의 `non_interactive`는 실험 세션과 비대화형 개발 세션(Aico 등)을 모두 담는다. 활동 세션 수에서 빼지 않고, 비대화형이라는 이유로 판단 분류에서 빼지 않는다. `unknown`은 세션 기록을 찾지 못했거나 분류 표에 없는 원문(`entrypoints` 참조)이다.
 - 버전 비교: `trend.by_harness_rev`의 항목은 `harness_rev` 단위로만 나란히 적는다. `dirty_lines`가 0보다 큰 항목은 「작업 중 하네스 변경 포함」으로 표시한다.
+- 기대 행동·전체 검증: `interval.expected_actions`와 `interval.verify`는 에이전트 키 단위로만 읽고 에이전트 사이 값을 합치지 않는다. `codex`의 Skill 규칙(`expect`가 `skill:`로 시작)은 #226 전 Codex `stop` 줄의 `skills`가 비어 `missing`이 부풀려질 수 있다. Codex 셸의 세션 ID 변수가 확인되지 않아 Codex의 전체 검증은 `verify`의 `unknown` 키에 쌓이고, 그래서 `codex`의 `src_tests_edit_verify`도 `missing`이 부풀려질 수 있다.
+- 명령 사건의 한계: `pr_create`·`plan_issue_create` 사건은 명령 문자열 검사라 명령 안에 인용한 문자열(Claude `Bash` heredoc 본문·검색 패턴, `*** End Patch` 없는 잘린 Codex 패치 본문)도 사건으로 세어 `missing`이 부풀려질 수 있다. 이 두 규칙의 `missing_sessions`는 세션 기록에서 실제 PR·Plan Issue 생성 명령인지 확인한 뒤 개선점 근거로 쓴다.
+- 검증 충족: `src_tests_edit_verify`는 같은 세션의 `verify` 줄 중 `at`이 그 세션의 구간 안 마지막 사건 이후이고 구간 `end` 이하인 줄만 충족으로 친다. 구간 끝 뒤에 돌린 검증은 이번 구간에서 미충족이다.
 - 비교·대응은 JSON 키 단위로만 한다. 키를 합치거나 차이를 내지 않는다.
 - 기계 지표 근거 문제를 판단값 근거 문제보다 먼저 쓴다.
 
@@ -64,11 +67,16 @@ description: 소유자가 요청할 때 mosemo 에이전트 지표 로그를 지
 7일 일별 표, `harness_rev`별 표, 반복 문제, 이전 보고서 비교
 
 ## 3. 개선해야 할 점
-반복 문제마다 근거(지표 값, 세션 ID)와 바꿀 하네스 위치(파일 경로, 규칙·절)
+반복 문제마다 근거(지표 값, 세션 ID)와 바꿀 하네스 위치(파일 경로, 규칙·절), 장치 종류와 더 앞 장치를 고르지 않은 이유, 해당하면 평가 문제 후보
 
 ## 실행 정보
 구간(`window.start`·`window.end`), 활동 세션 수, 실제로 실행한 집계 명령, 분석 에이전트와 모델, `skipped_lines`, 비교한 이전 보고서 경로(없으면 없음)
 ```
+
+3절 개선점마다 아래 줄을 쓴다.
+
+- `장치 종류:` `검사`, `hook`, `Skill·문서`, `평가 문제` 중 하나. 우선순위는 `검사 > hook > Skill·문서 > 평가 문제`이고, 고른 장치보다 앞 장치를 고르지 않은 이유를 한 줄로 적는다(`검사`면 생략).
+- `평가 문제 후보:` 사용자 정정 반복과 `interval.expected_actions`의 Skill 미호출(`missing`)에서 나온 개선점에만 한 줄. 새로 쓴 프롬프트와 `should_trigger`(`true`·`false`)를 적고, 세션 원문을 옮기지 않는다.
 
 보고서 항목과 집계 JSON 키의 대응:
 
@@ -88,6 +96,8 @@ description: 소유자가 요청할 때 mosemo 에이전트 지표 로그를 지
 | 리뷰 | `interval.reviews[]`의 `reviewer`·`source`·`reports`·`format_ok`·`findings` |
 | 7일 일별 표 | `trend.days[]`의 `date`·`sessions`·`blocks`·`capped`·`edit.pass_rate`, 규칙마다 `rules.edit`·`rules.stop`의 `count` |
 | `harness_rev`별 값 | `trend.by_harness_rev[]`의 `harness_rev`·`first_at`·`last_at`·`sessions`·`dirty_lines`·`blocks`·`capped`·`edit.pass_rate`, 규칙마다 `rules.edit`·`rules.stop`의 건수 |
+| 기대 행동 | `interval.expected_actions`(에이전트 키마다 규칙 ID별 `expect`·`sessions`·`missing`·`missing_sessions`·`no_stop`) |
+| 전체 검증 | `interval.verify`(에이전트 키마다 `runs`·`ok_runs`·`failed_checks`·`not_run`) |
 | 건너뛴 로그 줄 | `skipped_lines` |
 
 예시 한 줄에 비밀값(토큰, 키, `.env` 값)을 옮기지 않는다.
