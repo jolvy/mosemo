@@ -298,6 +298,14 @@ def test_placeholder_is_skipped_and_glob_needs_one_match(
     ]
 
 
+def test_top_level_module_name_is_not_treated_as_attribute(
+    docs_validator: ModuleType, path_root: Path
+) -> None:
+    assert docs_validator.check_paths("`mosemo.billing`", path_root) == [
+        "없는 경로: mosemo.billing"
+    ]
+
+
 def test_module_path_may_end_with_one_attribute(
     docs_validator: ModuleType, path_root: Path
 ) -> None:
