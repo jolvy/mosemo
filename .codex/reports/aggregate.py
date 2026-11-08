@@ -47,6 +47,56 @@ ENTRYPOINT_CLASSES = {
     ("codex", "codex_exec"): "non_interactive",
 }
 ENTRYPOINT_KINDS = ("interactive", "non_interactive", "unknown")
+TRANSCRIPT_KINDS = ("claude", "codex")
+VERIFY_AGENTS = ("claude", "unknown")
+CLAUDE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
+# 줄바꿈이 실제 줄바꿈이든 Codex `exec` 코드 문자열 안의 `\n`이든 경로는 그 앞에서 끝난다.
+PATCH_FILE = re.compile(r"\*\*\* (?:Add|Update|Delete) File: ([^\n\\\"]+)")
+
+
+class ExpectedRule(NamedTuple):
+    """기대 행동 규칙 한 줄. `source`가 `edit`이면 저장소 상대 경로, `command`면 명령 문자열에서 찾는다."""
+
+    rule: str
+    source: str
+    pattern: re.Pattern[str]
+    expect: str
+
+
+SRC_TESTS = re.compile(r"^(?:src|tests)/")
+EXPECTED_RULES = (
+    ExpectedRule("src_tests_edit", "edit", SRC_TESTS, "skill:implementation"),
+    ExpectedRule("src_tests_edit_verify", "edit", SRC_TESTS, "verify"),
+    ExpectedRule(
+        "pr_create",
+        "command",
+        re.compile(r"\bgh\s+pr\s+create\b"),
+        "skill:pull-request",
+    ),
+    ExpectedRule(
+        "plan_issue_create",
+        "command",
+        re.compile(r"^(?=.*\bgh\s+issue\s+create\b)(?=.*\[Plan\])", re.DOTALL),
+        "skill:engineering-planning",
+    ),
+    ExpectedRule(
+        "adr_edit", "edit", re.compile(r"^docs/adr/"), "skill:architecture-decision"
+    ),
+    ExpectedRule("prd_edit", "edit", re.compile(r"^docs/prd/"), "skill:specification"),
+    ExpectedRule(
+        "glossary_edit",
+        "edit",
+        re.compile(r"^docs/ubiquitous-language\.md$"),
+        "skill:ubiquitous-language",
+    ),
+)
+
+
+class Roots(NamedTuple):
+    """세션 기록을 고르고 편집 경로를 저장소 상대 경로로 바꾸는 두 루트."""
+
+    main: Path
+    worktrees: Path
 
 
 class Transcript(NamedTuple):
@@ -599,6 +649,222 @@ def by_entrypoint(
     return result
 
 
+# 기대 행동 집계
+
+
+def repo_path(path: str, *, cwd: str | None, roots: Roots) -> str | None:
+    """편집 경로의 저장소 상대 경로. 두 루트 밖이거나 상대 경로인데 작업 폴더가 없으면 `None`.
+
+    worktree 루트 아래는 한 단계(`WORKTREES/WORKTREE_NAME/`)를 더 뗀다.
+    """
+    if not os.path.isabs(path):
+        if cwd is None:
+            return None
+        path = os.path.join(cwd, path)
+    absolute = Path(os.path.normpath(path))
+    main = Path(os.path.normpath(roots.main))
+    worktrees = Path(os.path.normpath(roots.worktrees))
+    if absolute.is_relative_to(main):
+        return absolute.relative_to(main).as_posix()
+    if absolute.is_relative_to(worktrees):
+        parts = absolute.relative_to(worktrees).parts
+        return "/".join(parts[1:]) if len(parts) > 1 else None
+    return None
+
+
+def claude_actions(entry: dict[str, Any]) -> Iterator[tuple[str, str]]:
+    """Claude 기록 한 줄의 (`edit`, 파일 경로)와 (`command`, `Bash` 명령)."""
+    message = entry.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    for block in content if isinstance(content, list) else []:
+        if not isinstance(block, dict) or block.get("type") != "tool_use":
+            continue
+        tool = block.get("input")
+        if not isinstance(tool, dict):
+            continue
+        name = block.get("name")
+        if name in CLAUDE_EDIT_TOOLS:
+            # `NotebookEdit`은 경로를 `notebook_path`에 둔다.
+            path = text_or_none(tool.get("file_path") or tool.get("notebook_path"))
+            if path is not None:
+                yield "edit", path
+        elif name == "Bash":
+            yield "command", str(tool.get("command", ""))
+
+
+def codex_actions(entry: dict[str, Any]) -> Iterator[tuple[str, str]]:
+    """Codex 기록 한 줄의 명령 문자열과 그 안 `apply_patch` 파일 경로."""
+    payload = entry.get("payload")
+    if not isinstance(payload, dict):
+        return
+    item = payload.get("item")
+    if (
+        entry.get("type") == "event_msg"
+        and payload.get("type") == "item_completed"
+        and isinstance(item, dict)
+        and item.get("type") == "CommandExecution"
+    ):
+        command = item.get("command")
+        last = command[-1] if isinstance(command, list) and command else command
+        yield "command", str(last or "")
+    if entry.get("type") == "response_item":
+        for text in tool_inputs(payload):
+            yield "command", text
+            for match in PATCH_FILE.finditer(text):
+                yield "edit", match.group(1).strip()
+
+
+def matching_rules(source: str, target: str | None) -> Iterator[str]:
+    """`source`(`edit`·`command`)의 대상 문자열이 맞는 규칙 ID."""
+    if target is None:
+        return
+    for rule in EXPECTED_RULES:
+        if rule.source == source and rule.pattern.search(target):
+            yield rule.rule
+
+
+def transcript_events(
+    transcript: Transcript, roots: Roots, *, start: datetime | None, end: datetime
+) -> Iterator[tuple[datetime, str]]:
+    """세션 기록 한 파일에서 구간 안 사건의 (`timestamp`, 규칙 ID)."""
+    cwd = transcript_cwd(transcript.kind, transcript.lines)
+    actions = codex_actions if transcript.kind == "codex" else claude_actions
+    for entry in json_lines(transcript.lines):
+        at = parse_timestamp(entry.get("timestamp"))
+        if at is None or not in_window(at, start=start, end=end):
+            continue
+        for source, text in actions(entry):
+            target = repo_path(text, cwd=cwd, roots=roots) if source == "edit" else text
+            for rule in matching_rules(source, target):
+                yield at, rule
+
+
+def last_events(
+    transcripts: Sequence[Transcript],
+    roots: Roots,
+    *,
+    start: datetime | None,
+    end: datetime,
+) -> dict[tuple[str, str], dict[str, datetime]]:
+    """(세션 기록 종류, 세션) → 규칙 ID → 구간 안 마지막 사건 시각. 리뷰 subagent 기록은 뺀다."""
+    events: dict[tuple[str, str], dict[str, datetime]] = {}
+    for transcript in transcripts:
+        if is_review_subagent(transcript):
+            continue
+        last = events.setdefault((transcript.kind, transcript_session(transcript)), {})
+        for at, rule in transcript_events(transcript, roots, start=start, end=end):
+            last[rule] = max(last.get(rule, at), at)
+    return events
+
+
+def list_or_empty(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def stop_skills(window: Sequence[Record]) -> dict[str, set[str]]:
+    """구간 안 `stop` 줄이 있는 세션마다 `skills` 합집합."""
+    skills: dict[str, set[str]] = {}
+    for record in window:
+        session = text_or_none(record.line.get("session"))
+        if record.line["event"] == "stop" and session is not None:
+            names = list_or_empty(record.line.get("skills"))
+            skills.setdefault(session, set()).update(
+                name for name in names if isinstance(name, str)
+            )
+    return skills
+
+
+def verify_times(records: Sequence[Record]) -> dict[str, list[datetime]]:
+    """세션마다 `verify` 줄의 `at`(구간과 무관하게 모든 줄)."""
+    times: defaultdict[str, list[datetime]] = defaultdict(list)
+    for record in records:
+        session = text_or_none(record.line.get("session"))
+        if record.line["event"] == "verify" and session is not None:
+            times[session].append(record.at)
+    return times
+
+
+def is_done(
+    expect: str, at: datetime, *, skills: set[str], verified: list[datetime] | None
+) -> bool:
+    """`skill:NAME`은 `skills`에 NAME, `verify`는 마지막 사건 시각 `at` 이후 `verify` 줄."""
+    if expect == "verify":
+        return any(when >= at for when in verified or [])
+    return expect.removeprefix("skill:") in skills
+
+
+def expected_actions(
+    events: dict[tuple[str, str], dict[str, datetime]],
+    *,
+    skills: dict[str, set[str]],
+    verified: dict[str, list[datetime]],
+) -> dict[str, Any]:
+    """에이전트 → 규칙 ID → 사건이 있는 세션 중 했어야 할 일(`expect`)을 안 한 세션."""
+    result: dict[str, dict[str, dict[str, Any]]] = {
+        agent: {
+            rule.rule: {
+                "expect": rule.expect,
+                "sessions": 0,
+                "missing": 0,
+                "missing_sessions": [],
+                "no_stop": 0,
+            }
+            for rule in EXPECTED_RULES
+        }
+        for agent in TRANSCRIPT_KINDS
+    }
+    for (agent, session), last in sorted(events.items()):
+        for rule, at in last.items():
+            counts = result[agent][rule]
+            if session not in skills:
+                counts["no_stop"] += 1
+                continue
+            counts["sessions"] += 1
+            if not is_done(
+                counts["expect"],
+                at,
+                skills=skills[session],
+                verified=verified.get(session),
+            ):
+                counts["missing"] += 1
+                counts["missing_sessions"].append(session)
+    return result
+
+
+def verify_group(lines: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    failed = Counter(
+        check
+        for line in lines
+        for check in list_or_empty(line.get("failed"))
+        if isinstance(check, str)
+    )
+    not_run = Counter(
+        item["reason"]
+        for line in lines
+        for item in list_or_empty(line.get("not_run"))
+        if isinstance(item, dict) and isinstance(item.get("reason"), str)
+    )
+    return {
+        "runs": len(lines),
+        "ok_runs": sum(line.get("ok") is True for line in lines),
+        "failed_checks": [
+            {"check": check, "count": count}
+            for check, count in sorted(failed.items(), key=lambda i: (-i[1], i[0]))
+        ],
+        "not_run": dict(sorted(not_run.items())),
+    }
+
+
+def verify_stats(window: Sequence[Record]) -> dict[str, Any]:
+    """구간 안 `verify` 줄을 줄의 `agent`(비어 있으면 `null`)별로 센 전체 검증 통계."""
+    groups: dict[str, list[dict[str, Any]]] = {agent: [] for agent in VERIFY_AGENTS}
+    for record in window:
+        if record.line["event"] == "verify":
+            agent = text_or_none(record.line.get("agent")) or "null"
+            groups.setdefault(agent, []).append(record.line)
+    return {agent: verify_group(lines) for agent, lines in sorted(groups.items())}
+
+
 # 시간과 전체 집계
 
 
@@ -673,6 +939,7 @@ def aggregate(
     *,
     start: datetime | None,
     end: datetime,
+    roots: Roots,
 ) -> dict[str, Any]:
     """지표 로그 줄과 FR-6a로 고른 세션 기록에서 보고서 숫자를 만든다."""
     records, skipped = read_log(log_lines)
@@ -690,6 +957,12 @@ def aggregate(
             "panel_unreadable_sessions": unreadable,
             "session_files": session_files(transcripts, start=start, end=end),
             "by_entrypoint": by_entrypoint(window, transcripts),
+            "expected_actions": expected_actions(
+                last_events(transcripts, roots, start=start, end=end),
+                skills=stop_skills(window),
+                verified=verify_times(records),
+            ),
+            "verify": verify_stats(window),
         },
         "trend": trend(records, end),
     }
@@ -744,10 +1017,10 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     end = args.end or datetime(*time.gmtime()[:6], tzinfo=UTC)
-    roots = [args.main_checkout, args.worktrees_root]
+    roots = Roots(args.main_checkout, args.worktrees_root)
     transcripts = read_transcripts(args.home, start=args.start, roots=roots)
     log_lines = args.log.read_text(encoding="utf-8", errors="replace").splitlines()
-    result = aggregate(log_lines, transcripts, start=args.start, end=end)
+    result = aggregate(log_lines, transcripts, start=args.start, end=end, roots=roots)
     sys.stdout.write(
         json.dumps(result, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
     )

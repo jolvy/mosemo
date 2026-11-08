@@ -156,7 +156,13 @@ def test_mapping_table_keys_exist_in_aggregate_output(
     skill: str, report_aggregate: ModuleType
 ) -> None:
     end = datetime(2026, 11, 7, tzinfo=UTC)
-    output = report_aggregate.aggregate([], [], start=None, end=end)
+    output = report_aggregate.aggregate(
+        [],
+        [],
+        start=None,
+        end=end,
+        roots=report_aggregate.Roots(Path("/m"), Path("/w")),
+    )
     keys = mapping_keys(skill)
 
     assert "interval.by_entrypoint" in keys
