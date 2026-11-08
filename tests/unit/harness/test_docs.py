@@ -8,7 +8,15 @@ import pytest
 @pytest.fixture
 def document_root(tmp_path: Path, docs_validator: ModuleType) -> Path:
     source = docs_validator.ROOT
-    shutil.copytree(source / ".codex", tmp_path / ".codex")
+    # 문서 본문의 경로 검사가 볼 수 있도록 검사 대상 최상위 폴더를 복사한다.
+    for prefix in docs_validator.PATH_PREFIXES:
+        if (source / prefix).is_dir():
+            shutil.copytree(
+                source / prefix,
+                tmp_path / prefix,
+                symlinks=True,
+                ignore=shutil.ignore_patterns("__pycache__"),
+            )
     pending = list(docs_validator.link_checked_paths(source))
     copied = set()
     while pending:
@@ -248,3 +256,89 @@ def test_broken_link_in_repository_document_is_rejected(
         relative in error and "깨진 로컬 링크" in error
         for error in docs_validator.validate(document_root)
     )
+
+
+@pytest.fixture
+def path_root(tmp_path: Path) -> Path:
+    for relative in (
+        "src/mosemo/__init__.py",
+        "src/mosemo/shared/errors.py",
+        "src/mosemo/labels/domain/label.py",
+        "tests/a.py",
+    ):
+        (tmp_path / relative).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / relative).write_text("")
+    return tmp_path
+
+
+def test_missing_repository_path_is_rejected(
+    docs_validator: ModuleType, path_root: Path
+) -> None:
+    assert docs_validator.check_paths("본문 `src/missing.py`", path_root) == [
+        "없는 경로: src/missing.py"
+    ]
+
+
+def test_line_and_test_name_suffix_is_removed_before_check(
+    docs_validator: ModuleType, path_root: Path
+) -> None:
+    content = "`src/mosemo/__init__.py:12`, `tests/a.py::test_x`"
+    assert docs_validator.check_paths(content, path_root) == []
+
+
+def test_placeholder_is_skipped_and_glob_needs_one_match(
+    docs_validator: ModuleType, path_root: Path
+) -> None:
+    content = (
+        "`docs/prd/<기능-슬러그>.md`, `tests/unit/{패키지}/`, `src/mosemo/*/domain/`"
+    )
+    assert docs_validator.check_paths(content, path_root) == []
+    assert docs_validator.check_paths("`src/mosemo/*/missing/`", path_root) == [
+        "없는 경로: src/mosemo/*/missing/"
+    ]
+
+
+def test_module_path_may_end_with_one_attribute(
+    docs_validator: ModuleType, path_root: Path
+) -> None:
+    content = (
+        "`mosemo.missing.mod`, `mosemo.shared`, `mosemo.shared.errors.DomainError`,"
+        " `mosemo.labels.domain.label`"
+    )
+    assert docs_validator.check_paths(content, path_root) == [
+        "없는 경로: mosemo.missing.mod"
+    ]
+
+
+def test_adr_fence_and_allowlist_are_not_path_checked(
+    docs_validator: ModuleType, document_root: Path
+) -> None:
+    adr = min((document_root / "docs/adr").glob("*.md"))
+    adr.write_text(adr.read_text() + "\n`src/missing.py`\n")
+    path = document_root / "docs/code-style-rubric.md"
+    path.write_text(
+        path.read_text()
+        + "\n```text\n`src/missing.py`\n```\n`docs/plans/`, `tests/e2e/test_x.py`\n"
+    )
+    assert docs_validator.validate(document_root) == []
+    path.write_text(path.read_text() + "\n`src/missing.py`\n")
+    assert docs_validator.validate(document_root) == [
+        "docs/code-style-rubric.md: 없는 경로: src/missing.py"
+    ]
+
+
+def test_prd_body_is_path_checked(
+    docs_validator: ModuleType, document_root: Path
+) -> None:
+    path = min((document_root / "docs/prd").glob("*.md"))
+    path.write_text(path.read_text() + "\n`mosemo.missing.mod`\n")
+    assert docs_validator.validate(document_root) == [
+        f"{path.relative_to(document_root)}: 없는 경로: mosemo.missing.mod"
+    ]
+
+
+def test_plan_body_is_not_path_checked(
+    docs_validator: ModuleType, plan_body: str
+) -> None:
+    plan = plan_body.replace("T1 회귀 검증", "T1 `src/mosemo/new_module.py` 추가")
+    assert docs_validator.check_plan(plan) == []
