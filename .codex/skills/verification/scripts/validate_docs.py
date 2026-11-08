@@ -115,8 +115,10 @@ def path_exists(token: str, root: Path) -> bool:
 
 def module_exists(token: str, root: Path) -> bool:
     parts = token.split(".")
-    # 마지막 한 단계는 모듈 안의 속성 이름일 수 있다.
-    for candidate in (parts, parts[:-1]):
+    # 마지막 한 단계는 모듈 안의 속성 이름일 수 있다. 다만 `mosemo.X`의 X는
+    # 최상위 패키지의 하위 모듈이어야 하므로 속성으로 보지 않는다.
+    candidates = [parts, parts[:-1]] if len(parts) > 2 else [parts]
+    for candidate in candidates:
         path = root / "src" / Path(*candidate)
         if path.is_dir() or path.with_name(f"{path.name}.py").is_file():
             return True
