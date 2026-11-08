@@ -14,13 +14,16 @@ Terraform state·plan, 로컬 handoff·Secret은 이미지에 복사하지 않�
 | --- | --- | --- |
 | API | deployment.yaml | uvicorn mosemo.entrypoints.api.main:app, port 8000 |
 | Activity consumer | consumer-deployment.yaml | python -m mosemo.entrypoints.consumer |
+| Batch jobs (label proposals) | batch-deployment.yaml | python -m mosemo.entrypoints.batch serve |
 | Migration | migration-job.yaml | alembic upgrade head |
 | Lab Kafka | kafka.yaml | StatefulSet 1개, cp-kafka 7.8.0, KRaft broker/controller |
 | Topic 초기화 | kafka-init-job.yaml | 2 partitions, replication factor 1 |
 
-API·consumer·migration은 **같은 새 이미지 digest**를 사용한다. 기존 삭제한 ECR
-이미지의 digest는 재사용할 수 없다. label proposal worker와 별도 batch worker는
-추가하지 않는다. activity consumer만 이번 요청의 처리 프로세스로 준비한다.
+API·consumer·batch·migration은 **같은 새 이미지 digest**를 사용한다. 기존 삭제한 ECR
+이미지의 digest는 재사용할 수 없다. batch는 label proposal 작업을 시작 시와 5분마다 실행하는
+스케줄러 1개다. `LABEL_MODEL`(ConfigMap, `google:gemini-3.1-flash-lite`)과 `GOOGLE_API_KEY`(Secret)를 쓴다.
+같은 작업이 두 프로세스에서 돌지 않도록 replicas=1, maxSurge=0이다. HTTP Service·probe는 없고,
+deploy.sh는 시작 직후 실행한 작업의 성공 로그로 확인한다.
 
 API와 consumer는 같은 DB·BATCH_TOPIC·BATCH_GROUP_ID·Kafka 주소를 사용한다.
 consumer에는 HTTP Service·가짜 HTTP probe를 붙이지 않는다. consumer Pod Running은
@@ -31,13 +34,13 @@ consumer의 30초 drain보다 길게 두었다. API probes는 /openapi.json만 �
 ## 노드 배치와 자원
 
 노드는 t3.small 2대가 기본이다. Kafka 전용 그룹 1대(ap-southeast-2a, taint `dedicated=kafka:NoSchedule`)와
-API·consumer·migration·시스템 add-on이 함께 쓰는 app 그룹 1~2대(2a·2b)다. Kafka StatefulSet만
+API·consumer·batch·migration·시스템 add-on이 함께 쓰는 app 그룹 1~2대(2a·2b)다. Kafka StatefulSet만
 `pool: kafka` nodeSelector와 toleration을 가진다. API·consumer는 각각 224Mi를 요청하고 limit 512Mi,
-Kafka는 512Mi 요청·768Mi limit, heap max 256Mi, log cleaner dedupe buffer 32Mi다.
+batch는 160Mi 요청(로컬 유휴 실측 118MiB)·limit 512Mi, Kafka는 512Mi 요청·768Mi limit, heap max 256Mi, log cleaner dedupe buffer 32Mi다.
 topic Job은 request 128Mi/limit 256Mi다. requests는 첫 세션 실측 후 재산정한다.
 
 - PriorityClass(`priority-classes.yaml`): `mosemo-api`(30000) > `mosemo-consumer`(20000) >
-  `mosemo-batch`(10000). batch 클래스는 정의만 하고 아직 쓰는 워크로드가 없다.
+  `mosemo-batch`(10000). batch Deployment가 가장 먼저 밀려난다.
 - LimitRange(`limit-range.yaml`): requests/limits를 빠뜨린 컨테이너에 100m·128Mi / 1 CPU·512Mi를
   기본으로 넣고, 컨테이너 상한을 1 CPU·768Mi로 둔다.
 - vpc-cni prefix delegation으로 노드 Pod 상한이 11에서 110으로 늘어난다(session-up.sh가 확인).
@@ -114,7 +117,7 @@ uv run --locked python scripts/verify_focus_session_client.py --client-root /abs
 - AWS profile `mosemo-infra` 로그인, `CLOUDFLARE_API_TOKEN`(danuh.com Zone:DNS:Edit).
 - 저장소 밖 세션 디렉터리 `$MOSEMO_SESSION_DIR`(기본 `~/.mosemo/lab`, 0700)와 그 안의
   `secrets.env`(0600). `KEY=value` 형식으로 `DB_PASSWORD`·`AUTH_JWT_SECRET_KEY`·`KAKAO_REST_API_KEY`·
-  `KAKAO_CLIENT_SECRET`만 둔다. 원본 .env 전체를 복사하지 않는다. DB_PASSWORD는 URL 안전 문자로 만들고
+  `KAKAO_CLIENT_SECRET`·`GOOGLE_API_KEY`만 둔다. 원본 .env 전체를 복사하지 않는다. DB_PASSWORD는 URL 안전 문자로 만들고
   RDS(TF_VAR_db_password)와 앱 Secret에 같은 값으로 쓰인다. 전용 kubeconfig도 이 디렉터리에 만든다.
 
 ```sh
@@ -130,8 +133,8 @@ bash infra/deployment/session-down.sh  # 세션 종료
    → topic 초기화 Job 성공.
 2. deploy.sh: 깨끗한 작업 트리의 커밋 SHA 태그로 ECR 이미지를 찾고, 없을 때만 linux/amd64로 빌드·push한다
    (ECR 인증은 --password-stdin). 같은 `repository@sha256` digest로 migration Job 성공을 확인한 뒤
-   API·consumer를 rollout하고, ALB에 직접 연결해 HTTPS `/openapi.json` 200·비인증 `/api/v1/accounts/me` 401·
-   HTTP 301, Cloudflare CNAME, consumer group Stable을 확인한다. 대화형 단계가 없어 G2 CI가 재사용할 수 있다.
+   API·consumer·batch를 rollout하고, ALB에 직접 연결해 HTTPS `/openapi.json` 200·비인증 `/api/v1/accounts/me` 401·
+   HTTP 301, Cloudflare CNAME, consumer group Stable, batch label-proposals 성공 로그를 확인한다. 대화형 단계가 없어 G2 CI가 재사용할 수 있다.
 3. session-down.sh: Kafka StatefulSet·PVC 삭제 → Retain PV의 EBS를 volume ID로 삭제·확인 → PV 삭제
    → `-var skip_final_snapshot=true` plan이 RDS update 하나뿐인지 확인 후 apply
    → RDS 삭제 보호 해제·available 대기 → 같은 변수로 세션 스택 destroy → state 비었는지 확인.

@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosemo-batch
+  namespace: mosemo
+spec:
+  # One scheduler process; maxSurge=0 keeps a second one from running the same jobs.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mosemo-batch
+  template:
+    metadata:
+      labels:
+        app: mosemo-batch
+    spec:
+      automountServiceAccountToken: false
+      priorityClassName: mosemo-batch
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: batch
+        image: mosemo-server:REPLACE_WITH_RELEASE
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: mosemo-config
+        - secretRef:
+            name: mosemo-secrets
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 160Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        volumeMounts:
+        - name: rds-ca
+          mountPath: /etc/rds-ca
+          readOnly: true
+        command:
+        - python
+        - -m
+        - mosemo.entrypoints.batch
+        - serve
+      volumes:
+      - name: rds-ca
+        configMap:
+          name: mosemo-rds-ca
+      # The scheduler waits 10s for running jobs before it exits.
+      terminationGracePeriodSeconds: 30
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1

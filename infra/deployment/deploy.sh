@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploy the current commit: image digest (build and push only when the commit has no image) ->
-# migration Job -> API and consumer rollout -> smoke check. Stops at the first failed check.
+# migration Job -> API, consumer and batch rollout -> smoke check. Stops at the first failed check.
 # Run after session-up.sh; kept free of interactive steps so G2 CI can reuse it.
 # shellcheck source=session-lib.sh source-path=SCRIPTDIR
 source "$(dirname "$0")/session-lib.sh"
@@ -45,13 +45,15 @@ render() { kubectl set image --local -f "$K8S_DIR/$1" "$2=$image" -o yaml >"$REN
 render migration-job.yaml migration
 render deployment.yaml server
 render consumer-deployment.yaml consumer
+render batch-deployment.yaml batch
 
 step "Migration"
 run_job "$RENDER_DIR/migration-job.yaml" mosemo-migration 330
 
-step "API and consumer rollout"
-kubectl apply -f "$RENDER_DIR/deployment.yaml" -f "$RENDER_DIR/consumer-deployment.yaml" -f "$K8S_DIR/service.yaml" >/dev/null
-for deployment in mosemo-server mosemo-consumer; do
+step "API, consumer and batch rollout"
+kubectl apply -f "$RENDER_DIR/deployment.yaml" -f "$RENDER_DIR/consumer-deployment.yaml" \
+  -f "$RENDER_DIR/batch-deployment.yaml" -f "$K8S_DIR/service.yaml" >/dev/null
+for deployment in mosemo-server mosemo-consumer mosemo-batch; do
   kubectl -n "$NAMESPACE" rollout status "deployment/$deployment" --timeout=5m
   [[ $(kubectl -n "$NAMESPACE" get deployment "$deployment" -o jsonpath='{.spec.template.spec.containers[0].image}') == "$image" ]] \
     || fail "deployment/$deployment does not run $image"
@@ -88,6 +90,17 @@ for ((i = 0; i < 30; i++)); do
   sleep 2
 done
 [[ $group_stable == true ]] || fail "consumer group mosemo.activity-batches is not Stable"
+# A Running pod is not evidence: the label proposal sweep runs on start and must log a success.
+proposals_ok=false
+for ((i = 0; i < 36; i++)); do
+  if kubectl -n "$NAMESPACE" logs deployment/mosemo-batch 2>/dev/null \
+    | grep '"operation":"label-proposals","outcome":"success"' >/dev/null; then
+    proposals_ok=true
+    break
+  fi
+  sleep 5
+done
+[[ $proposals_ok == true ]] || fail "batch label-proposals job did not log a successful run"
 
 step "Deployed $image"
 echo "Not checked: authenticated activity flow to DB, real Kakao login."

@@ -6,7 +6,7 @@ image=mosemo-server:deployment-check
 task_tmp=$(mktemp -d)
 task_id="mosemo-check-$(basename "$task_tmp" | tr '[:upper:].' '[:lower:]-')"
 cleanup() {
-  docker rm -fv "$task_id-api" "$task_id-consumer" "$task_id-kafka" "$task_id-db" >/dev/null 2>&1 || true
+  docker rm -fv "$task_id-api" "$task_id-consumer" "$task_id-batch" "$task_id-kafka" "$task_id-db" >/dev/null 2>&1 || true
   docker network rm "$task_id" >/dev/null 2>&1 || true
   rm -rf "$task_tmp"
 }
@@ -28,6 +28,8 @@ KAKAO_REDIRECT_URI=http://localhost:8000/api/v1/auth/kakao/callback
 AUTH_JWT_SECRET_KEY=test-jwt-secret-key-that-is-at-least-32-bytes
 AUTH_MACOS_CALLBACK_URI=io.mosemo.app:/auth/callback
 PGSSLMODE=disable
+LABEL_MODEL=google:gemini-3.1-flash-lite
+GOOGLE_API_KEY=test-google-api-key
 ENV
 
 docker buildx build --platform linux/amd64 --load -t "$image" .
@@ -114,6 +116,20 @@ if [[ "$ready" != true ]]; then
   docker logs "$task_id-consumer"
   exit 1
 fi
+docker run -d --platform linux/amd64 --memory 512m --memory-swap 512m --name "$task_id-batch" --network "$task_id" \
+  --env-file "$task_tmp/test.env" "$image" python -m mosemo.entrypoints.batch serve >/dev/null
+ready=false
+for ((i=0; i<30; i++)); do
+  if docker logs "$task_id-batch" 2>&1 | grep -q '"operation":"label-proposals","outcome":"success"'; then
+    ready=true
+    break
+  fi
+  sleep 1
+done
+if [[ "$ready" != true ]]; then
+  docker logs "$task_id-batch"
+  exit 1
+fi
 docker run -d --platform linux/amd64 --memory 512m --memory-swap 512m --name "$task_id-api" --network "$task_id" \
   -p 127.0.0.1::8000 --env-file "$task_tmp/test.env" "$image" >/dev/null
 api_port=$(docker port "$task_id-api" 8000/tcp | cut -d: -f2)
@@ -139,5 +155,7 @@ docker stop --time 15 "$task_id-api" >/dev/null
 test "$(docker inspect "$task_id-api" --format '{{.State.ExitCode}}')" = 0
 docker stop --time 45 "$task_id-consumer" >/dev/null
 test "$(docker inspect "$task_id-consumer" --format '{{.State.ExitCode}}')" = 0
-printf '%s\n' 'PASS: linux/amd64 build, migration + rerun, DB query, real Kafka, separate consumer group Stable, HTTP, non-root, graceful shutdown.'
+docker stop --time 30 "$task_id-batch" >/dev/null
+test "$(docker inspect "$task_id-batch" --format '{{.State.ExitCode}}')" = 0
+printf '%s\n' 'PASS: linux/amd64 build, migration + rerun, DB query, real Kafka, separate consumer group Stable, batch label-proposals run, HTTP, non-root, graceful shutdown.'
 printf '%s\n' 'Not checked: Kafka-to-DB message flow in this smoke check (covered by integration tests), ECR, EKS, RDS TLS, ALB, real OAuth.'

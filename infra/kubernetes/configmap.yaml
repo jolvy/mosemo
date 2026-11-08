@@ -21,3 +21,4 @@ data:
   BATCH_BOOTSTRAP_SERVERS: mosemo-kafka.mosemo.svc.cluster.local:9092
   BATCH_TOPIC: activities.registration-requested
   BATCH_GROUP_ID: mosemo.activity-batches
+  LABEL_MODEL: google:gemini-3.1-flash-lite
