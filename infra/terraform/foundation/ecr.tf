@@ -1,3 +1,7 @@
+locals {
+  name = "mosemo-lab"
+}
+
 resource "aws_ecr_repository" "server" {
   name = "${local.name}-server"
 

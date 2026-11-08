@@ -30,9 +30,18 @@ variable "db_password" {
   }
 }
 
-
-variable "enable_https_listener" {
-  description = "Keep true for service. Set false only for the initial approved certificate-request stage, before external Cloudflare DNS validation."
+variable "skip_final_snapshot" {
+  description = "Keep false. session-down.sh applies true, then lifts deletion protection, then destroys the session."
   type        = bool
-  default     = true
+  default     = false
+}
+
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID of danuh.com. Supply through an uncommitted terraform.tfvars."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_zone_id))
+    error_message = "Use the 32-character hexadecimal Cloudflare zone ID."
+  }
 }

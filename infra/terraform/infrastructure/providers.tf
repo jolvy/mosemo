@@ -11,3 +11,6 @@ provider "aws" {
     }
   }
 }
+
+# Authenticates only through CLOUDFLARE_API_TOKEN (danuh.com Zone:DNS:Edit).
+provider "cloudflare" {}

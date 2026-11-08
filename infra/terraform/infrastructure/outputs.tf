@@ -4,7 +4,7 @@ output "cluster_name" {
 }
 
 output "api_url" {
-  description = "Canonical HTTPS URL; usable only after certificate validation, DNS, listener, and app deployment."
+  description = "Canonical HTTPS URL; serves traffic only after the app is deployed."
   value       = "https://${local.api_hostname}"
 }
 
@@ -24,36 +24,15 @@ output "database" {
 }
 
 output "ecr_repository_url" {
-  value = aws_ecr_repository.server.repository_url
+  description = "Long-lived repository from ../foundation."
+  value       = data.terraform_remote_state.foundation.outputs.ecr_repository_url
 }
 
-
-output "cloudflare_api_record" {
-  description = "Create manually in Cloudflare only after DNS approval and HTTPS is ready."
-  value = {
-    name    = local.api_hostname
-    type    = "CNAME"
-    content = aws_lb.api.dns_name
-    proxied = false
-    ttl     = 300
-  }
-}
-
-output "acm_validation_records" {
-  description = "ACM-generated CNAMEs to register DNS only in Cloudflare after separate approval; preserve for renewal."
-  value = [for record in aws_acm_certificate.api.domain_validation_options : {
-    name    = record.resource_record_name
-    type    = record.resource_record_type
-    content = record.resource_record_value
-    proxied = false
-    ttl     = 300
-  }]
+output "alb_dns_name" {
+  description = "Target of the Terraform-managed Cloudflare CNAME; used for DNS-independent smoke checks."
+  value       = aws_lb.api.dns_name
 }
 
 output "kakao_redirect_uri" {
   value = "https://${local.api_hostname}/api/v1/auth/kakao/callback"
-}
-
-output "https_listener_enabled" {
-  value = var.enable_https_listener
 }

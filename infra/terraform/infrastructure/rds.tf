@@ -35,9 +35,10 @@ resource "aws_db_instance" "main" {
   multi_az               = false
   publicly_accessible    = false
 
-  # Disposable lab only: deletion does not retain a final snapshot or backups.
-  backup_retention_period  = 0
-  deletion_protection      = false
-  skip_final_snapshot      = true
-  delete_automated_backups = true
+  # Production settings; session-down.sh lifts protection and skips the snapshot explicitly.
+  backup_retention_period   = 7
+  deletion_protection       = true
+  skip_final_snapshot       = var.skip_final_snapshot
+  final_snapshot_identifier = "${local.name}-final"
+  delete_automated_backups  = true
 }

@@ -26,6 +26,8 @@ resource "aws_eks_addon" "ebs_csi" {
       replicaCount        = 1
       podDisruptionBudget = { enabled = false }
     }
+    # The node plugin must run on the tainted Kafka node to attach its volume.
+    node     = { tolerateAllTaints = true }
     sidecars = { snapshotter = { forceEnable = false } }
   })
 

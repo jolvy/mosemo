@@ -20,11 +20,13 @@
 | 실행 역할 정책 | 범위 |
 | --- | --- |
 | network | 기존 시드니 VPC·subnet·routing·security group |
-| services | 기존 지정 EKS·node group·ALB·RDS·ECR 수명주기 |
+| services | 지정 EKS·node group(kafka·app)·ALB·RDS(최종 스냅샷 `mosemo-lab-final` 포함)·ECR 수명주기, app ASG의 ALB 연결 |
 | identity | 지정 역할 조회·PassRole·기존 service-linked role 초기화 |
-| state | 기존 앱 state key와 lock |
-| addons (신규) | 지정 cluster의 add-on/Pod Identity 생성, 지정 add-on 및 association 관리 |
-| https (신규) | 선택한 API 도메인의 ACM 요청 및 지정 태그 인증서 수명주기 |
+| state | 세션(mosemo/lab)·장기(mosemo/foundation) state key와 lock |
+| addons | 지정 cluster의 add-on/Pod Identity 생성, vpc-cni·EBS CSI·Pod Identity Agent add-on 및 association 관리 |
+| https | 선택한 API 도메인의 ACM 요청 및 지정 태그 인증서 수명주기 |
+| nodes (G0 신규) | 프로젝트 태그를 붙인 노드 launch template 생성·버전·삭제 |
+| volumes (G0 신규) | 세션 종료 시 Retain으로 남은 Kafka PVC EBS 조회·삭제 |
 
 AWS는 CreateAddon에서 addon 이름, CreatePodIdentityAssociation에서 namespace/SA를
 조건으로 제한하는 IAM condition key를 제공하지 않는다. 생성 권한은 정확한 cluster ARN과
@@ -49,8 +51,8 @@ terraform -chdir=infra/terraform/admin test
 terraform -chdir=infra/terraform/admin plan -input=false -lock-timeout=60s
 ```
 
-현재 state 기준 계획은 **6개 생성, 1개 변경, 삭제 0개**다. 새 역할·AWS managed policy
-연결·addons/https policy·각 실행 역할 연결을 추가하고 identity policy에 전용 PassRole을 추가한다.
+2026-10-23 state 기준 계획은 6개 생성, 1개 변경, 삭제 0개였다. G0 변경(아래)의 plan 결과는
+적용 전 새로 확인한다.
 mock test는 정책 크기·wildcard action 금지·리전·state·역할 trust 경계를 검사한다.
 추가 addons/identity 정책은 Access Analyzer validate-policy에서 findings []를 확인했다.
 실제 IAM 변경이나 EBS 작업은 실행하지 않는다.
@@ -83,3 +85,21 @@ hostname 태그의 인증서로 제한한다. 최초 태그는 RequestCertificat
 Service Authorization operation mapping 표현에 차이가 있다. 이 차이를 이유로
 다른 인증서에 태그를 붙일 권한을 열지 않는다. 실제 최초 생성 권한은 apply 승인 후 확인하고,
 거부되면 권한 확대나 관리자 우회 없이 중단해 원인을 보고한다.
+
+## G0 노드 그룹·세션 권한 (미적용)
+
+- services: node group ARN을 `mosemo-lab-public`에서 `mosemo-lab-kafka`·`mosemo-lab-app`으로
+  바꾼다. ALB target group 연결은 `eks-mosemo-lab-app-*` ASG로만 제한해 Kafka 노드가 트래픽을
+  받지 않게 한다. RDS 최종 스냅샷은 이름 `mosemo-lab-final` 하나에만 CreateDBSnapshot을 허용한다.
+- addons: vpc-cni add-on ARN을 관리 대상에 추가한다(prefix delegation).
+- nodes: `ec2:CreateLaunchTemplate`은 Project·Environment·ManagedBy 요청 태그를 요구하고,
+  CreateTags는 CreateLaunchTemplate 생성 시점에만, 버전 생성·수정·삭제는 같은 태그가 있는
+  launch template에만 허용한다. launch template ARN은 ID 기반이라 이름 제한은 할 수 없다.
+  `ec2:RunInstances`는 주지 않는다. launch template에 TagSpecification을 두지 않으므로 EKS 문서상
+  CreateNodegroup 호출자에게 필요하지 않다. 적용 후 거부되면 권한 확대 없이 중단해 보고한다.
+- volumes: DescribeVolumes(리전 제한)와 DeleteVolume. 삭제는 CSI가 붙인 태그
+  `ebs.csi.aws.com/cluster=true`, `kubernetes.io/created-for/pvc/namespace=mosemo`,
+  `kubernetes.io/created-for/pvc/name=data-mosemo-kafka-0`가 모두 있는 볼륨으로 제한한다.
+- state: foundation state key와 lock 읽기·쓰기를 추가한다. IAM state key 접근은 계속 없다.
+
+향후 적용 순서는 admin → foundation → 세션 스택이다.

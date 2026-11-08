@@ -1,0 +1,2 @@
+aws_account_id = "<ACCOUNT_ID>"
+cloudflare_zone_id = "<DANUH_COM_ZONE_ID>"

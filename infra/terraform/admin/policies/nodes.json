@@ -1,0 +1,60 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CreateTaggedNodeLaunchTemplate",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateLaunchTemplate"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:launch-template/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:RequestTag/Project": "mosemo",
+          "aws:RequestTag/Environment": "lab",
+          "aws:RequestTag/ManagedBy": "terraform"
+        }
+      }
+    },
+    {
+      "Sid": "TagNodeLaunchTemplateDuringCreation",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateTags"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:launch-template/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "ec2:CreateAction": "CreateLaunchTemplate"
+        }
+      }
+    },
+    {
+      "Sid": "ManageOwnedNodeLaunchTemplate",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateLaunchTemplateVersion",
+        "ec2:ModifyLaunchTemplate",
+        "ec2:DeleteLaunchTemplate",
+        "ec2:DeleteLaunchTemplateVersions"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:launch-template/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:ResourceTag/Project": "mosemo",
+          "aws:ResourceTag/Environment": "lab",
+          "aws:ResourceTag/ManagedBy": "terraform"
+        }
+      }
+    }
+  ]
+}

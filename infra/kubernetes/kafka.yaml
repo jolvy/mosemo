@@ -36,8 +36,15 @@ spec:
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
+      # Dedicated tainted node in ap-southeast-2a (Terraform kafka node group).
       nodeSelector:
         kubernetes.io/arch: amd64
+        pool: kafka
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: kafka
+          effect: NoSchedule
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

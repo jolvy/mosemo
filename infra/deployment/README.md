@@ -1,8 +1,8 @@
-# AWS 수동 배포 준비와 검증
+# AWS 배포 절차와 검증
 
-2026-10-22 작업은 기존 AWS 실습 리소스를 정리하고, origin/main의 Kafka 연동에
-맞춘 설정을 **plan까지** 검증하는 범위다. 아래 배포 명령은 향후 별도 배포 요청을
-받았을 때의 절차다. 이번에는 재생성 apply·ECR push·Kubernetes 실제 적용을 하지 않는다.
+이 환경은 운영 복제 환경이며 작업 세션마다 띄우고 내린다. 세션 시작·배포·종료는
+아래 [작업 세션 절차](#작업-세션-절차)의 스크립트로 한다. 실제 apply·ECR push·Kubernetes 적용은
+별도 승인 후에만 실행한다.
 
 ## 이미지와 프로세스
 
@@ -28,14 +28,20 @@ consumer에는 HTTP Service·가짜 HTTP probe를 붙이지 않는다. consumer 
 consumer는 실패 시 프로세스를 종료하고 Kubernetes가 재시작한다. 종료 유예 45초는
 consumer의 30초 drain보다 길게 두었다. API probes는 /openapi.json만 확인한다.
 
-## 단일 노드 실습 제한
+## 노드 배치와 자원
 
-사용자 지정 `t3.small` 1대를 유지한다. API·consumer는 각각 224Mi,
-Kafka는 512Mi를 요청한다. Kafka heap max 256Mi, log cleaner dedupe buffer 32Mi,
-container limit 768Mi,
-topic Job은 request 128Mi/limit 256Mi다. API·consumer 업데이트는 maxSurge=0,
-maxUnavailable=1로 여분 Pod를 만들지 않으며 짧은 중단을 허용한다. 작은 broker에 대한
-부하 성능과 EKS 스케줄링은 미검증이다.
+노드는 t3.small 2대가 기본이다. Kafka 전용 그룹 1대(ap-southeast-2a, taint `dedicated=kafka:NoSchedule`)와
+API·consumer·migration·시스템 add-on이 함께 쓰는 app 그룹 1~2대(2a·2b)다. Kafka StatefulSet만
+`pool: kafka` nodeSelector와 toleration을 가진다. API·consumer는 각각 224Mi를 요청하고 limit 512Mi,
+Kafka는 512Mi 요청·768Mi limit, heap max 256Mi, log cleaner dedupe buffer 32Mi다.
+topic Job은 request 128Mi/limit 256Mi다. requests는 첫 세션 실측 후 재산정한다.
+
+- PriorityClass(`priority-classes.yaml`): `mosemo-api`(30000) > `mosemo-consumer`(20000) >
+  `mosemo-batch`(10000). batch 클래스는 정의만 하고 아직 쓰는 워크로드가 없다.
+- LimitRange(`limit-range.yaml`): requests/limits를 빠뜨린 컨테이너에 100m·128Mi / 1 CPU·512Mi를
+  기본으로 넣고, 컨테이너 상한을 1 CPU·768Mi로 둔다.
+- vpc-cni prefix delegation으로 노드 Pod 상한이 11에서 110으로 늘어난다(session-up.sh가 확인).
+- API·consumer 업데이트는 아직 maxSurge=0, maxUnavailable=1이며 짧은 중단을 허용한다(G2에서 변경).
 
 Kafka Service는 ClusterIP이며 외부 포트를 열지 않는다. 애플리케이션 주소는
 `mosemo-kafka.mosemo.svc.cluster.local:9092`다. controller의 자기 quorum 연결을 위해
@@ -43,29 +49,23 @@ publishNotReadyAddresses를 사용하며, 실제 배포 시 broker rollout과 to
 먼저 기다린다. PLAINTEXT·replication 1은 격리된 실습용이고 운영 구성이 아니다.
 
 Kafka는 `data-mosemo-kafka-0` PVC를 사용하는 StatefulSet이다. 암호화 gp3 5GiB와
-StorageClass `mosemo-kafka-gp3`를 사용한다. EBS CSI Driver·Pod Identity Agent·전용
-controller IAM 역할은 Terraform으로 준비한다. 일반 node 역할에 EBS 권한은 붙이지 않는다.
-CSI controller는 실습용 1 replica이며 snapshot sidecar·PDB는 끈다. CSI 시스템 Pod도
-노드 메모리·Pod 수를 사용하므로 최종 EKS 스케줄링은 실제 배포 시 확인한다.
+StorageClass `mosemo-kafka-gp3`(reclaimPolicy Retain, `WaitForFirstConsumer`)를 사용한다.
+EBS CSI Driver·Pod Identity Agent·전용 controller IAM 역할은 Terraform으로 준비한다. 일반 node
+역할에 EBS 권한은 붙이지 않는다. CSI controller는 1 replica이며 snapshot sidecar·PDB는 끈다.
+CSI node plugin은 Kafka 노드의 taint를 견디도록 설정한다.
 
-StorageClass는 `WaitForFirstConsumer`로 처음 스케줄되는 노드의 AZ에 볼륨을 만든다.
-node group은 ap-southeast-2a로 고정해 교체 노드도 같은 AZ에 뜨도록 한다.
-동일 이름 StatefulSet의 Pod를 교체하면 같은 PVC로 메시지·offset을 복구할 수 있다.
-EBS는 다른 AZ에 바로 붙일 수 없으며, 노드·AZ 장애 동안은 서비스가 중단된다.
-이 구성은 복제·고가용성·백업을 제공하지 않는다. 갑작스러운 장애의 모든 데이터 보존을
-보장하지 않는다. 로그 경로는 ext4 lost+found와 겹치지 않는 `/var/lib/kafka/data/kafka`다.
+kafka 그룹은 ap-southeast-2a로 고정해 교체 노드도 같은 AZ에 뜬다. 세션 안에서 Pod를 교체하면
+같은 PVC로 메시지·offset을 복구한다(PVC retention Retain). EBS는 다른 AZ에 바로 붙일 수 없으며,
+노드·AZ 장애 동안은 서비스가 중단된다. 복제·고가용성·백업은 제공하지 않는다. 로그 경로는
+ext4 lost+found와 겹치지 않는 `/var/lib/kafka/data/kafka`다.
 
-StatefulSet 삭제·scale-down 시 PVC를 보존하고, PVC 삭제 시에도 PV/EBS는 `Retain`한다.
-다시 사용할 때 StatefulSet/PVC 이름을 유지한다. PVC를 삭제했다면 기존 PV는 Released
-상태일 수 있어 자동으로 새 PVC에 붙지 않는다. volume ID·AZ·claim을 확인한 뒤 기존
-PV를 재바인딩해야 하며, 빈 볼륨으로 바꿔 복구 성공으로 처리하지 않는다.
-cluster를 destroy해도 이 Kubernetes 생성 EBS는 Terraform state 밖에 남을 수 있고
-저장 비용이 계속 발생한다. 정리 전 PV·PVC·volume ID·AZ를 저장하고 보존/삭제를
-결정한 뒤 해당 디스크만 명시적으로 처리한다. 디스크 손상·삭제는 별도 백업 없이는
-복구를 보장하지 않는다. 보존 기간과 디스크 사용량을 관찰해야 한다.
-cluster를 새로 만들면 기존 Kubernetes PV/PVC 객체도 사라져 있다. 남겨둔 EBS가
-자동 검색·연결되지 않으므로, 저장한 volume ID로 같은 AZ에 static PV/PVC를 복원한 뒤
-StatefulSet을 시작해야 한다. 새 동적 PVC로 빈 디스크를 만들지 않도록 주의한다.
+세션 간 데이터는 보존하지 않는다. RDS가 세션마다 새로 만들어지므로 Kafka만 이전 메시지·offset을
+들고 오면 상태가 어긋난다. session-down.sh는 cluster destroy 전에 StatefulSet·PVC를 지우고,
+Retain으로 남은 PV의 EBS volume ID(미리 읽은 값과 PVC 태그로 찾은 값)를 명시적으로 삭제·확인한 뒤
+PV 객체를 지운다.
+CSI가 붙인 `kubernetes.io/created-for/pvc/namespace=mosemo` 태그의 볼륨이 남아 있으면 destroy하지
+않고 멈춘다. 다음 세션은 새 PVC로 빈 볼륨을 만든다. 이전 볼륨 재연결이나 복원 리허설은 필요할 때
+별도 절차로 다룬다.
 
 ## 로컬 검증
 
@@ -103,46 +103,46 @@ uv run --locked python scripts/verify_focus_session_client.py --client-root /abs
 로드하지 않는다. Swift 검증은 임시 DB·Kafka와 테스트 토큰을 사용해 활동 저장과
 집중 세션 연계를 확인한다. 실제 Kakao 로그인·AWS API 연동의 증거로 해석하지 않는다.
 
-## 향후 배포 순서 — 이번 실행에서 적용 금지
+## 작업 세션 절차
 
-1. 별도 요청으로 admin IAM의 EBS CSI 역할·추가 권한을 먼저 적용하고,
-   infrastructure를 재생성한 후 STS 계정·전용 kubeconfig를 확인한다.
-   기본 ~/.kube/config를 덮어쓰지 않는다. 새 database 출력과 api_url을 읽는다.
-2. 새 linux/amd64 이미지 빌드·ECR push 후 repository@sha256 digest를 조회한다.
-   ECR 인증은 --password-stdin을 사용하고 인증 토큰을 출력하거나 imagePullSecrets에 복사하지 않는다.
-3. ConfigMap의 DB_HOST·KAKAO_REDIRECT_URI를 **새 출력값**으로 렌더링한다.
-   실제 macOS callback은 `io.mosemo.app:/auth/callback`이다.
-4. 저장소 밖 0700 디렉터리에 실제 DB 비밀번호·JWT·Kakao 키를 선택해 Secret을 준비한다.
-   원본 .env 전체를 복사하지 않는다. Secret 파일은 0600으로 두고 값·base64·DSN을 출력하지 않는다.
-5. namespace → 앱 ConfigMap·Secret → 시드니 RDS CA ConfigMap을 준비한다.
-   RDS CA는 https://truststore.pki.rds.amazonaws.com/ap-southeast-2/ap-southeast-2-bundle.pem 을 사용한다.
-   API·consumer·migration 모두 PGSSLMODE=verify-full과 CA mount를 사용한다.
-6. Pod Identity Agent·EBS CSI add-on ACTIVE와 controller·node Pod 정상 상태를 확인한다.
-   kafka-storage-class.yaml → Kafka headless Service·StatefulSet 적용 후
-   `kubectl -n mosemo rollout status statefulset/mosemo-kafka`와 PVC Bound·PV의
-   volume ID·AZ를 확인한다. Kafka topic 초기화 Job 성공을 확인한다.
-7. 아래와 같이 동일 digest를 렌더링하고 migration Job만 먼저 생성해 성공을 확인한다.
-8. API·consumer Deployment와 NodePort Service를 적용한다. 디렉터리 전체를 일괄 apply하지 않는다.
-9. API rollout·consumer group·재시작·OOM·DB 쿼리·ALB target healthy·HTTP 응답을 검증한다.
-   인증된 활동 발행은 202 후 consumer DB 처리까지 기다려 최종 조회로 검증한다.
-   테스트 메시지·group offset을 기록한 뒤 Kafka Pod 교체 전후 동일 PVC/PV·메시지·offset을
-   확인한다. 현재 실행 중 Kafka가 없어 이전 임시 디스크에서 이관할 데이터는 없다.
+운영과 같은 설정을 유지하고, 비용 때문에 필요할 때만 띄운다. 껐다 켜기 위한 처리는 아래 스크립트에만
+둔다. 각 스크립트는 단계마다 검증하고 실패하면 즉시 멈춘다. 비밀값은 출력하지 않는다.
 
-역할·추가 권한과 add-on은 각각 admin/ebs-csi.tf·infrastructure/storage.tf에 명시한다.
-plan 성공은 미적용 새 역할/권한의 실제 EBS 생성·연결 성공을 증명하지 않는다.
-이전 ephemeral Deployment/일반 ClusterIP Service가 남은 다른 환경이라면 먼저 중단·
-데이터 이관을 결정해야 한다. 현재 AWS 환경은 이미 삭제돼 실제 전환을 수행하지 않는다.
+준비물:
 
-이미지 렌더링 예시 (DEPLOY_DIR는 0700, DEPLOY_IMAGE는 새 digest):
+- foundation 스택 적용(ECR·검증 완료 ACM 인증서), admin 권한 적용.
+- AWS profile `mosemo-infra` 로그인, `CLOUDFLARE_API_TOKEN`(danuh.com Zone:DNS:Edit).
+- 저장소 밖 세션 디렉터리 `$MOSEMO_SESSION_DIR`(기본 `~/.mosemo/lab`, 0700)와 그 안의
+  `secrets.env`(0600). `KEY=value` 형식으로 `DB_PASSWORD`·`AUTH_JWT_SECRET_KEY`·`KAKAO_REST_API_KEY`·
+  `KAKAO_CLIENT_SECRET`만 둔다. 원본 .env 전체를 복사하지 않는다. DB_PASSWORD는 URL 안전 문자로 만들고
+  RDS(TF_VAR_db_password)와 앱 Secret에 같은 값으로 쓰인다. 전용 kubeconfig도 이 디렉터리에 만든다.
 
 ```sh
-kubectl set image --local -f infra/kubernetes/migration-job.yaml "migration=$DEPLOY_IMAGE" -o yaml > "$DEPLOY_DIR/migration-job.yaml"
-kubectl set image --local -f infra/kubernetes/deployment.yaml "server=$DEPLOY_IMAGE" -o yaml > "$DEPLOY_DIR/deployment.yaml"
-kubectl set image --local -f infra/kubernetes/consumer-deployment.yaml "consumer=$DEPLOY_IMAGE" -o yaml > "$DEPLOY_DIR/consumer-deployment.yaml"
+bash infra/deployment/session-up.sh    # 세션 시작
+bash infra/deployment/deploy.sh        # 현재 커밋 배포 (반복 가능)
+bash infra/deployment/session-down.sh  # 세션 종료
 ```
 
-이미 존재하는 Job은 실행 중이 아님을 확인한 뒤에만 삭제·재실행한다. Secret은
-서버 측 apply로 등록해 client-side last-applied annotation에 복제하지 않는다.
+1. session-up.sh: 세션 스택 `terraform apply`(plan을 검토하고 yes 입력; Cloudflare API CNAME 포함)
+   → 전용 kubeconfig → 노드 Ready·prefix delegation·노드별 Pod 상한·CSI node plugin 확인
+   → namespace·PriorityClass·LimitRange → 새 RDS 출력으로 렌더링한 ConfigMap → Secret(server-side apply)
+   → 시드니 RDS CA ConfigMap → Kafka StorageClass·StatefulSet rollout·PVC Bound·kafka 노드 배치 확인
+   → topic 초기화 Job 성공.
+2. deploy.sh: 깨끗한 작업 트리의 커밋 SHA 태그로 ECR 이미지를 찾고, 없을 때만 linux/amd64로 빌드·push한다
+   (ECR 인증은 --password-stdin). 같은 `repository@sha256` digest로 migration Job 성공을 확인한 뒤
+   API·consumer를 rollout하고, ALB에 직접 연결해 HTTPS `/openapi.json` 200·비인증 `/api/v1/accounts/me` 401·
+   HTTP 301, Cloudflare CNAME, consumer group Stable을 확인한다. 대화형 단계가 없어 G2 CI가 재사용할 수 있다.
+3. session-down.sh: Kafka StatefulSet·PVC 삭제 → Retain PV의 EBS를 volume ID로 삭제·확인 → PV 삭제
+   → `-var skip_final_snapshot=true` plan이 RDS update 하나뿐인지 확인 후 apply
+   → RDS 삭제 보호 해제·available 대기 → 같은 변수로 세션 스택 destroy → state 비었는지 확인.
+   foundation은 건드리지 않는다. session-up이 apply 이후 단계에서 실패한 세션도 kubeconfig를 다시 만들어
+   정리한다. apply 자체가 중간에 실패했다면 session-up.sh를 apply 성공까지 다시 실행한 뒤 정리한다.
+   destroy가 실패하면 RDS 삭제 보호가 꺼져 있을 수 있으므로 다시 실행하거나 apply로 복구한다.
+
+렌더링 결과는 `$MOSEMO_SESSION_DIR/rendered`에 둔다. 이미 존재하는 Job은 실행 중이 아님을 확인한
+뒤에만 삭제·재실행한다. Secret과 RDS CA는 서버 측 apply로 등록해 client-side last-applied
+annotation에 복제하지 않는다. 디렉터리 전체를 일괄 apply하지 않는다.
+인증된 활동 발행 202 후 consumer의 DB 처리와 실제 Kakao 로그인은 스크립트가 검증하지 않는다.
 
 ## 실제 인증과 HTTPS
 
@@ -154,8 +154,7 @@ macOS 앱의 API 주소는 빌드 설정 `MOSEMO_API_BASE_URL`로 주입할 수 
 OAuth state·PKCE 쿠키에 Secure를 붙인다. AWS 리소스 태그 Environment=lab과는 별개이며
 노드 규모·비용·리소스 수명 설정은 바꾸지 않는다.
 
-확정된 API 호스트는 mosemo-api.danuh.com이다. HTTPS 준비는 미적용 상태다.
-향후 배포 시 사용자가 Kakao에 등록할 서버 Redirect URI는 다음이다.
+확정된 API 호스트는 mosemo-api.danuh.com이다. 향후 배포 시 사용자가 Kakao에 등록할 서버 Redirect URI는 다음이다.
 
 ```text
 https://mosemo-api.danuh.com/api/v1/auth/kakao/callback
@@ -163,7 +162,5 @@ https://mosemo-api.danuh.com/api/v1/auth/kakao/callback
 
 같은 URL을 서버 KAKAO_REDIRECT_URI에 넣고 앱 API base URL은 https://mosemo-api.danuh.com으로 맞춘다.
 macOS custom callback `io.mosemo.app:/auth/callback`은 서버→앱 복귀용이다.
-삭제한 ALB DNS는 더 이상 사용할 수 없다. DNS는 Cloudflare에 유지한다.
-ACM 검증 CNAME·API CNAME은 별도 DNS 변경 승인 후 등록한다.
-인증서 요청/검증/리스너의 단계는 [인프라 문서](../terraform/infrastructure/README.md)를 따른다.
+DNS는 Cloudflare에 유지한다. ACM 검증 CNAME은 foundation, API CNAME은 세션 스택이 Terraform으로 관리한다.
 공식 등록 방법: https://developers.kakao.com/docs/en/kakaologin/prerequisite

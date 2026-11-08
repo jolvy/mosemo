@@ -2,7 +2,7 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "CreateNamedStorageAddons",
+      "Sid": "CreateClusterAddons",
       "Effect": "Allow",
       "Action": ["eks:CreateAddon"],
       "Resource": ["arn:aws:eks:ap-southeast-2:${account_id}:cluster/mosemo-lab"],
@@ -16,12 +16,13 @@
       }
     },
     {
-      "Sid": "ManageNamedStorageAddons",
+      "Sid": "ManageNamedAddons",
       "Effect": "Allow",
       "Action": ["eks:DescribeAddon", "eks:UpdateAddon", "eks:DeleteAddon", "eks:TagResource", "eks:UntagResource", "eks:ListTagsForResource"],
       "Resource": [
         "arn:aws:eks:ap-southeast-2:${account_id}:addon/mosemo-lab/aws-ebs-csi-driver/*",
-        "arn:aws:eks:ap-southeast-2:${account_id}:addon/mosemo-lab/eks-pod-identity-agent/*"
+        "arn:aws:eks:ap-southeast-2:${account_id}:addon/mosemo-lab/eks-pod-identity-agent/*",
+        "arn:aws:eks:ap-southeast-2:${account_id}:addon/mosemo-lab/vpc-cni/*"
       ],
       "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-southeast-2"}}
     },

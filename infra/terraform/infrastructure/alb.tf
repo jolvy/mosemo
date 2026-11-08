@@ -72,8 +72,8 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# Register replacement EC2 nodes automatically through the managed group's ASG.
+# Register app nodes automatically through the app group's ASG; Kafka nodes never serve traffic.
 resource "aws_autoscaling_attachment" "api" {
-  autoscaling_group_name = aws_eks_node_group.main.resources[0].autoscaling_groups[0].name
+  autoscaling_group_name = aws_eks_node_group.main["app"].resources[0].autoscaling_groups[0].name
   lb_target_group_arn    = aws_lb_target_group.api.arn
 }

@@ -26,25 +26,101 @@ data "aws_iam_role" "node" {
   name = "${local.name}-eks-node"
 }
 
+# Prefix delegation must be configured before any node launches: managed node
+# groups compute max-pods from the CNI configuration when a node is created.
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "vpc-cni"
+  resolve_conflicts_on_create = "OVERWRITE"
+  configuration_values = jsonencode({
+    env = { ENABLE_PREFIX_DELEGATION = "true" }
+  })
+}
+
+# No AMI: EKS keeps merging its bootstrap user data and calculating max-pods.
+resource "aws_launch_template" "node" {
+  name                   = "${local.name}-node"
+  description            = "Mosemo EKS managed nodes: standard T3 credits, IMDSv2 hop limit 1, 20 GiB gp3 root volume."
+  update_default_version = true
+
+  # Never bill surplus credits; a throttled node is preferred over spending account credits.
+  credit_specification {
+    cpu_credits = "standard"
+  }
+
+  # IMDSv2 only, unreachable from Pod network namespaces; host-network agents keep access.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      volume_size           = 20
+      volume_type           = "gp3"
+      delete_on_termination = true
+    }
+  }
+}
+
+locals {
+  node_groups = {
+    # Kafka's EBS volume is bound to 2a, so its node never leaves that AZ.
+    kafka = {
+      subnet_keys = ["a"]
+      min_size    = 1
+      max_size    = 1
+      taints      = [{ key = "dedicated", value = "kafka", effect = "NO_SCHEDULE" }]
+    }
+    # Shared by API, consumer, migration, and system add-ons; the only ALB target.
+    app = {
+      subnet_keys = ["a", "b"]
+      min_size    = 1
+      max_size    = 2
+      taints      = []
+    }
+  }
+}
+
 resource "aws_eks_node_group" "main" {
+  for_each = local.node_groups
+
   cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "${local.name}-public"
+  node_group_name = "${local.name}-${each.key}"
   node_role_arn   = data.aws_iam_role.node.arn
-  # Replacement nodes must remain in the retained EBS volume's AZ.
-  subnet_ids     = [aws_subnet.public["a"].id]
-  version        = aws_eks_cluster.main.version
-  ami_type       = "AL2023_x86_64_STANDARD"
-  capacity_type  = "ON_DEMAND"
-  instance_types = ["t3.small"]
-  disk_size      = 20
+  subnet_ids      = [for key in each.value.subnet_keys : aws_subnet.public[key].id]
+  version         = aws_eks_cluster.main.version
+  ami_type        = "AL2023_x86_64_STANDARD"
+  capacity_type   = "ON_DEMAND"
+  instance_types  = ["t3.small"]
+  labels          = { pool = each.key }
+
+  launch_template {
+    id      = aws_launch_template.node.id
+    version = aws_launch_template.node.latest_version
+  }
 
   scaling_config {
-    desired_size = 1
-    min_size     = 1
-    max_size     = 1
+    desired_size = each.value.min_size
+    min_size     = each.value.min_size
+    max_size     = each.value.max_size
+  }
+
+  dynamic "taint" {
+    for_each = each.value.taints
+
+    content {
+      key    = taint.value.key
+      value  = taint.value.value
+      effect = taint.value.effect
+    }
   }
 
   depends_on = [
+    aws_eks_addon.vpc_cni,
     aws_route.internet,
     aws_route_table_association.public,
   ]
