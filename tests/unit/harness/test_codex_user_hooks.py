@@ -157,6 +157,24 @@ def test_merge_hooks_replaces_old_dispatcher_entries(
     assert ODD_COMMON not in json.dumps(merged)
 
 
+def test_merge_hooks_keeps_other_commands_in_dispatcher_group(
+    install_user_hooks: ModuleType,
+) -> None:
+    old = json.loads(installed(install_user_hooks, ODD_COMMON))
+    other = {"type": "command", "command": "notify-existing-stop"}
+    old["hooks"]["Stop"][0]["hooks"].insert(0, other)
+    old["hooks"]["Stop"][0]["statusMessage"] = "kept"
+    old["hooks"]["PreToolUse"] = []
+
+    once = install_user_hooks.merge_hooks(old, COMMON)
+    twice = install_user_hooks.merge_hooks(copy.deepcopy(once), COMMON)
+
+    assert once["hooks"]["Stop"][0] == {"hooks": [other], "statusMessage": "kept"}
+    assert len(once["hooks"]["Stop"]) == 2
+    assert once["hooks"]["PreToolUse"] == []
+    assert install_user_hooks.serialize(twice) == install_user_hooks.serialize(once)
+
+
 def test_serialize_uses_two_space_indent_and_final_newline(
     install_user_hooks: ModuleType,
 ) -> None:

@@ -230,9 +230,12 @@ project hooks in every new worktree need trust again. The user-level
 dispatcher in `~/.codex/hooks.json` is trusted once and runs the scripts of
 whichever mosemo-server worktree the session is in.
 
-- Install (writes only `~/.codex/hooks.json`; other entries such as the Herdr
-  `SessionStart` keep their content and order; running it twice leaves the
-  same bytes; a symbolic link is followed and kept):
+- Install (writes only `~/.codex/hooks.json`; it removes only commands that
+  start with the marker, drops entries left without commands, and appends the
+  three entries; other entries such as the Herdr `SessionStart`, and other
+  commands sharing an entry with a marked command, keep their content and
+  order; running it twice leaves the same bytes; a symbolic link is followed
+  and kept):
 
   ```sh
   uv run --locked python .codex/hooks/install_user_hooks.py

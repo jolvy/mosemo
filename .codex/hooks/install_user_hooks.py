@@ -71,13 +71,28 @@ def dispatcher_groups(common_dir: str) -> dict[str, dict[str, Any]]:
     return groups
 
 
+def is_dispatcher_hook(hook: Any) -> bool:
+    """식별 표시로 시작하는 명령인가."""
+    return isinstance(hook, dict) and str(hook.get("command", "")).startswith(MARKER)
+
+
 def is_dispatcher(group: Any) -> bool:
     """식별 표시로 시작하는 명령을 가진 항목인가."""
     hooks = group.get("hooks") if isinstance(group, dict) else None
     return any(
-        isinstance(hook, dict) and str(hook.get("command", "")).startswith(MARKER)
-        for hook in (hooks if isinstance(hooks, list) else [])
+        is_dispatcher_hook(hook) for hook in (hooks if isinstance(hooks, list) else [])
     )
+
+
+def without_dispatchers(group: Any) -> Any:
+    """항목에서 식별 표시 명령만 뺀다. 남는 명령이 없으면 `None`이다.
+
+    같은 항목의 다른 명령과 키는 내용과 순서를 그대로 둔다.
+    """
+    if not is_dispatcher(group):
+        return group
+    hooks = [hook for hook in group["hooks"] if not is_dispatcher_hook(hook)]
+    return {**group, "hooks": hooks} if hooks else None
 
 
 def event_table(hooks: Mapping[str, Any]) -> dict[str, Any]:
@@ -88,16 +103,21 @@ def event_table(hooks: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def merge_hooks(hooks: Mapping[str, Any], common_dir: str) -> dict[str, Any]:
-    """식별 표시 항목을 지우고 디스패처 항목을 이벤트 목록 끝에 넣는다.
+    """식별 표시 명령을 지우고 디스패처 항목을 이벤트 목록 끝에 넣는다.
 
-    다른 항목과 키는 내용과 순서를 그대로 둔다.
+    다른 명령·항목과 키는 내용과 순서를 그대로 둔다. 식별 표시 명령만 있던 항목과,
+    그 항목을 지워 빈 이벤트 목록은 없앤다.
     """
     events = {}
     for event, groups in event_table(hooks).items():
         if not isinstance(groups, list):
             raise InstallError(f"hooks 파일의 `{event}`가 목록이 아니다")
-        kept = [group for group in groups if not is_dispatcher(group)]
-        if kept:
+        kept = [
+            stripped
+            for group in groups
+            if (stripped := without_dispatchers(group)) is not None
+        ]
+        if kept or not groups:
             events[event] = kept
     for event, group in dispatcher_groups(common_dir).items():
         events[event] = [*events.get(event, []), group]
