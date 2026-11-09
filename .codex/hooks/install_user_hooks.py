@@ -1,7 +1,7 @@
 """사용자 수준 Codex hook 디스패처를 `~/.codex/hooks.json`에 설치하거나 검사한다.
 
 디스패처 명령은 mosemo-server worktree 안에서만 저장소의 `.codex/hooks/` 스크립트를
-실행한다. 명령 생성·병합·검사·저장소 수준 건너뛰기 판정은 문자열·dict를 받는 순수
+실행한다. 명령 생성·병합·검사는 문자열·dict를 받는 순수
 함수이고, 공통 git 디렉터리 계산과 파일 읽기·쓰기만 연결 함수가 한다. Codex 신뢰
 (`/hooks`)는 하지 않는다.
 
@@ -182,34 +182,6 @@ def install_problems(
     return problems
 
 
-def is_repo_layer_codex(environ: Mapping[str, str]) -> bool:
-    """저장소 수준 `.codex/hooks.json`으로 불린 Codex 실행인가(`MOSEMO_HOOK_LAYER` 없음)."""
-    return environ.get("MOSEMO_AGENT") == "codex" and not environ.get(
-        "MOSEMO_HOOK_LAYER"
-    )
-
-
-def repo_hook_skipped(
-    environ: Mapping[str, str],
-    *,
-    hooks_text: str,
-    config_text: str,
-    hooks_path: str,
-    common_dir: str | None,
-) -> bool:
-    """저장소 수준 `.codex/hooks.json`으로 불린 Codex hook이 바로 끝나야 하는가.
-
-    `environ`은 `MOSEMO_AGENT`·`MOSEMO_HOOK_LAYER`를 읽는 환경 값이다. 사용자 수준
-    디스패처가 설치·신뢰돼 같은 스크립트를 실행할 때만 참이다. 이 분기는 저장소 수준
-    항목을 지울 때(#231) 함께 지운다.
-    """
-    if not is_repo_layer_codex(environ) or not common_dir:
-        return False
-    return not install_problems(
-        hooks_text, config_text, hooks_path=hooks_path, common_dir=common_dir
-    )
-
-
 def write_hooks(path: Path, text: str) -> None:
     """`path`에 쓴다. 심볼릭 링크면 링크를 따라간 실제 파일에 쓰고 링크는 남긴다."""
     target = path.resolve()
@@ -239,25 +211,6 @@ def common_git_dir(directory: Path) -> str | None:
     except OSError, subprocess.SubprocessError:
         return None
     return completed.stdout.strip() or None
-
-
-def skip_repo_hook() -> bool:
-    """저장소 수준 hook 시작 부분의 연결 함수. 판정할 수 없으면 거짓(그대로 실행)이다."""
-    if not is_repo_layer_codex(os.environ):
-        return False
-    hooks_path = CODEX_DIR / "hooks.json"
-    try:
-        hooks_text = read_text(hooks_path)
-        config_text = read_text(CODEX_DIR / "config.toml")
-    except OSError, UnicodeDecodeError:
-        return False
-    return repo_hook_skipped(
-        os.environ,
-        hooks_text=hooks_text,
-        config_text=config_text,
-        hooks_path=str(hooks_path),
-        common_dir=common_git_dir(Path(__file__).resolve().parent),
-    )
 
 
 def arguments(argv: list[str] | None) -> argparse.Namespace:

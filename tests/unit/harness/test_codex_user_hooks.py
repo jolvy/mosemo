@@ -1,4 +1,4 @@
-"""사용자 수준 Codex hook 설치기(TC-9)와 디스패처 명령·저장소 수준 건너뛰기(TC-10).
+"""사용자 수준 Codex hook 설치기(TC-9)와 디스패처 명령(TC-10)과 저장소 hook 등록(TC-19).
 
 셸과 git을 실행하지 않는다(#109 S7). 실제 셸 판정은 소유자 확인(#229)에서 본다.
 """
@@ -11,6 +11,7 @@ from types import ModuleType
 
 import pytest
 
+REPOSITORY = Path(__file__).resolve().parents[3]
 COMMON = "/Users/jolvy/workspace/project/mosemo/mosemo-server/.git"
 ODD_COMMON = "/tmp/it's a repo/.git"
 HOOKS_PATH = "/Users/jolvy/.codex/hooks.json"
@@ -293,85 +294,14 @@ def test_write_hooks_creates_missing_file(
     assert path.read_text(encoding="utf-8") == "{}\n"
 
 
-def skipped(
-    install_user_hooks: ModuleType,
-    environ: dict[str, str],
-    *,
-    hooks_text: str,
-    config_text: str,
-) -> bool:
-    return install_user_hooks.repo_hook_skipped(
-        environ,
-        hooks_text=hooks_text,
-        config_text=config_text,
-        hooks_path=HOOKS_PATH,
-        common_dir=COMMON,
-    )
+def test_repository_codex_hooks_keep_only_protect_main() -> None:
+    """저장소 `.codex/hooks.json`은 `PreToolUse` 하나만 남기고 `protect_main.py`를 가리킨다(TC-19)."""
+    hooks_dir = REPOSITORY / ".codex" / "hooks"
+    registered = json.loads((REPOSITORY / ".codex" / "hooks.json").read_text("utf-8"))
 
-
-def test_repo_hook_skipped_when_user_dispatcher_is_trusted(
-    install_user_hooks: ModuleType,
-) -> None:
-    assert skipped(
-        install_user_hooks,
-        {"MOSEMO_AGENT": "codex"},
-        hooks_text=installed(install_user_hooks),
-        config_text=trust_config(),
-    )
-
-
-@pytest.mark.parametrize(
-    ("environ", "hooks", "config"),
-    [
-        ({"MOSEMO_AGENT": "codex"}, "installed", ""),
-        ({"MOSEMO_AGENT": "codex"}, "installed", "disabled"),
-        ({"MOSEMO_AGENT": "codex"}, "herdr", "trusted"),
-        (
-            {"MOSEMO_AGENT": "codex", "MOSEMO_HOOK_LAYER": "user"},
-            "installed",
-            "trusted",
-        ),
-        ({"MOSEMO_AGENT": "claude"}, "installed", "trusted"),
-        ({"MOSEMO_AGENT": "codex"}, "", ""),
-    ],
-    ids=[
-        "no-trust-key",
-        "disabled",
-        "no-dispatcher",
-        "user-layer",
-        "claude",
-        "no-files",
-    ],
-)
-def test_repo_hook_runs_otherwise(
-    install_user_hooks: ModuleType,
-    environ: dict[str, str],
-    hooks: str,
-    config: str,
-) -> None:
-    hooks_text = {
-        "installed": installed(install_user_hooks),
-        "herdr": json.dumps(HERDR),
-        "": "",
-    }[hooks]
-    config_text = {
-        "trusted": trust_config(),
-        "disabled": trust_config(disabled="stop"),
-        "": "",
-    }[config]
-
-    assert not skipped(
-        install_user_hooks, environ, hooks_text=hooks_text, config_text=config_text
-    )
-
-
-def test_repo_hook_runs_without_common_directory(
-    install_user_hooks: ModuleType,
-) -> None:
-    assert not install_user_hooks.repo_hook_skipped(
-        {"MOSEMO_AGENT": "codex"},
-        hooks_text=installed(install_user_hooks),
-        config_text=trust_config(),
-        hooks_path=HOOKS_PATH,
-        common_dir=None,
-    )
+    assert list(registered["hooks"]) == ["PreToolUse"]
+    (group,) = registered["hooks"]["PreToolUse"]
+    assert group["matcher"] == "^Bash$"
+    assert "protect_main.py" in group["hooks"][0]["command"]
+    for script in ("post_edit_feedback.py", "stop_gate.py"):
+        assert "MOSEMO_HOOK_LAYER" not in (hooks_dir / script).read_text("utf-8")
