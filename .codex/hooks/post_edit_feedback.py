@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import install_user_hooks
 import stop_metrics
 
 UV_RUN = ("uv", "run", "--locked")
@@ -195,9 +194,6 @@ def record_edit(edit: Edit, *, git: stop_metrics.Git, deadline: float) -> None:
 
 
 def main() -> int:
-    # 사용자 수준 디스패처가 같은 스크립트를 실행하면 저장소 수준 실행은 바로 끝낸다.
-    if install_user_hooks.skip_repo_hook():
-        return 0
     edit = None
     try:
         payload = json.load(sys.stdin)

@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-import install_user_hooks
 import review_metrics
 import stop_metrics
 
@@ -447,9 +446,6 @@ def record_metrics(
 
 
 def main() -> int:
-    # 사용자 수준 디스패처가 같은 스크립트를 실행하면 저장소 수준 실행은 바로 끝낸다.
-    if install_user_hooks.skip_repo_hook():
-        return 0
     deadline = time.monotonic() + TIME_LIMIT
     root = None
     state_path = None

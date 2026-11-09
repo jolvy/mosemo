@@ -90,13 +90,11 @@ def stop_gate(
     monkeypatch: pytest.MonkeyPatch,
     stop_metrics: ModuleType,
     review_metrics: ModuleType,
-    install_user_hooks: ModuleType,
 ) -> ModuleType:
-    # stop_gate.py는 최상위에서 `import stop_metrics`·`import review_metrics`·
-    # `import install_user_hooks`를 하므로 sys.path 대신 sys.modules에 넣는다.
+    # stop_gate.py는 최상위에서 `import stop_metrics`·`import review_metrics`를 하므로
+    # sys.path 대신 sys.modules에 넣는다.
     monkeypatch.setitem(sys.modules, "stop_metrics", stop_metrics)
     monkeypatch.setitem(sys.modules, "review_metrics", review_metrics)
-    monkeypatch.setitem(sys.modules, "install_user_hooks", install_user_hooks)
     return load_script(REPOSITORY / ".codex/hooks/stop_gate.py")
 
 
@@ -104,10 +102,8 @@ def stop_gate(
 def post_edit_feedback(
     monkeypatch: pytest.MonkeyPatch,
     stop_metrics: ModuleType,
-    install_user_hooks: ModuleType,
 ) -> ModuleType:
     monkeypatch.setitem(sys.modules, "stop_metrics", stop_metrics)
-    monkeypatch.setitem(sys.modules, "install_user_hooks", install_user_hooks)
     return load_script(REPOSITORY / ".codex/hooks/post_edit_feedback.py")
 
 

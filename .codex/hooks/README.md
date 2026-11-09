@@ -28,10 +28,10 @@ python3 -m unittest discover -s .codex/hooks -p 'test_*.py'
 
 # Code style feedback hooks
 
-Claude Code (`.claude/settings.json`) and Codex (`.codex/hooks.json`, and the
-user-level dispatcher in "User-level Codex hooks" below) run the same two
-scripts with `uv run --locked python` from the repository root. Only input
-parsing differs between the tools.
+Claude Code (`.claude/settings.json`) and Codex (the user-level dispatcher in
+"User-level Codex hooks" below) run the same two scripts with
+`uv run --locked python` from the repository root. Only input parsing differs
+between the tools.
 
 ## After each edit: `post_edit_feedback.py`
 
@@ -228,7 +228,11 @@ parsing differs between the tools.
 Codex stores trust per hooks file path, entry position, and content hash, so
 project hooks in every new worktree need trust again. The user-level
 dispatcher in `~/.codex/hooks.json` is trusted once and runs the scripts of
-whichever mosemo-server worktree the session is in.
+whichever mosemo-server worktree the session is in. It is the only place that
+registers the edit feedback, stop check, and review recording for Codex; the
+repository `.codex/hooks.json` registers only `PreToolUse`
+(`protect_main.py`). A Codex environment without the user-level install gets
+none of these checks, so run the install command below once per machine.
 
 - Install (writes only `~/.codex/hooks.json`; it removes only commands that
   start with the marker, drops entries left without commands, and appends the
@@ -263,13 +267,6 @@ whichever mosemo-server worktree the session is in.
   exits 1. It does not compute trust hashes, so entries changed but not
   trusted again pass the check. `--hooks-file` and `--config-file` select
   other files.
-- Repository-level skip: until the repository `.codex/hooks.json` drops its
-  `PostToolUse` and `Stop` entries (#231), the main checkout has both layers.
-  `post_edit_feedback.py` and `stop_gate.py` exit 0 at once when
-  `MOSEMO_AGENT` is `codex`, `MOSEMO_HOOK_LAYER` is unset, and the `--check`
-  rules pass for `~/.codex/hooks.json` and `~/.codex/config.toml`. Before the
-  user-level entries are trusted the check fails, so the repository-level
-  hooks keep running. Lines are therefore not written twice.
 - Rollback: delete the entries whose command starts with
   `: mosemo-agent-hook;` from `~/.codex/hooks.json` and revert the
   repository commit.
@@ -279,7 +276,8 @@ whichever mosemo-server worktree the session is in.
 
 - Claude Code reads `.claude/settings.json` when a session starts.
 - Codex skips project hooks until they are trusted. After `.codex/hooks.json`
-  changes, restart Codex and trust the hooks again with `/hooks`.
+  or the user-level `~/.codex/hooks.json` changes, restart Codex and trust the
+  hooks again with `/hooks`.
 - One trust of the user-level dispatcher runs `.codex/hooks/*.py` of every
   mosemo-server worktree branch, including external PR branches checked out
   as worktrees, without any further confirmation.
