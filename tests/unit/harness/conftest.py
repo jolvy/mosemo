@@ -11,6 +11,18 @@ REPOSITORY = Path(__file__).resolve().parents[3]
 SCRIPTS = REPOSITORY / ".codex/skills/verification/scripts"
 
 
+@pytest.fixture(autouse=True)
+def isolate_hook_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """hook이 넣는 MOSEMO_AGENT·MOSEMO_HOOK_LAYER가 테스트로 새지 않게 지운다.
+
+    Codex hook(`stop_gate.py`)은 이 값을 가진 환경을 pytest에 그대로 넘기므로
+    지우지 않으면 hook 안의 실행과 직접 실행의 결과가 달라진다. 값이 필요한
+    테스트는 `monkeypatch.setenv`로 직접 넣는다.
+    """
+    monkeypatch.delenv("MOSEMO_AGENT", raising=False)
+    monkeypatch.delenv("MOSEMO_HOOK_LAYER", raising=False)
+
+
 def load_validator(name: str) -> ModuleType:
     return load_script(SCRIPTS / f"{name}.py")
 
