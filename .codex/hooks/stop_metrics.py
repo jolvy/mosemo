@@ -4,6 +4,7 @@ git과 subprocess를 직접 부르지 않는다. git 조회는 hook이 넘기는
 기록 실패는 stderr에 한 줄만 남기고 반환한다.
 """
 
+import glob
 import json
 import os
 import re
@@ -16,6 +17,14 @@ from pathlib import Path
 from typing import Any
 
 SKILL_FILE = re.compile(r"(?:^|/)\.(?:codex|claude)/skills/([^/]+)/SKILL\.md$")
+# 명령 문자열 안의 경로. `SKILL_FILE`처럼 `.codex`·`.claude`가 경로 구성 요소의 처음이어야 한다.
+SKILL_PATH = re.compile(
+    r"(?<![\w.-])\.(?:codex|claude)/skills/([^/\s'\"\\]+)/SKILL\.md(?![\w.])"
+)
+# Codex 사용자 메시지에 붙는 Skill 본문 블록의 `<name>` 값.
+SKILL_TAG = re.compile(
+    r"<skill>(?:(?!</skill>).)*?<name>\s*([^<]*?)\s*</name>", re.DOTALL
+)
 COMMAND_NAME = re.compile(r"<command-name>\s*/?([^<\s]+)\s*</command-name>")
 # 규칙 코드, 또는 규칙 코드가 없는 구문 오류의 표시(`invalid-syntax`, 옛 `SyntaxError`).
 RUFF_CODE = re.compile(r"^.+?:\d+:\d+: ([A-Z]+[0-9]+\b|invalid-syntax|SyntaxError)")
@@ -118,15 +127,126 @@ def transcript_facts(lines: Iterable[str]) -> tuple[list[str], str | None]:
     return list(skills), model
 
 
-def read_transcript(path: str | None) -> tuple[list[str], str | None]:
-    """hook 입력의 `transcript_path`를 읽는다. 없거나 읽을 수 없으면 빈 결과다."""
+def codex_texts(entry: Any) -> tuple[list[str], list[str]]:
+    """Codex 세션 기록 줄의 (사용자 메시지 글, 도구 호출 입력 문자열)."""
+    payload = entry.get("payload") if isinstance(entry, dict) else None
+    if not isinstance(payload, dict):
+        return [], []
+    kind = (entry.get("type"), payload.get("type"))
+    if kind == ("response_item", "message") and payload.get("role") == "user":
+        blocks = payload.get("content")
+        return [
+            block["text"]
+            for block in (blocks if isinstance(blocks, list) else [])
+            if isinstance(block, dict) and isinstance(block.get("text"), str)
+        ], []
+    value = None
+    if kind == ("response_item", "custom_tool_call"):
+        value = payload.get("input")
+    elif kind == ("response_item", "function_call"):
+        value = payload.get("arguments")
+    elif kind == ("event_msg", "item_completed"):
+        item = payload.get("item")
+        if isinstance(item, dict) and item.get("type") == "CommandExecution":
+            value = item.get("command")
+    values = value if isinstance(value, list) else [value]
+    return [], [text for text in values if isinstance(text, str)]
+
+
+def codex_model(entry: Any) -> str | None:
+    """`turn_context` 줄의 `payload.model`."""
+    if not isinstance(entry, dict) or entry.get("type") != "turn_context":
+        return None
+    payload = entry.get("payload")
+    model = payload.get("model") if isinstance(payload, dict) else None
+    return model if isinstance(model, str) and model else None
+
+
+def codex_transcript_facts(lines: Iterable[str]) -> tuple[list[str], str | None]:
+    """Codex 세션 기록 줄에서 Skill 이름(중복 제거, 나온 순서)과 마지막 `turn_context` 모델.
+
+    Skill은 사용자 메시지의 `skill` 태그 블록 `name` 값과 도구 호출 입력 안의
+    `.codex/skills/NAME/SKILL.md`·`.claude/skills/NAME/SKILL.md` 경로에서 찾는다.
+    """
+    skills: dict[str, None] = {}
+    model = None
+    for line in lines:
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        messages, inputs = codex_texts(entry)
+        found = [name for text in messages for name in SKILL_TAG.findall(text) if name]
+        found += [name for text in inputs for name in SKILL_PATH.findall(text)]
+        skills.update(dict.fromkeys(found))
+        model = codex_model(entry) or model
+    return list(skills), model
+
+
+def payload_model(payload: Any) -> str | None:
+    """hook 입력의 `model` 문자열. 없거나 빈 문자열이면 `None`이다."""
+    model = payload.get("model") if isinstance(payload, Mapping) else None
+    return model if isinstance(model, str) and model else None
+
+
+def session_facts(
+    payload: Any, lines: Iterable[str], *, agent: str | None
+) -> tuple[list[str], str | None]:
+    """`agent`에 맞는 파서로 찾은 Skill과 모델. Codex 모델은 hook 입력 `model`이 우선이다."""
+    if agent != "codex":
+        return transcript_facts(lines)
+    skills, model = codex_transcript_facts(lines)
+    return skills, payload_model(payload) or model
+
+
+def codex_home() -> Path:
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+
+
+def find_codex_transcript(home: Path, session: Any) -> str | None:
+    """`home/sessions/*/*/*/rollout-*-SESSION.jsonl`을 정렬한 첫 파일. 없으면 `None`이다."""
+    if not isinstance(session, str) or not session or "/" in session:
+        return None
+    pattern = f"sessions/*/*/*/rollout-*-{glob.escape(session)}.jsonl"
+    found = sorted(glob.glob(pattern, root_dir=home))
+    return str(home / found[0]) if found else None
+
+
+def transcript_file(
+    payload: Any, *, agent: str | None, key: str = "transcript_path"
+) -> str | None:
+    """세션 기록 경로: hook 입력 `key` 값, 없으면 Codex만 `session_id`로 찾은 파일."""
+    if not isinstance(payload, Mapping):
+        return None
+    path = payload.get(key)
+    if isinstance(path, str) and path:
+        return path
+    if agent != "codex":
+        return None
+    return find_codex_transcript(codex_home(), payload.get("session_id"))
+
+
+def read_transcript(
+    path: str | None,
+    *,
+    parse: Callable[[Iterable[str]], tuple[list[str], str | None]] = transcript_facts,
+) -> tuple[list[str], str | None]:
+    """세션 기록 파일을 `parse`로 읽는다. 없거나 읽을 수 없으면 빈 줄 목록의 결과다."""
     if not path:
-        return [], None
+        return parse([])
     try:
         with Path(path).open(encoding="utf-8", errors="replace") as file:
-            return transcript_facts(file)
+            return parse(file)
     except OSError:
-        return [], None
+        return parse([])
+
+
+def read_session(payload: Any, *, agent: str | None) -> tuple[list[str], str | None]:
+    """Stop 줄의 Skill과 모델: 세션 기록 전체를 `agent`에 맞는 파서로 읽는다."""
+    path = transcript_file(payload, agent=agent)
+    return read_transcript(
+        path, parse=lambda lines: session_facts(payload, lines, agent=agent)
+    )
 
 
 def read_tail_lines(path: str | None, *, size: int = TAIL_BYTES) -> list[str]:
@@ -147,9 +267,15 @@ def read_tail_lines(path: str | None, *, size: int = TAIL_BYTES) -> list[str]:
     return [line.decode(errors="replace") for line in kept]
 
 
-def read_transcript_model(path: str | None, *, size: int = TAIL_BYTES) -> str | None:
-    """세션 기록 끝 `size` 바이트에서 마지막 Claude 모델을 찾는다. 모르면 `None`이다."""
-    return transcript_facts(read_tail_lines(path, size=size))[1]
+def read_transcript_model(
+    path: str | None,
+    *,
+    size: int = TAIL_BYTES,
+    payload: Any = None,
+    agent: str | None = None,
+) -> str | None:
+    """세션 기록 끝 `size` 바이트에서 `agent`에 맞는 규칙으로 모델을 찾는다. 모르면 `None`이다."""
+    return session_facts(payload, read_tail_lines(path, size=size), agent=agent)[1]
 
 
 def failure_lines(name: str, output: str) -> list[str]:
