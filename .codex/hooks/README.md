@@ -28,9 +28,10 @@ python3 -m unittest discover -s .codex/hooks -p 'test_*.py'
 
 # Code style feedback hooks
 
-Claude Code (`.claude/settings.json`) and Codex (`.codex/hooks.json`) run the
-same two scripts with `uv run --locked python` from the repository root. Only
-input parsing differs between the tools.
+Claude Code (`.claude/settings.json`) and Codex (`.codex/hooks.json`, and the
+user-level dispatcher in "User-level Codex hooks" below) run the same two
+scripts with `uv run --locked python` from the repository root. Only input
+parsing differs between the tools.
 
 ## After each edit: `post_edit_feedback.py`
 
@@ -110,9 +111,12 @@ input parsing differs between the tools.
   - `agent`: `MOSEMO_AGENT` (`claude` or `codex` in the hook commands),
     otherwise `unknown`. Verify lines use `claude` when
     `CLAUDE_CODE_SESSION_ID` is set, otherwise `unknown`.
-  - `model`: the last `"model":"claude-…"` value in the transcript, otherwise
-    `null`. Verify lines always use `null`. Stop lines read the whole
-    transcript; edit lines read only its last 1 MiB.
+  - `model`: for `agent` `codex`, the hook input `model` when it is a
+    non-empty string, otherwise the `payload.model` of the last
+    `turn_context` line in the Codex transcript. For other agents, the last
+    `"model":"claude-…"` value in the transcript. Otherwise `null`. Verify
+    lines always use `null`. Stop lines read the whole transcript; edit and
+    review lines read only its last 1 MiB.
   - `harness_rev`, `harness_dirty`: The last commit
     (`git log -1 --format=%h`, `null` when unknown) and whether
     `git status --porcelain` shows uncommitted changes, both limited to
@@ -126,10 +130,17 @@ input parsing differs between the tools.
     output) or when Git fails.
 - Stop lines add:
   - `skills`: Skill names from the transcript, deduplicated in order of
-    appearance: `Skill` tool calls (`input.skill`), `<command-name>` values in
-    user message text (without the leading `/`), and `Read` calls whose
-    `file_path` ends with `.codex/skills/<name>/SKILL.md` or
-    `.claude/skills/<name>/SKILL.md`.
+    appearance. Claude Code: `Skill` tool calls (`input.skill`),
+    `<command-name>` values in user message text (without the leading `/`),
+    and `Read` calls whose `file_path` ends with
+    `.codex/skills/<name>/SKILL.md` or `.claude/skills/<name>/SKILL.md`.
+    Codex (`agent` `codex`): the `<name>` value inside a `<skill>` block of a
+    user message (`response_item`, `payload.role` `user`), and `<name>` of a
+    `.codex/skills/<name>/SKILL.md` or `.claude/skills/<name>/SKILL.md` path
+    (`.codex`/`.claude` starting a path component) inside tool call input
+    strings: `custom_tool_call.input`, `function_call.arguments`, and each
+    element of `item.command` of an `event_msg` `item_completed` whose
+    `item.type` is `CommandExecution`.
   - `result`: `skip` (no changed `.py`), `cached` (same fingerprint as the last
     pass or block), `allow`, `block`, `capped` (the same failure passed after
     `MAX_BLOCKS` blocks), or `error` (blocked because a check could not run).
@@ -157,10 +168,14 @@ input parsing differs between the tools.
   changes, and branch; the transcript tail; the write) gets a 1.5-second
   deadline. Fields past the deadline take their unknown value and the line is
   still written.
-- The transcript (`transcript_path`, JSONL) is read line by line and
-  unparsable lines are skipped. Without a readable path, `skills` is `[]` and
-  `model` is `null`. The parser targets the Claude Code format; Codex runs are
-  told apart only by `agent`.
+- The transcript (JSONL) is read line by line and unparsable lines are
+  skipped. The parser is chosen by `agent` (`MOSEMO_AGENT`): `codex` uses the
+  Codex parser, anything else the Claude Code parser. The path is the hook
+  input `transcript_path` (`agent_transcript_path` for `SubagentStop`). For
+  Codex only, a missing path falls back to the first sorted
+  `$CODEX_HOME/sessions/*/*/*/rollout-*-<session_id>.jsonl` (`CODEX_HOME`
+  defaults to `~/.codex`). Without a readable transcript, `skills` is `[]`
+  and `model` is `null` (Codex keeps the hook input `model`).
 - Logging never changes the decision. The hooks decide their output and exit
   code first and then call one recording function that swallows failures: a
   failure prints one stderr line starting with `지표 로그 기록 실패`, the
@@ -171,8 +186,10 @@ input parsing differs between the tools.
   the hooks pass their Git query as a function. Their tests and the edit line
   tests (`tests/unit/harness/test_stop_metrics.py`,
   `tests/unit/harness/test_edit_metrics.py`,
-  `tests/unit/harness/test_review_metrics.py`) use no Git or subprocess and do
-  not run the hooks' `main`.
+  `tests/unit/harness/test_review_metrics.py`,
+  `tests/unit/harness/test_codex_metrics.py`,
+  `tests/unit/harness/test_codex_user_hooks.py`) use no Git or subprocess and
+  do not run the hooks' `main` or a shell.
 
 ### Review lines
 
@@ -203,13 +220,66 @@ input parsing differs between the tools.
   the last 1 MiB of `transcript_path`. The stop decision does not change.
   Aggregation counts only the last `agent_stop` line per session and
   reviewer.
-- Codex `SubagentStop` is not registered yet.
+- Codex `SubagentStop` runs `review_metrics.py` through the user-level
+  dispatcher (timeout 10 seconds) with `MOSEMO_AGENT=codex`.
+
+## User-level Codex hooks
+
+Codex stores trust per hooks file path, entry position, and content hash, so
+project hooks in every new worktree need trust again. The user-level
+dispatcher in `~/.codex/hooks.json` is trusted once and runs the scripts of
+whichever mosemo-server worktree the session is in.
+
+- Install (writes only `~/.codex/hooks.json`; other entries such as the Herdr
+  `SessionStart` keep their content and order; running it twice leaves the
+  same bytes; a symbolic link is followed and kept):
+
+  ```sh
+  uv run --locked python .codex/hooks/install_user_hooks.py
+  ```
+
+  Then restart Codex and trust the three entries with `/hooks`. The script
+  never trusts hooks itself.
+- Entries: `PostToolUse` (matcher `^apply_patch$`, timeout 10,
+  `post_edit_feedback.py`), `Stop` (timeout 300, `stop_gate.py`), and
+  `SubagentStop` (timeout 10, `review_metrics.py`).
+- Each command is one `/bin/sh` line starting with the marker
+  `: mosemo-agent-hook;`. It exits 0 outside Git, when
+  `git rev-parse --path-format=absolute --git-common-dir` differs from the
+  mosemo-server common Git directory recorded at install time (computed from
+  the script location), or when the worktree has no such script. Otherwise it
+  runs `cd` to the top level and
+  `MOSEMO_AGENT=codex MOSEMO_HOOK_LAYER=user exec uv run --locked python .codex/hooks/SCRIPT`,
+  passing the exit code (including the stop block code 2), stdout, and stderr
+  through.
+- Check without changing files: `--check` exits 0 when the three entries
+  equal what the script would install and `~/.codex/config.toml` has a
+  `hooks.state` table for each (`<hooks file>:post_tool_use:G:H`,
+  `:stop:G:H`, `:subagent_stop:G:H`, where G and H are the entry positions)
+  without `enabled = false`. Otherwise it lists what is missing on stderr and
+  exits 1. It does not compute trust hashes, so entries changed but not
+  trusted again pass the check. `--hooks-file` and `--config-file` select
+  other files.
+- Repository-level skip: until the repository `.codex/hooks.json` drops its
+  `PostToolUse` and `Stop` entries (#231), the main checkout has both layers.
+  `post_edit_feedback.py` and `stop_gate.py` exit 0 at once when
+  `MOSEMO_AGENT` is `codex`, `MOSEMO_HOOK_LAYER` is unset, and the `--check`
+  rules pass for `~/.codex/hooks.json` and `~/.codex/config.toml`. Before the
+  user-level entries are trusted the check fails, so the repository-level
+  hooks keep running. Lines are therefore not written twice.
+- Rollback: delete the entries whose command starts with
+  `: mosemo-agent-hook;` from `~/.codex/hooks.json` and revert the
+  repository commit.
+- A second Codex home (`~/.codex-b`) is not covered.
 
 ## Trust and limits
 
 - Claude Code reads `.claude/settings.json` when a session starts.
 - Codex skips project hooks until they are trusted. After `.codex/hooks.json`
   changes, restart Codex and trust the hooks again with `/hooks`.
+- One trust of the user-level dispatcher runs `.codex/hooks/*.py` of every
+  mosemo-server worktree branch, including external PR branches checked out
+  as worktrees, without any further confirmation.
 - The hooks can be bypassed: untrusted or disabled hooks do not run. CI remains
   the final enforcement.
 - Test selection follows path rules only. For example, `observation` changes do

@@ -108,7 +108,7 @@ def review_line(
     source = stop_metrics.Source(
         session=str(payload.get("session_id", "")),
         agent=agent,
-        model=stop_metrics.transcript_facts(transcript)[1],
+        model=stop_metrics.session_facts(payload, transcript, agent=agent)[1],
     )
     return {
         **stop_metrics.common_fields("review", source=source, git=git),
@@ -119,11 +119,15 @@ def review_line(
     }
 
 
-def transcript_path(payload: Mapping[str, Any], *, code: int | None) -> str | None:
-    """보고와 모델을 찾을 세션 기록. `SubagentStop`은 subagent 자신의 기록만 본다."""
+def transcript_path(
+    payload: Mapping[str, Any], *, code: int | None, agent: str | None
+) -> str | None:
+    """보고와 모델을 찾을 세션 기록. `SubagentStop`은 subagent 자신의 기록을 본다.
+
+    입력에 경로가 없으면 Codex만 `session_id`로 세션 기록을 찾는다.
+    """
     key = "agent_transcript_path" if code is None else "transcript_path"
-    path = payload.get(key)
-    return path if isinstance(path, str) else None
+    return stop_metrics.transcript_file(payload, agent=agent, key=key)
 
 
 def record_review(payload: Any, *, code: int | None, git: stop_metrics.Git) -> None:
@@ -132,12 +136,13 @@ def record_review(payload: Any, *, code: int | None, git: stop_metrics.Git) -> N
         return
 
     def build() -> dict[str, Any] | None:
+        agent = os.environ.get("MOSEMO_AGENT")
         return review_line(
             payload,
-            agent=os.environ.get("MOSEMO_AGENT"),
+            agent=agent,
             git=stop_metrics.query_git_facts(git),
             transcript=stop_metrics.read_tail_lines(
-                transcript_path(payload, code=code)
+                transcript_path(payload, code=code, agent=agent)
             ),
             code=code,
         )

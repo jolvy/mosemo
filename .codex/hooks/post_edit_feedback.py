@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import install_user_hooks
 import stop_metrics
 
 UV_RUN = ("uv", "run", "--locked")
@@ -176,14 +177,16 @@ def record_edit(edit: Edit, *, git: stop_metrics.Git, deadline: float) -> None:
         return
 
     def build() -> dict[str, Any] | None:
-        transcript = edit.payload.get("transcript_path")
-        model = None
-        if isinstance(transcript, str) and time.monotonic() < deadline:
-            model = stop_metrics.read_transcript_model(transcript)
+        agent = os.environ.get("MOSEMO_AGENT")
+        transcript = None
+        if time.monotonic() < deadline:
+            transcript = stop_metrics.transcript_file(edit.payload, agent=agent)
         source = stop_metrics.Source(
             session=str(edit.payload.get("session_id", "")),
-            agent=os.environ.get("MOSEMO_AGENT"),
-            model=model,
+            agent=agent,
+            model=stop_metrics.read_transcript_model(
+                transcript, payload=edit.payload, agent=agent
+            ),
         )
         git_facts = stop_metrics.query_git_facts(git)
         return edit_line(edit.targets, edit.output, source=source, git=git_facts)
@@ -192,6 +195,9 @@ def record_edit(edit: Edit, *, git: stop_metrics.Git, deadline: float) -> None:
 
 
 def main() -> int:
+    # 사용자 수준 디스패처가 같은 스크립트를 실행하면 저장소 수준 실행은 바로 끝낸다.
+    if install_user_hooks.skip_repo_hook():
+        return 0
     edit = None
     try:
         payload = json.load(sys.stdin)
