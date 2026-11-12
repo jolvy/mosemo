@@ -1,7 +1,7 @@
 from collections import Counter
 from datetime import UTC, date, datetime
 from types import ModuleType
-from uuid import UUID
+from uuid import UUID, uuid5
 
 import pytest
 from sqlalchemy import select
@@ -245,3 +245,33 @@ def test_failure_after_records_copy_rolls_back_the_whole_user(
         table: _generated_counts(seed_load, seed=1, index=1)[table]
         for table in seed_load.TABLE_ORDER
     }
+
+
+def test_profiles_load_separately_and_skip_by_their_own_keys(
+    seed_database: SeedDatabase,
+    seed_load: ModuleType,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    measured = ("--profile", "measured", *_one_user_args(seed_database))
+
+    assert seed_database.run(*measured) == 0
+
+    (device,) = seed_database.fetch("SELECT idempotency_key FROM devices")
+    assert device["idempotency_key"] == uuid5(
+        seed_load.DEVICE_NAMESPACE, "1:measured:dummy:1"
+    )
+    measured_account = seed_database.dummy_account_id("load-seed-measured-1-000001")
+    measured_counts = seed_database.account_counts(measured_account)
+    assert "loaded measured:dummy:1" in capsys.readouterr().out
+
+    assert seed_database.run("--profile", "heavy", *_one_user_args(seed_database)) == 0
+
+    assert "loaded dummy:1" in capsys.readouterr().out
+    assert seed_database.counts()["devices"] == 2
+    seed_database.dummy_account_id("load-seed-1-000001")
+
+    assert seed_database.run(*measured) == 0
+
+    assert "skipped measured:dummy:1" in capsys.readouterr().out
+    assert seed_database.counts()["devices"] == 2
+    assert seed_database.account_counts(measured_account) == measured_counts

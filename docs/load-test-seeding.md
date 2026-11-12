@@ -6,7 +6,7 @@
 
 ```sh
 uv run --locked --env-file "$ENV_FILE" python scripts/seed_load.py \
-  --users N --confirm-host "$DB_HOST" --end-date 2026-11-07 [--account-id UUID] [--seed 1] [--days 365]
+  --users N --confirm-host "$DB_HOST" --end-date 2026-11-07 [--account-id UUID] [--seed 1] [--days 365] [--profile heavy]
 ```
 
 | 인자 | 필수 | 의미 |
@@ -17,10 +17,12 @@ uv run --locked --env-file "$ENV_FILE" python scripts/seed_load.py \
 | `--account-id` | 아니요 | 데이터를 붙일 본인 계정 ID. |
 | `--seed` | 아니요 | 생성 난수 seed. 기본 1. |
 | `--days` | 아니요 | 생성 기간 일수(마지막 날 포함). 기본 365. |
+| `--profile` | 아니요 | 분포 프로파일 `heavy` 또는 `measured`(「분포 가정」). 기본 `heavy`. |
 
 - 생성 기간은 `--end-date`로 끝나는 `--days`일이다. 단계별 재실행에서 같은 `--end-date`·`--seed`·`--days`를 쓰면 같은 데이터(ID 포함)가 나온다.
 - 건너뛰기 판정은 seed와 유저만 보고 기간은 보지 않는다. 같은 seed로 `--end-date`나 `--days`를 바꿔 재실행하면 기존 유저는 건너뛰고 새 유저만 다른 기간으로 적재되므로, 한 DB에서는 기간을 바꾸지 않는다.
-- 더미 유저 i의 계정은 `provider = KAKAO`, `provider_subject = load-seed-{seed}-{i:06d}`(6자리)이다. seed가 다르면 별도 더미 계정이 된다.
+- 더미 유저 i의 계정은 `provider = KAKAO`, `provider_subject = load-seed-{seed}-{i:06d}`(6자리, `measured`는 `load-seed-measured-{seed}-{i:06d}`)이다. seed나 프로파일이 다르면 별도 더미 계정이 된다.
+- 건너뛰기 판정의 유저 키는 `heavy`가 `dummy:{i}`·`account:{account_id}`, `measured`가 `measured:dummy:{i}`·`measured:account:{account_id}`이다. 그래서 한 DB에 두 프로파일을 함께 적재해도 기기가 겹치지 않고 서로의 유저를 건너뛰지 않는다. 같은 프로파일·seed·유저·기간이면 같은 데이터(ID 포함)가 나온다.
 - 유저는 순서대로 하나씩, 유저마다 한 트랜잭션으로 적재한다. 이 seed의 유저 기기가 이미 있으면 그 유저는 건너뛴다. 그래서 `--users`만 늘려 다시 실행하면 새 유저만 추가된다.
 - 한 유저 적재가 실패하면 그 유저를 롤백하고 즉시 멈춘다(종료 코드 1). 앞서 커밋된 유저는 남으며, 같은 인자로 다시 실행하면 실패한 유저부터 이어서 적재한다.
 - 같은 대상에 두 프로세스를 동시에 실행하지 않는다.
@@ -49,7 +51,7 @@ uv run --locked --env-file "$ENV_FILE" python scripts/seed_load.py \
 
 ## 분포 가정
 
-모든 유저는 1년치 헤비 유저이며, 아래 수치는 부하 데이터용 고정 가정이다(Asia/Seoul 기준, 매일 같은 규칙). 바꿀 필요가 생기면 스크립트 상수를 고친다.
+유저 분포는 `--profile`로 고른다. 기본 `heavy`는 1년치 헤비 유저이고, `measured`는 실제 macOS 클라이언트 기록에서 잰 분포다(아래 「`measured` 프로파일」). 아래 수치는 `heavy`의 부하 데이터용 고정 가정이다(Asia/Seoul 기준, 매일 같은 규칙). 바꿀 필요가 생기면 스크립트 상수를 고친다. 분포 수치는 CLI 인자로 노출하지 않는다.
 
 - 수집 상태: 09:00 active → 12:00 suspended(`screen_locked`) → 13:00 active → 21:00 suspended(`system_sleep`). 기간 마지막 날은 21:00 suspended 없이 21:00 관찰로 끝나 `ended_at`이 없는 활동 구간이 하나 남는다.
 - 관찰 간격: 문맥이 같으면 30초, 문맥이 바뀌는 관찰은 직전 관찰 후 5~30초 균등 난수. 관찰마다 문맥이 바뀔 확률 0.2.
@@ -59,6 +61,31 @@ uv run --locked --env-file "$ENV_FILE" python scripts/seed_load.py \
 - 라벨: 더미는 기본 라벨 5개(활성)와 `보관된 라벨` 1개(`archived_at` = 기간 첫날 00:00 UTC)를 만든다. 보관된 라벨에는 세션·확정·제안을 연결하지 않는다.
 - 라벨 제안: 닫힌 detailed 활동 구간마다 구간 종료 30초 뒤 현재 버전 제안 1건(98% `ready`, 2%는 생성 2분 뒤 lease가 만료된 `processing`). `ready`의 `suggested_label_id`는 10%가 NULL(미분류)이고, 지연 800~3000ms, 입력 토큰 1500~3000, 출력 토큰 20~60, 참조 확정은 그 시점 이전 확정 최대 5개다. 별도로 닫힌 detailed 구간의 5%에 종료 시각을 30초 앞당긴 이전 버전의 `superseded` 제안 1건을 더한다. `failed`는 만들지 않는다.
 - 라벨 확정: 닫힌 detailed 활동 구간의 60%(그중 10%는 미분류), 구간 종료 10분 뒤.
+
+### `measured` 프로파일
+
+`heavy`는 같은 문맥 관찰 간격을 PRD의 "활성 수집 중 최대 30초마다 관찰"에 맞춰 30초로 둔다. 실제 클라이언트는 중앙값 5.5초마다 관찰해, 활동 1시간당 레코드가 약 131개(`heavy`) 대 667개(실측), 구간이 약 26개 대 50개로 차이가 난다. 활동 분석 조회 지연과 사용자 1명당 저장 용량을 실측 분포로 재려면 `--profile measured`를 쓴다.
+
+근거: 실제 클라이언트 기록 2026-10-12~17(계정 1·기기 1, 활동 관찰 23,435건)을 현재 `TimelineProjection`으로 구간화해 측정했다.
+
+| 항목 | 값 | 근거 |
+| --- | --- | --- |
+| 수집 상태 | 08:00 active → 12:00 suspended(`screen_sleep`) → 13:00 active → 23:00 suspended(`system_sleep`). 수집 창 하루 14시간. 기간 마지막 날은 `heavy`처럼 23:00 관찰로 끝나 열린 활동 구간이 하나 남는다 | 목표는 침묵을 뺀 활동 시간 하루 약 8시간(실측 기록이 있는 날 평균 약 7.0시간). 실측 침묵 비율에서 창 8시간이면 활동이 약 4.6시간이라 창을 14시간으로 둔다. 중단 사유는 실제 기록에 있는 것만 쓴다 |
+| 같은 문맥 관찰 간격 | 5.5초 고정 | 실측 중앙값 5.50초, 90백분위 5.51초 |
+| 관찰마다 문맥이 바뀔 확률 | 0.0652 | 실측 1,528 / 23,435 |
+| 문맥이 바뀌는 관찰의 간격 | 누적 확률 표 (0, 0.0), (0.10, 0.51), (0.25, 0.90), (0.50, 1.86), (0.75, 3.51), (0.90, 4.85), (1.0, 5.5)초를 선형 보간한 역누적분포에서 뽑는다 | 실측 10·25·50·75·90백분위와 같은 문맥 간격 상한 |
+| 60초 초과 침묵 | 관찰마다 확률 0.0091로 다음 관찰을 침묵 뒤에 둔다. 길이는 누적 확률 표 (0, 61), (0.10, 77), (0.25, 100), (0.50, 181), (0.75, 372), (0.90, 655), (0.99, 3646), (1.0, 7784)초를 선형 보간해 뽑는다. suspended 레코드를 만들지 않으며, 활성 구간 끝을 넘으면 그 활성 구간의 관찰을 끝낸다 | 실측 213 / 23,435와 길이 분위수 |
+| 판정 순서 | 관찰마다 먼저 침묵을 판정하고(침묵이면 다음 관찰은 문맥 유지), 아니면 문맥 변경을 판정한다. 뽑은 간격은 밀리초로 반올림한다 | 해석 차이로 구간 수가 달라지지 않게 고정 |
+| 문맥 | 모두 detailed. 앱 bundleId·이름 `captured`, 창 `unavailable`(reason `accessibility_permission`), web `not_applicable`(브라우저 앱 포함), 변형 없음 | 실측: 불투명 0건, 창 23,434건 `unavailable`, web 전부 `not_applicable` |
+| 앱 | `heavy`와 같은 고정 앱 20개. 활성 구간 시작에 20개 중 하나, 문맥이 바뀔 때는 현재 앱을 뺀 19개 중 하나를 고르게 고른다 | 실측 앱 22개 |
+| 집중 세션·라벨·라벨 제안·라벨 확정·배치 | `heavy`와 같은 규칙과 수치 | 실제 기록에 집중 세션·확정이 0건이라 실측 근거가 없다 |
+
+생성 결과(seed 1, 14일)는 활동 시간 하루 약 8시간, 활동 1시간당 관찰 약 690건·활동 구간 약 51개다. 모든 활동 구간이 detailed라 `heavy`보다 라벨 제안·확정 행도 많다. 유저 1명당 크기는 아래 절차로 프로파일마다 따로 잰다.
+
+```sh
+uv run --locked --env-file "$ENV_FILE" python scripts/seed_load.py \
+  --users 1 --confirm-host "$DB_HOST" --end-date 2026-11-07 --profile measured
+```
 
 ## 유저 수 ↔ 용량 측정 절차
 

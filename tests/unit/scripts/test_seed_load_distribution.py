@@ -1,5 +1,7 @@
+import statistics
 from collections import Counter, defaultdict
 from datetime import date, datetime, time, timedelta
+from itertools import pairwise
 from types import ModuleType
 from typing import Any
 from uuid import UUID
@@ -308,3 +310,130 @@ def test_labeling_rows_follow_closed_detailed_segments(five_days: Days) -> None:
             assert row["lease_token"] is None
             assert row["lease_expires_at"] is None
             assert {row[name] for name in RESULT_COLUMNS} == {None}
+
+
+@pytest.fixture(scope="module")
+def measured_days(seed_load: ModuleType) -> Days:
+    period = seed_load.SeedPeriod(seed=1, end_date=date(2026, 11, 7), days=14)
+    return list(seed_load.generate_dummy_user(period, 1, profile="measured"))
+
+
+def _closed_activity_segments(days: Days) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in _rows(days, "activity_timeline_segments")
+        if row["segment_type"] == "activity" and row["ended_at"] is not None
+    ]
+
+
+def _activity_hours(days: Days) -> float:
+    # The period's last segment stays open and has no length.
+    return (
+        sum(
+            (row["ended_at"] - row["started_at"]).total_seconds()
+            for row in _closed_activity_segments(days)
+        )
+        / 3600
+    )
+
+
+def _observations(days: Days) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in _rows(days, "activity_records")
+        if row["record_type"] == "activity_observation"
+    ]
+
+
+def _consecutive_observations(
+    days: Days,
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """Pairs of activity observations with no collection state record between."""
+    records = _rows(days, "activity_records")
+    return [
+        (previous, current)
+        for previous, current in pairwise(records)
+        if previous["record_type"] == current["record_type"] == "activity_observation"
+    ]
+
+
+def test_measured_activity_time_and_densities(measured_days: Days) -> None:
+    hours = _activity_hours(measured_days)
+
+    assert 100 <= hours <= 124
+    assert 600 <= len(_observations(measured_days)) / hours <= 734
+    assert 45 <= len(_closed_activity_segments(measured_days)) / hours <= 55
+
+
+def test_measured_same_context_interval_median(measured_days: Days) -> None:
+    intervals = sorted(
+        (current["observed_at"] - previous["observed_at"]).total_seconds()
+        for previous, current in _consecutive_observations(measured_days)
+        if previous["payload"]["context"] == current["payload"]["context"]
+    )
+
+    assert 5.4 <= statistics.median(intervals) <= 5.6
+
+
+def test_measured_silences_per_thousand_observations(measured_days: Days) -> None:
+    silences = sum(
+        current["observed_at"] - previous["observed_at"] > timedelta(seconds=60)
+        for previous, current in _consecutive_observations(measured_days)
+    )
+
+    assert 7.7 <= silences * 1000 / len(_observations(measured_days)) <= 10.5
+
+
+def test_measured_contexts_and_suspend_reasons(
+    seed_load: ModuleType, measured_days: Days
+) -> None:
+    allowed = [
+        {
+            "kind": "detailed",
+            "app": {
+                "bundleId": {"status": "captured", "value": bundle_id},
+                "name": {"status": "captured", "value": name},
+            },
+            "window": {"status": "unavailable", "reason": "accessibility_permission"},
+            "web": {"kind": "not_applicable"},
+        }
+        for bundle_id, name, _ in seed_load.APPS
+    ]
+    contexts = [row["payload"]["context"] for row in _observations(measured_days)]
+    reasons = {
+        row["payload"]["reason"]
+        for row in _rows(measured_days, "activity_records")
+        if row["payload"].get("state") == "suspended"
+    }
+
+    assert [context for context in contexts if context["kind"] != "detailed"] == []
+    assert [c for c in contexts if c["web"] != {"kind": "not_applicable"}] == []
+    assert [
+        c
+        for c in contexts
+        if c["window"]
+        != {"status": "unavailable", "reason": "accessibility_permission"}
+    ] == []
+    assert reasons == {"screen_sleep", "system_sleep"}
+    assert [context for context in contexts if context not in allowed] == []
+
+
+def test_measured_segments_match_domain_projection(measured_days: Days) -> None:
+    records = [_entity(row) for row in _rows(measured_days, "activity_records")]
+    segments = _rows(measured_days, "activity_timeline_segments")
+    account_id = segments[0]["account_id"]
+
+    projected = [
+        segment.to_segment(account_id=account_id, segment_id=None)
+        for segment in project_events(records)
+    ]
+
+    assert [tuple(row[name] for name in SEGMENT_FIELDS) for row in segments] == [
+        tuple(
+            segment.segment_type.value
+            if name == "segment_type"
+            else getattr(segment, name)
+            for name in SEGMENT_FIELDS
+        )
+        for segment in projected
+    ]

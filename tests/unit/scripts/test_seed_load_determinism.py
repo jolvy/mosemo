@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import UTC, date, datetime, timedelta
 from types import ModuleType
 from uuid import UUID, uuid5
@@ -120,3 +122,63 @@ def test_account_user_uses_given_labels_without_account_or_label_rows(
         if row["suggested_label_id"]
     }
     assert used == set(label_ids)
+
+
+# Computed at 146f708, before the profiles existed. It also depends on the mosemo
+# projection and batch code: if a legitimate src change moves it, compute it with
+# this same serialization at the base commit and after the change, and update it
+# only when both agree.
+HEAVY_SHA256 = "55ce4767e3c2f0e8e7d46fdde1758c7ed8d1845de80e97004bcb65f450ed55b0"
+
+
+def test_heavy_default_output_is_unchanged(seed_load: ModuleType) -> None:
+    period = seed_load.SeedPeriod(seed=1, end_date=date(2026, 11, 7), days=3)
+
+    serialized = json.dumps(
+        list(seed_load.generate_dummy_user(period, 1)),
+        default=str,
+        sort_keys=True,
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+    assert hashlib.sha256(serialized).hexdigest() == HEAVY_SHA256
+
+
+def _generate_measured(seed_load: ModuleType) -> list[dict]:
+    period = seed_load.SeedPeriod(seed=1, end_date=END_DATE, days=2)
+    return list(seed_load.generate_dummy_user(period, 1, profile="measured"))
+
+
+def test_measured_same_arguments_generate_identical_rows(
+    seed_load: ModuleType,
+) -> None:
+    assert _generate_measured(seed_load) == _generate_measured(seed_load)
+
+
+def test_measured_identities_do_not_collide_with_heavy(
+    seed_load: ModuleType,
+) -> None:
+    measured = _generate_measured(seed_load)
+    heavy = _generate(seed_load, seed=1, days=2)
+    account_id = UUID("01900000-0000-7000-8000-000000000001")
+    period = seed_load.SeedPeriod(seed=1, end_date=END_DATE, days=1)
+    account_days = list(
+        seed_load.generate_account_user(
+            period,
+            account_id=account_id,
+            label_ids=[UUID("01900000-0000-7000-8000-000000000002")],
+            profile="measured",
+        )
+    )
+
+    (account,) = _rows(measured, "accounts")
+    assert account["provider_subject"] == "load-seed-measured-1-000001"
+    assert account["id"] != _rows(heavy, "accounts")[0]["id"]
+    (device,) = _rows(measured, "devices")
+    assert device["idempotency_key"] == uuid5(
+        seed_load.DEVICE_NAMESPACE, "1:measured:dummy:1"
+    )
+    (account_device,) = _rows(account_days, "devices")
+    assert account_device["idempotency_key"] == uuid5(
+        seed_load.DEVICE_NAMESPACE, f"1:measured:account:{account_id}"
+    )
