@@ -112,6 +112,50 @@ def test_rejects_generated_path_with_non_ascii_name(repo: Path) -> None:
     assert page in result.stdout.splitlines()
 
 
+def test_rejects_generated_path_with_different_case(repo: Path) -> None:
+    page = "OpenWiki/quickstart.md"
+    # 대소문자 무시 파일 시스템에서도 별도 경로가 되도록 작업 트리 없이 index에 넣는다.
+    blob = subprocess.run(
+        ["git", "hash-object", "-w", "--stdin"],
+        cwd=repo,
+        env=GIT_ENV,
+        input="new\n",
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    git(repo, "update-index", "--add", "--cacheinfo", f"100644,{blob},{page}")
+    git(repo, "commit", "--quiet", "-m", "change")
+
+    result = check(repo)
+
+    assert result.returncode == 1
+    assert page in result.stdout.splitlines()
+
+
+def test_default_commits_compare_merge_commit_with_first_parent(repo: Path) -> None:
+    git(repo, "branch", "--quiet", "-M", "main")
+    git(repo, "switch", "--quiet", "-c", "feat/x")
+    (repo / PAGE).write_text("edited\n", encoding="utf-8")
+    commit(repo)
+    git(repo, "switch", "--quiet", "main")
+    (repo / "README.md").write_text("edited\n", encoding="utf-8")
+    commit(repo)
+    git(repo, "merge", "--quiet", "--no-ff", "-m", "merge", "feat/x")
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--head-ref", "feat/x", "--same-repo", "true"],
+        cwd=repo,
+        env=GIT_ENV,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert result.stdout.splitlines()[1:] == [PAGE]
+
+
 def test_allows_instructions_edit(repo: Path) -> None:
     (repo / INSTRUCTIONS).write_text("edited\n", encoding="utf-8")
     commit(repo)
@@ -174,3 +218,6 @@ def test_quality_runs_check_only_on_pull_request_with_pr_inputs() -> None:
     }
     assert '--head-ref "$HEAD_REF"' in step["run"]
     assert '--same-repo "$SAME_REPO"' in step["run"]
+    # merge commit 기준 비교는 스크립트 기본값(HEAD^1·HEAD)에 맡긴다.
+    assert "--base" not in step["run"]
+    assert "--head " not in step["run"]

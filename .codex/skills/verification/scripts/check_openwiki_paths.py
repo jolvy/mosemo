@@ -33,7 +33,8 @@ def violations(paths: Iterable[str], *, head_ref: str, same_repo: bool) -> list[
     return [
         path
         for path in paths
-        if path.startswith(GENERATED_PREFIX) and path != INSTRUCTIONS
+        # 대소문자 무시 파일 시스템에서 `OpenWiki/`도 같은 폴더로 checkout된다.
+        if path.casefold().startswith(GENERATED_PREFIX) and path != INSTRUCTIONS
     ]
 
 
