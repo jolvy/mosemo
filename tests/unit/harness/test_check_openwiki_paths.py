@@ -1,6 +1,7 @@
 """`check_openwiki_paths.py`가 일반 PR의 `openwiki/` 생성물 변경을 거부하고 CI가 이를 실행한다."""
 
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -112,8 +113,12 @@ def test_rejects_generated_path_with_non_ascii_name(repo: Path) -> None:
     assert page in result.stdout.splitlines()
 
 
-def test_rejects_generated_path_with_different_case(repo: Path) -> None:
-    page = "OpenWiki/quickstart.md"
+@pytest.mark.parametrize(
+    "page",
+    # 지시서 예외는 정확한 경로만 허용한다. 대소문자가 다르면 macOS에서 지시서를 덮어쓴다.
+    ["OpenWiki/quickstart.md", "OpenWiki/INSTRUCTIONS.md"],
+)
+def test_rejects_generated_path_with_different_case(repo: Path, page: str) -> None:
     # 대소문자 무시 파일 시스템에서도 별도 경로가 되도록 작업 트리 없이 index에 넣는다.
     blob = subprocess.run(
         ["git", "hash-object", "-w", "--stdin"],
@@ -200,6 +205,8 @@ def test_quality_checkout_fetches_merge_commit_parent() -> None:
     )
 
     assert checkout["with"]["fetch-depth"] == 2
+    # head commit을 checkout하면 HEAD^1이 base가 아니라 PR의 직전 commit이 된다.
+    assert "ref" not in checkout["with"]
 
 
 def test_quality_runs_check_only_on_pull_request_with_pr_inputs() -> None:
@@ -219,5 +226,5 @@ def test_quality_runs_check_only_on_pull_request_with_pr_inputs() -> None:
     assert '--head-ref "$HEAD_REF"' in step["run"]
     assert '--same-repo "$SAME_REPO"' in step["run"]
     # merge commit 기준 비교는 스크립트 기본값(HEAD^1·HEAD)에 맡긴다.
-    assert "--base" not in step["run"]
-    assert "--head " not in step["run"]
+    options = {token.split("=")[0] for token in shlex.split(step["run"])}
+    assert not options & {"--base", "--head"}
