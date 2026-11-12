@@ -21,6 +21,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # pull_request의 merge commit과 첫 부모(base)를 비교하려면 두 commit이 필요하다.
+          fetch-depth: 2
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -36,6 +39,15 @@ jobs:
 
       - name: Validate documents
         run: uv run --locked python .codex/skills/verification/scripts/validate_docs.py
+
+      - name: Protect generated OpenWiki pages
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: >-
+          uv run --locked python .codex/skills/verification/scripts/check_openwiki_paths.py
+          --head-ref "$HEAD_REF" --same-repo "$SAME_REPO"
 
       - name: Validate architecture
         run: uv run --locked python .codex/skills/verification/scripts/validate_architecture.py
