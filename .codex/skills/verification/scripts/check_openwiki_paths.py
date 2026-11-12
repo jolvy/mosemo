@@ -39,7 +39,8 @@ def violations(paths: Iterable[str], *, head_ref: str, same_repo: bool) -> list[
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    # 축약 옵션(`--bas`)이 CI 배선 테스트의 기본값 단언을 피하지 못하게 한다.
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--base", default="HEAD^1", help="비교 기준 commit")
     parser.add_argument("--head", default="HEAD", help="비교 대상 commit")
     parser.add_argument("--head-ref", required=True, help="PR head 브랜치 이름")

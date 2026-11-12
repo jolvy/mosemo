@@ -192,6 +192,20 @@ def test_allows_change_outside_openwiki(repo: Path) -> None:
     assert check(repo).returncode == 0
 
 
+def test_rejects_abbreviated_options(repo: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--bas", "HEAD", "--head-ref", "feat/x"]
+        + ["--same-repo", "true"],
+        cwd=repo,
+        env=GIT_ENV,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+
+
 def quality_steps() -> list[dict[str, Any]]:
     workflow = yaml.safe_load(CI.read_text(encoding="utf-8"))
     return workflow["jobs"]["quality"]["steps"]
@@ -204,9 +218,8 @@ def test_quality_checkout_fetches_merge_commit_parent() -> None:
         if str(step.get("uses", "")).startswith("actions/checkout@")
     )
 
-    assert checkout["with"]["fetch-depth"] == 2
-    # head commit을 checkout하면 HEAD^1이 base가 아니라 PR의 직전 commit이 된다.
-    assert "ref" not in checkout["with"]
+    # `ref`·`repository`로 head를 checkout하면 HEAD^1이 base가 아니게 된다.
+    assert checkout["with"] == {"fetch-depth": 2}
 
 
 def test_quality_runs_check_only_on_pull_request_with_pr_inputs() -> None:
@@ -226,5 +239,13 @@ def test_quality_runs_check_only_on_pull_request_with_pr_inputs() -> None:
     assert '--head-ref "$HEAD_REF"' in step["run"]
     assert '--same-repo "$SAME_REPO"' in step["run"]
     # merge commit 기준 비교는 스크립트 기본값(HEAD^1·HEAD)에 맡긴다.
-    options = {token.split("=")[0] for token in shlex.split(step["run"])}
-    assert not options & {"--base", "--head"}
+    tokens = shlex.split(step["run"])
+    script_index = next(
+        i for i, token in enumerate(tokens) if token.endswith(SCRIPT.name)
+    )
+    options = {
+        token.split("=")[0]
+        for token in tokens[script_index + 1 :]
+        if token.startswith("--")
+    }
+    assert options == {"--head-ref", "--same-repo"}
