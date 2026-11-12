@@ -28,7 +28,7 @@ status: draft
 | 단위 | 초. 계정 시간대 날짜 단위. 지난 날짜는 일간 통계로 저장하고 오늘은 조회 때 계산한다. |
 | 포함 | 상세 문맥 활동 구간. 열린 구간은 `lastObservedAt`까지. 앱 미확인·불투명은 별도 값과 전체 관찰 시간에. |
 | 제외 | 수집 공백, 60초 초과 침묵, 열린 구간의 `lastObservedAt` 이후. |
-| 사용 대상 | 브라우저(`web.kind = browser`)이고 URL이 `captured`면 사이트(eTLD+1), URL이 없으면 브라우저 앱, 그 밖은 앱. 브라우저 여부는 클라이언트가 보낸 `web.kind`로만 판정한다. |
+| 사용 대상 | 브라우저(`web.kind = browser`)이고 URL이 `captured`면 사이트(eTLD+1), URL이 없으면 브라우저 앱, 그 밖은 앱. 브라우저 여부는 클라이언트가 보낸 `web.kind`로만 판정한다. `http`·`https` URL인데 eTLD+1을 정할 수 없으면 호스트 그대로(포트 제외)가 사이트이고, `http`·`https`가 아니거나 호스트가 없는 URL은 브라우저 앱이다(D7). |
 
 경계 사례:
 
@@ -42,6 +42,8 @@ status: draft
 | C1-B6 | Chrome `youtube.com` 20, URL 없는 Chrome 5, A 30 | 앱: A 30·Chrome 25 / 대상: A 30·`youtube.com` 20·Chrome 5 |
 | C1-B7 | A 10, 앱 미확인 2, 불투명 5 | 미확인 2, 불투명 5, 전체 17 |
 | C1-B8 | America/New_York 2026-03-08(23시간) | 하루 1,380분 |
+| C1-B9 | Chrome `http://192.168.0.1:8080/` 1, `http://localhost:8000/docs` 2, `http://intranet/wiki` 3, `https://github.io/` 4 | 대상: `192.168.0.1` 1·`localhost` 2·`intranet` 3·`github.io` 4 |
+| C1-B10 | Chrome `https://m.youtube.com/watch` 20, `chrome://settings` 2, `about:blank` 2, `file:///Users/a.pdf` 1 | 대상: `youtube.com` 20·Chrome 5 |
 
 반례:
 
@@ -331,6 +333,10 @@ status: draft
 - **D6 철회**: 브라우저 판정을 서버가 bundleId로 추정해도 URL이 없으면 결과가 같다(URL 없는
   브라우저 = 브라우저 앱). 10월 기록의 Safari가 `not_applicable`이었던 원인은 클라이언트에서
   확인한다.
+- **D7 eTLD+1이 없는 URL (2026-11-12)**: `http`·`https` URL이면 호스트 그대로(포트 제외)를
+  사이트로 둔다(C1-B9). `http`·`https`가 아니거나 호스트가 없는 URL은 브라우저 앱이다(C1-B10).
+  이전에는 FR-2가 정하지 않아 골든 비교 도구가 이런 URL에서 실패했다. 10월 기록에는 브라우저
+  URL이 없어(Q3) 측정값은 바뀌지 않는다.
 
 ## 관련 문서
 

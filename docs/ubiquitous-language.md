@@ -174,8 +174,10 @@ _Avoid_: 미분류 시간, 수집 공백
 _Avoid_: 라벨, 앱 종류, 사용 대상
 
 **사이트**:
-브라우저 탭 URL의 eTLD+1(예: `m.youtube.com` → `youtube.com`). 분석에서만 파생하며
-원본 URL을 바꾸지 않는다. 브라우저가 달라도 같은 사이트다.
+브라우저 탭 URL의 eTLD+1(예: `m.youtube.com` → `youtube.com`). `http`·`https` URL인데
+eTLD+1을 정할 수 없으면(IP 주소, `localhost`) 호스트 그대로이고, 그 밖의 URL(`chrome://`,
+`about:`)에는 사이트가 없다. 분석에서만 파생하며 원본 URL을 바꾸지 않는다. 브라우저가
+달라도 같은 사이트다.
 _Avoid_: 도메인, URL, 페이지
 
 **사용 대상**:
