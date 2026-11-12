@@ -80,6 +80,40 @@ CONFIRMATION_DELAY = timedelta(minutes=10)
 LEASE_DURATION = timedelta(minutes=2)
 MAX_RETRIEVED_EXAMPLES = 5
 
+HEAVY = "heavy"
+MEASURED = "measured"
+PROFILES = (HEAVY, MEASURED)
+
+# The measured profile follows a real macOS client log (2026-10-12..17, 23,435
+# observations); see docs/load-test-seeding.md for the sources of each value.
+MEASURED_ACTIVE_PERIODS = (
+    (time(8), time(12), "screen_sleep"),
+    (time(13), time(23), "system_sleep"),
+)
+MEASURED_SAME_CONTEXT_SECONDS = 5.5
+MEASURED_CONTEXT_CHANGE_PROBABILITY = 0.0652
+# (cumulative probability, seconds) points of piecewise linear distributions.
+MEASURED_CHANGED_CONTEXT_SECONDS = (
+    (0.0, 0.0),
+    (0.10, 0.51),
+    (0.25, 0.90),
+    (0.50, 1.86),
+    (0.75, 3.51),
+    (0.90, 4.85),
+    (1.0, 5.5),
+)
+MEASURED_SILENCE_PROBABILITY = 0.0091
+MEASURED_SILENCE_SECONDS = (
+    (0.0, 61.0),
+    (0.10, 77.0),
+    (0.25, 100.0),
+    (0.50, 181.0),
+    (0.75, 372.0),
+    (0.90, 655.0),
+    (0.99, 3646.0),
+    (1.0, 7784.0),
+)
+
 APPS: tuple[tuple[str, str, bool], ...] = (
     ("com.google.Chrome", "Google Chrome", True),
     ("com.apple.Safari", "Safari", True),
@@ -165,15 +199,18 @@ def seeded_uuid4(rng: random.Random) -> UUID:
     return UUID(int=rng.getrandbits(128), version=4)
 
 
-def generate_dummy_user(period: SeedPeriod, index: int) -> Iterator[Tables]:
+def generate_dummy_user(
+    period: SeedPeriod, index: int, *, profile: str = HEAVY
+) -> Iterator[Tables]:
     """Days of dummy user ``index`` (1-based); the first day adds the account and labels."""
-    user_key = f"dummy:{index}"
+    user_key = dummy_user_key(profile, index)
     rng = _user_random(period, user_key)
     account_id = seeded_uuid7(rng, period.start)
+    subject_prefix = "load-seed" if profile == HEAVY else f"load-seed-{profile}"
     account = {
         "id": account_id,
         "provider": "KAKAO",
-        "provider_subject": f"load-seed-{period.seed}-{index:06d}",
+        "provider_subject": f"{subject_prefix}-{period.seed}-{index:06d}",
         "timezone": Timezone.ASIA_SEOUL.value,
         "created_at": period.start,
         "last_authenticated_at": period.start,
@@ -196,7 +233,7 @@ def generate_dummy_user(period: SeedPeriod, index: int) -> Iterator[Tables]:
     active_label_ids = [
         cast(UUID, row["id"]) for row in labels if row["archived_at"] is None
     ]
-    user = _UserGenerator(
+    user = _GENERATORS[profile](
         rng=rng,
         period=period,
         account_id=account_id,
@@ -207,11 +244,15 @@ def generate_dummy_user(period: SeedPeriod, index: int) -> Iterator[Tables]:
 
 
 def generate_account_user(
-    period: SeedPeriod, *, account_id: UUID, label_ids: Sequence[UUID]
+    period: SeedPeriod,
+    *,
+    account_id: UUID,
+    label_ids: Sequence[UUID],
+    profile: str = HEAVY,
 ) -> Iterator[Tables]:
     """Days for an existing account using its active ``label_ids``; no account or labels."""
-    user_key = f"account:{account_id}"
-    user = _UserGenerator(
+    user_key = account_user_key(profile, account_id)
+    user = _GENERATORS[profile](
         rng=_user_random(period, user_key),
         period=period,
         account_id=account_id,
@@ -219,6 +260,19 @@ def generate_account_user(
         label_ids=list(label_ids),
     )
     return user.days({})
+
+
+def dummy_user_key(profile: str, index: int) -> str:
+    return f"{_user_key_prefix(profile)}dummy:{index}"
+
+
+def account_user_key(profile: str, account_id: UUID) -> str:
+    return f"{_user_key_prefix(profile)}account:{account_id}"
+
+
+def _user_key_prefix(profile: str) -> str:
+    # heavy keeps the keys it had before profiles existed.
+    return "" if profile == HEAVY else f"{profile}:"
 
 
 def device_idempotency_key(seed: int, user_key: str) -> UUID:
@@ -261,6 +315,8 @@ class _Day:
 class _UserGenerator:
     """One user's state carried across days: sequence, projection and history."""
 
+    active_periods = ACTIVE_PERIODS
+
     def __init__(
         self,
         *,
@@ -298,7 +354,7 @@ class _UserGenerator:
     def _generate_day(self, day: date, tables: Tables, *, last: bool) -> Tables:
         generated = _Day(tables)
         self._add_focus_sessions(generated, day, last=last)
-        for start, end, suspend_reason in ACTIVE_PERIODS:
+        for start, end, suspend_reason in self.active_periods:
             started_at = _seoul(day, start)
             ended_at = _seoul(day, end)
             self._add_state(generated, started_at, state="active", reason="user_active")
@@ -582,6 +638,62 @@ class _UserGenerator:
         return self._rng.choice(self._label_ids)
 
 
+class _MeasuredUserGenerator(_UserGenerator):
+    """The measured profile: denser, all-detailed observations with silences."""
+
+    active_periods = MEASURED_ACTIVE_PERIODS
+
+    def _add_observations(
+        self, generated: _Day, *, started_at: datetime, ended_at: datetime, final: bool
+    ) -> None:
+        observed_at = started_at
+        app = self._rng.choice(APPS)
+        context = _measured_context(app)
+        while observed_at < ended_at:
+            self._add_observation(generated, observed_at=observed_at, context=context)
+            # A silence keeps the context; a silence past ended_at ends the loop.
+            if self._rng.random() < MEASURED_SILENCE_PROBABILITY:
+                seconds = _inverse_cdf(MEASURED_SILENCE_SECONDS, self._rng.random())
+            elif self._rng.random() < MEASURED_CONTEXT_CHANGE_PROBABILITY:
+                app = self._rng.choice([other for other in APPS if other != app])
+                context = _measured_context(app)
+                seconds = _inverse_cdf(
+                    MEASURED_CHANGED_CONTEXT_SECONDS, self._rng.random()
+                )
+            else:
+                seconds = MEASURED_SAME_CONTEXT_SECONDS
+            observed_at += timedelta(milliseconds=round(seconds * 1000))
+        if final:
+            # The period ends observing: the last activity segment stays open.
+            self._add_observation(generated, observed_at=ended_at, context=context)
+
+
+_GENERATORS: dict[str, type[_UserGenerator]] = {
+    HEAVY: _UserGenerator,
+    MEASURED: _MeasuredUserGenerator,
+}
+
+
+def _measured_context(app: tuple[str, str, bool]) -> dict[str, object]:
+    bundle_id, name, _ = app
+    return {
+        "kind": "detailed",
+        "app": {
+            "bundleId": {"status": "captured", "value": bundle_id},
+            "name": {"status": "captured", "value": name},
+        },
+        "window": {"status": "unavailable", "reason": "accessibility_permission"},
+        "web": {"kind": "not_applicable"},
+    }
+
+
+def _inverse_cdf(points: Sequence[tuple[float, float]], quantile: float) -> float:
+    """Linear interpolation of ``(cumulative probability, value)`` points."""
+    index = bisect.bisect_right([p for p, _ in points], quantile)
+    (low_p, low), (high_p, high) = points[index - 1], points[index]
+    return low + (high - low) * (quantile - low_p) / (high_p - low_p)
+
+
 def _seoul(day: date, at: time) -> datetime:
     return datetime.combine(day, at, tzinfo=SEOUL).astimezone(UTC)
 
@@ -679,37 +791,42 @@ async def load_users(
     *,
     users: int,
     account_id: UUID | None,
+    profile: str,
 ) -> LoadResult:
     """Load the existing account first (if any), then dummies up to ``users``."""
     outcomes: list[bool] = []
     if account_id is not None:
         outcomes.append(
-            await _load_account_user(connection, period, account_id=account_id)
+            await _load_account_user(
+                connection, period, account_id=account_id, profile=profile
+            )
         )
     dummies = users - len(outcomes)
     for index in range(1, dummies + 1):
-        outcomes.append(await _load_dummy_user(connection, period, index=index))
+        outcomes.append(
+            await _load_dummy_user(connection, period, index=index, profile=profile)
+        )
     loaded = sum(outcomes)
     return LoadResult(loaded=loaded, skipped=len(outcomes) - loaded)
 
 
 async def _load_dummy_user(
-    connection: AsyncConnection, period: SeedPeriod, *, index: int
+    connection: AsyncConnection, period: SeedPeriod, *, index: int, profile: str
 ) -> bool:
-    user_key = f"dummy:{index}"
+    user_key = dummy_user_key(profile, index)
     async with connection.begin():
         # The SQLAlchemy asyncpg adapter sends BEGIN with the first statement, so
         # this lookup opens the transaction the COPY below runs in.
         if await _device_exists(connection, period, user_key=user_key):
             return _report_user(user_key, loaded=False)
-        await copy_days(connection, generate_dummy_user(period, index))
+        await copy_days(connection, generate_dummy_user(period, index, profile=profile))
     return _report_user(user_key, loaded=True)
 
 
 async def _load_account_user(
-    connection: AsyncConnection, period: SeedPeriod, *, account_id: UUID
+    connection: AsyncConnection, period: SeedPeriod, *, account_id: UUID, profile: str
 ) -> bool:
-    user_key = f"account:{account_id}"
+    user_key = account_user_key(profile, account_id)
     async with connection.begin():
         exists = await connection.scalar(
             text("SELECT EXISTS (SELECT 1 FROM accounts WHERE id = :id)"),
@@ -720,7 +837,9 @@ async def _load_account_user(
         if await _device_exists(connection, period, user_key=user_key):
             return _report_user(user_key, loaded=False)
         label_ids = await _account_label_ids(connection, account_id)
-        days = generate_account_user(period, account_id=account_id, label_ids=label_ids)
+        days = generate_account_user(
+            period, account_id=account_id, label_ids=label_ids, profile=profile
+        )
         await copy_days(connection, days)
     return _report_user(user_key, loaded=True)
 
@@ -857,6 +976,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--account-id", type=UUID)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--days", type=_positive_int, default=365)
+    parser.add_argument(
+        "--profile",
+        choices=PROFILES,
+        default=HEAVY,
+        help="distribution profile (docs/load-test-seeding.md)",
+    )
     return parser
 
 
@@ -872,19 +997,34 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_USAGE
     period = SeedPeriod(seed=args.seed, end_date=args.end_date, days=args.days)
     return asyncio.run(
-        _run(config.dsn, period, users=args.users, account_id=args.account_id)
+        _run(
+            config.dsn,
+            period,
+            users=args.users,
+            account_id=args.account_id,
+            profile=args.profile,
+        )
     )
 
 
 async def _run(
-    dsn: str, period: SeedPeriod, *, users: int, account_id: UUID | None
+    dsn: str,
+    period: SeedPeriod,
+    *,
+    users: int,
+    account_id: UUID | None,
+    profile: str,
 ) -> int:
     engine = create_async_engine(dsn)
     try:
         async with engine.connect() as connection:
             try:
                 result = await load_users(
-                    connection, period, users=users, account_id=account_id
+                    connection,
+                    period,
+                    users=users,
+                    account_id=account_id,
+                    profile=profile,
                 )
             except RejectedAccountError as exc:
                 print(f"rejected: {exc}", file=sys.stderr)
