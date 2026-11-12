@@ -7,3 +7,5 @@
 - [로깅 규칙](logging.md)
 - [코드 스타일 평가 기준](code-style-rubric.md)
 - [부하 테스트 시드 적재](load-test-seeding.md)
+- [활동 분석 지표 명세](activity-analytics-metrics.md)
+- [활동 분석 골든 데이터셋](activity-analytics-golden.md)
