@@ -30,6 +30,7 @@
 - 공개 API 요청과 응답은 Pydantic 모델로 정의하고 JSON 필드명과 오류 응답 계약을 유지한다.
 - API 스키마나 설명이 바뀌면 `uv run --locked poe openapi`로 `openapi/openapi.json`을 갱신하고 함께 검증한다.
 - 이미 적용된 Alembic 마이그레이션은 다시 쓰지 않는다. 스키마 변경에는 새 마이그레이션을 추가한다.
+- `openwiki/` 생성물은 문서 PR에서만 바뀌고, 일반 PR은 `openwiki/INSTRUCTIONS.md`만 고칠 수 있다(CI 검사).
 
 ## 빌드와 검증
 
