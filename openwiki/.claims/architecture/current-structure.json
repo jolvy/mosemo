@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:b06a1c3250c5f51ea19b341013f080b04e9ce9379e341e5e3b535c7e1ae68b2d",
+  "claims": [
+    {
+      "id": "claim_b48355b6436343bf8eac85c414c21763",
+      "statement": "src/mosemo는 BC 네 개(identity, labels, observation, labeling)와 공용 커널 shared, 실행 기반 platform, 프로세스별 조립 루트 entrypoints(api, consumer, batch)로 나뉜다.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L9-L26",
+          "version": "repo-lines-v1:sha256:1616ec5b69fdd0cd19b9035d55c74a367425b5608b21081bc3cd0ea1dc57acfb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ZjFmYTdiNTczMzdhZmJiNjY3NTRmMmVkMWU3ZWI3YzFhZmI4MzBlOWVmZWY1MGIzMzgxMDViZjk0OGJhYzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3YzA2YzU2MWQ1YzMyNzM0MzY4NTI2OGE0NmIzMzkxZjM5OThlZWU4OTBkMmJlNTFmMGQyMWNjNGE1M2FlNmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3MGI2MDgwZDA2ODNhYmQ3MmMwZmQxMzk4OTkyN2M2NDk3MGU1MTM5NDcxMzBkZTEzZmExOWZjMGM2ZTIyZDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJjN2UwNjc1MTM4Mzg2ZTI5MGYxNjJiN2ZiMGZlM2VhZTZhYzYxZjZkOTU3NTViNDMzOTNlM2U4MjY4ZTMwMDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_929aa201255140528ca03b4ed8456342",
+      "statement": "BC 사이 import는 labeling → observation → labels → identity 방향으로만 허용되며 import-linter layers 계약이 이를 강제한다.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L28-L28",
+          "version": "repo-lines-v1:sha256:9c150e16621f3a1d52b9169941eb3aad9aef541dec4a6a277e019649f82ee66d:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWMxNTBlMTY2MjFmM2ExZDUyYjkxNjk5NDFlYjNhYWQ5YWVmNTQxZGVjNGE2YTI3N2UwMTk2NDlmODJlZTY2ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWMxNTBlMTY2MjFmM2ExZDUyYjkxNjk5NDFlYjNhYWQ5YWVmNTQxZGVjNGE2YTI3N2UwMTk2NDlmODJlZTY2ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWI2Yjg3MzQ1M2FlZWNlODBkZGE1YjVmMzAwMDAxYWYyMjMyMDNlY2UzYjVjMTBhOWZlNzNiMGI0ODYwZTZhYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTU1MTgwODNjYmRjMzRjYmE0MTJiNjBhMWIzYjk4ZDNlMmE4YWFiYzRiNGNlMzcxNTY1NjBmOGJhZjY2ZDFiYyJ9"
+        },
+        {
+          "resource": "repo://pyproject.toml#L172-L184",
+          "version": "repo-lines-v1:sha256:92c00241f14586d6c54ad909939db7e45b31c3aba2da7f6c1ab27783b4822774:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmZDM2ZWFjZWY2YzQ0MDJkZmRiZTk2NTY0NGExZTk1ZTdhODA3ODU5NWFmYzk3NmI5Yjc3Y2RjYjcxNWM4YTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyMzRhYjQxOWFhMjNiZTJiODM5MWZmMjU2N2NmZGYzNmQ0M2E5OWUwZTM2YTNiMWQxODI0ZTIwYjI4ZWUzM2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUzZDRhNzI0NDdiNDlmNjJkYzhmMjAyYjE5ZGYzN2UxODJiZDJiM2JmNmFkNzBjYzkxNmVlMTY3YjhlZTA2ZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU4M2QxOWYzMTRlMDIxZWE3ZmVmYTUzMGQ2YjI3OTY3NjJjNzU2YjFhZGU1ODFmN2I5MjMwNDY3OGFjNzJmNzgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_af4207339a45482b99516705c1aa1fd7",
+      "statement": "BC 분리는 논리 분리로, 프로세스·DB·Postgres 스키마는 하나이고 BC 사이 외래키와 한 트랜잭션 안의 BC 간 호출을 유지한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md#L47-L56",
+          "version": "repo-lines-v1:sha256:dcd8a40b05d0d99fffc062805f17c35c00ba6f23f629e89361a38bbbae77f566:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0Yjg4ZGJjMmQyNDlkZjZmYWExMGE3NDMyODlhNWU1YzIxYjIyM2IxNWIxZDIzZjNiNjEyOTEyZmU0YTg2MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExY2JmNDFiZGM1MWRlYTVkOTZmODk2NTlkZGE2MDdlYWUxODgxMjM3YjcxZTMxM2ZlZDZlMWFmYjNkNDUzZjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlODZjZjFiMDJhYzMxMDA1ZDBhMWJlMGRkZmMyMTExMWIwODM3ZTQ2NzdjN2IwYTY0NGI1ODFlMzc1NGU2MzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlMDY0MDFmZmI2OTE3MWIyMmM0ZDZjZWVmMDdkOTgzYzY0ZWYyMjVlMzJhNWUzMjM5MzdlMjYzMWIyZjA1MTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bcdaa1dfd1b94a81963dd1a386bbc7f5",
+      "statement": "BC 루트에는 public.py, bootstrap.py, __init__.py만 두고 나머지 코드는 presentation → application → infrastructure → domain 방향으로 의존하는 계층 폴더에 둔다.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L29-L30",
+          "version": "repo-lines-v1:sha256:859480004c5f34844af4ffb80c6d0ded1d1c383c542380173889755243bb12e5:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjY5OTIyOWE1OGUwYTgwZWMzNzViNzU2YWJmNzdiMTMxYzBiMDc1NjQxMDQ0MDI0OWM0NDU2NGMwYTBmNDU5MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjE3ZjljYjNhNTA5ZjlkODEwZDdkNzkwOGIyYjA2MjVmOGZhNjJjMWZjMGUwMWQ1MTMwMGM4NTg3MWFlOTk0ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWQ1OTBlOTZjNDcyOTEzMTM0YThkZmMxYmMzZDJiZmYyNTM1MDUxYjBmZGZlZDVmZGQ2NDA5MTgyYmMyZmJmMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2E5NWVhY2E1ZmNiODRkNzQ1NjRhZjRlZDhmOTZlYmU5ZTFhMjc3YmM0ZWZmOWZiYWJiZjQyOWFlZWQ0NDA2OSJ9"
+        },
+        {
+          "resource": "repo://src/mosemo/AGENTS.md#L13-L17",
+          "version": "repo-lines-v1:sha256:d819f2c9d64db22636bdae1d681a77ad30e75a20efcfacd4af3eaf7c3827d07c:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjcwODVmMmUyZWEwYWVkY2Q3ZTMzZjFjZDViNTdhMTg1Y2U1MDQwYTAwMGVmZDQ4NTg5NjllMTA4MGFhMTUzNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzRhZWMwZjczZDk5YjcyMWFiYmRkZGU1Y2U2MDBiMWI0ZTU3YTNjZTM2YjdjOGRiYTAyOGQ4MGFjY2Y1M2ZjOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWM0MGFiMjE3ZTVmNjM2MzQ1NjEwYjI5Zjk4ZTk4NTA3OGRmNGE2NzJkNmM4MGI2NGNjZWNlZTQ0OWI3Njk4NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTMyMjdmZWE0YTA5NDlhNTA0Yzg5ZTIxNzU3ZmZjMDU3ZjA4NTRiNDk0NDY2MmE3YWEzYzU0ZjI3YmIyMThiMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_73906dfe263b425caac77248c4c71da6",
+      "statement": "API 조립 루트는 네 BC의 테이블을 매핑한 뒤 Identity, Labels, Observation, Labeling 순서로 하류 BC의 공개 객체를 상류 BC 생성자에 넘겨 객체 그래프를 만든다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/entrypoints/api/contexts.py#L11-L36",
+          "version": "repo-lines-v1:sha256:072d0b54db6dc0eb67fd16d30afc210d3662f16aec42bcd81d3ccf6812cdc51d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjN2U5MjczNGRkOGM3YTE2ZDQ1MDVhY2E4ZTUxMGYwNWQ1NjZmNTFlMDg2ZThmMGVlZDM0YThmMGNlMzQxM2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhZmJhMDUyN2MzOTUzYzRiNmUwZTViNTczOWJhODM2MTJmODA1M2JjZGM5NDY2NzMwMTkzY2QxZDU5MGI0MDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4ZTU2OTk4MzVjZmRmOTcyODMwODFkMTMwNDllZWZlNjNlYTVhZmJmODA5MmYwMzdlMDY1ZjRmNGZlZWEwNTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_530cb6a47ac443068c41ce47ae1acfe5",
+      "statement": "BC는 설정 모듈을 import하지 않고, 조립 루트가 BC bootstrap.py의 순수 타입으로 설정 값을 넘긴다.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L33-L35",
+          "version": "repo-lines-v1:sha256:118aaa2e2a59b4639b7cbe9881c50b1e7126fec4539ab2cf4f514710b313c268:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjI2MDAzN2U0MTU4YTMyMmEwYWExYTJlMDNlODFlMWQ4MWVhZjNmMTk4NDM1NmVlYjg0MTkxMmRiY2YyMDE3NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTQyNDVmZjRiZTJjNjQ2NjBiNGZlZDY0YmYyNGQxNGUwMzFkZTkxNGIzMTcyNWFjNTNmZmEwMGU4NGUxNzAzYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTI4NzFjYjc1MjU5MzU1MjYyOGFlM2FiOTMxMDZkODg5NzllMWE0YzE5MzM0ODhkZmNmZjRmZGVkOTVhZDk1MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWMyNmE5NmEyM2ZjM2RmZTliYTI2Zjc0NjFjNDU2Nzk1M2E4YjMwNjlmY2NhMDY1ZmFiY2EwN2UwYzU4YTdjYiJ9"
+        },
+        {
+          "resource": "repo://pyproject.toml#L158-L170",
+          "version": "repo-lines-v1:sha256:f3613f9956ce96f49962a928c259ddeb81ba39a61f33196a4fe40be105c9c93f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4NTNmNmZiZTg0ZjM0ZTg2ZmFkYzNlZGQzYmZiMzI5ZGRhZTFlYzlkZTU4YTIyNWM3ODI5ZTFlYjA2YzYwMzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0ZTI5NTliODBiODYzOTY1YWU2NzM5YmU1MzAzNDgwNTlkZWUzNzI3M2M3NjFjYjAxNWQ0YWU2OTFiZjhjMGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMyMWExYmUyMTQwMGYyM2QzZDVhYmYyNWZhOTRkYTMxNDczZTAwYjFkMTQ1NWNkZWUzYzQ3ZmJlNjgxZGY2NTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiY2M0ZDI3MzdmNzExNjU5YzUzMWQ4NTkwMGMwZjY3YTE3N2Q5NTRiMWUxZDczYzE3NzdmMjBkYmM0NjE3ODIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0b511e9ccc8d4e0297eae55485268235",
+      "statement": "import-linter 계약은 BC가 mosemo.entrypoints를 import하지 못하게 하고, apscheduler는 platform.scheduling만, faststream·aiokafka는 platform만 import하도록 제한한다.",
+      "evidence": [
+        {
+          "resource": "repo://pyproject.toml#L127-L156",
+          "version": "repo-lines-v1:sha256:63360f7b10e4dba37425089ee2850c5af27df88ba4c295215ee1405093a50ccc:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRmOTRiZjU0NjE5NzkxNGY4NGZlMjczMzQ3YTU3NGJhOGMwOWRjMzY0YzQxNzdjNDRmMmQyMzNiZTk3NjA2YmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1NmI4NjNiZjc0OGQwMzBkMzdiZWRhNWJlMGYxZWUxN2Y2N2MxMDdiOTRiN2UzMTgxMzI4NjQ5ZTk1N2Q0NzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdiNTZmNzBjMjdmMmYxMDQzZjE2ZTIxY2EzNjFkZmY0MTA5ZTBjMTM3MmI2YzM5NGM3ZDhkNjFhYWQ2N2E4ZGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU0MDcyYzNmMjcyNmQ1YWU1ZjhlMzgzNGVlMmI2ZTljMGZhNDUyZDY4NzI0MGI5NjgyNzdhMTA2NTZjMTliYTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5f82b2ebb6234f65849e536b5c83f123",
+      "statement": "UseCase는 쓰기 트랜잭션을 unit_of_work, 읽기를 read_snapshot으로 열고, Repository는 aggregate root를 통째로 불러오고 저장하되 판단과 트랜잭션을 하지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/AGENTS.md#L34-L36",
+          "version": "repo-lines-v1:sha256:774137d8fbc2040a2776619d955d7b2d95b81d677c3270c082068e914946dd94:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTZhMzE3YzUzYWU0MzUwYjRlMjNiNDI4YmJlZDk3NjY3M2M0NTIyMTc3ZTM3NjAwMzQxMTE0NDA2OWIyMDdkMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyMjQyOTJhZTc2MTA1NWYwNjJlNjk3YWMwNTJmNWE3Y2UxOWU5NWExOWUyN2IzYmY4ZDQxN2U3M2JlMGZiYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGQ4YzljYWM0NTJjZDk4ZmQ0NGMzMzFjYjVjYTllYjk4ZTYwZDc0YmIyYzRjNTQxNTJmNTM5YzIwMDUxMTNlMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzEzYTI4NWEyMzJkYTllNmY2MGI1MTE1MThiMzIwMWNhNzY4OTg5YmM3ZWFlY2ZhMjI1OWZlNWVjMjAyYWNhYSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-12T08:09:21.750Z"
+  }
+}

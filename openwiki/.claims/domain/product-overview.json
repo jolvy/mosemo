@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:688aec0b4ae058383325873669e65485d169749b763edea8d29977c8b3d3050b",
+  "claims": [
+    {
+      "id": "claim_2d34ecd86f17470eb1d762380fe5a7af",
+      "statement": "공개 API는 /api/v1 아래에서 identity가 인증·계정·Device 라우터를, observation이 활동·집중 세션 라우터를, labeling이 활동 라벨 라우터를, labels가 라벨 라우터를 제공한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/entrypoints/api/routes.py#L8-L29",
+          "version": "repo-lines-v1:sha256:56595d48fab89fee45c7e084635a6bc1bf2e17e581310d8979b07bb12bde66e2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhNzkwODlkNDE3OTU5ZWZiMDk2MTdkNGFkNWE5MjEyODFkNDAzYjg4MDZlNjkyMmQzNjJmOTVmNWFkN2M3MzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhZmJhMDUyN2MzOTUzYzRiNmUwZTViNTczOWJhODM2MTJmODA1M2JjZGM5NDY2NzMwMTkzY2QxZDU5MGI0MDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNGI0ZDUyMmZkZDk1YjViNzE4ZjllOTQxNzZiMjFjYzVlOTQyODdmOGQ0NzBlOGZiMmIyMWM5YjM0MTNkMWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7e0aeff3010b41d588d18c519a3fb409",
+      "statement": "도메인 언어는 활동을 관찰한 사실과 그 사실에 대한 후속 해석을 구분한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/ubiquitous-language.md#L1-L5",
+          "version": "repo-lines-v1:sha256:183fece611d1b74ee1615b312e333a829ed24f1eb075a3dbc2528f3952711682:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQzZTU3M2MwOTY5ZmFjYmY3OGQzYmVhODMzZjIwMDRkZTVmNTBkZDdmZjAyMDMzZjIxOWYwN2Y1NDdkOGRjYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDBjMDk4NDViZDNmZjY2NGM4YzBiMzFjMDc1OWI5N2ExOWM3YTA0MmNjNTE0OTExM2IyNzVmMzE4MDQyODc1YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjRlNDJmYzVlMGI2YzdmODEwZDdhMWFiNDM0Y2NhNTUzNGM5OTQyYzgwYmVhZTRiYmY2ZGEwOGZmMTQ3ZmY5MSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7428f9b373a64a1cbc176cde216092fc",
+      "statement": "Device는 한 계정에 귀속된 하나의 앱 설치이며 재설치로 등록 상태를 잃으면 새 Device로 취급한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/ubiquitous-language.md#L9-L13",
+          "version": "repo-lines-v1:sha256:c724bdcff17f2ed5627205171a9ddbac61c3edb0d0947ea3796e1ccf29a926a6:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDM5ODYzZWYzZjEyYTU5MjVmZGNlZGNkNzNhYTU0YTQwZTQzZTc4Y2MzYmExZWZiNWVkOGUwNWY5ZTE1ODY3NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmU4YTc4MTkxN2M1MTEzYmEzNWI4NzEzZmIyNTRiODUwMWM2NTA3N2FiMDVlNjc0NjllZDQzNWVjY2Y4ZWFmOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjRlNDJmYzVlMGI2YzdmODEwZDdhMWFiNDM0Y2NhNTUzNGM5OTQyYzgwYmVhZTRiYmY2ZGEwOGZmMTQ3ZmY5MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWE5ZDI5NTM2ODExNmRlNjliNmE5YmE0ODgzNTJlYTJkYzI0YWIwNjEyNTM2MmNjYTE1NGFkNGM1NTIyYjhkMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_21dba620df8f4dec9f73cc84920f60e0",
+      "statement": "관찰 활동 구간은 동일한 관찰 문맥이 60초를 초과해 끊기지 않고 이어진 반개구간이고, 수집 공백은 명시적인 suspended로 시작하며 순번 누락이나 침묵만으로 추정하지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/ubiquitous-language.md#L47-L78",
+          "version": "repo-lines-v1:sha256:18dcf472309afd94128b5903c2dbea670c8cf15050d967b8127111577cc7c42d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1M2RkZDc4N2ExNjVhMDdkMDI4MzA3YWI3MGNlZjEwNTMyZTI1ZGYxZDRhMWNkM2IwODFlNTE4ZjdlZmVhNGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiYTIwZWRmYjFjNTg3YzczYjI2YzQzZTU5ODFiNzlkZWEzOWE1NTM4Y2I0MDkzYzFlOWVmZmFiYmQyZWFlNTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5NzU1NTUyNjFjY2RhOWJlZWNmNTFiMmU4MjMzMmU2N2U3ZmQxYWNmYjI5ZDZiNWM0OWYyNTdmYjY5MGE4ZTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ed2d4761bcb64837bfa0a7bc0798c84d",
+      "statement": "불투명 활동은 개인정보 보호를 위해 식별 정보를 남기지 않은 정상 활동이며 라벨링 대상에서 제외된다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/ubiquitous-language.md#L79-L83",
+          "version": "repo-lines-v1:sha256:ee87841ada85f27b240a3dcc12aac6b5f2996ca2e802fb7c3b1fd0f5362c3eff:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTI4ZjM3OTFlNjNmN2RkMGNiNGJmZTUyMWNkZGJmZWUyYWU1ZTlmOThmOTkzYmNkMWQ4N2MzNmMzM2MzZWYyNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzJlZTgyZWEwNWUyNjJiYjQ5Y2I5OGVkYzI2YThmNzQ2NWQxZTU0ZTg3YTY1MzUyNWNlOTE2NDljOWMyNjA5YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjljNWM4NGYzOWUwNTk1ODY0YzM5MWY5NjgxNjE4ZWRiZWUzZWU0NjVmNTEwYWI3ZGFjNTUwOTlmZmRlZDA0ZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_388aced8531f4b8b846ee1e2be3dc381",
+      "statement": "라벨 제안은 확정 전 AI 판단이고, 사용자의 최신 확정값만 집계와 이후 제안에 반영되며, 확정·미확정·불투명 활동 시간은 따로 집계한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0005-separate-observation-and-personal-label-confirmation.md#L1-L4",
+          "version": "repo-lines-v1:sha256:a5f1bef359a63d4164f865acc7a1751727d8d428bbaf0ab782d091e899282f3a:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzIxMjc4YjdhMjlkYjliZmY2ZjQ1MjIxZTFlMDY1ZWFkYzI0MjEyNzBkYzk4YWZkYTQ5OTBiMzlkOTVjZjM4YSJ9"
+        },
+        {
+          "resource": "repo://docs/ubiquitous-language.md#L121-L161",
+          "version": "repo-lines-v1:sha256:f7056d240028f619147343eb0a269eeaa03571983bd42c8711874ad56d2e4dc8:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiMzNkOGQ1MTdjYWQzZjBlYmRjZDMyNjBjMzU4YWQwMjEzODkzMWUyZDkyODFiOWVhNDVlYjc0NmFjN2VhMjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxMGVjZTIxNjI0MmIzMTllM2E3ZDA3OWRlNGQwOWNiZmM2ZTFkMDQ5OGNiYzgxOWVlZjkxNDMwY2YwYzAzZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjExMTYyN2M4MjhjYzZlYzQ4YmRhMTk5MzBjY2M4NDNhMDE3NDI3NzhmMjc5N2I1ODdkNDdkNWY1MTRkMjA0YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-12T08:09:21.750Z"
+  }
+}

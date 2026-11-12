@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:a7f654781e0c026a7dc5d4fa015d127527c11b54137e0dc3e8cc46eea42aa48b",
+  "claims": [
+    {
+      "id": "claim_a8566894407046f1b480ac28882ee551",
+      "statement": "unit_of_work는 쓰기 트랜잭션 본문이 끝난 뒤 flush하고 남은 도메인 이벤트가 없을 때까지 같은 트랜잭션에서 dispatch한 뒤 커밋하며, 예외가 나면 롤백하고 남은 이벤트를 버린다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/platform/database/transactions.py#L67-L100",
+          "version": "repo-lines-v1:sha256:d53d7f04ede3ea71647d0547dd45352190e4ef7a67d20c71c565009c3f100620:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI0YmU4M2E2OGVkOWY0MDc2NTgyOGQ4ZWJjZDNhNDVlY2U3ZDVmMzQ3ZWMzMWI5OTRiMDliYjZjNzEwMTA2M2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyYzdkZmQ4YTY4Nzg3OTkyOGQ4ZjdkN2I4ZTk3NzRkOWI1MTY2ZDVlMjUyZjFmNDhhYzI3Mjc3ZmJiMjI3MTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3ODk0MDhiODA0OTEyNDY1MjhhZDhlNjEzMWUyYzlkMWY0NjRjYTQyMjYyOTU0ZGUyMzAxMzdmMjA5OWM3YmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMxNDJhMTBkZGU0YWEzMzFlNzY1MGM2MGNhY2VjMTljNzkyYmQyM2EzZWZkOTA0MTBmZmM5YzZkOThjZWQzMWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_20a63747adc44930a95eb2836d8ea612",
+      "statement": "read_snapshot은 SET TRANSACTION READ ONLY 트랜잭션을 열고 이벤트를 dispatch하지 않으며, 두 헬퍼 모두 이미 열린 트랜잭션이 있으면 TransactionAlreadyOpenError를 낸다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/platform/database/transactions.py#L19-L24",
+          "version": "repo-lines-v1:sha256:f9fc2483e60d7352d613aee643fe2ca259d21cca8efaa4509a075494bb13cf43:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmQxNTg0ZjNmN2E5OGNkMTc2ZmEwNTllZTVjMDI3YjM5MWY5NjUxZDZjZjUxZjVhOTRjOGJmOGYyNDJmODBiNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTkwOWE1M2E2MThkMDI4ZTFkMzAwMGMwYTdhYmNlZWNiZTVmYjM3ZjRlNTExZWZlNDY2NDNmYWQ2ZTY2ODcyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTNlZWJiZmNmOWMyMjQ0ODY0YzIzMjNjNDNiYjUzMTZkYjEwYmMzNDFjNTdjYjcxYzcyMzY1YTQxYWU4OGM2OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTczNTc5YzcxYmMyMDU0MTgwNTRjMjk4ZGNlM2M5MDk1NzEwMWY2MTQwNTIxNDE4ZGY5YjhiM2ViZGNmMGFhMCJ9"
+        },
+        {
+          "resource": "repo://src/mosemo/platform/database/transactions.py#L79-L113",
+          "version": "repo-lines-v1:sha256:a9d1fce7966492f42df8859991c245ba581b692085d6a84b9f70ec93b2a26f14:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2MTA3YzJhNWRiMDNkYjdiNjJjYWIxZDRkZjM0NjJkYTZlOTIzYWFlOGM0OTlmNDA4MWQyNjYwODJkZWE1OWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyYzdkZmQ4YTY4Nzg3OTkyOGQ4ZjdkN2I4ZTk3NzRkOWI1MTY2ZDVlMjUyZjFmNDhhYzI3Mjc3ZmJiMjI3MTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4NTBmZGU3ZGU1N2VlYTc1ZjA3NzFiNTE5ZTE0ZTQ5MWRjOTU3NmFjOTA0MTQzZmQ0MWY3MDZjNTYxNzEyNzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmMjkwNWZlZDdlODJjN2I0OTMwZTAxN2FkM2ZhMDU5ZmFkNmNiMjE2ODU4OWExNTkwNTRiOWRhZjQyZDIxMDUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_16e20ffca40148adb397ab17b80c938a",
+      "statement": "EventDispatcher는 BEFORE_COMMIT 단계만 지원하며 handler를 같은 세션·트랜잭션에서 실행하므로 handler 실패는 원래 변경도 롤백한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/shared/application/events.py#L18-L41",
+          "version": "repo-lines-v1:sha256:0e3eae33e482774546c2d9752843886b237f115bc700a7cc3823ca3497395c5b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljOGU1MTBlNDFmNzNlOGM5MWEwNDNjNGM1YjA0OWJjMzQxZWJmODE4OGY4N2UzOTlmMjdjNGNhM2QyMDQwMTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjMTUyNjkxZjA2ZTFmNmI5OTNiYTE2MmJkMTExZTUyY2JiYjdlY2IyZmRlYzBhNWQxOGNhMGZjMzNjMjFlMWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwMDQzMTlkN2E1NWNiNjA4YzZhMmE4ZjMyNjZlODg2YTYyZDgxN2VkY2VlYmU3NDE5MGMxM2MwNjUxODEyNzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_13455f907b5d4a50a71a140ba0a1b473",
+      "statement": "Alembic 환경은 네 BC bootstrap의 map_tables()만 호출해 ORM_METADATA를 채운다.",
+      "evidence": [
+        {
+          "resource": "repo://migrations/env.py#L9-L39",
+          "version": "repo-lines-v1:sha256:1c55607e723061348931462e71ef53877f749ca8209dec8b32cc33bd0f65818e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0YjJiYjg0ZGZlYzNmYTljMWYzOWM1NTIzYWYwM2Y2NzlmMWY2MjBkMmZkMjBjNDVlZWUwMzY2ZjJmMGQwNDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmOTRkZjVkNDgzZDdmNTg2NzRmZGRhNTQzYTk4ZGMzNDMyZjM1ZDQ0YTQ3NWIwZWZmMWVmNDczNmVhNmE0MzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY2MjlhZDFiNmZmMzFlNGRiMDE5NWRiMWVlZGYyNWZhZWM5ZTk3ZmEyNDYyYTY4OGI3M2Y2NGMyN2QzZWU4NTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlNGE4Nzg5YjViODQxYzBjNjk2ODczN2VkZmVkODdlNGVhYWMwY2RlNGNlZGJmMDIwNDY5NDYzNzc2OGM4MWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4c116669bd954aea8b8e7454bbc54932",
+      "statement": "활동 배치 API는 Kafka 발행 ACK를 확인하면 202로 수락하고 DB 처리나 Consumer offset commit을 기다리지 않으며, 503에는 Retry-After: 1을 돌려준다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0006-deliver-activity-batches-through-kafka.md#L31-L36",
+          "version": "repo-lines-v1:sha256:ab9e866e2f0bf5907b9f2cbb84499eb11489c4efef0a251b6c38ab19a0f6a952:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTg1MWE4NTY3OThiNmU2ZThmMGE2ZTZjYTZkMTgzNDkxNzRjNWI0MWMxMzhkY2E3MzA2OGE3YjFjN2QwZWQxMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGI3MDEyMjNhODA1OWM0YmMwYTYwYWE2YmM1NDg5NjE3ZWJiYjc3NzBkZDhmZWM1YzM5YWViOGRlOTMyOTRjNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDdlYzUxNTcyZWY4NTg2NzQxNDk2MmNmZjJmODA5MGJkMTcwYzYyMDIxM2E2MTE3MzRkMWVlNTI0NzI1MDEzYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmE0MGY5MWI5ZGYzNmJjYjNhYTdkNzcwMWQwYWZlZTIwZWM1ZTNmZjQwZDRhZjQ4NWU5NjRiMTJjMGRmZjk1ZiJ9"
+        },
+        {
+          "resource": "repo://src/mosemo/observation/presentation/activities/router.py#L59-L82",
+          "version": "repo-lines-v1:sha256:07fec409b33e7c184915aa93dcdcd742990e11197a2f0c22cb5d5af68684e45b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyN2UwOGYyMDAxZjJkNWU2YjMzNjM3MDZjYjMwY2VmZjk1NTNlNzhjYjZjMjcyNTQ0NjZjMTA4YmJmY2Y1OGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0MzNkMGVhOWVjZjJmMzljOWE1MDQwNzM5NWVlNDExNzJmZTY4MmM5Yzg4NWEzNTA4Zjc1YmRlZTE1MWVmZmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ5MTM3YzFkYTY0ZDZmMGM2ZGM5NzM4MDdiMzM5ZmVhNDI4MmIwODZjNmE4NDUwMGY3M2IxZWZiYzgxMDFmM2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJhNmIwM2I2Y2Q2ZWIwNTNiZjBhODMyMjYzNzA2ZTlkMDJmMDRlZTQ4YjdlMDlkZmE2MDE4NjQzZThmMmIxN2MifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e6189bbb953c4903b9067c1a3f5e7d53",
+      "statement": "Kafka Publisher는 acks=all과 producer idempotence로 설정되고, Consumer 브로커는 consumer_only로 만들어진다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/platform/messaging/runtime.py#L11-L35",
+          "version": "repo-lines-v1:sha256:fa48ab08fd4e29c5c3e5703d391e6787887785de1160269317ce25db91f017f6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlODExOWUxMjQzYmJjZGQxZTg2NmRmYzlmYzA0OGQ1NGI4MGY4ZmFiMmM0Y2YyZmY1N2E5ZDJiM2E1NDRlMTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjN2I4ZThiYTY4YzY4NGYxOTI4YzFhMzI0NzYzNTBkMTI1MTkzODUyMDhlMmFjZGJjYTQzNDFjYWUyZDc2OTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY0YWZhZmIzZDNmNzU4NWNhNTcxOTc1MDYyNjI3MDg1ZThlYjZmNDA2ZjE3MDcyNzI4OTg1NWQ2NTY4NGE0YWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4a1acaa21d1343d69fae6d8acb27ed0c",
+      "statement": "활동 Consumer는 BATCH_ENABLED가 켜져 있어야 시작하고 메시지마다 새 세션에서 observation의 배치 처리 UseCase를 호출한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L43-L95",
+          "version": "repo-lines-v1:sha256:9fbfcb69870f1bcc03ea9ba73e13f5263078fd47e3baf9961ed7b34e76bab730:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxNThiZTA2YzMyYTYyMWYyY2I5MDlhNDM2NDRjMDk3MDViYWNhYmEzYTY3OGUyNTg3YjlkMjg3NzViMGU4YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NDc3NWU2MmIzY2E4ZDYwZGYwN2E5NWMyODIxYWExNGY1MTZkNTJmODZhMmVhNDFmZTZkMTQzNmNmOGJlYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQxYjgwOTFkNDNiMWQxYWFmYzk5YmY3YTkyNGQ3NzkzYmZiMmIwN2FmNmQxMmQyZjhlYWEzM2RkMTY1MTA5MzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_45452f7d5015452890a4392224b5d1c2",
+      "statement": "배치 receipt는 (accountId, deviceId, batchId)를 기본 키로 하고, receipt claim·원본 채택·저장·타임라인 갱신·처리 결과 저장을 하나의 DB 트랜잭션에서 수행한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0007-store-batch-receipts-with-activity-transactions.md#L22-L45",
+          "version": "repo-lines-v1:sha256:972a471d0f02486bb58ea4683d089e23c2f5d5c661c91d6b3cf6b13337ac0f6a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRmZGYwNzQ5ZmIzM2Y5N2QyMDQ4OGI4OGE1N2IwM2Y3NmI5MGQ0ZjFjZmQ1MzMzZTVkYjdjMWMxOThjYzgzYmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJhMTU2M2E4MDVhZGNjMjcyMjkxYTNmNDY3YTNiYzdkNWY1YWMwYjIxNjgyNWFjZDJjNTY2YjVhYmViYjQ5ZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA2NjRmMTA4ZWRlM2Y2MzBlMTg1YTk5MzU2ZTcwZTU5MjI5MDI2MGNlOTZmZWZkYTljOGY1ZjcxNTAyN2Q1ZTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a238816d6df34ab9a19701076fd6e9f4",
+      "statement": "여러 Device의 원본은 (observedAt, deviceId, sequence, eventId) 오름차순으로 병합한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0008-order-observations-and-transition-existing-timelines.md#L30-L31",
+          "version": "repo-lines-v1:sha256:4e9f5d54c5a9155a697ef67f6deac264c3ac1bb9fff723f679ffbf8015985a8e:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODc1OTc5YjdhNDFhMzgxOTZkZjFiZmMyZmZjZGE4YzQ5MjVhZDQ2YjkyMTE3MGQzM2NmNzMyMzQ2ODRjYjAxNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOTFiMGEwZTQwOGUzOGY3YzA5NzQ0OTAzZDFkY2UzOWM2MzkxNTVmMzNkM2QwOTRjOTYzNGI3YWI0YWY5NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzg5MmM1ZTI1OTQ3ZDliNTY1YTdjYzJjOWMyYWYyZTUwMThlNjE5OGYwYTQxZWJmNmYwMzAwMmM1ZTk5MjI3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWNkZjYxYjRiODc2ZjFlMjZkNzIzOTE3YTc1N2I2N2Q4NzY3MWU0NTA3ZDBlYWIwNmQ2Mjc4NTVhYjhkMTA1NiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ed33923bd7c049caa7197b9a4546d533",
+      "statement": "관찰 활동 구간과 수집 공백은 쓰기 시 activity_timeline_segments 테이블에 projection하고, 날짜 경계는 계정의 IANA 시간대로 계산한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0004-project-observation-timeline-on-write.md#L20-L37",
+          "version": "repo-lines-v1:sha256:cba89f53f2690d3c644a77723df1e088d493de608e51514b80192326ae8dbeeb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFlMjk1MzQ4ZjA5Y2NkNGY0ZWU5MzYxYTAwM2UwOTBlOThhZTc0ZWFjMGM3NDgzY2IwZmViNTVkZjI1YjVjYWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhZDE4ZGI2ODU2Njg5MmNlMDE2NjdhOGU1MTIwMjgxODU5ODhhMDE3YjBlYjkzZDc5OTAxMjk5ODQzMmRiODgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZkMTNlMjQ0NWRmYmU5NTRiYmRmYjFkMTkwMzg2YjkwNmZhNzVlZjAxMTJlMzhmNmU2N2U2Zjg4OGJlNzE1MGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIyMDM1ZTJhYjY1NWQxY2RkZTg5NzJmMGViYjQ3MzVjMjIyNjMzMGFiODBjZDY3ZjFkMDk5OGJiNWQyZmZhMDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1bd5f830f12b409f992714901d104a6f",
+      "statement": "배치 job 스케줄러는 UTC AsyncIOScheduler에 모든 job을 max_instances=1, coalesce=True, misfire_grace_time=None으로 등록하고, 종료 시 실행 중 job을 취소한 뒤 기본 10초 기다린다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/platform/scheduling.py#L121-L169",
+          "version": "repo-lines-v1:sha256:f3a21621dbe421ef162a4058c724f99a8e39b70444456f58806b80234640fee1:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZTU4NzFiOTc1MDVhZTY3OGM0Yjc3YjNkYmQ2ZWQxOTE4YzEwODU4Y2MzMTRjYzY0ZjdhNDQ0YmYxNTQwMzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxMDM0ODFjNTdkMGYwZGMwZjc2Y2QyY2M4YjM2MDRjNGU4Mjk2ZGE0MTIyYWRkMTllODE3NDVkYzdlMzMxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3NGRlNjBlNmIxYzBkNjA1OTlmMWI3NTU5YzA0M2ZiODBlOTFkYTdlZGNlODdjZjM1Y2JmM2U1NzNkY2FlYzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_edc25e19bcb24e3a82a0a098946c1481",
+      "statement": "배치 job은 entrypoints/batch/registry.py의 build_jobs에 등록하고 이름 중복을 거부하며, 현재 등록된 job은 labeling의 라벨 제안 job 하나다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/entrypoints/batch/registry.py#L15-L40",
+          "version": "repo-lines-v1:sha256:378452810c6e1751be38a25c240fbd5d3d23f5a1cae80873f3a0c4fb1c413812:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkMjc2MWViZWUzMmFiY2M4NTQ3NDI2MmRkNGEwNTZiNDhhNmU2YWUwYzlkMzdlM2Y3YTdkMWUyNDcxNGFmNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhYTk2MGUyNGQ4MTVlNmM5OTkyMTkwYTlhMGFmOTgwOWYwZjRkMGI3ZGM0ZWRlY2M5MTQ3YzQ0N2NlOWJlZTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4OTFiNWE1MmFiNmJjNWFkMTdiYzZiMjg1YTg5MTg4Zjk2M2MyYTg5ZWRjNDNiY2M0ZDk3MjY3MGQzYzcwNmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-12T08:09:21.750Z"
+  }
+}

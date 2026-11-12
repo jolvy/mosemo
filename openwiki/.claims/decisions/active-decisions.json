@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:4fcc8765baf740c59b2c8f3e2c53ba678cd17f5cfa28e985d83456f67fd90743",
+  "claims": [
+    {
+      "id": "claim_93af9bd871914769b8fa49b637ad6f5f",
+      "statement": "ADR 0002는 status: superseded이고 superseded_by가 ADR-0004이므로 유효 목록에서 빠지고 ADR 0004로 안내된다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0002-activity-record-storage-and-read-time-timeline.md#L1-L5",
+          "version": "repo-lines-v1:sha256:84b6f39f37ec00235264364878e246173926e45c3bbad4b52cfaa8261bc64ce7:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWYyODZhYzg3Mjg0YmUyZmY2OWE3MTZjNmU0ODMzYmJkNWRkZWM1NjAwZDQ4MTVmNDFjYjExMjkxNWVjNDk0NyJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0004-project-observation-timeline-on-write.md#L66-L68",
+          "version": "repo-lines-v1:sha256:a8404c1c0bbf4b1d0ed5b7cef9e0285be4c983c91324c3295064b1ee000f93dd:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDc5ODI2NzQzMjcxMjg5MDA1MzkxMGUzMTMyZTZkZDRmNjAwMzM1YWI0NmFjYmUxYWVjODVmZjIzMDViMWNjNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNThjNDhlZmFmN2ExNGI2YjVlMTg1ZmYxMDY1M2U3NGFhNGEzYmFhZWVlNDhjZDY4OGQ1OTE3MWQxM2QxZTJjNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWY0M2E4NzU1YmFkMDgwY2JiOWZkNjY5NGRkZGFhOTFkN2IwNzA1NjllZDNhYTJkMTFkZWM5NzgzNDlkZmQwZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmU5NGE0MmRhZjZlNmVjNzJiZjViODA2NDYwMWUwZTk3NjA5ODc1NjAwNDEyZjkxOTQyNGRmZjcyZmQ5N2Y2NiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_e42aff6bdcd2485ca01b72f9eb2ba8cf",
+      "statement": "ADR 0001, 0003부터 0015까지는 앞부분 status가 accepted인 유효한 결정이다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0001-public-api-error-boundary.md#L1-L4",
+          "version": "repo-lines-v1:sha256:be80e50dcb0bf199c41c31d2dc6c588922495d7c75e784973edbc396b931441d:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWY0OGI3ZDFmMDM2ODQ4NjNlZWEzMzFjOTkyODkxNzVhMTMwMzM1Zjg2OGNkNzFkYzExMWUxMjUzYzE5OTMyNCJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0003-devices-own-device-identity.md#L1-L4",
+          "version": "repo-lines-v1:sha256:04edd74f547d73f5d42e865c29ef38b8cc6339d34c40b8f4322ac5fb9ee0b0a5:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWEyOGI2MzU0YTIwNjBmODI4YmI4MjU4NjQ5NzBkMTU1YTA5ZDVhNjVjMDZkZDk1ZGYxMzE3YjhkYTkxMjBmNyJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0005-separate-observation-and-personal-label-confirmation.md#L1-L4",
+          "version": "repo-lines-v1:sha256:a5f1bef359a63d4164f865acc7a1751727d8d428bbaf0ab782d091e899282f3a:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzIxMjc4YjdhMjlkYjliZmY2ZjQ1MjIxZTFlMDY1ZWFkYzI0MjEyNzBkYzk4YWZkYTQ5OTBiMzlkOTVjZjM4YSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0006-deliver-activity-batches-through-kafka.md#L1-L4",
+          "version": "repo-lines-v1:sha256:e88c9750bea69bf781456c742b7298cb1a998ddc6347034d596d3949de6d415f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDdlZjA2Y2I3NGY2MzE5NTMyNGY1ZmY5ZjBlYmI5ZDY1ZmJkYjA2OGE5NjZjZTcwZDc1Mzg4NzdiMGNiOTdjNSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0009-define-public-json-timestamps-and-responses.md#L1-L4",
+          "version": "repo-lines-v1:sha256:e88c9750bea69bf781456c742b7298cb1a998ddc6347034d596d3949de6d415f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWEzZjhlNDk4OGFhZWNjYTIwZGIxYjc2YzE3MTlmYzNkZmJlNWI4ZTBiY2EzMjc0ZTJiN2YxNGQzNzBhNWQ2ZCJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0012-notify-cross-context-changes-with-in-process-domain-events.md#L1-L4",
+          "version": "repo-lines-v1:sha256:5a63ba6669bfcb0857e435fd50e4ffbb3835b4638ca497a35e2f51de221fa75c:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGI0MmNmNzNiN2M2YzNhNTc0ZWIwNjM3NGQwZGEwZDBmNzM1YjBjYTRjODNjNTQ1Y2NjODk1ZTE2MDQzYThlMyJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0013-persist-dataclass-aggregates-with-imperative-mapping.md#L1-L4",
+          "version": "repo-lines-v1:sha256:5a63ba6669bfcb0857e435fd50e4ffbb3835b4638ca497a35e2f51de221fa75c:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2NlODEyZTAxYjBiODEyNTE1MGJkN2E1ZGM4NmRlOTY5MTA1MDJhYmMxYTY0MTkxMWRlYTIxOTQ4MjkxNTdjNCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_89d8f765489145c0ba1134b3cf8b1ef5",
+      "statement": "ADR 0007은 ADR 0004의 쓰기 경계를 부분 대체해 Kafka DB 쓰기를 receipt와 함께 수행하고 계정 advisory lock을 legacy에만 적용한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0007-store-batch-receipts-with-activity-transactions.md#L93-L102",
+          "version": "repo-lines-v1:sha256:4e426fd2a91b6810db6f02037e208139e08a47043a59950caa3c2bf93c86e9bc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3OTgyNjc0MzI3MTI4OTAwNTM5MTBlMzEzMmU2ZGQ0ZjYwMDMzNWFiNDZhY2JlMWFlYzg1ZmYyMzA1YjFjYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNmNGFmYzE4NTdiOWFkNDRmODlmMmYwY2NkMWRkZjY2NjQ2NWI4MDI5MmZhNDllMjQ0NGIxOGZlZDVhY2Y0N2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4MmFhYzI2ODA1YjgxYjBiZWEzYjcxOWFlMzliN2YyYzEyYjg5Y2FmZDM1ZWM3ZTJkMWUyMWY2YjUzYzY1NmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZlOTRhNDJkYWY2ZTZlYzcyYmY1YjgwNjQ2MDFlMGU5NzYwOTg3NTYwMDQxMmY5MTk0MjRkZmY3MmZkOTdmNjYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d69b8473b3674aaa8f396065250a9764",
+      "statement": "ADR 0008은 ADR 0004의 원본 순서와 기존 이력 전환 결정을 부분 대체해 receivedAt 동률 정렬을 Device별 관찰 순서와 결정적 병합으로 바꾼다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0008-order-observations-and-transition-existing-timelines.md#L98-L108",
+          "version": "repo-lines-v1:sha256:02db4dce3e73857ebab302b3a07fabe81ea15ae074dd53afa45db934c7f2fa31:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3OTgyNjc0MzI3MTI4OTAwNTM5MTBlMzEzMmU2ZGQ0ZjYwMDMzNWFiNDZhY2JlMWFlYzg1ZmYyMzA1YjFjYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1MTg5MjZiNDA5MmMyMDc2MjY5YmY5NDg0ZWU5OGM3OWIxMWQ1OTZiMmEwYWE4ZDNlMjZhMWYxMWMyNjM1NmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjViOGNhNWE2MDQxY2Y0YWNkNDdmYTU2M2IwNWU2MTllYmVjNGM0ZTFlZDk4M2ZiODI1Y2ZkNDg2MWMwZjNlZDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiOWJjNTY5ODA2NjFhYjYxNWI5NTE1OWFiMThlZWU1ZWUyODVmNGQzYmZmNDg3NzVhZWFhNzMzODY5MjJlYmEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4bf282ee0ef244a9b3c5bea9d68b5cdf",
+      "statement": "ADR 0014는 ADR 0001을 부분 대체해 단일 ErrorCode Enum 대신 BC별 오류 코드와 CommonErrorCode가 오류를 소유하게 하고 BC별 ERROR_DOCS를 조립 루트가 합치게 한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0014-align-public-identifiers-and-error-codes-with-contexts.md#L161-L176",
+          "version": "repo-lines-v1:sha256:07d4843f6fd3e09c8dfaf883f4616fb9407dd6554740c5e51e050e33c1ba7f6d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3OTgyNjc0MzI3MTI4OTAwNTM5MTBlMzEzMmU2ZGQ0ZjYwMDMzNWFiNDZhY2JlMWFlYzg1ZmYyMzA1YjFjYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZlYjY1ZGRjN2NkMWY2MzYyMTgxMDg5YTNmNTU2YTRhNDk4NzhhZTYwZDZiMzRmMTZmNTI4Yjg3YmQzMDNhMDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0NjUzN2RiZWMzNDQ5Zjc4NWVhZDQxMDg3NmMxYTU1YzBjYWM2NTBhZjI2MDczNmJhMmFiYjhlYjk4ZDdlNmMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1bba55f7b949482890c90df36dac855b",
+      "statement": "ADR 0011은 ADR 0010의 batch_jobs 패키지와 실행 모듈 경로를 부분 대체하고, job 정의와 실행 방식 분리·단일 프로세스·misfire 정책은 ADR 0010을 따른다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md#L266-L273",
+          "version": "repo-lines-v1:sha256:087df8264c1d43d5fa88c177b1f2c2bef807a67d66f326c7d70f883608f70275:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDc5ODI2NzQzMjcxMjg5MDA1MzkxMGUzMTMyZTZkZDRmNjAwMzM1YWI0NmFjYmUxYWVjODVmZjIzMDViMWNjNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQ1NzRiMjZkNjVhOGVhNDY0OGRiZmUwYThjN2UzN2RmYTdhNzlkMzE5NDZhYzhhYzM4YjYzOGZkMGI2NzZlMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODIxZGM3YjVkYjMwYWE5MDM0OTRkNDg1MjAxNTk4N2JlZTZmN2UzNjVkZGY0OTUwMjc3ZWU4OTYzZWI2NGIwMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmU5NGE0MmRhZjZlNmVjNzJiZjViODA2NDYwMWUwZTk3NjA5ODc1NjAwNDEyZjkxOTQyNGRmZjcyZmQ5N2Y2NiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_6ebfd5017063457a91e64aa0695d71ce",
+      "statement": "ADR 0015는 ADR 0011을 부분 대체해 infra·api·consumer·batch 위치를 platform과 entrypoints/{api,consumer,batch}로 바꾸고 BC → mosemo.entrypoints 금지 계약을 더한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md#L1-L10",
+          "version": "repo-lines-v1:sha256:c41656f2e010b9c08b51eb6a02b4e2ce5f8216a3e1e4577a727d6b4dcb9cd8f1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1MmQ3MTExMDNkNTBhNDM3ODMwYzZmYmNkMDRmYjRiYWI0OWEwZjgyZjZkMjZkMWM3OTFjNmU4NDg4ZGQwOTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyZDE0ZTA4MGZlNzA4ZDE5M2ExMDQ1YzQ4NWE2ODM5YWIxZTk5YzZlYjU1ZTJhNmI1MmU3NTljNTgwYjNlYjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjliZmIwN2NhNWZhN2FhZWI0YzYwZTBlYWJmMDg0OWMzOGVkOTNiMWRjOWQ1NTQ2NDdjYWViNGMwOGY2ZmI1MGIifQ"
+        },
+        {
+          "resource": "repo://docs/adr/0015-group-entrypoints-and-platform-packages.md#L135-L143",
+          "version": "repo-lines-v1:sha256:d9090c077f337c1eca75888a63f011761e45268079f636f6c9dd4379605293d8:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDc5ODI2NzQzMjcxMjg5MDA1MzkxMGUzMTMyZTZkZDRmNjAwMzM1YWI0NmFjYmUxYWVjODVmZjIzMDViMWNjNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmQxMzNlYzVmNWNlODMwNDgwODA0MjkxYWQyYTk4NzU4NWViZTI2NDliZDgwYzAyYTMwMWNjYjUzYzM5OWFiNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTkzOWY3ZGI3NWViNzQ5ZmIzMzMyNzJkYzQ0YjkzZDliN2JiOWNmNWJiMDM0YjIwOTEzODc4MmNjNzE3YTkxZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGU2NzY5ZDkxMTkxNjI4MTM1NDcyY2YxNzIzZjE0Y2FiMDVjZjg4YjMxYTQwMjcxNTJiMTg2YTg1ZWNmYjQ2MyJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-12T08:09:21.750Z"
+  }
+}
