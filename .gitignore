@@ -33,3 +33,6 @@ htmlcov/
 
 # Skill eval results
 .codex/evals/results/
+
+# OpenWiki run state
+openwiki/.run.json

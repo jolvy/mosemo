@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:c7e932e37817021af3bf97604fb84f48d0d161896db3a8d8f0f2b7d40eacfde1",
+  "claims": [
+    {
+      "id": "claim_3b1d76219d594211bbeb646bee3ba670",
+      "statement": "개발 환경은 Python 3.14 이상과 uv를 쓰고 잠금 파일을 바꾸지 않는 설치는 uv sync --locked, 개발 서버는 uv run --env-file .env fastapi dev로 실행한다.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L19-L26",
+          "version": "repo-lines-v1:sha256:1c485e1efffad9207b17d8ee9254abaaba56560734247d2b9eef550b33d2aa9e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWQ1NjgwODI2ZmQ5M2VmZGJkY2IxYWFkODE3MzkwYjk5NGE3MjY0ZjhjYjdjOTBlNGRkN2ZiZGM2MjQyMTc0MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmJlY2I4NmRmNTcwZmI1NzMwYTE5NmI0ODAyNjI3OWNkNGNhYWJiOWMwZDUxMWRjODEyNzgxMzVlMGE5YzgxYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzBiZWU0NWMxNzVjNzhkYzM5MjM3ZGViM2I3YjdkMjdhYWZkOWExMzVhYTQ3NWVjYzYzOTc4NzIyZTkzNGM3ZSJ9"
+        },
+        {
+          "resource": "repo://pyproject.toml#L6-L6",
+          "version": "repo-lines-v1:sha256:4e76877e94051bff0fdd30652a676b692e3d2a1e581fc2169282256d13cb1c2d:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGU3Njg3N2U5NDA1MWJmZjBmZGQzMDY1MmE2NzZiNjkyZTNkMmExZTU4MWZjMjE2OTI4MjI1NmQxM2NiMWMyZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGU3Njg3N2U5NDA1MWJmZjBmZGQzMDY1MmE2NzZiNjkyZTNkMmExZTU4MWZjMjE2OTI4MjI1NmQxM2NiMWMyZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODBkMjgwZDU0M2E5ZGVkYTg1NjQ4NzZmOTc5NjE5NWZlOGVjMWY5OTg2NDIxMzUyYTRiNzdkYjY0ZTE1MjQ1MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTQwZWI3YzcyNjBiNjNkZDc1NWQ5YjVjMGM0ZDIwODVlNzhkOGEwM2RkZTQ2M2Q3MTI2NTRmNGZlMWU4NWJiYyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_f29fb0978623492cbf51f56de4f578e1",
+      "statement": "로컬 Docker Compose는 PostgreSQL db 서비스와 단일 노드 KRaft Kafka 서비스를 제공한다.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L58-L73",
+          "version": "repo-lines-v1:sha256:a20bc886b54fa4c4880da5324e04f346beb169228e577de7c2df85a4b146d41d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjNzA4Y2M2YzIyOGQ0ZGVlNDRiZGZjYmJmYzU2YTA5YmNiZTJhNjcwODZkNTJkMDU1MWIyZWEwZDg5M2EyYTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2ZWM1ZDdjNmVjNjJkYWRhYjdjNDgwMzYyZjhjMTI5ZDNjYTc4ZWVjM2FjMzQ0YjVmMjNkMDk3ZjkwZjYzMzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI4Y2FjNmZiY2IyYWY1MTQ4YjRjMzFjMmQ3OTIyYzkxOTdlNjQyN2E2YjMyODRmN2UxODAzOWNmMjMzZjA1NWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ3ZDEwNzViYTM0NWNjZGRmYmJmOWNhYjA1ZmI2OWJlMzgyYmM2NGY5ZjZlYWY5OTZhYjY3N2U2ODU1ODBlMTEifQ"
+        },
+        {
+          "resource": "repo://docker-compose.yml#L1-L40",
+          "version": "repo-lines-v1:sha256:c6cc416fd07961ca9a44c9e2d94d04a3392adb3f723304f7fbe041d7928001a5:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwZjAzNGUyZjkyN2JkZjI4YWU4MTRhMjcwYmM5MjViOGRkZGM1MzUyNGViOGViNzY3ZjQzZjQ2MDhlZmExYjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0ZTIwMjZlMWMxNTU0OWQ2MTI1OWYxMjczZmZlN2U5MjI3MDQ4NDRkMWI0OGU2YmE5N2VhMjJiZjE2ODAwOTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIxYzEwYWFiMzljNjk1MDk1MjE0Y2EzNzBkMWI2NDk5MGVjNzk5MmQwYjAwY2I1Yjg0OTYxNmFhNTJjYzNkMDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6435f6224e6a4aa09ee635fb767059a2",
+      "statement": "API, 활동 Consumer, 배치 job, 마이그레이션은 각자 필요한 환경 변수만 시작 시 읽고 검증한다.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L40-L50",
+          "version": "repo-lines-v1:sha256:e6f63f0cd243e42cb8fce85024122532f2965f3cd68c99b5e497fccce75e4af3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhYTJkMzBjMGNkZjkzZWI1NGUxNjFhOWIzODI1Mzc3ZGE2MzRhZjAwYzIxZGJjM2FhOTdmZDFhYTlkNDJhMTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0OWRlYWMxYzhlMThkMDRkN2RhYmQ3NWViOGUyMjc3YjhmOWM0YzZjZmVhNGM0ZDFlZmQ3M2Q4MWRlNzRiZDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU0NjY3Nzg4ZDIxODBlMzA3ZjgxODgwYjIxOGYxYTZmODY2MDJlYTNjNjZjZDM3MTlmOGJkMjM1ZDk3YWM0OWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzZTVjMzJhMDA2ZWNhYWNkNzk0M2MyMjMwMmE5MWFkNjFiMmM5OTgxNDRlY2Q5ZDJlZGY4MThiMTU0YzZjYmMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_eacef4e9fdaf4541b89cd5a8cb08c8bf",
+      "statement": "커밋 전에는 AGENTS.md 「빌드와 검증」의 Ruff, complexipy, ty, lint-imports, uv build, poe coverage, git diff --check 명령을 모두 통과해야 한다.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L34-L48",
+          "version": "repo-lines-v1:sha256:29dd6e5261a63672344d64530e194ecb840c0b488400d60a664be0b920b6cfac:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5ZTE0NzA4NTUwNmUzYzEzYWZkYjgzNGRjZDZmZDFhNGRmYWNhMDExMzU5ZjQ4ZWZlZjRmNWIzNDExNzdjYzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3YzA2YzU2MWQ1YzMyNzM0MzY4NTI2OGE0NmIzMzkxZjM5OThlZWU4OTBkMmJlNTFmMGQyMWNjNGE1M2FlNmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg2Yzg1NDdiMDcyMmJhYTVkOGYyNjkxMTNlMTgxZWIwYTc0OWU5YjVmOTcwYTY1NWU2MzllMWM3ZWI4MmM3ZDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkNzg1YTZmNWMzNTU5OTM2NDFhOWU1MWFiY2YyODgwMzE3YzcyOTNiNmNiZjBjZjA1MWFkNjEzNmM5MGUxNGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f6ad9c8c8d3f48b280ff53ac4946d325",
+      "statement": "배치 Consumer와 배치 job은 poe batch-consumer와 poe batch-jobs로, 마이그레이션은 poe migration-dev로 실행한다.",
+      "evidence": [
+        {
+          "resource": "repo://pyproject.toml#L676-L719",
+          "version": "repo-lines-v1:sha256:3524a71fd69dd17c51aed789540670d13731a65bf6d3304b9489cd027da7ef14:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlNmQ4OTNlOWRkYmQzZWNkOTFiZjNiYjMyZWRkZWE3NGY0YTFiMDkyOGYwZWMyZTIwZjZmZGFiODBhZmUwZWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5OWQyODc0YjRhMGFiYTM1ZTBhNDZiYjU2ZjBhNTBmN2U2MWUwYzYxZDBhYWM5ZjJjNzY5MDkwZmMwMzgyZWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4Mzk0OTlkZmY0MTM4MTJmOGMwYjIyZmVmODNhMWVhMDgzYmM4MjgzZWM2YzMzODZmMTkwY2NjZTU2NjM2MDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-12T08:09:21.750Z"
+  }
+}

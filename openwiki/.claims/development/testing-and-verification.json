@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:b08ee1c83773198ad00814824238c701ed396fcf7ee72e0efe7be715338ab4ae",
+  "claims": [
+    {
+      "id": "claim_914662bc78194b91873e79f37f592051",
+      "statement": "requires_db와 requires_kafka 마커는 tests/conftest.py가 컨테이너 fixture 사용 여부를 보고 자동으로 붙인다.",
+      "evidence": [
+        {
+          "resource": "repo://tests/conftest.py#L15-L27",
+          "version": "repo-lines-v1:sha256:d9f2c52be65e4b14862719d7c63e6cbe039742fa5f2653e1c339e4806b682f48:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4ODQ5MjAzZDIyZGJjYzg2NWJkNDA5ZWI0ZmEzOTA5ZTdmYjQxMjA3MzkwODEzOTA5MWE2NmEwNjExZDM5M2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmMzlkNmY3MjBiOGI5Y2Q5ODNjZjUwOTE5ZjEzODdkNTYwYzE5OTg3OTQzOTk2ZGY1YmMxYTdlOGZkNGQwMjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc1YzEzMmNkYWE2YWRkMTliMzdlMDU3N2NlMDg2NDY4MGVlMGVkMDBkNmFiZDY5YjhiMjQ4ZjNkNWVjNzAyZDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5614f183113b4821a618463ff1b87ff0",
+      "statement": "통합 테스트는 testcontainers로 PostgreSQL과 Kafka 컨테이너를 띄우므로 Docker가 필요하다.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L58-L58",
+          "version": "repo-lines-v1:sha256:0ebfbeb29b085760e2bf433f1dbae28c77024a1d3d37c8236826d0a3305a455a:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGViZmJlYjI5YjA4NTc2MGUyYmY0MzNmMWRiYWUyOGM3NzAyNGExZDNkMzdjODIzNjgyNmQwYTMzMDVhNDU1YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGViZmJlYjI5YjA4NTc2MGUyYmY0MzNmMWRiYWUyOGM3NzAyNGExZDNkMzdjODIzNjgyNmQwYTMzMDVhNDU1YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzNlMGFmN2RlNGNmMmFlYzRkZmNhY2JkMmY3NWVlNDUwODQ0YWU0ZTM2MWI3ZjM5NjFiNmY0ODQyMjFkZDYwMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2E1NDk2YTY3YTIzZjk5NDI4NTFkNjljMjIzNGJmNjM2ZTMxNWJkNGFlNDFlZjMyMjVmNjk0MTBhMWRlMDI4NyJ9"
+        },
+        {
+          "resource": "repo://tests/integration/conftest.py#L10-L51",
+          "version": "repo-lines-v1:sha256:43d982d9ab19f53b7a578c6b07cc0d63f2fad5ef4f7c20e75e6f92f280beccc7:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4YWM2YzY0ZDgyMjAxMjYyNDgxNmM0ZjhiNzI2ZTAwNDM0NjJlOWJkNTZjNTQ2ZGFlZmZlZTQ3NzZmMGZiZTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjYjI2ZWI4NTUzYTI2NThiNTkzODVhOTk3N2FkODIxNDgwNTM2MDM0NDAyZGJkMTNjMzEzZmQxMWYyNGFjM2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMxYjdlODVkM2YzMmM5ZTc2MGFlNzQwMzIwZDhiZWM2OWY1YzJkY2NhYzhlNjBiMzc4MTllZWE2YjYyZDhiZjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjNGIxYTQwZTc4MThmY2U5NjdhZjQzN2ViZWRhMmQyOTZlMWNmZGVjOGYxMjYzZTY2Mzk5OWE4MzJjMGJjMDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_339c8228f4fd4085b7794a351b508b2d",
+      "statement": "커버리지 기준은 라인 95%, 브랜치 90%이며 scripts/check_coverage.py에만 정의된다.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L50-L51",
+          "version": "repo-lines-v1:sha256:d387ba0fbfee55de516517dcc621f4c4d204a16126d346d7cd7c18e1ebecc4dd:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDY2MDJlNDIyOGE2ZmU3YTcwODU4NzM5NzJkZTRjMWY1NWFkMWNmMWE5YzVlNGExZmNiM2I0MGM3ZDM1YTdkOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTg1MjRiMGYzMzk3MDM2ZjM0ZmJjM2NlYjYwMWFmNmUwZTY2MzNlOTcyM2MzMWNjMWYwZjJlZGIyNjM3ZTkxMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTFmZTUxOWNlOTliODUyYmYwYzdlMDEyMGVhYTRhYTRjMzZhZDZkYjg1ZDBhMDc4ZGUwOWJlNTQ0NTg0MWNjZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTE4ZTZlMzkzZDM3YWVjMDkwMWM3MTQ2MTgyMjRjNWIyMjExZTFhNzhkZDI5Mzc5Y2ZkMmY4Njg2MGQ0ODk1ZiJ9"
+        },
+        {
+          "resource": "repo://scripts/check_coverage.py#L11-L12",
+          "version": "repo-lines-v1:sha256:755fb5e5a6714a4f7a6f5f7c58d06b372f4b647ae67d4e733dd849466a7eb2ee:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2FlYWE0NmZmNzI1YmVjMWRmZmNiNDgxZTVhMDA1MzUwZDFhY2MzNDFiNWJjMGNjMjVhZWQ3YWJkYTVjMTMwNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWMzNTg4M2ZiOWMxMTUxNzJiYWJlNjE1NDJhYzg4NWEwYzIwODgxZjE3NWZiMDAzYmU4M2E1Y2RhMzYyYTM2NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmRhODgyNDVmMTc0M2EyYjUyNmRlMGNmZDZkY2Y1YzdmZjg1OWYwOGQ3ZDkyMzNhOWJjOTUzMzQzNDY2YTNiYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzBjZTNmMjRhYjQ3YzJmNWE5ZDMzN2YzNzdlZDg1NzNmYTU2NTg0MDc2NDAyZjFhZjA1NGEzZGVkNjE5NDYyZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_00c22cad0bda4eb7aac4a8c75e1ab4e3",
+      "statement": "validate.sh는 문서·아키텍처·코드 규칙 검사와 Ruff·complexipy·ty·lint-imports·uv build·poe coverage·git diff --check를 순서대로 실행한다.",
+      "evidence": [
+        {
+          "resource": "repo://.codex/skills/verification/scripts/validate.py#L29-L56",
+          "version": "repo-lines-v1:sha256:5f5ad008d0cc50ed98452e6f790ac988bf94818f7d8a34e49f177958a85d1a37:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmOThjZjQwNzliOGQyYjBkZjA5NjVhN2M1NjA5NzAwODNmY2UyOGNkNmQ0NDI1ZDhjYTQ1NjY2NDBkZDQ5NGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUwNzg4ODEyYTg4YWM0N2VhNTlmZjEzMjJiZjYzOTc4NTVlMzdjZDk4YzJmYzBmNjIzNGFhNDkwMmQwMWEzNGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU4NTZhNDE1YzI2Zjg5ODRiOGY1YmQ2YmViYjQ0ZjBlNjFlYzNmNGNmNmQ0Mzg3MDVkYzBmNGYyOGE1OGFkYjYifQ"
+        },
+        {
+          "resource": "repo://.codex/skills/verification/scripts/validate.sh#L1-L5",
+          "version": "repo-lines-v1:sha256:1d3314fa3019f53124c5797df94502048c30a2c3a449eed1d33f0ab09effc1ea:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWQ5NWZjMDRhODBjOTUyZjQ5Y2U0MTg4NjI3YzUzYjBmYmU4YzQ0MDQxYjk1MmQ1OTJhY2QxZGU5OTg2MTQ2NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2ZlNWZmMWIxZDJmNzg2ZGI2ZmUxYzM3Y2I1MDY1Njc5YTliYTkyZjYyNWE0MjlhYWNmZTRkOWRmMzlmMWY0YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_0d364b58af404a0a963716801ff64412",
+      "statement": "CI Quality job은 pull request와 main push에서 문서·아키텍처·규칙 검사, complexipy, Ruff, ty, import 계약, OpenAPI 스냅샷, pytest --cov, 커버리지 판정을 수행한다.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/ci.yml#L1-L82",
+          "version": "repo-lines-v1:sha256:930d9f3d7ab72791e46581d24d69aabca613dc2434f93032c07d1dd0bfeb30d2:eyJzZWxlY3RlZExpbmVDb3VudCI6ODIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2ZTFiMzJmYTA5MDc5YWUyZjAwMDFmZmYwZWNhMjdiNDk4NTk1N2Q0ZWI0ODU3OTI5YjNjZjA1OGZhYWU1NDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1MTc1ZDlkYzRlN2JlNGQ1NjQ2YzQzZTFkNjNhZjY4Nzc1N2JlNmI3YzYyNWQ0OTBiY2YyNTgzN2FmYzY1MTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d7eb6ce84d454663a3bda589c6a7d870",
+      "statement": "poe test와 poe coverage는 .env.example을 먼저 읽고 .env, .env.test를 선택적으로 덮어쓴다.",
+      "evidence": [
+        {
+          "resource": "repo://pyproject.toml#L686-L695",
+          "version": "repo-lines-v1:sha256:f827a6a5a8f069c7f388bbb0b824ff8edb2781bd83332ef4207ec5eaa0b6aee3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlMDAwMmVkYTM3NTRmYTg3NTZiZDdjNjJhNjhjMjc0OGQ0NDRjMmI1ODljNmY5NjkwODJlMTFhZGI5NTE5M2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxMDM2MjM2YjkzZDFjYTk4MTg0ZDc1NDU2ZmVjYTE5YzQ1ZTY5OTI0NWY3YzUyOTM0MDQ3M2E3NWYyMjMxNTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYWVkZGJmOWY3MDQyMjNmNzUxOGZmY2U3YTBiMjhjNzZkMjk4MTdjZjM4OWY0MjdlYWY1ZTFjYmY1M2RmYmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkZTZkNDliMTlmM2RkZGY0NGZiOTRiZGMzNDU3ZDE5NTNkMDIzNGQzZmJjZTQyNzBhNmI3NjhkNzcwNzY2MWQifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-12T08:09:21.750Z"
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:2e117d902ee1ae534c9f38d6aee1f050ad7fc4a6fba727e921e4241810211de0",
+  "claims": [
+    {
+      "id": "claim_8533ee2a4a564ff5a874060d83f95871",
+      "statement": "Engineering Harness는 요구사항 탐색 → 제품 명세 → 엔지니어링 계획 → 구현 → 검증 Skill 흐름을 안내하지만 각 Skill은 독립적으로 호출할 수 있고 순서는 필수가 아니다.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L77-L89",
+          "version": "repo-lines-v1:sha256:71b339e68da8d30c28cb4a53fcb72a740e6b53ed2a02deaacb3d0687f64427b1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiZWUzZTRiZTBlNzc1MjFkMDhlYWMwOTA1OGNlNGVjMDE3YTU1MTYxYTU4ZTJmYzhmMDFlNWRiNTk1Nzk0NTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwMzRlMmY5YzI2YzI1OTQ0NTFhMWE0YTM1YTMwYTk5ZTQ5YTQxNDk2Mzc4NTNiOTZjNjE5MTVlZTRiNGEwNzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3ODkyZDBiYzNhNmQ2NjZmZWMzZjNiOTlhZjZkNGE5ZmU0NzAxZjE5MmRkYWRmYjc5ZmU2NDkyZjFmNWFhZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImViMWJjNWJjNGEyMzdmNTc4ZTZhZjRhNDE1ZDA2NDdmOTkxMGIwM2IzNjRlMWUyN2MxZjFkYmFhNzQzZDAzYmEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4820aa73a9e742668accbc71bdc53c6c",
+      "statement": "requirement-discovery는 docs/requirements/, specification은 docs/prd/ 아래에 기능 슬러그 파일을 만든다.",
+      "evidence": [
+        {
+          "resource": "repo://.codex/skills/requirement-discovery/SKILL.md#L18-L18",
+          "version": "repo-lines-v1:sha256:ab8df335d1a74aeefbcdb5d553c486ebb56955be04f93d4755a61aa058d93bbc:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWI4ZGYzMzVkMWE3NGFlZWZiY2RiNWQ1NTNjNDg2ZWJiNTY5NTViZTA0ZjkzZDQ3NTVhNjFhYTA1OGQ5M2JiYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWI4ZGYzMzVkMWE3NGFlZWZiY2RiNWQ1NTNjNDg2ZWJiNTY5NTViZTA0ZjkzZDQ3NTVhNjFhYTA1OGQ5M2JiYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjg5YTJlNDMwN2ZkNjhkZDgzNTYxMTk5MjE1ZWNlN2QwMTY2MjIwYjQyOWQxODE2MzMzMWM5OTZhODc0ZTljZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjg0NjljZTQ2OTZhYjUzMTQ3ODY0YmMwMmRmMThjMTAzMGM1NmZkMTJjOWNjMDU5YzkwZTE1MDE1OTBkODQ3MiJ9"
+        },
+        {
+          "resource": "repo://.codex/skills/specification/SKILL.md#L13-L13",
+          "version": "repo-lines-v1:sha256:8ba88f500fc6a130b82dd4ae27d07b7ba47e86b5f36554d8b37ba7c58b241e42:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGJhODhmNTAwZmM2YTEzMGI4MmRkNGFlMjdkMDdiN2JhNDdlODZiNWYzNjU1NGQ4YjM3YmE3YzU4YjI0MWU0MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGJhODhmNTAwZmM2YTEzMGI4MmRkNGFlMjdkMDdiN2JhNDdlODZiNWYzNjU1NGQ4YjM3YmE3YzU4YjI0MWU0MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGVjYjJlNDY4MjA1MjIyZGRlMWY4Yzg0MWI2YWIyZTEzMjc3NGFkNzM4ZjM5N2Y3YjA5Y2Y3ZjEzYmU0YzIyMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWI4NDhlZTU0YTM0ZDFlNDBlNWZhNjcxOWMxODJiNjc1NTAwYjBjZTg0YjI4ZTI0ZmNlZDc2NzI3ZWRjMjQ0YyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_109af64b245e4eb79c28d28a3af859b2",
+      "statement": "implementation Skill은 변경 파일 경로로 code-reviewer·security-auditor·domain-reviewer 호출 여부를 정하고, 어느 조건에도 해당하지 않으면 리뷰어를 부르지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://.codex/skills/implementation/SKILL.md#L27-L40",
+          "version": "repo-lines-v1:sha256:bdd6780c2464b190bcf3efbf0e1b2ffba3eecbb5ce486b0f43274bf20cbded3d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkNGViOWQzY2IwODJlNjlhOWZlMDU0Y2IyYzJiY2E4MGU2OTUzMzZjZWEyNTIxZDNmNTExOGFjZDEyNzBlNDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1NGY2ZWY2YjAwNDIxMzk0MGE5ZGQ0ZDkwZGQ5ZDEwZTY3N2RjMWYxZDYxMDZjZTAwNzhjZmFkNDQwZGY2MjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJmY2Q5NGIyM2JlMzg4MzEwZjczODgxYzQ2ZjM3N2ZmM2UyOGMwODhkZWRlNWYyODRiNzg5YTA5ZmVhN2FjZGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ3MThmOWJjYWE1ZWM1OTUzYTE1OTViNDVmMmMzNWM1NzY3NTU0NjIyMTVhZDI3MDRkY2E0Y2Y2OGRjYjY1N2IifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c50d22bd208744f2afdd51a7032a83b9",
+      "statement": "AGENTS.md가 있는 폴더마다 내용이 @AGENTS.md 한 줄인 CLAUDE.md shim을 두며 harness 테스트가 이를 검사한다.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L9-L9",
+          "version": "repo-lines-v1:sha256:6ae36d91b8065664d1b1f42ece67e5ba70d23fac1e7bd9a79f7f64909894d826:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmFlMzZkOTFiODA2NTY2NGQxYjFmNDJlY2U2N2U1YmE3MGQyM2ZhYzFlN2JkOWE3OWY3ZjY0OTA5ODk0ZDgyNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmFlMzZkOTFiODA2NTY2NGQxYjFmNDJlY2U2N2U1YmE3MGQyM2ZhYzFlN2JkOWE3OWY3ZjY0OTA5ODk0ZDgyNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjA2MGNhOWFlN2ZjZjBmYTY3Y2EzYjdjZWRkNWJmNjhmMTFiM2M1NDM4ZTdmMjIzYzhjZDRkYjJiZjlhMjdmZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTVjMTdkNzgwMGMxOTVjODY3OWEyNjdiMGJkYzE2YmViNWY2MTU1ODhhZTk5MTUwNzJmM2U0OTE5MGQwN2I4OCJ9"
+        },
+        {
+          "resource": "repo://tests/unit/harness/test_claude_shims.py#L1-L35",
+          "version": "repo-lines-v1:sha256:22671ec9989d600f8d0b1a936992f05d0cd099fa254b9d52021ded4027e49bf8:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk5MjI4NmZlNDgwZWJjY2M3M2ZlOWU0M2M4ZjNjNTdkOGE5NjY0MmI3YmNmYjk4NWNmMzVhNjJkNTY3OWE4YzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFhOTNkNzNjZDhlNjIxODhjZmE0NjUyYmIxYTZmMTgzODg3MzdlYTI4YzJmNWE1OTMwZGNjMGM2NTRmZGI0ZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2NGU0NWQ3ZWM2YWMyNGJmY2NjODcwZTI1MTJlZmE3ZWQzMDJmMzNlMDMzZDgzNzhlM2Y3OTRkOWFlZmY3OTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c6b58f002c064d8db9a554dd1c5f11c1",
+      "statement": "GitHub 작업은 gh CLI로 하고 토큰 환경 변수를 해제해 저장된 인증을 쓰며, 커밋은 사용자 검토나 요청 뒤 Conventional Commits 형식으로 한다.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L61-L75",
+          "version": "repo-lines-v1:sha256:e1710e87e784f31dae6b293068c9e64c878292714b8152d9cc653f19d5e2aee7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3NzMzMzllYzBiZTFhMDRiYTE3MGUxZDhmZGQzMDY3MjIxOTU1Yzc2MzRjYTg4MWYzZDllYzU4MDhjYmJlOTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3NzRhOWNlYzkzOWViODg0NjJhODRmNjBkY2ZiMmZhNTA1NTBmM2M0OWM3MDE3ZTQ1ZWVjYTRmZjE4M2YxMmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwNjhmMDdjMjljMTQyNjZhNzA4YzEwMjhiMmUyOTQ4Y2IyNjA3MmZhMWYyMjE0ODAwNzRmNjgyYTA4YjRkMzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRiOTIyZmRhNzBhNmYwZmZiYzBmMThjZTAxZWRmN2EzZDZjZjUyNjU5MGZhYTM0ZmE2NGI2NTMxNjY0N2I1YjIifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-12T08:09:21.750Z"
+  }
+}
