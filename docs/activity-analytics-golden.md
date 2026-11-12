@@ -101,12 +101,12 @@ C3~C6과 세션별 C7은 원본 사실 정답을 두지 않는다. 기록일에�
 
 ## 통제 구간 시나리오
 
-역할: `W` 작업 앱(편집기), `M` 메신저, `T` 터미널, `F` 파일 관리자, `Chrome`, `Safari`. 라벨 `L1`은 세션
+역할: `W` 작업 앱(편집기), `M` 메신저, `T` 터미널, `F` 파일 관리자, `Chrome`, `Firefox`. 라벨 `L1`은 세션
 라벨(예: 코딩), `L2`는 다른 라벨(예: 여가). 시각은 시작 시각부터의 분이며 시계의 분이 바뀌는 순간에
 행동한다. 각 통제 구간은 화면 잠자기에서 깨우며 시작하고 화면 잠자기로 끝나므로 앞뒤에 수집 공백이 생긴다.
 
 **S1 사용 대상 구간(C1·C2, 15분)**: 0 깨우고 `W` → 5 Chrome `youtube.com` → 7 같은 탭에서 다른
-`youtube.com` 페이지 → 9 Chrome `github.com` → 11 Safari `github.com` → 13 `W` → 15 화면 잠자기.
+`youtube.com` 페이지 → 9 Chrome `github.com` → 11 Firefox `github.com` → 13 `W` → 15 화면 잠자기.
 같은 사이트 안 페이지 이동(7분)과 다른 브라우저의 같은 사이트(11분)는 전환이 아니다.
 
 **S2 집중 세션(C3~C7, 35분)**: 0 깨우고 `W`, 세션 시작(라벨 `L1`) → 8 Chrome `youtube.com` → 11 `M` →
@@ -124,10 +124,10 @@ S2 확정(세션 종료 후, 구간 시작 분 기준): 0·15·23·32분 `W` →
 <!-- expected:start -->
 | 범위 | 값 | 키 | 기대값 | 허용 오차 |
 | --- | --- | --- | --- | --- |
-| S1 | `C1.apps` | `*` | `@W`, `@Chrome`, `@Safari` | G0 = 0 |
+| S1 | `C1.apps` | `*` | `@W`, `@Chrome`, `@Firefox` | G0 = 0 |
 | S1 | `C1.apps` | `@W` | 7분 | G1×2 = ±180초 |
 | S1 | `C1.apps` | `@Chrome` | 6분 | G1×1 = ±90초 |
-| S1 | `C1.apps` | `@Safari` | 2분 | G1×1 = ±90초 |
+| S1 | `C1.apps` | `@Firefox` | 2분 | G1×1 = ±90초 |
 | S1 | `C1.targets` | `*` | `@W`, `youtube.com`, `github.com` | G0 = 0 |
 | S1 | `C1.targets` | `@W` | 7분 | G1×2 = ±180초 |
 | S1 | `C1.targets` | `youtube.com` | 4분 | G1×1 = ±90초 |
@@ -361,8 +361,9 @@ uv run --locked python <산출물>/golden.py freeze  ~/mosemo-golden/<기록일>
   PRIVATE 절 모두)으로 계산한다. 국제화 도메인은 라벨마다 IDNA(표준 라이브러리, IDNA 2003)로 바꾼다. 골든
   파일의 `psl`에 PSL 파일 경로와 SHA-256을 적고 다르면 `PRE/psl`로 실패한다. 이전의 「마지막 두 라벨」 근사는
   `example.co.kr`을 `co.kr`로, `user.github.io`를 `github.io`로 만들어 폐기했다.
-- 사이트를 정할 수 없는 URL(IP 주소, 점 없는 호스트, 호스트 없는 URL, 공개 접미사 자체, PSL 없음)은
-  근사하지 않고 `?사유`를 사용 대상으로 두며 `PRE/site`가 실패한다. FR-2는 이 경우를 정하지 않았다(미결정 5).
+- eTLD+1이 없는 URL은 FR-2(2026-11-12 결정, 지표 명세 D7)대로 `http`·`https`면 호스트 그대로(포트 제외),
+  그 밖의 URL과 호스트 없는 URL은 브라우저 앱이다. PSL 없이 계산하면 근사하지 않고 `?no_psl`을 사용 대상으로
+  두며 `PRE/site`가 실패한다.
 - `INFO/work_seconds`: S2의 (종료 − 시작 − `workSeconds`)와 일지의 일시중지 합의 차이를 판정 없이 보고한다.
 
 PSL 최소 재현: 시험용 목록(`psl_fixture.dat`, 규칙 11개)과 이 Mac에 있던 전체 목록 사본(Arc 브라우저 확장의
@@ -376,35 +377,41 @@ PSL 최소 재현: 시험용 목록(`psl_fixture.dat`, 규칙 11개)과 이 Mac�
 | `https://a.b.ck/` (`*.ck`) / `https://www.ck/` (`!www.ck`) | `a.b.ck` / `www.ck` |
 | `https://도메인.한국/` | `xn--hq1bm8jm9l.xn--3e0b707e` |
 | `https://foo.unknowntld/` | `foo.unknowntld`(규칙 없음 → `*`) |
-| `https://co.kr/`, `https://github.io/` | 실패(`public_suffix`) |
-| `http://192.168.0.1:8000/`, `http://[::1]/` | 실패(`ip_address`) |
-| `http://localhost:3000/`, `chrome://newtab/` | 실패(`single_label`) |
-| `about:blank` | 실패(`no_host`) |
+| `https://co.kr/`, `https://github.io/` | `co.kr`, `github.io`(공개 접미사 자체 → 호스트 그대로, D7) |
+| `http://192.168.0.1:8000/`, `http://[::1]/` | `192.168.0.1`, `::1`(IP 주소 → 호스트 그대로, D7) |
+| `http://localhost:3000/`, `http://intranet/wiki` | `localhost`, `intranet`(점 없는 호스트 → 호스트 그대로, D7) |
+| `chrome://newtab/`, `about:blank`, `chrome-extension://abc/`, `file:///Users/a.pdf` | 사이트 없음 → 브라우저 앱(D7) |
 
 모의 검증(`check_step3.py`): 시나리오대로 행동한 합성 하루(자유 사용, 짧은 왕복, 불투명·앱 미확인,
 자정을 넘는 사용 포함)로 양성 2개(정확히 행동, 허용 오차 안에서 최대 85초 어긋남)는 모두 통과하고,
 음성(복귀 150초 지연, 단계 누락, 사고 전환, 고정 후 원본 변화, 날짜 +1일, 골든 파일의 값 누락, 정책
-완화, 검수 기록 없음, 허용 오차 +1초 초과, 사전 등록 변경, PSL 불일치, FR-2 미정의 호스트)은 모두
+완화, 검수 기록 없음, 허용 오차 +1초 초과, 사전 등록 변경, PSL 불일치, PSL 없이 계산한 사이트)은 모두
 실패하는지 확인한다.
 
 ## 기록일 준비
 
 서버·DB:
 
-1. 로컬 DB를 현재 마이그레이션까지 올린다(사용자 결정 필요, 미결정 1). 지금은 2026-10-07에 멈춰 있다.
+1. 로컬 DB를 백업 없이 현재 마이그레이션까지 올린다(결정 1). 지금은 2026-10-07에 멈춰 있다. 분석 도구는
+   DB가 아니라 `~/mosemo-dump/*.csv`를 읽으므로 10월 기록은 덤프로 남는다.
 2. 작업 트리의 서버를 실행하고 클라이언트가 그 서버로 보내는지 확인한다.
 3. 라벨 `L1`·`L2`가 있는지 확인한다.
 
 클라이언트·Mac:
 
 4. Chrome 관찰이 `web.kind = browser`와 URL `captured`로 오는지 확인한다(Chrome 자동화 권한). 현재
-   클라이언트는 Safari를 브라우저로 판정하지 않으므로 S1의 Safari 단계는 미결정 2를 정한 뒤 진행한다.
-5. 접근성 권한을 허용해 창 제목을 수집한다(미결정 3).
+   클라이언트는 Safari를 브라우저로 판정하지 않으므로 S1의 다른 브라우저 단계는 Firefox로 한다(결정 2).
+   Firefox URL은 접근성 권한으로 주소창 값을 읽어 수집한다(`mosemo-macos` `cd4f109`,
+   `ApplicationWindowContextClient.swift`).
+5. 접근성 권한을 허용해 창 제목과 Firefox 주소창 URL을 수집한다(결정 3).
 6. 리허설: 기록일 전에 S1을 5분으로 줄여 한 번 해 보고, 화면을 깨울 때와 잠금 해제 때 무엇이
-   관찰되는지(잠금 화면이 앱으로 관찰되는지) 덤프로 확인한다.
+   관찰되는지(잠금 화면이 앱으로 관찰되는지) 덤프로 확인한다. Firefox 관찰의 URL이 `https://`를 포함한
+   완전한 URL로 오는지도 확인한다. 주소창이 `github.com/explore`처럼 scheme을 감춘 값을 주면 FR-2에서
+   호스트 없는 URL이 되어 브라우저 앱으로 세지고 S1의 사이트 검사가 실패한다.
 7. 로거를 빌드한다: `cd <산출물>/logger && swiftc -O activation_logger.swift -o activation_logger`.
-   PSL 파일을 정해(미결정 6) `~/mosemo-golden/<기록일>/`에 두고 골든 파일의 `psl`에 경로·SHA-256을 적는다.
-8. 방해 금지 모드를 켜고, Chrome에 `youtube.com`, Safari에 `github.com` 탭을 미리 연다. `W`·`M`·`T`·`F`로
+   공식 PSL(`https://publicsuffix.org/list/public_suffix_list.dat`)을 한 번 내려받아(결정 6)
+   `~/mosemo-golden/<기록일>/`에 두고 골든 파일의 `psl`에 경로·SHA-256을 적는다.
+8. 방해 금지 모드를 켜고, Chrome에 `youtube.com`, Firefox에 `github.com` 탭을 미리 연다. `W`·`M`·`T`·`F`로
    쓸 앱을 정해 골든 파일의 `roles`에 적는다(`M`은 불투명으로 수집되지 않는 앱).
 
 기록일:
@@ -445,18 +452,22 @@ PSL 최소 재현: 시험용 목록(`psl_fixture.dat`, 규칙 11개)과 이 Mac�
 - 일지 정답의 G1·G2는 관찰 지연 30초(PRD)를 쓴다. 클라이언트 코드는 0.5초 폴링이라 이 값은 보수적이다.
   고정한 정책이므로 바꾸지 않는다.
 - PSL 결과는 IDNA 2003 기준이다. IDNA 2008과 다른 문자(예: `ß`)가 있는 호스트는 확인하지 않았다.
+- Firefox 주소창 값이 scheme을 포함하는지는 확인하지 못했다(준비 6). 클라이언트는 주소창 값을 그대로
+  URL로 보낸다.
 
-## 미결정
+## 결정 (2026-11-12)
 
-1. 로컬 DB: 기존 `mosemo` DB를 백업 후 현재 마이그레이션까지 올릴지, 기록용 새 DB를 만들지.
-2. 현재 클라이언트는 Safari를 브라우저로 판정하지 않는다. S1의 Safari 단계를 Firefox로 바꿀지, 클라이언트에
-   Safari 지원을 더한 뒤 기록할지. 그대로 기록하면 S1의 사이트 검사가 확정 실패한다.
-3. 기록일에 접근성 권한을 허용할지.
-4. 일지 시각 해상도: 분(현재 허용 오차의 근거) 또는 초.
-5. FR-2가 정하지 않은 호스트(IP 주소, `localhost`, `chrome://` 같은 점 없는 호스트, 호스트 없는 URL)의 사용
-   대상. 정하기 전에는 비교 도구가 실패한다.
-6. 기록일에 쓸 PSL 파일(공식 목록 내려받기, 또는 다른 출처).
-7. Safari 방문 기록을 읽으려면 터미널에 전체 디스크 접근 권한이 필요하다(이번 범위에서는 쓰지 않음).
+기록일 준비 질문 7개를 다음과 같이 정했다.
+
+1. 로컬 DB: 기존 `mosemo` DB를 백업 없이 현재 마이그레이션까지 올린다. 10월 기록은 덤프로 보존되어 있다.
+2. S1의 다른 브라우저 단계는 Safari 대신 Firefox로 한다. 현재 클라이언트는 Safari를 브라우저로 판정하지
+   않는다.
+3. 기록일에 접근성 권한을 허용한다.
+4. 일지 시각은 분 단위로 적는다(현재 허용 오차의 근거).
+5. eTLD+1이 없는 URL: `http`·`https`면 호스트 그대로(포트 제외)가 사이트, 그 밖의 URL과 호스트 없는 URL은
+   브라우저 앱이다(FR-2, 지표 명세 D7).
+6. 공식 PSL을 기록일 준비 때 한 번 내려받아 경로와 SHA-256을 골든 파일에 고정한다.
+7. Safari 방문 기록은 쓰지 않으며 터미널에 전체 디스크 접근 권한을 주지 않는다.
 
 ## 관련 문서
 
