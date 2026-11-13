@@ -205,6 +205,14 @@ run "session_stack_contract" {
 
   assert {
     condition = (
+      jsondecode(aws_eks_addon.vpc_cni.configuration_values).enableNetworkPolicy == "true" &&
+      jsondecode(aws_eks_addon.vpc_cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
+    )
+    error_message = "The VPC CNI must enforce NetworkPolicy while keeping prefix delegation."
+  }
+
+  assert {
+    condition = (
       aws_lb.api.enable_deletion_protection == true &&
       one(aws_lb.api.access_logs).enabled == true &&
       one(aws_lb.api.access_logs).bucket == "mosemo-lab-alb-logs-123456789012" &&

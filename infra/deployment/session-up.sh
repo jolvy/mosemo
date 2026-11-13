@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start a work session: session stack apply -> session kubeconfig -> namespace, ConfigMap,
-# Secret, RDS CA -> Kafka StorageClass, StatefulSet and topic Job. Stops at the first failed check.
+# Secret, RDS CA -> Kafka NetworkPolicy, StorageClass, StatefulSet and topic Job. Stops at the first failed check.
 # Requires: ../terraform/foundation applied, AWS login, CLOUDFLARE_API_TOKEN, $MOSEMO_SESSION_DIR/secrets.env.
 # shellcheck source=session-lib.sh source-path=SCRIPTDIR
 source "$(dirname "$0")/session-lib.sh"
@@ -63,6 +63,8 @@ kubectl -n "$NAMESPACE" create configmap mosemo-rds-ca --from-file=bundle.pem="$
   --dry-run=client -o yaml | kubectl apply --server-side --force-conflicts -f - >/dev/null
 
 step "Kafka"
+# The ingress policy exists before the broker so it never runs unprotected.
+kubectl apply -f "$K8S_DIR/network-policies.yaml" >/dev/null
 kubectl apply -f "$K8S_DIR/kafka-storage-class.yaml" -f "$K8S_DIR/kafka.yaml" >/dev/null
 kubectl -n "$NAMESPACE" rollout status statefulset/mosemo-kafka --timeout=10m
 [[ $(kubectl -n "$NAMESPACE" get pvc data-mosemo-kafka-0 -o jsonpath='{.status.phase}') == Bound ]] \

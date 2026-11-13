@@ -35,6 +35,8 @@ resource "aws_eks_addon" "vpc_cni" {
   resolve_conflicts_on_create = "OVERWRITE"
   configuration_values = jsonencode({
     env = { ENABLE_PREFIX_DELEGATION = "true" }
+    # Kubernetes NetworkPolicy enforcement (requires VPC CNI v1.21.0 or later).
+    enableNetworkPolicy = "true"
   })
 }
 

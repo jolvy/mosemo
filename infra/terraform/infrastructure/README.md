@@ -67,4 +67,5 @@ Terraform plan은 AWS 기반 인프라만 검사하며 Kubernetes 스케줄링·
 참조: [prefix delegation](https://docs.aws.amazon.com/eks/latest/userguide/cni-increase-ip-addresses-procedure.html),
 [maxPods 결정 순서](https://docs.aws.amazon.com/eks/latest/userguide/choosing-instance-type.html#max-pods-precedence),
 [launch template](https://docs.aws.amazon.com/eks/latest/userguide/launch-templates.html),
-[ALB TLS policies](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html).
+[ALB TLS policies](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html),
+[VPC CNI network policy](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy.html).

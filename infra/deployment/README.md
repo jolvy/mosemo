@@ -46,6 +46,12 @@ topic Job은 request 128Mi/limit 256Mi다. requests는 첫 세션 실측 후 재
 - vpc-cni prefix delegation으로 노드 Pod 상한이 11에서 110으로 늘어난다(session-up.sh가 확인).
 - API·consumer 업데이트는 아직 maxSurge=0, maxUnavailable=1이며 짧은 중단을 허용한다(G2에서 변경).
 
+Kafka Pod에는 NetworkPolicy(`network-policies.yaml`, VPC CNI 적용)가 걸린다. 9092는 `app` 라벨이
+mosemo-server·mosemo-consumer·mosemo-batch·mosemo-kafka-init·mosemo-kafka인 Pod만, 9093(KRaft
+controller)은 mosemo-kafka만 들어올 수 있다. session-up.sh가 StatefulSet보다 먼저 적용한다. API에는
+정책을 두지 않는다: 노드와 Pod가 같은 subnet이라 VPC CIDR 허용은 모든 Pod 허용과 같고, VPC CNI는
+Service 포트와 컨테이너 포트가 같아야 하는데 API Service는 80→8000이다. egress는 제한하지 않는다.
+
 Kafka Service는 ClusterIP이며 외부 포트를 열지 않는다. 애플리케이션 주소는
 `mosemo-kafka.mosemo.svc.cluster.local:9092`다. controller의 자기 quorum 연결을 위해
 publishNotReadyAddresses를 사용하며, 실제 배포 시 broker rollout과 topic Job 성공을
@@ -129,7 +135,7 @@ bash infra/deployment/session-down.sh  # 세션 종료
 1. session-up.sh: 세션 스택 `terraform apply`(plan을 검토하고 yes 입력; Cloudflare API CNAME 포함)
    → 전용 kubeconfig → 노드 Ready·prefix delegation·노드별 Pod 상한·CSI node plugin 확인
    → namespace·PriorityClass·LimitRange → 새 RDS 출력으로 렌더링한 ConfigMap → Secret(server-side apply)
-   → 시드니 RDS CA ConfigMap → Kafka StorageClass·StatefulSet rollout·PVC Bound·kafka 노드 배치 확인
+   → 시드니 RDS CA ConfigMap → Kafka NetworkPolicy → StorageClass·StatefulSet rollout·PVC Bound·kafka 노드 배치 확인
    → topic 초기화 Job 성공.
 2. deploy.sh: 깨끗한 작업 트리의 커밋 SHA 태그로 ECR 이미지를 찾고, 없을 때만 linux/amd64로 빌드·push한다
    (ECR 인증은 --password-stdin). 같은 `repository@sha256` digest로 migration Job 성공을 확인한 뒤

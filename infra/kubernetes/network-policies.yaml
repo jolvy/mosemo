@@ -1,0 +1,33 @@
+# Kafka ingress only (VPC CNI NetworkPolicy). The API has no policy: nodes and Pods share subnets,
+# so a VPC CIDR rule would admit every Pod, and the VPC CNI requires Service port = container port
+# while the API Service maps 80 -> 8000. Egress is not restricted anywhere.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mosemo-kafka-ingress
+  namespace: mosemo
+spec:
+  podSelector:
+    matchLabels:
+      app: mosemo-kafka
+  policyTypes:
+    - Ingress
+  ingress:
+    # Clients: API, consumer, batch, topic Job, and the broker itself.
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [mosemo-server, mosemo-consumer, mosemo-batch, mosemo-kafka-init, mosemo-kafka]
+      ports:
+        - protocol: TCP
+          port: 9092
+    # KRaft controller quorum: the broker only.
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mosemo-kafka
+      ports:
+        - protocol: TCP
+          port: 9093

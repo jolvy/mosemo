@@ -7,6 +7,9 @@ spec:
   backoffLimit: 0
   activeDeadlineSeconds: 300
   template:
+    metadata:
+      labels:
+        app: mosemo-migration
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
