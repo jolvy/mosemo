@@ -84,7 +84,7 @@ resource "aws_iam_role" "infrastructure" {
 }
 
 resource "aws_iam_policy" "infrastructure" {
-  for_each = toset(["network", "services", "identity", "state", "addons", "https", "nodes", "volumes"])
+  for_each = toset(["network", "services", "identity", "state", "addons", "https", "nodes", "volumes", "foundation"])
 
   name        = "MosemoInfrastructure-${each.key}"
   description = "Mosemo Terraform executor: ${each.key}."

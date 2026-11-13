@@ -24,15 +24,15 @@ run "bootstrap_permission_contract" {
     condition = (
       length(aws_iam_role.service) == 2 &&
       length(aws_iam_role_policy_attachment.service) == 4 &&
-      length(aws_iam_policy.infrastructure) == 8 &&
-      length(aws_iam_role_policy_attachment.infrastructure) == 8
+      length(aws_iam_policy.infrastructure) == 9 &&
+      length(aws_iam_role_policy_attachment.infrastructure) == 9
     )
-    error_message = "Keep existing roles and include only the dedicated storage role, addon, API certificate, node launch template, and Kafka volume cleanup permissions."
+    error_message = "Keep existing roles and stay at the default limit of 10 managed policies per role."
   }
 
   assert {
     condition = alltrue([
-      for name in ["network", "services", "identity", "state", "addons", "https", "nodes", "volumes"] :
+      for name in ["network", "services", "identity", "state", "addons", "https", "nodes", "volumes", "foundation"] :
       length(jsonencode(jsondecode(aws_iam_policy.infrastructure[name].policy))) <= 6144
     ])
     error_message = "Each managed policy must fit the IAM 6144-character limit."
@@ -40,7 +40,7 @@ run "bootstrap_permission_contract" {
 
   assert {
     condition = alltrue(flatten([
-      for name in ["network", "services", "identity", "state", "addons", "https", "nodes", "volumes"] : [
+      for name in ["network", "services", "identity", "state", "addons", "https", "nodes", "volumes", "foundation"] : [
         for statement in jsondecode(aws_iam_policy.infrastructure[name].policy).Statement : [
           for action in statement.Action :
           !strcontains(action, "*") && (
@@ -68,7 +68,7 @@ run "bootstrap_permission_contract" {
 
   assert {
     condition = alltrue(flatten([
-      for name in ["network", "services", "addons", "https", "nodes", "volumes"] : [
+      for name in ["network", "services", "addons", "https", "nodes", "volumes", "foundation"] : [
         for statement in jsondecode(aws_iam_policy.infrastructure[name].policy).Statement : [
           for action in statement.Action : startswith(action, "kms:") || try(
             statement.Condition.StringEquals["aws:RequestedRegion"] == "ap-southeast-2", false
@@ -300,5 +300,49 @@ run "session_cleanup_permission_contract" {
       for statement in jsondecode(aws_iam_policy.infrastructure["services"].policy).Statement : statement if contains(statement.Action, "rds:CreateDBSnapshot")
     ]) == 1
     error_message = "Kafka volume deletion and the final snapshot permission must each exist exactly once."
+  }
+}
+
+run "foundation_log_bucket_permission_contract" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for action in [
+        "s3:CreateBucket", "s3:DeleteBucket", "s3:ListBucket", "s3:GetBucketPolicy", "s3:GetBucketTagging",
+        "s3:PutBucketPolicy", "s3:DeleteBucketPolicy", "s3:PutBucketPublicAccessBlock", "s3:PutEncryptionConfiguration",
+        "s3:PutLifecycleConfiguration", "s3:PutBucketOwnershipControls", "s3:PutBucketTagging"
+      ] :
+      anytrue([
+        for statement in jsondecode(aws_iam_policy.infrastructure["foundation"].policy).Statement :
+        contains(statement.Action, action)
+      ])
+    ])
+    error_message = "The executor must be able to create, refresh, and configure the ALB log bucket."
+  }
+
+  assert {
+    condition = alltrue(flatten([
+      for statement in jsondecode(aws_iam_policy.infrastructure["foundation"].policy).Statement : [
+        for action in statement.Action :
+        startswith(action, "s3:") ? statement.Resource == ["arn:aws:s3:::mosemo-lab-alb-logs-123456789012"] : true
+      ]
+    ]))
+    error_message = "S3 permissions must target only the ALB log bucket itself, never its objects or other buckets."
+  }
+
+  assert {
+    condition = alltrue([
+      for statement in jsondecode(aws_iam_policy.infrastructure["foundation"].policy).Statement :
+      statement.Resource == ["arn:aws:ecr:ap-southeast-2:123456789012:repository/mosemo-lab-server"]
+      if contains(statement.Action, "ecr:PutImageScanningConfiguration")
+      ]) && length([
+      for statement in jsondecode(aws_iam_policy.infrastructure["foundation"].policy).Statement : statement
+      if contains(statement.Action, "ecr:PutImageScanningConfiguration")
+      ]) == 1 && anytrue([
+      for statement in jsondecode(aws_iam_policy.infrastructure["services"].policy).Statement :
+      contains(statement.Action, "ecr:PutImageTagMutability")
+    ])
+    error_message = "Scan-on-push and tag immutability must be configurable on the named repository only."
   }
 }

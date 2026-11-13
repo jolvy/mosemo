@@ -3,7 +3,7 @@
 | Root | 프로필 | 수명 | 관리 대상 | S3 state key |
 | --- | --- | --- | --- | --- |
 | admin/ | mosemo | 장기 | IAM 실행 역할·권한 | mosemo/iam/terraform.tfstate |
-| foundation/ | mosemo-infra | 장기 | ECR 저장소, ACM 인증서·Cloudflare 검증 CNAME | mosemo/foundation/terraform.tfstate |
+| foundation/ | mosemo-infra | 장기 | ECR 저장소, ACM 인증서·Cloudflare 검증 CNAME, ALB 접근 로그 S3 버킷 | mosemo/foundation/terraform.tfstate |
 | infrastructure/ | mosemo-infra | 작업 세션 | VPC·EKS·노드 그룹·add-on·ALB·HTTPS 리스너·RDS·API CNAME | mosemo/lab/terraform.tfstate |
 
 세 root는 `mosemo-tfstate-<ACCOUNT_ID>-ap-southeast-2` 버킷과 별도 lock key를 사용한다.
@@ -18,8 +18,8 @@
 설정이 아니라 `infra/deployment`의 세션 스크립트 절차에만 둔다.
 
 1. admin: 실행 역할 권한. 변경은 admin 코드와 plan으로 검토하며 승인 전 적용하지 않는다.
-2. foundation: 한 번 적용하고 유지한다. ECR 이미지와 ACM 인증서(검증 CNAME 포함)는 세션
-   destroy와 무관하게 남는다.
+2. foundation: 한 번 적용하고 유지한다. ECR 이미지, ACM 인증서(검증 CNAME 포함), ALB 접근 로그
+   버킷(90일 수명 주기)은 세션 destroy와 무관하게 남는다.
 3. infrastructure: 작업 세션마다 `session-up.sh`로 apply, `session-down.sh`로 destroy한다.
    foundation의 `ecr_repository_url`·`api_certificate_arn` 두 출력만 참조하므로 foundation이
    먼저 적용돼 있어야 한다. API CNAME `mosemo-api.danuh.com`(DNS only, TTL 300)은 ALB와
