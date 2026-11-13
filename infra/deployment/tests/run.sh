@@ -1,0 +1,331 @@
+#!/usr/bin/env bash
+# Offline harness for the session scripts. Fake aws, kubectl, terraform and docker (plus git, curl and dig,
+# so no real repository state or network is used) are put first on PATH; each call is only recorded in
+# $FAKE_LOG as "<command>|TF_VAR_measurement=<value>|<arguments>" and answered from canned data.
+# Nothing reaches AWS, Cloudflare or a cluster. Usage: bash infra/deployment/tests/run.sh
+set -euo pipefail
+
+DEPLOY_DIR=$(cd "$(dirname "$0")/.." && pwd -P)
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+FAKE_BIN="$WORK/bin"
+mkdir -p "$FAKE_BIN"
+
+cat >"$FAKE_BIN/fake" <<'FAKE'
+#!/bin/bash
+# Records the call, then answers like the real tool would for the session scripts.
+cmd=$(basename "$0")
+printf '%s|TF_VAR_measurement=%s|%s\n' "$cmd" "${TF_VAR_measurement-unset}" "$*" >>"$FAKE_LOG"
+args=" $* "
+state="$FAKE_STATE"
+case $cmd in
+  terraform)
+    case $args in
+      *" state list "*) cat "$state/tfstate" 2>/dev/null || true ;;
+      *" output -raw ecr_repository_url "*) echo "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/mosemo-lab-server" ;;
+      *" output -raw alb_dns_name "*) echo "mosemo-lab-1.ap-southeast-2.elb.amazonaws.com" ;;
+      *" output -json database "*) echo '{"DB_HOST":"mosemo-lab.abc123.ap-southeast-2.rds.amazonaws.com"}' ;;
+      *" show -json "*) cat "$state/plan.json" ;;
+      *" plan "*) exit "$(cat "$state/plan_exit" 2>/dev/null || echo 0)" ;;
+      *" destroy "*) : >"$state/tfstate" ;;
+    esac
+    ;;
+  aws)
+    case $args in
+      *" sts get-caller-identity "*) echo "arn:aws:sts::123456789012:assumed-role/MosemoInfrastructureRole/test" ;;
+      *" eks update-kubeconfig "*)
+        out=${args#* --kubeconfig }
+        echo "apiVersion: v1" >"${out%% *}"
+        ;;
+      *" rds describe-db-snapshots "*)
+        echo "An error occurred (DBSnapshotNotFound) when calling the DescribeDBSnapshots operation" >&2
+        exit 254
+        ;;
+      *" rds describe-db-instances "*) echo False ;;
+      *" elbv2 describe-load-balancers "*) echo "arn:aws:elasticloadbalancing:ap-southeast-2:123456789012:loadbalancer/app/mosemo-lab/abc" ;;
+      *" elbv2 describe-load-balancer-attributes "*) echo false ;;
+      *" ecr describe-images "*) echo "sha256:$(printf 'a%.0s' {1..64})" ;;
+    esac
+    ;;
+  kubectl)
+    case $args in
+      *" config current-context "*) echo "arn:aws:eks:ap-southeast-2:123456789012:cluster/mosemo-lab" ;;
+      *" config view "*server*) echo "https://example.eks.amazonaws.com" ;;
+      *" config view "*certificate-authority-data*) echo "Q0EK" ;;
+      *" create token "*)
+        python3 -c '
+import base64, json, sys
+part = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstrip("=")
+print(part({"alg": "none"}) + "." + part({"exp": int(sys.argv[1])}) + ".sig")' "$(cat "$state/token_exp")"
+        ;;
+      *" get nodes -l pool=loadgen "*) cat "$state/loadgen_nodes" ;;
+      *" get nodes -o jsonpath="*allocatable*) cat "$state/nodes" ;;
+      *" get nodes --no-headers "*) cat "$state/nodes" ;;
+      *"ENABLE_PREFIX_DELEGATION"*) echo true ;;
+      *" daemonset ebs-csi-node -o jsonpath="*) wc -l <"$state/nodes" | tr -d ' ' ;;
+      *" get pvc "*) echo Bound ;;
+      *" get pod mosemo-kafka-0 "*) echo node-kafka ;;
+      *" get node node-kafka "*) echo kafka ;;
+      *" get job "*"Complete"*) echo True ;;
+      *" get job "*"Failed"*) echo "" ;;
+      *" get job "*) exit 1 ;;
+      *" set image --local "*)
+        file=${args#* -f }
+        cat "${file%% *}"
+        ;;
+      *" get deployment "*"containers[0].image"*) cat "$state/image" ;;
+      *" exec mosemo-kafka-0 "*) echo "GROUP mosemo.activity-batches Stable" ;;
+      *" logs deployment/mosemo-batch "*) echo '{"operation":"label-proposals","outcome":"success"}' ;;
+    esac
+    ;;
+  git)
+    case $args in
+      *" status --porcelain "*) : ;;
+      *" rev-parse HEAD "*) printf 'b%.0s' {1..40}; echo ;;
+    esac
+    ;;
+  curl)
+    case $args in
+      *bundle.pem*" -o "*) out=${args#* -o }; echo "-----BEGIN CERTIFICATE-----" >"${out%% *}" ;;
+      *"https://mosemo-api.danuh.com/openapi.json"*) printf 200 ;;
+      *"/api/v1/accounts/me"*) printf 401 ;;
+      *"http://mosemo-api.danuh.com/openapi.json"*) printf 301 ;;
+    esac
+    ;;
+  dig) echo "mosemo-lab-1.ap-southeast-2.elb.amazonaws.com." ;;
+esac
+exit 0
+FAKE
+chmod +x "$FAKE_BIN/fake"
+for tool in aws kubectl terraform docker git curl dig; do
+  ln -s fake "$FAKE_BIN/$tool"
+done
+export PATH="$FAKE_BIN:$PATH"
+export CLOUDFLARE_API_TOKEN=fake-token-for-tests
+
+passed=0
+failed=0
+ok() {
+  printf 'ok   %s\n' "$1"
+  passed=$((passed + 1))
+}
+not_ok() {
+  printf 'FAIL %s\n' "$1"
+  [[ -n ${2:-} ]] && tail -n 15 <<<"$2" | sed 's/^/     /'
+  failed=$((failed + 1))
+}
+
+# New session directory (0700, secrets.env 0600) and fake state for one scenario.
+new_case() {
+  CASE="$WORK/case$((passed + failed))-$RANDOM"
+  export MOSEMO_SESSION_DIR="$CASE/session"
+  export FAKE_STATE="$CASE/fake"
+  export FAKE_LOG="$CASE/calls.log"
+  mkdir -p "$MOSEMO_SESSION_DIR" "$FAKE_STATE"
+  chmod 700 "$MOSEMO_SESSION_DIR"
+  printf '%s=test-value\n' DB_PASSWORD AUTH_JWT_SECRET_KEY KAKAO_REST_API_KEY KAKAO_CLIENT_SECRET GOOGLE_API_KEY \
+    >"$MOSEMO_SESSION_DIR/secrets.env"
+  chmod 600 "$MOSEMO_SESSION_DIR/secrets.env"
+  : >"$FAKE_LOG"
+  : >"$FAKE_STATE/tfstate"
+  printf 'node-kafka kafka 110 1900000Ki\nnode-app app 110 1900000Ki\n' >"$FAKE_STATE/nodes"
+  echo node-loadgen >"$FAKE_STATE/loadgen_nodes"
+  echo $(($(date +%s) + 14 * 3600)) >"$FAKE_STATE/token_exp"
+  echo "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/mosemo-lab-server@sha256:$(printf 'a%.0s' {1..64})" >"$FAKE_STATE/image"
+}
+profile() { echo "$1" >"$MOSEMO_SESSION_DIR/profile"; }
+kubeconfig() { echo "apiVersion: v1" >"$MOSEMO_SESSION_DIR/kubeconfig"; }
+run() { # run SCRIPT ARGS... ; sets STATUS and OUTPUT
+  set +e
+  OUTPUT=$(bash "$DEPLOY_DIR/$1" "${@:2}" 2>&1 </dev/null)
+  STATUS=$?
+  set -e
+}
+logged() { grep -E "$1" "$FAKE_LOG" >/dev/null; }
+
+echo "a. control run calls the fakes"
+new_case
+run session-up.sh
+if ((STATUS == 0)) && logged '^terraform\|.*\| *-chdir=.* apply' && logged '^kubectl\|' && logged '^aws\|'; then
+  ok "a session-up completes against the fakes"
+else
+  not_ok "a session-up completes against the fakes (exit $STATUS)" "$OUTPUT"
+fi
+new_case
+kubeconfig
+run deploy.sh
+if ((STATUS == 0)) && logged 'apply -f .*/batch-deployment.yaml'; then
+  ok "a deploy (default profile) rolls out batch"
+else
+  not_ok "a deploy (default profile) rolls out batch (exit $STATUS)" "$OUTPUT"
+fi
+
+echo "b. measurement lock blocks every changing script before any call"
+for script in "session-up.sh" "deploy.sh" "session-down.sh" "measurement-ready.sh a3b4c5d6e7f8"; do
+  new_case
+  kubeconfig
+  profile measurement
+  echo "started_at=2026-11-20T09:00:00Z" >"$MOSEMO_SESSION_DIR/measurement.lock"
+  # shellcheck disable=SC2086 # Script name and its argument.
+  run $script
+  if ((STATUS != 0)) && grep -q "measurement lock" <<<"$OUTPUT" && [[ ! -s $FAKE_LOG ]]; then
+    ok "b $script refuses with the lock and calls nothing"
+  else
+    not_ok "b $script refuses with the lock and calls nothing (exit $STATUS, $(wc -l <"$FAKE_LOG" | tr -d ' ') calls)" "$OUTPUT"
+  fi
+done
+
+echo "c. measurement profile reaches terraform as TF_VAR_measurement=true"
+new_case
+profile measurement
+printf 'node-kafka kafka 110 1900000Ki\nnode-app app 110 1900000Ki\nnode-loadgen loadgen 110 1900000Ki\n' >"$FAKE_STATE/nodes"
+run session-up.sh
+if ((STATUS == 0)) &&
+  ! grep '^terraform|' "$FAKE_LOG" | grep -v '^terraform|TF_VAR_measurement=true|' >/dev/null &&
+  logged '^terraform\|TF_VAR_measurement=true\|.* state list' &&
+  logged '^terraform\|TF_VAR_measurement=true\|.* output -json database' &&
+  logged '^terraform\|TF_VAR_measurement=true\|.* plan .*-detailed-exitcode' &&
+  logged '^kubectl\|.*wait .*pool=loadgen' &&
+  logged 'apply -f .*/measurement-rbac.yaml' &&
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["profile"]=="measurement" and d["plan_exit_code"]==0' \
+    "$MOSEMO_SESSION_DIR/measurement/terraform.json"; then
+  ok "c every terraform call carries TF_VAR_measurement=true; terraform.json recorded"
+else
+  not_ok "c every terraform call carries TF_VAR_measurement=true (exit $STATUS)" "$OUTPUT"
+fi
+new_case
+profile measurement
+echo 2 >"$FAKE_STATE/plan_exit"
+printf 'node-kafka kafka 110 1900000Ki\nnode-app app 110 1900000Ki\nnode-loadgen loadgen 110 1900000Ki\n' >"$FAKE_STATE/nodes"
+run session-up.sh
+if ((STATUS != 0)) && grep -q "plan after apply exited 2" <<<"$OUTPUT" &&
+  python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["plan_exit_code"]==2' "$MOSEMO_SESSION_DIR/measurement/terraform.json"; then
+  ok "c drift after apply fails session-up and is recorded"
+else
+  not_ok "c drift after apply fails session-up and is recorded (exit $STATUS)" "$OUTPUT"
+fi
+new_case
+printf 'node-kafka kafka 110 1900000Ki\nnode-app app 110 1200Mi\n' >"$FAKE_STATE/nodes"
+run session-up.sh
+if ((STATUS != 0)) && grep -q "allocatable memory too low" <<<"$OUTPUT"; then
+  ok "c app node below 1236Mi allocatable stops session-up"
+else
+  not_ok "c app node below 1236Mi allocatable stops session-up (exit $STATUS)" "$OUTPUT"
+fi
+
+echo "d. measurement profile deploy drops batch"
+new_case
+kubeconfig
+profile measurement
+run deploy.sh
+if ((STATUS == 0)) && ! logged 'batch-deployment.yaml' && logged '^kubectl\|.*delete deployment mosemo-batch' &&
+  ! logged 'logs deployment/mosemo-batch'; then
+  ok "d no batch apply, existing mosemo-batch deleted, no batch smoke"
+else
+  not_ok "d no batch apply, existing mosemo-batch deleted, no batch smoke (exit $STATUS)" "$OUTPUT"
+fi
+
+echo "e. session-down rerun guard"
+plan_json() { # plan_json ALB_AFTER_JSON
+  cat >"$FAKE_STATE/plan.json" <<EOF
+{"resource_changes": [
+  {"address": "aws_db_instance.main", "change": {"actions": ["update"],
+   "before": {"skip_final_snapshot": false}, "after": {"skip_final_snapshot": true}, "after_unknown": {}}},
+  {"address": "aws_lb.api", "change": {"actions": ["update"],
+   "before": {"enable_deletion_protection": false, "idle_timeout": 60}, "after": $1, "after_unknown": {}}},
+  {"address": "aws_vpc.main", "change": {"actions": ["no-op"], "before": {}, "after": {}, "after_unknown": {}}}
+]}
+EOF
+}
+new_case
+printf 'aws_db_instance.main\naws_lb.api\n' >"$FAKE_STATE/tfstate"
+plan_json '{"enable_deletion_protection": true, "idle_timeout": 60}'
+run session-down.sh
+if ((STATUS == 0)) && logged '^terraform\|.* apply -input=false .*skip-final-snapshot.tfplan' &&
+  logged 'modify-load-balancer-attributes .*deletion_protection.enabled,Value=false' && logged '^terraform\|.* destroy '; then
+  ok "e RDS update + ALB enable_deletion_protection only: guard passes, ALB protection lifted, destroy runs"
+else
+  not_ok "e RDS update + ALB enable_deletion_protection only: guard passes (exit $STATUS)" "$OUTPUT"
+fi
+new_case
+printf 'aws_db_instance.main\naws_lb.api\n' >"$FAKE_STATE/tfstate"
+plan_json '{"enable_deletion_protection": true, "idle_timeout": 120}'
+run session-down.sh
+if ((STATUS != 0)) && grep -q "aws_lb.api:update(enable_deletion_protection,idle_timeout)" <<<"$OUTPUT" &&
+  ! logged ' apply -input=false' && ! logged ' destroy '; then
+  ok "e another ALB attribute change fails the guard before any apply"
+else
+  not_ok "e another ALB attribute change fails the guard before any apply (exit $STATUS)" "$OUTPUT"
+fi
+
+echo "f. measurement-lock"
+new_case
+kubeconfig
+profile measurement
+end_utc=$(date -u -r $(($(date +%s) + 12 * 3600)) +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '+12 hours' +%Y-%m-%dT%H:%M:%SZ)
+run measurement-lock.sh start step5-tools "$end_utc"
+lock="$MOSEMO_SESSION_DIR/measurement.lock"
+if ((STATUS == 0)) && grep -qx 'node=node-loadgen' "$lock" && grep -qx 'pod=step5-tools' "$lock" &&
+  [[ $(stat -f '%Lp' "$MOSEMO_SESSION_DIR/measurement.kubeconfig" 2>/dev/null || stat -c '%a' "$MOSEMO_SESSION_DIR/measurement.kubeconfig") == 600 ]] &&
+  ! logged 'get pod'; then
+  ok "f start without the Pod records the loadgen node and writes a 0600 kubeconfig"
+else
+  not_ok "f start without the Pod records the loadgen node (exit $STATUS)" "$OUTPUT"
+fi
+run measurement-lock.sh start step5-tools "$end_utc"
+if ((STATUS != 0)) && grep -q "measurement lock" <<<"$OUTPUT"; then ok "f second start fails"; else not_ok "f second start fails (exit $STATUS)" "$OUTPUT"; fi
+run measurement-lock.sh end --invalid "rehearsal"
+if ((STATUS == 0)) && [[ ! -e $lock ]] && grep -qx rehearsal "$MOSEMO_SESSION_DIR/measurement/invalid" &&
+  grep -q '^start=' "$MOSEMO_SESSION_DIR/measurement/window" && grep -q '^end=' "$MOSEMO_SESSION_DIR/measurement/window"; then
+  ok "f end --invalid removes the lock and writes window and invalid"
+else
+  not_ok "f end --invalid removes the lock and writes window and invalid (exit $STATUS)" "$OUTPUT"
+fi
+new_case
+kubeconfig
+profile measurement
+: >"$FAKE_STATE/loadgen_nodes"
+run measurement-lock.sh start step5-tools "$end_utc"
+if ((STATUS != 0)) && grep -q "exactly one loadgen node" <<<"$OUTPUT" && [[ ! -e $MOSEMO_SESSION_DIR/measurement.lock ]]; then
+  ok "f no loadgen node fails"
+else
+  not_ok "f no loadgen node fails (exit $STATUS)" "$OUTPUT"
+fi
+new_case
+kubeconfig
+profile measurement
+echo $(($(date +%s) + 3600)) >"$FAKE_STATE/token_exp"
+run measurement-lock.sh start step5-tools "$end_utc"
+if ((STATUS != 0)) && grep -q "before the expected end" <<<"$OUTPUT" && [[ ! -e $MOSEMO_SESSION_DIR/measurement.lock ]] &&
+  [[ ! -e $MOSEMO_SESSION_DIR/measurement.kubeconfig ]]; then
+  ok "f token expiring before the expected end fails and leaves no kubeconfig"
+else
+  not_ok "f token expiring before the expected end fails (exit $STATUS)" "$OUTPUT"
+fi
+
+echo "g. a running session keeps its profile"
+new_case
+profile measurement
+printf 'aws_eks_cluster.main\n' >"$FAKE_STATE/tfstate"
+run session-up.sh --profile default
+if ((STATUS != 0)) && grep -q "already runs with profile 'measurement'" <<<"$OUTPUT" && ! logged ' apply' &&
+  [[ $(cat "$MOSEMO_SESSION_DIR/profile") == measurement ]]; then
+  ok "g recorded profile differs from the argument with non-empty state: session-up fails before apply"
+else
+  not_ok "g recorded profile differs from the argument with non-empty state (exit $STATUS)" "$OUTPUT"
+fi
+new_case
+profile measurement
+mkdir -p "$MOSEMO_SESSION_DIR/measurement"
+echo old >"$MOSEMO_SESSION_DIR/measurement/window"
+printf 'node-kafka kafka 110 1900000Ki\nnode-app app 110 1900000Ki\nnode-loadgen loadgen 110 1900000Ki\n' >"$FAKE_STATE/nodes"
+run session-up.sh
+archived=$(find "$MOSEMO_SESSION_DIR" -maxdepth 1 -name 'measurement.2*' | head -n1)
+if ((STATUS == 0)) && [[ -n $archived && -f $archived/window && ! -f $MOSEMO_SESSION_DIR/measurement/window ]]; then
+  ok "g a new measurement session archives the previous measurement directory"
+else
+  not_ok "g a new measurement session archives the previous measurement directory (exit $STATUS)" "$OUTPUT"
+fi
+
+printf '\n%s passed, %s failed\n' "$passed" "$failed"
+((failed == 0))

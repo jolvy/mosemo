@@ -218,6 +218,16 @@ RBAC는 Pod 생성을 이름으로 제한할 수 없어 다른 Pod도 만들 수
 - 크레딧 지표(CPUCreditBalance 등)는 AWS 고정 5분 해상도다. EC2 CPUUtilization과 RDS 지표는 1분.
 - loadgen 노드는 T3 standard라 launch credit 없이 크레딧 0에서 시작한다.
 
+## 오프라인 검증
+
+```sh
+bash infra/deployment/tests/run.sh         # 가짜 aws·kubectl·terraform·docker(·git·curl·dig)로 스크립트 분기 검증
+bash infra/deployment/tests/kind-check.sh   # 일회용 kind 클러스터: 매니페스트 server dry-run, 측정 RBAC 매트릭스
+```
+
+run.sh는 호출을 기록만 하는 가짜 명령을 PATH 앞에 두고 잠금 거절(호출 0건), 측정 프로필 전달,
+batch 제외, session-down 재실행 가드, 잠금 start/end, 프로필 유지를 확인한다. AWS·클러스터 동작의 증거는 아니다.
+
 ## 실제 인증과 HTTPS
 
 실제 키는 보호된 배포 Secret 파일로 준비했어도, apply하지 않으면 실행 중 설정을
