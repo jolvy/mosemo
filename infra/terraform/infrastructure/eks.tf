@@ -41,7 +41,7 @@ resource "aws_eks_addon" "vpc_cni" {
 # No AMI: EKS keeps merging its bootstrap user data and calculating max-pods.
 resource "aws_launch_template" "node" {
   name                   = "${local.name}-node"
-  description            = "Mosemo EKS managed nodes: standard T3 credits, IMDSv2 hop limit 1, 20 GiB gp3 root volume."
+  description            = "Mosemo EKS managed nodes: standard T3 credits, IMDSv2 hop limit 1, encrypted 20 GiB gp3 root volume, detailed monitoring."
   update_default_version = true
 
   # Never bill surplus credits; a throttled node is preferred over spending account credits.
@@ -63,7 +63,14 @@ resource "aws_launch_template" "node" {
       volume_size           = 20
       volume_type           = "gp3"
       delete_on_termination = true
+      # No kms_key_id: the AWS managed key aws/ebs.
+      encrypted = true
     }
+  }
+
+  # One-minute EC2 metrics for alarms and measurement windows; credit metrics stay at five minutes.
+  monitoring {
+    enabled = true
   }
 }
 

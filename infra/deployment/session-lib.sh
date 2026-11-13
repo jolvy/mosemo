@@ -109,3 +109,28 @@ run_job() {
   done
   fail "job/$name did not finish within ${timeout}s"
 }
+
+# Reads `terraform show -json` of the skip_final_snapshot plan on stdin and prints what is not allowed.
+# Allowed: the database update, and on a rerun the ALB update that only restores enable_deletion_protection.
+snapshot_plan_violations() {
+  python3 -c '
+import json, sys
+plan = json.load(sys.stdin)
+for c in plan.get("resource_changes", []):
+    actions = c["change"]["actions"]
+    if actions == ["no-op"]:
+        continue
+    if c["address"] == "aws_db_instance.main" and actions == ["update"]:
+        continue
+    if c["address"] == "aws_lb.api" and actions == ["update"]:
+        before = c["change"].get("before") or {}
+        after = c["change"].get("after") or {}
+        unknown = c["change"].get("after_unknown") or {}
+        changed = {k for k in set(before) | set(after) if before.get(k) != after.get(k)}
+        changed |= {k for k, v in unknown.items() if v}
+        if changed == {"enable_deletion_protection"}:
+            continue
+        print("aws_lb.api:update(" + ",".join(sorted(changed)) + ")")
+        continue
+    print(c["address"] + ":" + "+".join(actions))'
+}

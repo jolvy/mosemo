@@ -23,8 +23,8 @@ resource "aws_eks_addon" "ebs_csi" {
   addon_version = "v1.67.1-eksbuild.1"
   configuration_values = jsonencode({
     controller = {
-      replicaCount        = 1
-      podDisruptionBudget = { enabled = false }
+      replicaCount        = 2
+      podDisruptionBudget = { enabled = true }
     }
     # The node plugin must run on the tainted Kafka node to attach its volume.
     node     = { tolerateAllTaints = true }

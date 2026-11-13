@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # End a work session: Kafka StatefulSet and PVC -> retained EBS deleted by volume ID and confirmed ->
-# skip_final_snapshot applied to state -> RDS deletion protection lifted -> session stack destroyed.
-# Configuration keeps production protection; only this procedure lifts it. Session data is not kept.
-# The long-lived ../terraform/foundation stack (ECR, ACM) is never touched.
+# skip_final_snapshot applied to state -> RDS deletion protection lifted -> ALB deletion protection lifted ->
+# session stack destroyed. Configuration keeps production protection; only this procedure lifts it.
+# Session data is not kept. The long-lived ../terraform/foundation stack (ECR, ACM, ALB log bucket) is never touched.
 # shellcheck source=session-lib.sh source-path=SCRIPTDIR
 source "$(dirname "$0")/session-lib.sh"
 
@@ -17,6 +17,7 @@ tf_init
 
 ec2() { aws ec2 "$@" --profile "$AWS_PROFILE_NAME" --region "$AWS_REGION"; }
 rds() { aws rds "$@" --profile "$AWS_PROFILE_NAME" --region "$AWS_REGION"; }
+elbv2() { aws elbv2 "$@" --profile "$AWS_PROFILE_NAME" --region "$AWS_REGION"; }
 
 # The final snapshot name is fixed; a leftover one is someone's data, so stop before touching anything.
 if snapshot=$(rds describe-db-snapshots --db-snapshot-identifier "$FINAL_SNAPSHOT_ID" \
@@ -69,16 +70,13 @@ echo "no EBS volumes remain for namespace $NAMESPACE"
 step "RDS deletion protection and final snapshot"
 if tf state list | grep -x 'aws_db_instance.main' >/dev/null; then
   # The provider reads skip_final_snapshot from state at destroy, so it is applied first.
-  # Refuse the apply unless it only updates the database (e.g. not finishing a half-created session).
+  # Refuse the apply unless it only updates the database, plus on a rerun the ALB protection this script
+  # lifted earlier (e.g. never finish a half-created session here).
   snapshot_plan="$SESSION_DIR/skip-final-snapshot.tfplan"
   tf plan -input=false -var skip_final_snapshot=true -out="$snapshot_plan" >/dev/null
-  changes=$(tf show -json "$snapshot_plan" | python3 -c '
-import json, sys
-plan = json.load(sys.stdin)
-print(" ".join(c["address"] + ":" + "+".join(c["change"]["actions"])
-               for c in plan.get("resource_changes", []) if c["change"]["actions"] != ["no-op"]))')
-  [[ $changes == "aws_db_instance.main:update" ]] \
-    || fail "skip_final_snapshot plan changes more than the database: $changes. If session-up's apply failed midway, rerun session-up.sh until its apply succeeds, then rerun this script"
+  violations=$(tf show -json "$snapshot_plan" | snapshot_plan_violations)
+  [[ -z $violations ]] \
+    || fail "skip_final_snapshot plan changes more than allowed: $(tr '\n' ' ' <<<"$violations"). If session-up's apply failed midway, rerun session-up.sh until its apply succeeds, then rerun this script"
   tf apply -input=false "$snapshot_plan" >/dev/null
   rm -f "$snapshot_plan"
   # After that apply, so the apply cannot restore protection from configuration.
@@ -90,9 +88,23 @@ else
   echo "no RDS instance in the session state"
 fi
 
+step "ALB deletion protection"
+if tf state list | grep -x 'aws_lb.api' >/dev/null; then
+  # After the snapshot apply, so that apply cannot restore protection from configuration.
+  lb_arn=$(elbv2 describe-load-balancers --names "$CLUSTER_NAME" --query 'LoadBalancers[0].LoadBalancerArn' --output text)
+  [[ $lb_arn == arn:aws:elasticloadbalancing:* ]] || fail "cannot find load balancer $CLUSTER_NAME: $lb_arn"
+  elbv2 modify-load-balancer-attributes --load-balancer-arn "$lb_arn" \
+    --attributes Key=deletion_protection.enabled,Value=false >/dev/null
+  [[ $(elbv2 describe-load-balancer-attributes --load-balancer-arn "$lb_arn" \
+    --query "Attributes[?Key=='deletion_protection.enabled'].Value" --output text) == false ]] \
+    || fail "ALB deletion protection is still on"
+else
+  echo "no ALB in the session state"
+fi
+
 step "Destroy session stack (review the plan before answering yes)"
 tf destroy -input=true -var skip_final_snapshot=true \
-  || fail "destroy did not finish; RDS deletion protection may be OFF. Re-run session-down.sh, or run terraform apply to restore protection"
+  || fail "destroy did not finish; RDS and ALB deletion protection may be OFF. Re-run session-down.sh, or run terraform apply to restore protection"
 [[ -z $(tf state list) ]] || fail "session state still lists resources after destroy"
 
 step "Clean session files"

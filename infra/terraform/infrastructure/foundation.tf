@@ -1,5 +1,5 @@
 # Long-lived ECR and ACM live in ../foundation and survive session destroys.
-# Apply that stack first; this session stack reads only its two outputs.
+# Apply that stack first; this session stack reads only its outputs (ECR, certificate, ALB log bucket).
 data "terraform_remote_state" "foundation" {
   backend = "s3"
 

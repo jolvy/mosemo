@@ -34,11 +34,13 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [aws_security_group.database.id]
   multi_az               = false
   publicly_accessible    = false
+  # Single-AZ in 2a with Kafka and the loadgen node, so measured DB round trips never cross AZs.
+  availability_zone = aws_subnet.private["a"].availability_zone
 
   # Production settings; session-down.sh lifts protection and skips the snapshot explicitly.
   backup_retention_period   = 7
   deletion_protection       = true
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = "${local.name}-final"
-  delete_automated_backups  = true
+  delete_automated_backups  = false
 }

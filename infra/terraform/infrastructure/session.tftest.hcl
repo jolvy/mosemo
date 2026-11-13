@@ -30,8 +30,9 @@ override_data {
   target = data.terraform_remote_state.foundation
   values = {
     outputs = {
-      ecr_repository_url  = "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/mosemo-lab-server"
-      api_certificate_arn = "arn:aws:acm:ap-southeast-2:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+      ecr_repository_url    = "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/mosemo-lab-server"
+      api_certificate_arn   = "arn:aws:acm:ap-southeast-2:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+      alb_access_log_bucket = "mosemo-lab-alb-logs-123456789012"
     }
   }
 }
@@ -173,6 +174,43 @@ run "session_stack_contract" {
       aws_db_instance.main.final_snapshot_identifier == "mosemo-lab-final"
     )
     error_message = "RDS must keep production protection by default: 7-day backups, deletion protection, and a final snapshot."
+  }
+
+  assert {
+    condition = (
+      aws_db_instance.main.delete_automated_backups == false &&
+      aws_db_instance.main.multi_az == false &&
+      aws_db_instance.main.availability_zone == aws_subnet.private["a"].availability_zone &&
+      aws_db_instance.main.availability_zone == "ap-southeast-2a"
+    )
+    error_message = "RDS must keep automated backups after deletion and stay Single-AZ in subnet a's AZ with Kafka and loadgen."
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_eks_addon.ebs_csi.configuration_values).controller.replicaCount == 2 &&
+      jsondecode(aws_eks_addon.ebs_csi.configuration_values).controller.podDisruptionBudget.enabled == true
+    )
+    error_message = "The EBS CSI controller must run two replicas behind a PodDisruptionBudget."
+  }
+
+  assert {
+    condition = (
+      one(one(aws_launch_template.node.block_device_mappings).ebs).encrypted == "true" &&
+      one(one(aws_launch_template.node.block_device_mappings).ebs).kms_key_id == null &&
+      one(aws_launch_template.node.monitoring).enabled == true
+    )
+    error_message = "Node root volumes must be encrypted with aws/ebs and nodes must have detailed monitoring."
+  }
+
+  assert {
+    condition = (
+      aws_lb.api.enable_deletion_protection == true &&
+      one(aws_lb.api.access_logs).enabled == true &&
+      one(aws_lb.api.access_logs).bucket == "mosemo-lab-alb-logs-123456789012" &&
+      one(aws_lb.api.access_logs).prefix == "mosemo-lab"
+    )
+    error_message = "The ALB must be deletion protected and log to the foundation bucket under mosemo-lab."
   }
 }
 

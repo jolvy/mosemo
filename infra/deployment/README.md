@@ -54,7 +54,7 @@ publishNotReadyAddresses를 사용하며, 실제 배포 시 broker rollout과 to
 Kafka는 `data-mosemo-kafka-0` PVC를 사용하는 StatefulSet이다. 암호화 gp3 5GiB와
 StorageClass `mosemo-kafka-gp3`(reclaimPolicy Retain, `WaitForFirstConsumer`)를 사용한다.
 EBS CSI Driver·Pod Identity Agent·전용 controller IAM 역할은 Terraform으로 준비한다. 일반 node
-역할에 EBS 권한은 붙이지 않는다. CSI controller는 1 replica이며 snapshot sidecar·PDB는 끈다.
+역할에 EBS 권한은 붙이지 않는다. CSI controller는 2 replica와 PDB로 운영하고 snapshot sidecar는 끈다.
 CSI node plugin은 Kafka 노드의 taint를 견디도록 설정한다.
 
 kafka 그룹은 ap-southeast-2a로 고정해 교체 노드도 같은 AZ에 뜬다. 세션 안에서 Pod를 교체하면

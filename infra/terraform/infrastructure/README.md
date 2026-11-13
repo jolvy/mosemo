@@ -2,8 +2,8 @@
 
 계정 `<ACCOUNT_ID>`, 시드니 `ap-southeast-2`, AWS profile `mosemo-infra`를 사용한다.
 작업 세션마다 [session-up.sh](../../deployment/session-up.sh)로 apply하고
-[session-down.sh](../../deployment/session-down.sh)로 destroy한다. 장기 리소스(ECR·ACM)는
-[foundation](../foundation/README.md)에 있으며 이 스택은 그 출력 두 개만 참조한다.
+[session-down.sh](../../deployment/session-down.sh)로 destroy한다. 장기 리소스(ECR·ACM·ALB 로그 버킷)는
+[foundation](../foundation/README.md)에 있으며 이 스택은 그 출력만 참조한다.
 
 ## 구성
 
@@ -31,7 +31,8 @@
 - RDS PostgreSQL 18.3, db.t4g.micro, 암호화 gp3 20GiB, private Single-AZ.
   자동 백업 7일, 삭제 보호, destroy 시 최종 스냅샷 `mosemo-lab-final`이 기본이다.
 - public HTTPS ALB → NodePort HTTP 30080 → API Pod 8000. app 그룹 ASG만 target group에
-  연결한다. HTTP 80은 HTTPS 호스트로 301 redirect, 443은 TLS 1.2/1.3
+  연결한다. 삭제 보호를 켜고, 접근 로그를 foundation 버킷의 `mosemo-lab/` prefix에 쓴다.
+  HTTP 80은 HTTPS 호스트로 301 redirect, 443은 TLS 1.2/1.3
   (`ELBSecurityPolicy-TLS13-1-2-2021-06`)과 foundation의 검증 완료 인증서를 첫 apply부터 쓴다.
 - Cloudflare `mosemo-api.danuh.com` CNAME → ALB DNS, DNS only, TTL 300. ALB와 같은 수명이다.
 
@@ -51,7 +52,7 @@ terraform -chdir=infra/terraform/infrastructure plan -input=false -lock-timeout=
 
 ## 세션 종료와 데이터
 
-설정은 운영과 같은 보호(RDS 삭제 보호·최종 스냅샷, Kafka PV Retain)를 유지한다. 보호 해제는
+설정은 운영과 같은 보호(RDS·ALB 삭제 보호, 최종 스냅샷, Kafka PV Retain)를 유지한다. 보호 해제는
 session-down.sh 절차에서만 한다. RDS의 `skip_final_snapshot`은 provider가 destroy 때 state 값을
 읽으므로, 스크립트가 `-var skip_final_snapshot=true` plan의 변경이 `aws_db_instance.main` update
 하나뿐인지 확인하고 apply해 state에 반영한 뒤, 삭제 보호를 해제하고 같은 변수로 destroy한다. 세션 간 DB·Kafka 데이터는 보존하지 않는다.

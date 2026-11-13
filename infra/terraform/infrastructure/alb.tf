@@ -39,6 +39,15 @@ resource "aws_lb" "api" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = [for subnet in aws_subnet.public : subnet.id]
 
+  # Production setting; session-down.sh lifts it right before destroy.
+  enable_deletion_protection = true
+
+  access_logs {
+    bucket  = data.terraform_remote_state.foundation.outputs.alb_access_log_bucket
+    prefix  = "mosemo-lab"
+    enabled = true
+  }
+
   depends_on = [aws_route.internet, aws_route_table_association.public]
 }
 
