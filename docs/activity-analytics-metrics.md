@@ -28,7 +28,7 @@ status: draft
 | 단위 | 초. 계정 시간대 날짜 단위. 지난 날짜는 일간 통계로 저장하고 오늘은 조회 때 계산한다. |
 | 포함 | 상세 문맥 활동 구간. 열린 구간은 `lastObservedAt`까지. 앱 미확인·불투명은 별도 값과 전체 관찰 시간에. |
 | 제외 | 수집 공백, 60초 초과 침묵, 열린 구간의 `lastObservedAt` 이후. |
-| 사용 대상 | 브라우저(`web.kind = browser`)이고 URL이 `captured`면 사이트(eTLD+1), URL이 없으면 브라우저 앱, 그 밖은 앱. 브라우저 여부는 클라이언트가 보낸 `web.kind`로만 판정한다. `http`·`https` URL인데 eTLD+1을 정할 수 없으면 호스트 그대로(포트 제외)가 사이트이고, `http`·`https`가 아니거나 호스트가 없는 URL은 브라우저 앱이다(D7). scheme 바로 뒤에 `://`가 없으면 `^[a-z][a-z0-9+.-]*:` 뒤 첫 글자가 숫자가 아닐 때(`about:blank`, `javascript:`, `data:`) 브라우저 앱이고, 그 밖(`meet.google.com/x`, `localhost:8000/docs`, `example.com/?r=https://a.com`)은 `https://`를 붙여 D7을 적용한다. scheme은 대소문자를 가리지 않는다. 원본 URL은 바꾸지 않는다(D9). |
+| 사용 대상 | 브라우저(`web.kind = browser`)이고 URL이 `captured`면 사이트(eTLD+1), URL이 없으면 브라우저 앱, 그 밖은 앱. 브라우저 여부는 클라이언트가 보낸 `web.kind`로만 판정한다. `http`·`https` URL인데 eTLD+1을 정할 수 없으면 호스트 그대로(포트 제외)가 사이트이고, `http`·`https`가 아니거나 호스트가 없는 URL은 브라우저 앱이다(D7). scheme 바로 뒤에 `://`가 없으면 `^[a-z][a-z0-9+.-]*:` 뒤 첫 글자가 숫자가 아닐 때(`about:blank`, `javascript:`, `data:`) 브라우저 앱이고, 그 밖(`meet.google.com/x`, `localhost:8000/docs`, `example.com/?r=https://a.com`)은 `https://`를 붙여 D7을 적용한다. scheme은 대소문자를 가리지 않는다. 원본 URL은 바꾸지 않는다(D9). 사이트의 비교·저장 키는 IDNA 2003(nameprep)으로 바꾼 ASCII 소문자이며, 끝의 점은 모두 지운다. 화면에는 유니코드로 바꿔 보여 준다(D12). |
 
 경계 사례:
 
@@ -45,6 +45,8 @@ status: draft
 | C1-B9 | Chrome `http://192.168.0.1:8080/` 1, `http://localhost:8000/docs` 2, `http://intranet/wiki` 3, `https://github.io/` 4 | 대상: `192.168.0.1` 1·`localhost` 2·`intranet` 3·`github.io` 4 |
 | C1-B10 | Chrome `https://m.youtube.com/watch` 20, `chrome://settings` 2, `about:blank` 2, `file:///Users/a.pdf` 1 | 대상: `youtube.com` 20·Chrome 5 |
 | C1-B11 | Firefox `meet.google.com/x` 1, `localhost:8000/docs` 2, `about:blank` 3, `github.com/explore` 4 | 대상: `google.com` 1·`localhost` 2·Firefox 3·`github.com` 4 |
+| C1-B13 | Chrome `https://예시.한국/a` 1, 같은 호스트의 NFD 표기(한글 자모 분해) 2, `https://xn--vv4b11d.xn--3e0b707e/c` 3, `https://ｇｉｔｈｕｂ.com/`(전각) 4, `https://github.com../` 5 | 대상: `xn--vv4b11d.xn--3e0b707e` 6·`github.com` 9 |
+| C1-B14 | Chrome `https://AAA…A.COM./`(`A` 64개, 63자를 넘는 레이블이라 IDNA 변환 실패) 1 | 대상: `aaa…a.com`(`a` 64개) 1 |
 | C1-B12 | Firefox `About:blank` 1, `example.com/?r=https://a.com` 2, `javascript:void(0)` 3, `data:text/html,hi` 4 | 대상: `example.com` 2·Firefox 8 |
 
 반례:
@@ -84,6 +86,7 @@ status: draft
 | C2-B9 | 열린 마지막 구간 | 0회 |
 | C2-B10 | B → A `[10,20)` → A `[20,50)` → C / A `[0,10)` 침묵 → A `[20,30)` → A `[30,50)` → C / A 23:00~23:30 → A 23:30~00:20 → C를 둘째 날 읽기로 | 체류 40분 / 30분 / 둘째 날 체류 80분(자정 앞까지 거슬러 읽음) |
 | C2-B11 | A 23:50~24:00 → B 24:00~00:10, 첫날과 둘째 날 | 첫날 0회, 둘째 날 1회 |
+| C2-B12 | C1-B13의 URL 다섯 개를 이 순서로 5분씩 맞닿게 | 1회(`xn--vv4b11d.xn--3e0b707e` → `github.com`), 15분, 체류 15분 |
 
 반례:
 
@@ -162,7 +165,7 @@ status: draft
 
 | 항목 | 내용 |
 | --- | --- |
-| 정의 | 진입 횟수: 이탈 조각의 사용 대상이 직전 조각의 사용 대상과 다르면 그 대상에 1회. 이탈 시간: 이탈 조각 시간을 대상별로 합. |
+| 정의 | 진입 횟수: 집중 이탈을 시작하는 이탈 조각은 그 대상에 1회(직전 조각과 같은 대상이어도, D11). 이탈 중에는 이탈 조각의 사용 대상이 직전 조각의 사용 대상과 다르면 그 대상에 1회. 이탈 시간: 이탈 조각 시간을 대상별로 합. |
 | 단위 | 사용 대상별 (횟수, 초). |
 | 포함 | 이탈을 시작한 진입과 이탈 중 진입. 앱 미확인 이탈은 `앱 미확인` 항목(D4). |
 | 제외 | 판정 대기·확정 미분류·불투명·미관찰·일시중지 시간. 같은 대상 안의 탭·창 변화. |
@@ -180,6 +183,7 @@ status: draft
 | C5-B5 | 이탈 2건 모두 B | B 2회·10분 |
 | C5-B6 | 여가 B `[10,15)` 침묵 → 여가 B `[20,25)` → 일시중지 `[25,30)` → 여가 B `[30,35)` | B 1회·15분 |
 | C5-B7 | 여가 앱 미확인 `[10,15)` → 여가 앱 미확인(다른 창) `[15,20)` | 앱 미확인 1회·10분 |
+| C5-B8 | 코딩 YouTube `[0,10)` → 여가 YouTube `[10,15)` → 여가 Slack `[15,20)` → 코딩 | YouTube 1회·5분, Slack 1회·5분(진입 합 2 ≥ 이탈 1건) |
 
 반례:
 
@@ -372,6 +376,18 @@ status: draft
   조각이다(C5-B6, 896개). 앱 미확인 이탈끼리는 다시 진입으로 세지 않는다(C5-B7, 103개). 열린 구간은
   C3~C7에서도 `lastObservedAt`까지다(C4-B9, 444개). C6 이탈 중 전환은 시각이 아니라 구간 순서로 진입·복귀
   전환과 가른다(C6-B7, 198개). 시각으로 가르면 진입·복귀 시각에 놓인 0초 구간 사이의 전환까지 빠진다.
+- **D11 C5 진입**: 집중 이탈을 시작하는 이탈 조각은 직전 조각과 사용 대상이 같아도 진입 1회다(C5-B8).
+  이전 문언("직전 조각과 다르면 1회")만 따르면 코딩 YouTube → 여가 YouTube처럼 진입이 0인 이탈이 생겨
+  불변식 "진입 횟수 합 ≥ 이탈 건수"가 깨지고, C5가 그 이탈이 무엇으로 시작했는지 설명하지 못한다. 이탈
+  중에는 직전 조각과 다를 때만 센다. 4단계 비교의 무작위 20,000개 중 292개에서 결과가 바뀌었다.
+- **D12 국제화 도메인**: 사이트의 비교·저장 키는 호스트를 IDNA 2003(nameprep, 표준 라이브러리 `idna` 코덱)으로
+  바꾼 ASCII 소문자다. 끝의 점은 모두 지운다. 그래서 NFC·NFD 표기, punycode, 전각 문자, 끝 점이 다른 같은
+  호스트가 한 사이트로 모인다(C1-B13·C2-B12). PSL 규칙도 같은 방식으로 바꿔 비교한다. 화면 표시는 API·화면이
+  키를 유니코드로 바꿔 보여 주며, 분석 출력의 키는 ASCII다. IDNA 변환이 실패하면(63자를 넘는 레이블 등)
+  소문자로 바꾸고 끝 점을 지운 호스트 그대로가 키다(C1-B14). 측정 전 가정: ß처럼 IDNA 2003과 2008이 다르게
+  다루는 문자가 든 호스트는 표기에 따라 사이트가 갈릴 수 있다(`fußball.com` → `fussball.com`, 브라우저가 만든
+  `xn--fuball-cta.com`은 그대로). 실제 브라우저 URL은 대부분 punycode로 와서 영향이 작다고 보며, 기록일 URL에서
+  확인한다.
 
 ## 관련 문서
 
