@@ -76,6 +76,20 @@ def test_ambiguity_2_zero_second_gap_keeps_neighbours_apart_on_read() -> None:
     assert daily(only(data, read_day(data, DAY, PSL)), DAY, PSL)["c2"] == []
 
 
+def test_ambiguity_2_open_gap_before_the_day_does_not_block_read_back() -> None:
+    data = timeline(
+        gap("g0", -100, None),
+        activity("s1", -30, -10, app("A")),
+        activity("s2", -10, 10, app("A")),
+        activity("s3", 10, 20, app("B")),
+    )
+
+    chosen = read_day(data, DAY, PSL)
+
+    assert chosen == ["g0", "s1", "s2", "s3"]
+    assert daily(only(data, chosen), DAY, PSL) == daily(data, DAY, PSL)
+
+
 def zero_second_lapses() -> dict:
     return timeline(
         activity("s1", 0, 0, app("X")),

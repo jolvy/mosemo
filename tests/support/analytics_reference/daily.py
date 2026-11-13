@@ -43,8 +43,10 @@ def read_day(data: Mapping[str, Any], day: str, psl: str) -> list[str]:
         if segment.started_at < end
         and (segment.observed_end is None or segment.observed_end >= start)
     ]
-    if chosen:
-        index = chosen[0]
+    # 끝이 없는 공백은 날짜보다 앞에서 시작해도 골라지므로 거슬러 읽기의 시작점이 아니다.
+    closed = [index for index in chosen if segments[index].observed_end is not None]
+    if closed:
+        index = closed[0]
         target = segments[index].target(sites)
         while (
             target is not None
