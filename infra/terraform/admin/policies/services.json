@@ -157,6 +157,7 @@
       "Effect": "Allow",
       "Action": [
         "rds:DescribeDBInstances",
+        "rds:DescribeDBSnapshots",
         "rds:DescribeDBSubnetGroups",
         "rds:DescribeDBParameters",
         "rds:DescribeDBParameterGroups",

@@ -151,6 +151,11 @@ run "session_stack_contract" {
   }
 
   assert {
+    condition     = aws_eks_addon.vpc_cni.addon_version == "v1.22.4-eksbuild.14"
+    error_message = "The VPC CNI add-on must be pinned to the Kubernetes 1.36 default version."
+  }
+
+  assert {
     condition     = aws_autoscaling_attachment.api.autoscaling_group_name == "eks-mosemo-lab-app-mock"
     error_message = "Only the app node group's ASG may be registered with the ALB target group."
   }

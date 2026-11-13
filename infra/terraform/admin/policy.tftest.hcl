@@ -286,6 +286,14 @@ run "session_cleanup_permission_contract" {
   }
 
   assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_iam_policy.infrastructure["services"].policy).Statement :
+      contains(statement.Action, "rds:DescribeDBSnapshots")
+    ])
+    error_message = "session-down.sh must be able to detect a leftover final snapshot."
+  }
+
+  assert {
     condition = length([
       for statement in jsondecode(aws_iam_policy.infrastructure["volumes"].policy).Statement : statement if contains(statement.Action, "ec2:DeleteVolume")
       ]) == 1 && length([

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End a work session: Kafka StatefulSet and PVC -> retained EBS deleted by volume ID and confirmed ->
-# RDS deletion protection lifted -> final snapshot skipped -> session stack destroyed.
+# skip_final_snapshot applied to state -> RDS deletion protection lifted -> session stack destroyed.
 # Configuration keeps production protection; only this procedure lifts it. Session data is not kept.
 # The long-lived ../terraform/foundation stack (ECR, ACM) is never touched.
 # shellcheck source=session-lib.sh source-path=SCRIPTDIR
@@ -17,6 +17,15 @@ tf_init
 
 ec2() { aws ec2 "$@" --profile "$AWS_PROFILE_NAME" --region "$AWS_REGION"; }
 rds() { aws rds "$@" --profile "$AWS_PROFILE_NAME" --region "$AWS_REGION"; }
+
+# The final snapshot name is fixed; a leftover one is someone's data, so stop before touching anything.
+if snapshot=$(rds describe-db-snapshots --db-snapshot-identifier "$FINAL_SNAPSHOT_ID" \
+  --query 'DBSnapshots[0].Status' --output text 2>&1); then
+  fail "RDS snapshot $FINAL_SNAPSHOT_ID already exists ($snapshot). Restore or delete it deliberately, then rerun session-down.sh"
+elif [[ $snapshot != *DBSnapshotNotFound* ]]; then
+  fail "cannot check for RDS snapshot $FINAL_SNAPSHOT_ID: $snapshot"
+fi
+echo "no leftover RDS snapshot $FINAL_SNAPSHOT_ID"
 
 step "Kafka StatefulSet, PVC and retained EBS"
 if tf state list | grep -x 'aws_eks_cluster.main' >/dev/null; then

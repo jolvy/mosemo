@@ -9,6 +9,7 @@ K8S_DIR="$REPO_ROOT/infra/kubernetes"
 AWS_PROFILE_NAME=mosemo-infra
 AWS_REGION=ap-southeast-2
 CLUSTER_NAME=mosemo-lab
+FINAL_SNAPSHOT_ID=$CLUSTER_NAME-final # rds.tf final_snapshot_identifier
 NAMESPACE=mosemo
 API_HOST=mosemo-api.danuh.com
 

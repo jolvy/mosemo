@@ -40,7 +40,7 @@ batch는 160Mi 요청(로컬 유휴 실측 118MiB)·limit 512Mi, Kafka는 512Mi 
 topic Job은 request 128Mi/limit 256Mi다. requests는 첫 세션 실측 후 재산정한다.
 
 - PriorityClass(`priority-classes.yaml`): `mosemo-api`(30000) > `mosemo-consumer`(20000) >
-  `mosemo-batch`(10000). batch Deployment가 가장 먼저 밀려난다.
+  `mosemo-batch`(10000). migration·kafka-init Job은 `mosemo-consumer`를 쓴다. batch Deployment가 가장 먼저 밀려난다.
 - LimitRange(`limit-range.yaml`): requests/limits를 빠뜨린 컨테이너에 100m·128Mi / 1 CPU·512Mi를
   기본으로 넣고, 컨테이너 상한을 1 CPU·768Mi로 둔다.
 - vpc-cni prefix delegation으로 노드 Pod 상한이 11에서 110으로 늘어난다(session-up.sh가 확인).
@@ -135,7 +135,8 @@ bash infra/deployment/session-down.sh  # 세션 종료
    (ECR 인증은 --password-stdin). 같은 `repository@sha256` digest로 migration Job 성공을 확인한 뒤
    API·consumer·batch를 rollout하고, ALB에 직접 연결해 HTTPS `/openapi.json` 200·비인증 `/api/v1/accounts/me` 401·
    HTTP 301, Cloudflare CNAME, consumer group Stable, batch label-proposals 성공 로그를 확인한다. 대화형 단계가 없어 G2 CI가 재사용할 수 있다.
-3. session-down.sh: Kafka StatefulSet·PVC 삭제 → Retain PV의 EBS를 volume ID로 삭제·확인 → PV 삭제
+3. session-down.sh: 최종 스냅샷 `mosemo-lab-final`이 이미 있으면 알리고 아무것도 바꾸지 않고 멈춤
+   → Kafka StatefulSet·PVC 삭제 → Retain PV의 EBS를 volume ID로 삭제·확인 → PV 삭제
    → `-var skip_final_snapshot=true` plan이 RDS update 하나뿐인지 확인 후 apply
    → RDS 삭제 보호 해제·available 대기 → 같은 변수로 세션 스택 destroy → state 비었는지 확인.
    foundation은 건드리지 않는다. session-up이 apply 이후 단계에서 실패한 세션도 kubeconfig를 다시 만들어
