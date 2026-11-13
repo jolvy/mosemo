@@ -9,6 +9,7 @@ from .sites import PublicSuffixList
 from .timeline import (
     Segment,
     Session,
+    TargetTransition,
     Timeline,
     format_time,
     label_transitions,
@@ -31,6 +32,7 @@ class Piece:
     """세션 분석 시간과 겹치는 활동 조각. 0초 구간은 0초 조각이다."""
 
     segment: Segment
+    index: int  # 구간 순서상 위치
     start: datetime
     end: datetime
     verdict: str
@@ -48,7 +50,18 @@ class Lapse:
     previous_focus: Piece | None
     pieces: list[Piece] = field(default_factory=list)
     end: datetime | None = None
-    returned: bool = False
+    return_piece: Piece | None = None
+
+    def inner_transitions(self, transitions: list[TargetTransition]) -> int:
+        """FR-20: 진입 전환(첫 이탈 조각의 구간으로 들어온 전환)과 복귀 전환(복귀 집중
+        조각의 구간으로 들어간 전환) 사이의 전환. 시각이 아니라 구간 순서로 가른다."""
+        last = self.return_piece.index if self.return_piece else None
+        return sum(
+            1
+            for transition in transitions
+            if self.first.index < transition.index
+            and (last is None or transition.index < last)
+        )
 
 
 def work_intervals(session: Session) -> list[Interval]:
@@ -80,7 +93,7 @@ def pieces_of(
     timeline: Timeline, session: Session, intervals: list[Interval]
 ) -> list[Piece]:
     pieces = []
-    for segment in timeline.segments:
+    for index, segment in enumerate(timeline.segments):
         if not segment.is_activity or segment.observed_end is None:
             continue
         for low, high in intervals:
@@ -91,6 +104,7 @@ def pieces_of(
                 pieces.append(
                     Piece(
                         segment=segment,
+                        index=index,
                         start=start,
                         end=max(start, end),
                         verdict=verdict(timeline, segment, session),
@@ -112,7 +126,7 @@ def lapses_of(pieces: list[Piece], analysis_end: datetime | None) -> list[Lapse]
             current.pieces.append(piece)
         elif piece.verdict == FOCUS:
             if current is not None:
-                current.end, current.returned = piece.start, True
+                current.end, current.return_piece = piece.start, piece
                 current = None
             last_focus = piece
     if current is not None:
@@ -211,12 +225,8 @@ def session(data: Mapping[str, Any], session_id: str, psl: str) -> dict[str, Any
                 "lapse_us": micros(
                     sum((piece.length for piece in lapse.pieces), timedelta())
                 ),
-                "transitions": sum(
-                    1
-                    for transition in c3
-                    if lapse.end and lapse.first.start < transition.at < lapse.end
-                ),
-                "returned": lapse.returned,
+                "transitions": lapse.inner_transitions(c3),
+                "returned": lapse.return_piece is not None,
             }
             for lapse in lapses
         ],

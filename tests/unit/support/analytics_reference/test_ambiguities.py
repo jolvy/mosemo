@@ -133,6 +133,47 @@ def test_ambiguity_4_transitions_in_or_at_pause_are_not_lapse_transitions() -> N
     assert [row["at"] for row in output["c3"]] == [utc(10), utc(40), utc(50)]
 
 
+def lapse_transitions(*segments: dict, labels: dict) -> int:
+    data = timeline(*segments, labels=labels, sessions=[focus()])
+    return session(data, SESSION, PSL)["c6"][0]["transitions"]
+
+
+def test_ambiguity_4_zero_second_lapse_at_entry_time_keeps_inner_transition() -> None:
+    transitions = lapse_transitions(
+        activity("s1", 0, 10, app("A")),
+        activity("s2", 10, 10, app("X")),
+        activity("s3", 10, 20, app("Y")),
+        activity("s4", 20, 60, app("A")),
+        labels={"s1": CODING, "s2": LEISURE, "s3": LEISURE, "s4": CODING},
+    )
+
+    assert transitions == 1
+
+
+def test_ambiguity_4_zero_second_lapse_at_return_time_keeps_inner_transition() -> None:
+    transitions = lapse_transitions(
+        activity("s1", 0, 10, app("A")),
+        activity("s2", 10, 20, app("Y")),
+        activity("s3", 20, 20, app("Z")),
+        activity("s4", 20, 60, app("A")),
+        labels={"s1": CODING, "s2": LEISURE, "s3": LEISURE, "s4": CODING},
+    )
+
+    assert transitions == 1
+
+
+def test_ambiguity_4_zero_second_pending_before_entry_is_not_inside_lapse() -> None:
+    transitions = lapse_transitions(
+        activity("s1", 0, 10, app("A")),
+        activity("s2", 10, 10, app("P")),
+        activity("s3", 10, 20, app("Y")),
+        activity("s4", 20, 60, app("A")),
+        labels={"s1": CODING, "s3": LEISURE, "s4": CODING},
+    )
+
+    assert transitions == 0
+
+
 def test_ambiguity_5_previous_piece_looks_across_pause_and_unobserved_time() -> None:
     data = timeline(
         activity("s1", 0, 10, app("A")),
@@ -185,6 +226,21 @@ def test_ambiguity_7_open_segment_counts_until_last_observed_in_session() -> Non
     assert output["c6"][0]["lapse_us"] == 10 * MIN
     assert output["c6"][0]["end"] == utc(60)
     assert output["c6"][0]["returned"] is False
+
+
+def test_ambiguity_7_open_segment_is_not_adjacent_to_a_later_segment() -> None:
+    data = timeline(
+        activity("s1", 0, None, app("A"), last=10),
+        activity("s2", 10, 60, app("B")),
+        labels={"s1": CODING, "s2": LEISURE},
+        sessions=[focus()],
+    )
+
+    output = session(data, SESSION, PSL)
+
+    assert (output["c3"], output["c7"]) == ([], [])
+    assert daily(data, DAY, PSL)["c2"] == []
+    assert output["c4"]["lapse_us"] == 50 * MIN
 
 
 def test_every_known_ambiguity_has_a_test() -> None:

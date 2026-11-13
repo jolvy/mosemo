@@ -543,7 +543,7 @@ CASES: dict[str, dict] = {
     "C6-B3": in_session(C5_B1, {"c6.#": 1, "c6.0.transitions": 2}),
     "C6-B4": in_session(
         timeline(
-            activity("s1", 0, 30, app("A")),
+            activity("s1", 0, 10, app("A")),
             activity("s2", 30, 40, app("B")),
             activity("s3", 40, 60, app("A")),
             labels={"s1": CODING, "s2": LEISURE, "s3": CODING},

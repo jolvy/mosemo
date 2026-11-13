@@ -76,7 +76,7 @@ def test_reference_package_imports_only_itself_and_standard_library() -> None:
         for path in files
         for level, module in imported_modules(path)
         if not (
-            level > 0
+            level == 1
             or module == "tests.support.analytics_reference"
             or module.startswith("tests.support.analytics_reference.")
             or module.split(".")[0] in sys.stdlib_module_names

@@ -177,6 +177,7 @@ def adjacent(before: Segment, after: Segment) -> bool:
 
 @dataclass(frozen=True, kw_only=True)
 class TargetTransition:
+    index: int  # 뒤 구간의 구간 순서상 위치
     at: datetime
     previous: str
     next: str
@@ -215,7 +216,11 @@ def target_transitions(
         if joined and previous and current and previous != current:
             transitions.append(
                 TargetTransition(
-                    at=segment.started_at, previous=previous, next=current, dwell=dwell
+                    index=index,
+                    at=segment.started_at,
+                    previous=previous,
+                    next=current,
+                    dwell=dwell,
                 )
             )
         continues = joined and current is not None and previous == current
