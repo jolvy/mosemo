@@ -174,6 +174,34 @@ def test_ambiguity_4_zero_second_pending_before_entry_is_not_inside_lapse() -> N
     assert transitions == 0
 
 
+def test_ambiguity_4_zero_second_pending_before_return_is_inside_lapse() -> None:
+    transitions = lapse_transitions(
+        activity("s1", 0, 10, app("A")),
+        activity("s2", 10, 20, app("Y")),
+        activity("s3", 20, 20, app("P")),
+        activity("s4", 20, 60, app("A")),
+        labels={"s1": CODING, "s2": LEISURE, "s4": CODING},
+    )
+
+    assert transitions == 1
+
+
+def test_ambiguity_4_unreturned_lapse_stops_counting_at_pause_start() -> None:
+    data = timeline(
+        activity("s1", 0, 10, app("A")),
+        activity("s2", 10, 20, app("B")),
+        activity("s3", 20, 40, app("C")),
+        activity("s4", 40, 45, app("D")),
+        activity("s5", 45, 50, app("E")),
+        labels={"s1": CODING, "s2": LEISURE, "s3": LEISURE, "s4": LEISURE},
+        sessions=[focus(pauses=[(40, 60)])],
+    )
+
+    row = session(data, SESSION, PSL)["c6"][0]
+
+    assert (row["end"], row["returned"], row["transitions"]) == (utc(40), False, 1)
+
+
 def test_ambiguity_5_previous_piece_looks_across_pause_and_unobserved_time() -> None:
     data = timeline(
         activity("s1", 0, 10, app("A")),
@@ -223,6 +251,7 @@ def test_ambiguity_7_open_segment_counts_until_last_observed_in_session() -> Non
 
     assert output["c4"]["lapse_us"] == 10 * MIN
     assert output["c4"]["unobserved_us"] == 40 * MIN
+    assert output["c5"] == [{"key": "B", "entries": 1, "lapse_us": 10 * MIN}]
     assert output["c6"][0]["lapse_us"] == 10 * MIN
     assert output["c6"][0]["end"] == utc(60)
     assert output["c6"][0]["returned"] is False
