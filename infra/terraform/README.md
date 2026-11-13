@@ -38,5 +38,7 @@ terraform -chdir=infra/terraform/<root> test
 terraform -chdir=infra/terraform/<root> plan -input=false -lock-timeout=60s
 ```
 
+리허설·측정 절차는 [배포 문서](../deployment/README.md#5단계-측정-세션)를 따른다.
+
 구체적 구성은 [foundation](foundation/README.md), [infrastructure](infrastructure/README.md),
 [admin](admin/README.md) README, 세션 절차는 [배포 문서](../deployment/README.md)를 참조한다.

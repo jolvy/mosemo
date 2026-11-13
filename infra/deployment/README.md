@@ -131,6 +131,7 @@ uv run --locked python scripts/verify_focus_session_client.py --client-root /abs
 bash infra/deployment/session-up.sh    # 세션 시작 (--profile measurement: 5단계 측정 세션)
 bash infra/deployment/deploy.sh        # 현재 커밋 배포 (반복 가능)
 bash infra/deployment/session-down.sh  # 세션 종료
+bash infra/deployment/session-audit.sh # 남은 리소스 0개 확인
 ```
 
 1. session-up.sh: 프로필 기록(`$MOSEMO_SESSION_DIR/profile`) → 세션 스택 `terraform apply`(plan을 검토하고
@@ -148,15 +149,74 @@ bash infra/deployment/session-down.sh  # 세션 종료
 3. session-down.sh: 최종 스냅샷 `mosemo-lab-final`이 이미 있으면 알리고 아무것도 바꾸지 않고 멈춤
    → Kafka StatefulSet·PVC 삭제 → Retain PV의 EBS를 volume ID로 삭제·확인 → PV 삭제
    → `-var skip_final_snapshot=true` plan이 RDS update 하나뿐인지 확인 후 apply
-   → RDS 삭제 보호 해제·available 대기 → 같은 변수로 세션 스택 destroy → state 비었는지 확인.
+   (재실행이면 `enable_deletion_protection`만 바뀌는 ALB update도 허용) → RDS 삭제 보호 해제·available 대기
+   → ALB 삭제 보호 해제·조회로 false 확인 → 같은 변수로 세션 스택 destroy → state 비었는지 확인
+   → `profile`·`measurement.kubeconfig` 삭제(`measurement/` 결과는 남김).
    foundation은 건드리지 않는다. session-up이 apply 이후 단계에서 실패한 세션도 kubeconfig를 다시 만들어
    정리한다. apply 자체가 중간에 실패했다면 session-up.sh를 apply 성공까지 다시 실행한 뒤 정리한다.
-   destroy가 실패하면 RDS 삭제 보호가 꺼져 있을 수 있으므로 다시 실행하거나 apply로 복구한다.
+   destroy가 실패하면 RDS·ALB 삭제 보호가 꺼져 있을 수 있으므로 다시 실행하거나 apply로 복구한다.
+4. session-audit.sh: state 비어 있음, 시드니의 EKS 클러스터·랩 인스턴스·RDS 인스턴스·RDS 수동 스냅샷·LB·
+   타깃 그룹·Kafka PVC EBS·미연결 EBS·EIP·랩 VPC·미연결 ENI가 0개인지 확인한다. 측정 창(`measurement/window`)이
+   있으면 그 구간에 MosemoInfrastructureRole·AccountFullAccessRole 세션의 변경 이벤트(CloudTrail
+   `ReadOnly=false`)가 0건인지 본다. 보존된 RDS 자동 백업은 경고만 한다. 남은 것이 있으면 exit 1.
+
+`$MOSEMO_SESSION_DIR/measurement.lock`이 있으면 session-up·deploy·session-down·measurement-ready는
+AWS·kubectl·terraform을 호출하기 전에 멈춘다.
 
 렌더링 결과는 `$MOSEMO_SESSION_DIR/rendered`에 둔다. 이미 존재하는 Job은 실행 중이 아님을 확인한
 뒤에만 삭제·재실행한다. Secret과 RDS CA는 서버 측 apply로 등록해 client-side last-applied
 annotation에 복제하지 않는다. 디렉터리 전체를 일괄 apply하지 않는다.
 인증된 활동 발행 202 후 consumer의 DB 처리와 실제 Kakao 로그인은 스크립트가 검증하지 않는다.
+
+## 5단계 측정 세션
+
+측정 프로필(`session-up.sh --profile measurement`)은 loadgen 노드 그룹(t3.small 1대, 2a, taint
+`dedicated=loadgen:NoSchedule`, label `pool=loadgen`)을 더하고 batch를 뺀다. 프로필은 tfvars가 아니라
+세션 디렉터리의 `profile` 기록으로 정해지며 `tf()`가 모든 terraform 호출에 `TF_VAR_measurement`를 붙인다.
+플래그 없이 다시 실행하면 기록을 따른다. state가 남아 있는데 다른 프로필을 요청하면 실패한다.
+측정 프로필로 새로 시작할 때 이전 `measurement/`는 `measurement.<UTC>/`로 옮긴다.
+
+| 스크립트 | 하는 일 | 결과 (`$MOSEMO_SESSION_DIR/measurement/`) |
+| --- | --- | --- |
+| session-up.sh --profile measurement | apply 직후 plan exit code와 commit·dirty_files 기록, 측정 운영자 RBAC 적용 | terraform.json |
+| measurement-ready.sh EXPECTED_ALEMBIC_HEAD | P1~P9 점검(측정용 권한 매트릭스, 이미지 digest·커밋·alembic head, RDS 설정·5432, API HTTP, postgres:18.3 pull, loadgen 배치·여유, 앱 상태, 크레딧 시작값) | ready.txt, manifest.json, manifest.sha256 |
+| measurement-lock.sh start POD EXPECTED_END_UTC | 측정 Pod 생성 **전에** 실행. 잠금 기록(loadgen 노드 이름 포함), 13시간 토큰 kubeconfig 발급 | `../measurement.lock`, `../measurement.kubeconfig` |
+| measurement-lock.sh end [--invalid 사유] | 잠금 해제 | window, invalid |
+| measurement-metrics.sh | 측정 창의 CloudWatch 지표 CSV. **session-down 전에** 실행 | metrics.csv |
+| session-audit.sh | 남은 리소스 0개, 측정 창 CloudTrail 변경 0건 | `../audit.txt` |
+| session-cost.sh YYYY-MM-DD | 다음 날 Cost Explorer 1회($0.01), 서비스 × 기록 유형, 사용·크레딧 합계 | 화면 출력 |
+
+측정 운영자 권한(`measurement-rbac.yaml`, ServiceAccount `step5-operator`, 네임스페이스 mosemo):
+Pod 생성·삭제·조회, exec, logs, Deployment 조회, `mosemo-consumer`의 scale만. 기대 매트릭스는
+`measurement-rbac-matrix.txt`이며 measurement-ready.sh P1이 10분짜리 토큰으로 확인한다.
+RBAC는 Pod 생성을 이름으로 제한할 수 없어 다른 Pod도 만들 수 있다.
+
+리허설(첫 기동, 사용자 허락 후):
+
+1. `session-up.sh --profile measurement` → `deploy.sh` → `measurement-ready.sh <alembic head>`
+2. `measurement-lock.sh start step5-tools <UTC 끝>`
+3. 측정 쪽 점검 약 15분: `measurement.kubeconfig`로 step5-tools Pod 생성 → `kubectl cp` 소형 덤프 →
+   RDS `pg_restore --clean` → API HTTP 1회 → Pod 삭제
+4. `measurement-lock.sh end --invalid "rehearsal"` → `measurement-metrics.sh` → `session-down.sh` → `session-audit.sh`
+
+측정:
+
+1. `session-up.sh --profile measurement` → `deploy.sh` → `measurement-ready.sh <alembic head>`
+   (ready.txt·manifest.json·manifest.sha256을 측정 쪽에 전달)
+2. `measurement-lock.sh start step5-tools <UTC 끝>` → 측정 → 측정 쪽 "측정 끝" 신호 → `measurement-lock.sh end`
+3. `measurement-metrics.sh` → `session-down.sh` → `session-audit.sh` → 다음 날 `session-cost.sh <측정일>`
+
+12시간을 넘겨도 "측정 끝" 신호가 없으면: 측정 Pod 삭제 → `measurement-lock.sh end --invalid "<사유>"` →
+사용자에게 알린다. 랩 내리기(session-down)는 사용자 지시가 있을 때만 한다.
+
+측정 쪽에 알릴 차이:
+
+- kubeconfig는 `$MOSEMO_SESSION_DIR/measurement.kubeconfig`(13시간 토큰, `measurement-lock.sh start`가 발급).
+- 측정 Pod에 toleration `dedicated=loadgen:NoSchedule`, nodeSelector `pool: loadgen`,
+  `activeDeadlineSeconds: 43200`이 필요하다.
+- 측정 세션에는 batch가 없다. scale 대상은 `mosemo-consumer`뿐이다.
+- 크레딧 지표(CPUCreditBalance 등)는 AWS 고정 5분 해상도다. EC2 CPUUtilization과 RDS 지표는 1분.
+- loadgen 노드는 T3 standard라 launch credit 없이 크레딧 0에서 시작한다.
 
 ## 실제 인증과 HTTPS
 

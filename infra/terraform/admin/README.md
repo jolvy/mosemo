@@ -27,6 +27,11 @@
 | https | 선택한 API 도메인의 ACM 요청 및 지정 태그 인증서 수명주기 |
 | nodes (G0 신규) | 프로젝트 태그를 붙인 노드 launch template 생성·버전·삭제 |
 | volumes (G0 신규) | 세션 종료 시 Retain으로 남은 Kafka PVC EBS 조회·삭제 |
+| foundation (B 신규) | ALB 접근 로그 버킷 `mosemo-lab-alb-logs-<ACCOUNT_ID>` 생성·조회·설정, ECR scan on push 설정 |
+| observability (B 신규) | 읽기 전용: CloudWatch 지표, CloudTrail 조회, 세션 감사 Describe/List, Cost Explorer |
+
+실행 역할의 관리형 정책은 10개로 역할당 기본 한도(10)에 닿았다. 새 권한은 기존 정책 파일에
+넣고 각 정책 6144자 한도는 test가 검사한다.
 
 AWS는 CreateAddon에서 addon 이름, CreatePodIdentityAssociation에서 namespace/SA를
 조건으로 제한하는 IAM condition key를 제공하지 않는다. 생성 권한은 정확한 cluster ARN과
@@ -103,3 +108,17 @@ Service Authorization operation mapping 표현에 차이가 있다. 이 차이�
 - state: foundation state key와 lock 읽기·쓰기를 추가한다. IAM state key 접근은 계속 없다.
 
 향후 적용 순서는 admin → foundation → 세션 스택이다.
+
+## [B] 운영 값·측정 프로필 권한 (미적용)
+
+- services: node group ARN에 `mosemo-lab-loadgen`(측정 프로필 전용)을 추가한다. 6086자로 한도 안이다.
+- foundation: ALB 로그 버킷 하나의 ARN에만 CreateBucket·DeleteBucket·ListBucket, Terraform refresh에
+  필요한 버킷 설정 조회(GetBucketPolicy·Tagging·PublicAccessBlock·OwnershipControls·Encryption·Lifecycle 등
+  개별 action), 정책·공개 차단·암호화·수명 주기·소유권·태그 설정을 허용한다. 객체 권한은 없다.
+  wildcard action 금지 test를 지키려고 `s3:Get*` 대신 action을 하나씩 나열했다. provider가 목록에 없는
+  Get을 호출하면 foundation plan이 AccessDenied로 멈추며, 그때 그 action만 추가한다.
+  ECR `mosemo-lab-server`에 PutImageScanningConfiguration(PutImageTagMutability는 services에 이미 있음).
+- observability: cloudwatch GetMetricData·ListMetrics, cloudtrail LookupEvents, tag GetResources,
+  eks ListClusters, ec2 DescribeAddresses, rds DescribeDBInstanceAutomatedBackups(시드니 조건),
+  ce GetCostAndUsage(us-east-1 전용 엔드포인트라 리전 조건 없음). 모두 읽기 전용이며 test가 검사한다.
+  Free Tier 계정 SCP가 cloudtrail·ce를 허용하는지는 적용 후 첫 호출에서 확인한다.

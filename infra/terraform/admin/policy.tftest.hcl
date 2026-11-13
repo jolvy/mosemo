@@ -24,15 +24,15 @@ run "bootstrap_permission_contract" {
     condition = (
       length(aws_iam_role.service) == 2 &&
       length(aws_iam_role_policy_attachment.service) == 4 &&
-      length(aws_iam_policy.infrastructure) == 9 &&
-      length(aws_iam_role_policy_attachment.infrastructure) == 9
+      length(aws_iam_policy.infrastructure) == 10 &&
+      length(aws_iam_role_policy_attachment.infrastructure) == 10
     )
     error_message = "Keep existing roles and stay at the default limit of 10 managed policies per role."
   }
 
   assert {
     condition = alltrue([
-      for name in ["network", "services", "identity", "state", "addons", "https", "nodes", "volumes", "foundation"] :
+      for name in ["network", "services", "identity", "state", "addons", "https", "nodes", "volumes", "foundation", "observability"] :
       length(jsonencode(jsondecode(aws_iam_policy.infrastructure[name].policy))) <= 6144
     ])
     error_message = "Each managed policy must fit the IAM 6144-character limit."
@@ -40,7 +40,7 @@ run "bootstrap_permission_contract" {
 
   assert {
     condition = alltrue(flatten([
-      for name in ["network", "services", "identity", "state", "addons", "https", "nodes", "volumes", "foundation"] : [
+      for name in ["network", "services", "identity", "state", "addons", "https", "nodes", "volumes", "foundation", "observability"] : [
         for statement in jsondecode(aws_iam_policy.infrastructure[name].policy).Statement : [
           for action in statement.Action :
           !strcontains(action, "*") && (
@@ -68,15 +68,15 @@ run "bootstrap_permission_contract" {
 
   assert {
     condition = alltrue(flatten([
-      for name in ["network", "services", "addons", "https", "nodes", "volumes", "foundation"] : [
+      for name in ["network", "services", "addons", "https", "nodes", "volumes", "foundation", "observability"] : [
         for statement in jsondecode(aws_iam_policy.infrastructure[name].policy).Statement : [
-          for action in statement.Action : startswith(action, "kms:") || try(
+          for action in statement.Action : startswith(action, "kms:") || action == "ce:GetCostAndUsage" || try(
             statement.Condition.StringEquals["aws:RequestedRegion"] == "ap-southeast-2", false
           )
         ]
       ]
     ]))
-    error_message = "Every regional operation must be constrained to Sydney."
+    error_message = "Every regional operation must be constrained to Sydney (Cost Explorer is served only from us-east-1)."
   }
 
   assert {
@@ -345,5 +345,42 @@ run "foundation_log_bucket_permission_contract" {
       contains(statement.Action, "ecr:PutImageTagMutability")
     ])
     error_message = "Scan-on-push and tag immutability must be configurable on the named repository only."
+  }
+}
+
+run "session_observability_permission_contract" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for action in [
+        "cloudwatch:GetMetricData", "cloudwatch:ListMetrics", "cloudtrail:LookupEvents", "tag:GetResources",
+        "eks:ListClusters", "ec2:DescribeAddresses", "rds:DescribeDBInstanceAutomatedBackups", "ce:GetCostAndUsage"
+      ] :
+      anytrue([
+        for statement in jsondecode(aws_iam_policy.infrastructure["observability"].policy).Statement :
+        contains(statement.Action, action)
+      ])
+    ])
+    error_message = "Metrics export, CloudTrail audit, leftover-resource audit, and cost lookup must be permitted."
+  }
+
+  assert {
+    condition = alltrue(flatten([
+      for statement in jsondecode(aws_iam_policy.infrastructure["observability"].policy).Statement : [
+        for action in statement.Action :
+        length(regexall("^(cloudwatch:(Get|List)|cloudtrail:Lookup|tag:Get|eks:List|ec2:Describe|rds:Describe|ce:Get)", action)) == 1
+      ]
+    ]))
+    error_message = "The observability policy must stay read-only."
+  }
+
+  assert {
+    condition = alltrue([
+      for statement in jsondecode(aws_iam_policy.infrastructure["observability"].policy).Statement :
+      !can(statement.Condition)
+      if contains(statement.Action, "ce:GetCostAndUsage")
+    ])
+    error_message = "Cost Explorer is served from us-east-1 and must not carry the Sydney region condition."
   }
 }

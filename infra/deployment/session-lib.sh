@@ -166,3 +166,43 @@ for c in plan.get("resource_changes", []):
         continue
     print(c["address"] + ":" + "+".join(actions))'
 }
+
+# Writes a kubeconfig (0600) for the step5-operator ServiceAccount with a token of the given duration
+# and prints the token expiry (epoch seconds). The token is never printed or passed as an argument.
+issue_operator_kubeconfig() {
+  local path=$1 duration=$2 token server ca exp
+  token=$(kubectl -n "$NAMESPACE" create token step5-operator --duration="$duration")
+  exp=$(python3 -c '
+import base64, json, sys
+payload = sys.stdin.read().strip().split(".")[1]
+print(json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))["exp"])' <<<"$token") \
+    || fail "cannot read the step5-operator token expiry"
+  server=$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')
+  ca=$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+  [[ -n $server && -n $ca ]] || fail "cannot read the cluster endpoint from $KUBECONFIG"
+  (
+    umask 077
+    cat >"$path" <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+  - name: $CLUSTER_NAME
+    cluster:
+      server: $server
+      certificate-authority-data: $ca
+users:
+  - name: step5-operator
+    user:
+      token: $token
+contexts:
+  - name: step5-operator
+    context:
+      cluster: $CLUSTER_NAME
+      namespace: $NAMESPACE
+      user: step5-operator
+current-context: step5-operator
+EOF
+  )
+  chmod 600 "$path"
+  echo "$exp"
+}

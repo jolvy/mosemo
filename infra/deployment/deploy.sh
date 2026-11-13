@@ -6,6 +6,7 @@
 # shellcheck source=session-lib.sh source-path=SCRIPTDIR
 source "$(dirname "$0")/session-lib.sh"
 
+check_measurement_lock
 profile=$(session_profile)
 workloads="mosemo-server mosemo-consumer mosemo-batch"
 [[ $profile == measurement ]] && workloads="mosemo-server mosemo-consumer"

@@ -3,8 +3,11 @@
 # skip_final_snapshot applied to state -> RDS deletion protection lifted -> ALB deletion protection lifted ->
 # session stack destroyed. Configuration keeps production protection; only this procedure lifts it.
 # Session data is not kept. The long-lived ../terraform/foundation stack (ECR, ACM, ALB log bucket) is never touched.
+# Run measurement-metrics.sh before this script: it needs the instances and RDS the destroy removes.
 # shellcheck source=session-lib.sh source-path=SCRIPTDIR
 source "$(dirname "$0")/session-lib.sh"
+
+check_measurement_lock
 
 step "Preflight (profile $(session_profile))"
 require_tools terraform aws kubectl python3
@@ -109,5 +112,5 @@ tf destroy -input=true -var skip_final_snapshot=true \
 
 step "Clean session files"
 # Measurement results (measurement/) stay for the report; session-up archives them on the next measurement.
-rm -rf "$KUBECONFIG" "$RENDER_DIR" "$SESSION_DIR/rds-ca.pem" "$PROFILE_FILE"
-echo "Session stack destroyed; foundation stack untouched."
+rm -rf "$KUBECONFIG" "$RENDER_DIR" "$SESSION_DIR/rds-ca.pem" "$PROFILE_FILE" "$MEASUREMENT_KUBECONFIG"
+echo "Session stack destroyed; foundation stack untouched. Next: bash infra/deployment/session-audit.sh"

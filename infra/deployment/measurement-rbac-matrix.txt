@@ -1,0 +1,19 @@
+# Expected `kubectl auth can-i` answers for system:serviceaccount:mosemo:step5-operator in namespace mosemo.
+# Read by measurement-ready.sh (P1) and tests/kind-check.sh. Format: <yes|no> <verb> <resource> [subresource]
+yes create pods
+yes delete pods
+yes get pods
+yes list pods
+yes watch pods
+yes create pods exec
+yes get pods/step5-tools log
+yes get deployments
+yes list deployments
+yes get deployments/mosemo-consumer scale
+yes patch deployments/mosemo-consumer scale
+yes update deployments/mosemo-consumer scale
+no patch nodes
+no delete deployments
+no patch deployments/mosemo-server scale
+no create configmaps
+no get secrets

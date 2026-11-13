@@ -7,6 +7,8 @@
 # shellcheck source=session-lib.sh source-path=SCRIPTDIR
 source "$(dirname "$0")/session-lib.sh"
 
+check_measurement_lock
+
 requested=""
 while (($# > 0)); do
   case $1 in
@@ -124,6 +126,10 @@ kubectl -n kube-system rollout status daemonset/ebs-csi-node --timeout=5m >/dev/
 
 step "Namespace, priorities and container defaults"
 kubectl apply -f "$K8S_DIR/namespace.yaml" -f "$K8S_DIR/priority-classes.yaml" -f "$K8S_DIR/limit-range.yaml" >/dev/null
+if [[ $profile == measurement ]]; then
+  kubectl apply -f "$K8S_DIR/measurement-rbac.yaml" >/dev/null
+  echo "measurement operator RBAC applied"
+fi
 
 step "Application ConfigMap"
 db_host=$(tf output -json database | python3 -c 'import json,sys; print(json.load(sys.stdin)["DB_HOST"])')
