@@ -1,4 +1,4 @@
-# 문서 인덱스
+# 문서 인덱스 (확인용)
 
 - [도메인 용어집](ubiquitous-language.md)
 - [요구사항](requirements/)
