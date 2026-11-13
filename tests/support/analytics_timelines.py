@@ -17,6 +17,7 @@ CODING = "L-coding"
 LEISURE = "L-leisure"
 CHROME = "com.google.Chrome"
 SAFARI = "com.apple.Safari"
+FIREFOX = "org.mozilla.firefox"
 SESSION = "f1"
 
 PSL = """// 최소 Public Suffix List

@@ -1,6 +1,8 @@
 """#268 「알려진 모호점」 1~7과 그 밖의 해석을 고정한다.
 
-고른 해석과 근거는 `tests/support/analytics_reference/__init__.py` 「명세 해석」에 있다.
+모호점 1~7은 지표 명세 「결정 (2026-11-11)」·「결정 (2026-11-13)」(D1·D2·D7·D10~D12)이 정했다.
+테스트마다 근거 결정 번호를 docstring에 적는다. 해석과 근거는
+`tests/support/analytics_reference/__init__.py` 「명세 해석」에 있다.
 """
 
 import re
@@ -37,23 +39,27 @@ def targets(*urls: str) -> list[str]:
     return [row["key"] for row in daily(data, DAY, PSL)["c1"]["targets"]]
 
 
-def test_ambiguity_1_host_case_and_trailing_dot_are_normalized() -> None:
-    assert targets("https://M.YouTube.COM./watch", "https://youtube.com/") == [
-        "youtube.com"
-    ]
+def test_ambiguity_1_host_case_and_trailing_dots_are_normalized() -> None:
+    """D12: 소문자, 끝의 점은 모두 지운다."""
+    assert targets(
+        "https://M.YouTube.COM./watch", "https://youtube.com../", "https://youtube.com/"
+    ) == ["youtube.com"]
 
 
-def test_ambiguity_1_punycode_and_unicode_hosts_are_one_unicode_site() -> None:
+def test_ambiguity_1_punycode_and_unicode_hosts_are_one_ascii_site() -> None:
+    """D12: 사이트 키는 IDNA ASCII이며 출력도 ASCII다(유니코드 표시는 API·화면의 몫)."""
     assert targets(
         "https://www.xn--vv4b11d.xn--3e0b707e/", "https://shop.예시.한국/"
-    ) == ["예시.한국"]
+    ) == ["xn--vv4b11d.xn--3e0b707e"]
 
 
 def test_ambiguity_1_ipv6_host_is_kept_without_brackets() -> None:
+    """D7: IP 주소는 eTLD+1이 없어 호스트 그대로(포트·대괄호 제외)다."""
     assert targets("http://[::1]:8080/") == ["::1"]
 
 
 def test_ambiguity_2_read_day_reads_capture_gaps_by_the_same_condition() -> None:
+    """D1: 수집 공백도 같은 조건으로 읽고, 끝 없는 공백은 그 뒤 모든 날짜에서 읽힌다."""
     data = timeline(
         activity("s1", 0, 10, app("A")),
         gap("g1", 10, 20),
@@ -66,6 +72,7 @@ def test_ambiguity_2_read_day_reads_capture_gaps_by_the_same_condition() -> None
 
 
 def test_ambiguity_2_zero_second_gap_keeps_neighbours_apart_on_read() -> None:
+    """D1: 0초 공백도 읽어 이웃 구간의 맞닿음을 끊는다."""
     data = timeline(
         activity("s1", 0, 10, app("A")),
         gap("g1", 10, 10),
@@ -76,18 +83,19 @@ def test_ambiguity_2_zero_second_gap_keeps_neighbours_apart_on_read() -> None:
     assert daily(only(data, read_day(data, DAY, PSL)), DAY, PSL)["c2"] == []
 
 
-def test_ambiguity_2_open_gap_before_the_day_does_not_block_read_back() -> None:
+def test_ambiguity_2_open_gap_at_the_end_does_not_block_read_back() -> None:
+    """D1·D2: 끝 없는 공백은 마지막에만 오고, 거슬러 읽기는 끝이 있는 첫 구간에서 한다."""
     data = timeline(
-        gap("g0", -100, None),
         activity("s1", -30, -10, app("A")),
         activity("s2", -10, 10, app("A")),
-        activity("s3", 10, 20, app("B")),
+        gap("g0", 10, None),
     )
 
-    chosen = read_day(data, DAY, PSL)
-
-    assert chosen == ["g0", "s1", "s2", "s3"]
-    assert daily(only(data, chosen), DAY, PSL) == daily(data, DAY, PSL)
+    assert read_day(data, DAY, PSL) == ["s1", "s2", "g0"]
+    assert read_day(data, NEXT_DAY, PSL) == ["g0"]
+    for day in (DAY, NEXT_DAY):
+        chosen = only(data, read_day(data, day, PSL))
+        assert daily(chosen, day, PSL) == daily(data, day, PSL), day
 
 
 def zero_second_lapses() -> dict:
@@ -113,6 +121,7 @@ def zero_second_lapses() -> dict:
 def test_ambiguity_3_zero_second_segment_counts_at_session_start_and_pause_end() -> (
     None
 ):
+    """D10: 작업 구간 `[시작, 끝)` 안의 0초 구간만 조각이다(C4-B7·C4-B8)."""
     output = session(zero_second_lapses(), SESSION, PSL)
 
     assert output["c4"]["lapse_count"] == 2
@@ -121,6 +130,7 @@ def test_ambiguity_3_zero_second_segment_counts_at_session_start_and_pause_end()
 
 
 def test_ambiguity_4_transitions_in_or_at_pause_are_not_lapse_transitions() -> None:
+    """D10: C6 이탈 중 전환 ⊆ C3라 일시중지 안·경계의 전환은 세지 않는다."""
     data = timeline(
         activity("s1", 0, 10, app("A")),
         activity("s2", 10, 20, app("B")),
@@ -153,6 +163,7 @@ def lapse_transitions(*segments: dict, labels: dict) -> int:
 
 
 def test_ambiguity_4_zero_second_lapse_at_entry_time_keeps_inner_transition() -> None:
+    """D10: 진입 전환과는 시각이 아니라 구간 순서로 가른다(C6-B7)."""
     transitions = lapse_transitions(
         activity("s1", 0, 10, app("A")),
         activity("s2", 10, 10, app("X")),
@@ -165,6 +176,7 @@ def test_ambiguity_4_zero_second_lapse_at_entry_time_keeps_inner_transition() ->
 
 
 def test_ambiguity_4_zero_second_lapse_at_return_time_keeps_inner_transition() -> None:
+    """D10: 복귀 전환과는 시각이 아니라 구간 순서로 가른다(C6-B7)."""
     transitions = lapse_transitions(
         activity("s1", 0, 10, app("A")),
         activity("s2", 10, 20, app("Y")),
@@ -177,6 +189,7 @@ def test_ambiguity_4_zero_second_lapse_at_return_time_keeps_inner_transition() -
 
 
 def test_ambiguity_4_zero_second_pending_before_entry_is_not_inside_lapse() -> None:
+    """D10: 진입 전환 앞의 전환은 이탈 중 전환이 아니다."""
     transitions = lapse_transitions(
         activity("s1", 0, 10, app("A")),
         activity("s2", 10, 10, app("P")),
@@ -189,6 +202,7 @@ def test_ambiguity_4_zero_second_pending_before_entry_is_not_inside_lapse() -> N
 
 
 def test_ambiguity_4_zero_second_pending_before_return_is_inside_lapse() -> None:
+    """D10: 복귀 전환 앞의 전환은 이탈 중 전환이다."""
     transitions = lapse_transitions(
         activity("s1", 0, 10, app("A")),
         activity("s2", 10, 20, app("Y")),
@@ -201,6 +215,7 @@ def test_ambiguity_4_zero_second_pending_before_return_is_inside_lapse() -> None
 
 
 def test_ambiguity_4_unreturned_lapse_stops_counting_at_pause_start() -> None:
+    """D8·D10: 복귀 없는 이탈은 세션 분석 시간의 끝까지다."""
     data = timeline(
         activity("s1", 0, 10, app("A")),
         activity("s2", 10, 20, app("B")),
@@ -217,6 +232,7 @@ def test_ambiguity_4_unreturned_lapse_stops_counting_at_pause_start() -> None:
 
 
 def test_ambiguity_5_previous_piece_looks_across_pause_and_unobserved_time() -> None:
+    """D10: C5 직전 조각은 미관찰·일시중지를 건너 그 앞 조각이다(C5-B6)."""
     data = timeline(
         activity("s1", 0, 10, app("A")),
         activity("s2", 10, 20, app("B")),
@@ -239,6 +255,7 @@ def test_ambiguity_5_previous_piece_looks_across_pause_and_unobserved_time() -> 
 
 
 def test_ambiguity_6_unknown_app_to_unknown_app_is_not_a_new_entry() -> None:
+    """D10: 앱 미확인 이탈끼리는 다시 진입으로 세지 않는다(C5-B7)."""
     data = timeline(
         activity("s1", 0, 10, app("A")),
         activity("s2", 10, 20, unknown_app("가")),
@@ -254,6 +271,7 @@ def test_ambiguity_6_unknown_app_to_unknown_app_is_not_a_new_entry() -> None:
 
 
 def test_ambiguity_7_open_segment_counts_until_last_observed_in_session() -> None:
+    """D10: 열린 구간은 C3~C7에서도 `lastObservedAt`까지다(C4-B9)."""
     data = timeline(
         activity("s1", 0, 10, app("A")),
         activity("s2", 10, None, app("B"), last=20),
@@ -272,6 +290,7 @@ def test_ambiguity_7_open_segment_counts_until_last_observed_in_session() -> Non
 
 
 def test_ambiguity_7_open_segment_is_not_adjacent_to_a_later_segment() -> None:
+    """D10: 열린 구간은 `ended_at`이 없어 다음 구간과 맞닿지 않는다."""
     data = timeline(
         activity("s1", 0, None, app("A"), last=10),
         activity("s2", 10, 60, app("B")),
@@ -297,6 +316,7 @@ def test_every_known_ambiguity_has_a_test() -> None:
 
 
 def test_read_day_reads_back_same_site_across_midnight() -> None:
+    """D2: 같은 사용 대상으로 맞닿은 앞 구간을 날짜 밖까지 거슬러 읽는다."""
     data = timeline(
         activity("s1", -30, -10, browser("https://m.youtube.com/")),
         activity("s2", -10, 10, browser("https://www.youtube.com/")),
@@ -326,6 +346,7 @@ def test_read_day_stops_at_a_different_site() -> None:
 
 
 def test_read_day_does_not_read_back_from_a_segment_without_target() -> None:
+    """D2: 첫 구간에 사용 대상이 없으면 거슬러 읽지 않는다."""
     data = timeline(
         activity("s1", -30, -10, OPAQUE),
         activity("s2", -10, 10, OPAQUE),
@@ -335,6 +356,7 @@ def test_read_day_does_not_read_back_from_a_segment_without_target() -> None:
 
 
 def test_lapse_start_on_same_target_as_focus_is_an_entry() -> None:
+    """D11: 이탈을 시작하는 조각은 직전 조각과 같은 대상이어도 진입 1회다(C5-B8)."""
     data = timeline(
         activity("s1", 0, 10, app("A")),
         activity("s2", 10, 20, app("A")),
