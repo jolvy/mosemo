@@ -1,4 +1,4 @@
-"""지표 명세의 경계 사례·반례(`C\\d-[BX]\\d+`) 66개를 데이터로 고정한다.
+"""지표 명세의 경계 사례·반례(`C\\d-[BX]\\d+`) 80개를 데이터로 고정한다.
 
 `CASES`의 값은 `{"data", "call", "args", "expect"}`이고 `expect`의 키는 출력 경로다
 (`tests.support.analytics_timelines.resolve`: 점으로 나누고 숫자는 목록 위치, `#`은 길이,
@@ -7,6 +7,7 @@
 
 import json
 import re
+import unicodedata
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -19,8 +20,10 @@ from tests.support.analytics_timelines import (
     CHROME,
     CODING,
     DAY,
+    FIREFOX,
     LEISURE,
     MIN,
+    NEXT_DAY,
     OPAQUE,
     PSL,
     SAFARI,
@@ -43,6 +46,15 @@ YT = "https://m.youtube.com/watch?v=1"
 YT2 = "https://www.youtube.com/watch?v=2"
 GH = "https://github.com/jolvy"
 SLACK = "com.tinyspeck.slackmacgap"
+KOREAN = "예시.한국"
+KOREAN_KEY = "xn--vv4b11d.xn--3e0b707e"
+IDN_URLS = (
+    f"https://{KOREAN}/a",
+    f"https://{unicodedata.normalize('NFD', KOREAN)}/b",
+    f"https://{KOREAN_KEY}/c",
+    "https://ｇｉｔｈｕｂ.com/",
+    "https://github.com../",
+)
 
 
 def on_day(data: dict[str, Any], expect: dict[str, Any], day: str = DAY) -> dict:
@@ -72,6 +84,15 @@ C2_B1_ROW = {
     "next": "github.com",
     "dwell_us": 6 * MIN,
 }
+C2_B11 = timeline(
+    activity("s1", 1430, 1440, app("A")),
+    activity("s2", 1440, 1450, app("B")),
+)
+C7_B9 = timeline(
+    activity("s1", 1430, 1440, app("A")),
+    activity("s2", 1440, 1450, app("B")),
+    labels={"s1": CODING, "s2": LEISURE},
+)
 C3_B1 = timeline(
     activity("s1", -10, 0, app("A")),
     activity("s2", 0, 60, app("B")),
@@ -192,6 +213,55 @@ CASES: dict[str, dict] = {
             ]
         },
     ),
+    "C1-B11": on_day(
+        timeline(
+            activity("s1", 0, 1, browser("meet.google.com/x", FIREFOX)),
+            activity("s2", 1, 3, browser("localhost:8000/docs", FIREFOX)),
+            activity("s3", 3, 6, browser("about:blank", FIREFOX)),
+            activity("s4", 6, 10, browser("github.com/explore", FIREFOX)),
+        ),
+        {
+            "c1.targets": [
+                {"key": "github.com", "us": 4 * MIN},
+                {"key": FIREFOX, "us": 3 * MIN},
+                {"key": "localhost", "us": 2 * MIN},
+                {"key": "google.com", "us": 1 * MIN},
+            ]
+        },
+    ),
+    "C1-B12": on_day(
+        timeline(
+            activity("s1", 0, 1, browser("About:blank", FIREFOX)),
+            activity("s2", 1, 3, browser("example.com/?r=https://a.com", FIREFOX)),
+            activity("s3", 3, 6, browser("javascript:void(0)", FIREFOX)),
+            activity("s4", 6, 10, browser("data:text/html,hi", FIREFOX)),
+        ),
+        {
+            "c1.targets": [
+                {"key": FIREFOX, "us": 8 * MIN},
+                {"key": "example.com", "us": 2 * MIN},
+            ]
+        },
+    ),
+    "C1-B13": on_day(
+        timeline(
+            activity("s1", 0, 1, browser(IDN_URLS[0])),
+            activity("s2", 1, 3, browser(IDN_URLS[1])),
+            activity("s3", 3, 6, browser(IDN_URLS[2])),
+            activity("s4", 6, 10, browser(IDN_URLS[3])),
+            activity("s5", 10, 15, browser(IDN_URLS[4])),
+        ),
+        {
+            "c1.targets": [
+                {"key": "github.com", "us": 9 * MIN},
+                {"key": KOREAN_KEY, "us": 6 * MIN},
+            ]
+        },
+    ),
+    "C1-B14": on_day(
+        timeline(activity("s1", 0, 1, browser(f"https://{'A' * 64}.COM./"))),
+        {"c1.targets": [{"key": f"{'a' * 64}.com", "us": 1 * MIN}]},
+    ),
     "C1-X1": on_day(
         timeline(activity("s1", 0, None, app("A"), last=10)),
         {"c1.observed_us": 10 * MIN},
@@ -290,6 +360,25 @@ CASES: dict[str, dict] = {
         {
             "c2.*.prev": ["A", "B", "A", "A"],
             "c2.*.dwell_us": [80 * MIN, 10 * MIN, 40 * MIN, 30 * MIN],
+        },
+    ),
+    "C2-B11": on_day(C2_B11, {"c2.#": 1, "c2.0.at": utc(1440)}, day=NEXT_DAY),
+    "C2-B12": on_day(
+        timeline(
+            *(
+                activity(f"s{index}", index * 5, index * 5 + 5, browser(url))
+                for index, url in enumerate(IDN_URLS)
+            )
+        ),
+        {
+            "c2": [
+                {
+                    "at": utc(15),
+                    "prev": KOREAN_KEY,
+                    "next": "github.com",
+                    "dwell_us": 15 * MIN,
+                }
+            ]
         },
     ),
     "C2-X1": on_day(C2_B1, {"c2.0.dwell_us": 6 * MIN}),
@@ -416,6 +505,32 @@ CASES: dict[str, dict] = {
         ),
         {"c4.lapse_count": 1, "c4.lapse_us": 0},
     ),
+    "C4-B7": in_session(
+        timeline(
+            activity("s1", 0, 0, app("B")),
+            activity("s2", 0, 60, app("A")),
+            labels={"s1": LEISURE, "s2": CODING},
+            sessions=[focus()],
+        ),
+        {"c4": c4(focus=60, lapse_count=1)},
+    ),
+    "C4-B8": in_session(
+        timeline(
+            activity("s1", 0, 60, app("A")),
+            activity("s2", 60, 60, app("B")),
+            labels={"s1": CODING, "s2": LEISURE},
+            sessions=[focus()],
+        ),
+        {"c4": c4(focus=60)},
+    ),
+    "C4-B9": in_session(
+        timeline(
+            activity("s1", 0, None, app("A"), last=20),
+            labels={"s1": CODING},
+            sessions=[focus()],
+        ),
+        {"c4": c4(focus=20, unobserved=40)},
+    ),
     "C4-X1": in_session(
         timeline(
             activity("s1", 0, 10, app("A")),
@@ -485,6 +600,42 @@ CASES: dict[str, dict] = {
         {
             "c5": [{"key": "B", "entries": 2, "lapse_us": 10 * MIN}],
             "c4.lapse_count": 2,
+        },
+    ),
+    "C5-B6": in_session(
+        timeline(
+            activity("s1", 10, 15, app("B")),
+            activity("s2", 20, 25, app("B")),
+            activity("s3", 30, 35, app("B")),
+            labels={"s1": LEISURE, "s2": LEISURE, "s3": LEISURE},
+            sessions=[focus(pauses=[(25, 30)])],
+        ),
+        {"c5": [{"key": "B", "entries": 1, "lapse_us": 15 * MIN}]},
+    ),
+    "C5-B7": in_session(
+        timeline(
+            activity("s1", 10, 15, unknown_app("가")),
+            activity("s2", 15, 20, unknown_app("나")),
+            labels={"s1": LEISURE, "s2": LEISURE},
+            sessions=[focus()],
+        ),
+        {"c5": [{"key": "앱 미확인", "entries": 1, "lapse_us": 10 * MIN}]},
+    ),
+    "C5-B8": in_session(
+        timeline(
+            activity("s1", 0, 10, browser(YT)),
+            activity("s2", 10, 15, browser(YT2)),
+            activity("s3", 15, 20, app(SLACK)),
+            activity("s4", 20, 60, app("A")),
+            labels={"s1": CODING, "s2": LEISURE, "s3": LEISURE, "s4": CODING},
+            sessions=[focus()],
+        ),
+        {
+            "c5": [
+                {"key": SLACK, "entries": 1, "lapse_us": 5 * MIN},
+                {"key": "youtube.com", "entries": 1, "lapse_us": 5 * MIN},
+            ],
+            "c4.lapse_count": 1,
         },
     ),
     "C5-X1": in_session(
@@ -582,6 +733,24 @@ CASES: dict[str, dict] = {
             "c6.0.returned": False,
         },
     ),
+    "C6-B7": in_session(
+        timeline(
+            activity("s1", 0, 10, app("A")),
+            activity("s2", 10, 10, app("B")),
+            activity("s3", 10, 20, app("C")),
+            activity("s4", 20, 20, app("D")),
+            activity("s5", 20, 60, app("A")),
+            labels={
+                "s1": CODING,
+                "s2": LEISURE,
+                "s3": LEISURE,
+                "s4": LEISURE,
+                "s5": CODING,
+            },
+            sessions=[focus()],
+        ),
+        {"c6.#": 1, "c6.0.transitions": 2},
+    ),
     "C6-X1": in_session(
         timeline(
             activity("s1", 0, 10, app("A")),
@@ -665,6 +834,11 @@ CASES: dict[str, dict] = {
         ),
         {"c7.#": 0},
     ),
+    "C7-B9": on_day(
+        C7_B9,
+        {"c7": [{"at": utc(1440), "prev": CODING, "next": LEISURE}]},
+        day=NEXT_DAY,
+    ),
     "C7-X1": on_day(C7_B2, {"c7.#": 0}),
     "C7-X2": on_day(C7_B1, {"c7.#": 2}),
 }
@@ -740,7 +914,7 @@ def test_read_day_matches_full_daily_on_every_spanned_day(case_id: str) -> None:
 
 
 def test_cases_cover_every_spec_case_id() -> None:
-    assert len(spec_case_ids()) == 66
+    assert len(spec_case_ids()) == 80
     assert set(CASES) == spec_case_ids()
 
 
@@ -755,3 +929,11 @@ def test_spanned_days_include_dates_on_both_sides_of_midnight() -> None:
         (date.fromisoformat(DAY) - timedelta(days=1)).isoformat(),
         DAY,
     ]
+
+
+@pytest.mark.parametrize(("case_id", "metric"), [("C2-B11", "c2"), ("C7-B9", "c7")])
+def test_midnight_transition_is_not_on_the_first_day(case_id: str, metric: str) -> None:
+    data = CASES[case_id]["data"]
+
+    assert daily(data, DAY, PSL)[metric] == []
+    assert daily(only(data, read_day(data, DAY, PSL)), DAY, PSL)[metric] == []
