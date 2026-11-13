@@ -38,7 +38,9 @@ resource "aws_db_instance" "main" {
   availability_zone = aws_subnet.private["a"].availability_zone
 
   # Production settings; session-down.sh lifts protection and skips the snapshot explicitly.
-  backup_retention_period   = 7
+  # Retention is 1 day only because the AWS Free plan rejects longer periods (FreeTierRestrictionError);
+  # raise it (production: 7) when the account leaves the Free plan.
+  backup_retention_period   = 1
   deletion_protection       = true
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = "${local.name}-final"

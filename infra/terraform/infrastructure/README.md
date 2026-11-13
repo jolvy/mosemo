@@ -32,7 +32,7 @@
 - Pod Identity Agent·EBS CSI add-on과 전용 controller association. CSI controller 2개와 PDB,
   node plugin은 Kafka·loadgen 노드 taint를 견디도록 `tolerateAllTaints=true`.
 - RDS PostgreSQL 18.3, db.t4g.micro, 암호화 gp3 20GiB, private Single-AZ, AZ는 subnet a(2a)에 고정
-  (Kafka·loadgen과 같은 AZ라 측정 DB 왕복에 AZ 간 지연이 섞이지 않는다). 자동 백업 7일, 삭제 보호,
+  (Kafka·loadgen과 같은 AZ라 측정 DB 왕복에 AZ 간 지연이 섞이지 않는다). 자동 백업 1일(Free plan 최대값, 운영은 7일·Free plan을 벗어나면 키울 항목), 삭제 보호,
   destroy 시 최종 스냅샷 `mosemo-lab-final`, 삭제 후에도 자동 백업 보존(`delete_automated_backups = false`)이 기본이다.
 - public HTTPS ALB → NodePort HTTP 30080 → API Pod 8000. app 그룹 ASG만 target group에
   연결한다. 삭제 보호를 켜고, 접근 로그를 foundation 버킷의 `mosemo-lab/` prefix에 쓴다.

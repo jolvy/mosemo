@@ -168,12 +168,12 @@ run "session_stack_contract" {
 
   assert {
     condition = (
-      aws_db_instance.main.backup_retention_period == 7 &&
+      aws_db_instance.main.backup_retention_period == 1 &&
       aws_db_instance.main.deletion_protection == true &&
       aws_db_instance.main.skip_final_snapshot == false &&
       aws_db_instance.main.final_snapshot_identifier == "mosemo-lab-final"
     )
-    error_message = "RDS must keep production protection by default: 7-day backups, deletion protection, and a final snapshot."
+    error_message = "RDS must keep production protection by default: automated backups (1 day, the Free plan maximum), deletion protection, and a final snapshot."
   }
 
   assert {
