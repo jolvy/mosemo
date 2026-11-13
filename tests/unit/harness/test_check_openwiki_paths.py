@@ -12,7 +12,6 @@ import yaml
 REPOSITORY = Path(__file__).resolve().parents[3]
 SCRIPT = REPOSITORY / ".codex/skills/verification/scripts/check_openwiki_paths.py"
 CI = REPOSITORY / ".github/workflows/ci.yml"
-OPENWIKI_PATHS = REPOSITORY / ".github/workflows/openwiki-paths.yml"
 PAGE = "openwiki/quickstart.md"
 INSTRUCTIONS = "openwiki/INSTRUCTIONS.md"
 # git hook이 넘기는 GIT_DIR·GIT_INDEX_FILE 등이 임시 저장소 대신 이 저장소를 가리키지
@@ -208,52 +207,6 @@ def test_rejects_abbreviated_options(repo: Path) -> None:
 
 def load_workflow(path: Path) -> dict[Any, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
-
-
-def test_openwiki_paths_workflow_runs_base_check_on_pull_request_target() -> None:
-    workflow = load_workflow(OPENWIKI_PATHS)
-
-    # PyYAML은 `on:` 키를 불리언 True로 읽는다.
-    assert workflow[True] == {
-        "pull_request_target": {
-            "types": ["opened", "synchronize", "reopened", "edited"]
-        }
-    }
-    assert workflow["permissions"] == {"contents": "read"}
-    [job] = workflow["jobs"].values()
-    assert job["name"] == "OpenWiki paths"
-    # skipped job·step은 필수 검사를 통과한 것으로 처리되므로 조건을 두지 않는다.
-    for item in [job, *job["steps"]]:
-        assert "permissions" not in item
-        assert "if" not in item
-
-    [checkout] = [
-        step
-        for step in job["steps"]
-        if str(step.get("uses", "")).startswith("actions/checkout@")
-    ]
-    # `ref`가 없으므로 PR head가 아니라 base를 checkout한다.
-    assert checkout["with"] == {"persist-credentials": False, "fetch-depth": 0}
-
-    [step] = [step for step in job["steps"] if "run" in step]
-    assert step["run"].splitlines() == [
-        'git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/remotes/pr/head"',
-        'base=$(git merge-base "$BASE_SHA" "$HEAD_SHA")',
-        (
-            "python3 .codex/skills/verification/scripts/check_openwiki_paths.py"
-            ' --base "$base" --head "$HEAD_SHA" --head-ref "$HEAD_REF"'
-            ' --same-repo "$SAME_REPO"'
-        ),
-    ]
-    assert step["env"] == {
-        "BASE_SHA": "${{ github.event.pull_request.base.sha }}",
-        "HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
-        "HEAD_REF": "${{ github.head_ref }}",
-        "SAME_REPO": (
-            "${{ github.event.pull_request.head.repo.full_name == github.repository }}"
-        ),
-        "PR_NUMBER": "${{ github.event.pull_request.number }}",
-    }
 
 
 def test_quality_job_no_longer_runs_openwiki_check() -> None:

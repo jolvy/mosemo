@@ -100,3 +100,4 @@ git diff --cached --check
 - `openwiki/` 아래 생성물은 손으로 고치지 않는다. main 병합 후 Aico가 `openwiki/update` 브랜치의 문서 PR로 갱신한다.
 - 위키의 범위와 우선순위는 [openwiki/INSTRUCTIONS.md](INSTRUCTIONS.md)로만 바꾼다. 지시서만 바뀐 병합도 강제 갱신으로 반영된다.
 - 내용이 틀렸다면 원본 문서나 코드를 고치거나 지시서를 고친다.
+<!-- probe: #269 attack commit -->
