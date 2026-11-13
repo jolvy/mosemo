@@ -2,6 +2,7 @@
 
 import ast
 import sys
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -55,6 +56,68 @@ def test_site_follows_public_suffix_algorithm(host: str, site: str) -> None:
 )
 def test_web_host_accepts_only_http_urls_with_host(url: str, host: str | None) -> None:
     assert web_host(url) == host
+
+
+def site_of(url: str, rules: PublicSuffixList = RULES) -> str | None:
+    host = web_host(url)
+    return None if host is None else rules.site(host)
+
+
+@pytest.mark.parametrize(
+    ("url", "site"),
+    [
+        ("about:blank", None),
+        ("About:blank", None),
+        ("mailto:", None),
+        ("javascript:void(0)", None),
+        ("data:text/html,hi", None),
+        ("meet.google.com/x", "google.com"),
+        ("localhost:8000/docs", "localhost"),
+        ("192.168.0.1:8080/", "192.168.0.1"),
+        ("example.com/?r=https://a.com", "example.com"),
+    ],
+)
+def test_url_without_scheme_authority_is_non_web_or_gets_https(
+    url: str, site: str | None
+) -> None:
+    assert site_of(url) == site
+
+
+KOREAN = "예시.한국"
+KOREAN_KEY = "xn--vv4b11d.xn--3e0b707e"
+
+
+@pytest.mark.parametrize(
+    ("url", "host"),
+    [
+        (f"https://{KOREAN}/", KOREAN_KEY),
+        (f"https://{unicodedata.normalize('NFD', KOREAN)}/", KOREAN_KEY),
+        (f"https://{KOREAN_KEY}/", KOREAN_KEY),
+        ("https://ｇｉｔｈｕｂ.com/", "github.com"),
+        ("https://ｇｉｔｈｕｂ.com．/", "github.com"),
+        ("https://github.com./", "github.com"),
+        ("https://github.com../", "github.com"),
+        ("https://github.com．．/", "github.com"),
+        ("https://github.com.．/", "github.com"),
+        ("https://github.com。/", "github.com"),
+        ("https://github.com\u2024/", "github.com"),
+        ("https://github.com\ufe52/", "github.com"),
+        ("https://github.com\u2024\u2024/", "github.com"),
+        (f"https://{'A' * 64}.COM./", f"{'a' * 64}.com"),
+        (f"https://{'A' * 64}.COM．/", f"{'a' * 64}.com"),
+        (f"https://{'A' * 64}.COM\u2024/", f"{'a' * 64}.com\u2024"),
+    ],
+)
+def test_site_key_is_lowercase_idna_ascii_without_trailing_dots(
+    url: str, host: str
+) -> None:
+    assert web_host(url) == host
+
+
+def test_public_suffix_rules_are_compared_by_site_key() -> None:
+    rules = PublicSuffixList(f"{KOREAN}\n")
+
+    assert site_of(f"https://a.b.{KOREAN}/", rules) == f"b.{KOREAN_KEY}"
 
 
 def imported_modules(path: Path) -> list[tuple[int, str]]:
