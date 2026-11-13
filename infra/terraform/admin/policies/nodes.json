@@ -55,6 +55,83 @@
           "aws:ResourceTag/ManagedBy": "terraform"
         }
       }
+    },
+    {
+      "Sid": "LaunchNodeInstancesFromLaunchTemplate",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:RunInstances"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:instance/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "ec2:InstanceType": "t3.small"
+        },
+        "ArnLike": {
+          "ec2:LaunchTemplate": "arn:aws:ec2:ap-southeast-2:${account_id}:launch-template/*"
+        }
+      }
+    },
+    {
+      "Sid": "UseProjectNodeLaunchTemplate",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:RunInstances"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:launch-template/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:ResourceTag/Project": "mosemo",
+          "aws:ResourceTag/Environment": "lab",
+          "aws:ResourceTag/ManagedBy": "terraform"
+        }
+      }
+    },
+    {
+      "Sid": "UseNodeLaunchResources",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:RunInstances"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:volume/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:network-interface/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:subnet/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group/*",
+        "arn:aws:ec2:ap-southeast-2::image/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2"
+        },
+        "ArnLike": {
+          "ec2:LaunchTemplate": "arn:aws:ec2:ap-southeast-2:${account_id}:launch-template/*"
+        }
+      }
+    },
+    {
+      "Sid": "TagNodeInstancesDuringLaunch",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateTags"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:instance/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:volume/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:network-interface/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "ec2:CreateAction": "RunInstances"
+        }
+      }
     }
   ]
 }

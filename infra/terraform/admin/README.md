@@ -25,7 +25,7 @@
 | state | 세션(mosemo/lab)·장기(mosemo/foundation) state key와 lock |
 | addons | 지정 cluster의 add-on/Pod Identity 생성, vpc-cni·EBS CSI·Pod Identity Agent add-on 및 association 관리 |
 | https | 선택한 API 도메인의 ACM 요청 및 지정 태그 인증서 수명주기 |
-| nodes (G0 신규) | 프로젝트 태그를 붙인 노드 launch template 생성·버전·삭제 |
+| nodes (G0 신규) | 프로젝트 태그를 붙인 노드 launch template 생성·버전·삭제, 그 템플릿으로 t3.small 노드 실행(RunInstances)과 실행 시 태그 |
 | volumes (G0 신규) | 세션 종료 시 Retain으로 남은 Kafka PVC EBS 조회·삭제 |
 | foundation (B 신규) | ALB 접근 로그 버킷 `mosemo-lab-alb-logs-<ACCOUNT_ID>` 생성·조회·설정, ECR scan on push 설정 |
 | observability (B 신규) | 읽기 전용: CloudWatch 지표, CloudTrail 조회, 세션 감사 Describe/List, Cost Explorer |
@@ -100,8 +100,16 @@ Service Authorization operation mapping 표현에 차이가 있다. 이 차이�
 - nodes: `ec2:CreateLaunchTemplate`은 Project·Environment·ManagedBy 요청 태그를 요구하고,
   CreateTags는 CreateLaunchTemplate 생성 시점에만, 버전 생성·수정·삭제는 같은 태그가 있는
   launch template에만 허용한다. launch template ARN은 ID 기반이라 이름 제한은 할 수 없다.
-  `ec2:RunInstances`는 주지 않는다. launch template에 TagSpecification을 두지 않으므로 EKS 문서상
-  CreateNodegroup 호출자에게 필요하지 않다. 적용 후 거부되면 권한 확대 없이 중단해 보고한다.
+  처음에는 TagSpecification이 없으면 `ec2:RunInstances`가 필요 없다고 보고 주지 않았지만, 첫 세션의
+  CreateNodegroup이 "You are not authorized to launch instances with this launch template"으로 거부됐다
+  (decode 결과 RunInstances 문장 없음). EKS 문서대로 launch template을 쓰는 CreateNodegroup·
+  UpdateNodegroupVersion 호출자에게 `ec2:RunInstances`·`ec2:CreateTags`를 준다.
+  - RunInstances: instance는 `ec2:InstanceType=t3.small`, 모든 리소스는 이 계정 시드니 launch template
+    사용(`ec2:LaunchTemplate`)을 요구한다. launch-template 리소스는 Project·Environment·ManagedBy 태그가
+    있는 템플릿만 허용한다(ARN이 ID 기반이라 이름으로는 제한할 수 없다). 나머지는 volume·network-interface·
+    subnet·security-group·image. subnet은 템플릿이 아니라 노드 그룹 설정에서 오므로
+    `ec2:IsLaunchTemplateResource`는 걸지 않는다.
+  - CreateTags: `ec2:CreateAction=RunInstances`일 때 새 instance·volume·network-interface에만.
 - volumes: DescribeVolumes(리전 제한)와 DeleteVolume. 삭제는 CSI가 붙인 태그
   `ebs.csi.aws.com/cluster=true`, `kubernetes.io/created-for/pvc/namespace=mosemo`,
   `kubernetes.io/created-for/pvc/name=data-mosemo-kafka-0`가 모두 있는 볼륨으로 제한한다.

@@ -206,6 +206,7 @@ run "node_group_permission_contract" {
         try(statement.Condition.StringEquals["aws:ResourceTag/Project"] == "mosemo", false) ||
         try(statement.Condition.StringEquals["ec2:CreateAction"] == "CreateLaunchTemplate", false)
       )
+      if !contains(statement.Action, "ec2:RunInstances") && try(statement.Condition.StringEquals["ec2:CreateAction"], "") != "RunInstances"
     ])
     error_message = "Launch template permissions must be limited to project-tagged templates or their creation-time tags."
   }
@@ -213,10 +214,57 @@ run "node_group_permission_contract" {
   assert {
     condition = alltrue([
       for statement in jsondecode(aws_iam_policy.infrastructure["nodes"].policy).Statement : alltrue([
-        for action in statement.Action : !contains(["ec2:RunInstances", "ec2:CreateTags"], action) || action == "ec2:CreateTags" && try(statement.Condition.StringEquals["ec2:CreateAction"] == "CreateLaunchTemplate", false)
+        for action in statement.Action : !contains(["ec2:RunInstances", "ec2:CreateTags"], action) || (
+          action == "ec2:RunInstances" &&
+          try(statement.Condition.ArnLike["ec2:LaunchTemplate"] == "arn:aws:ec2:ap-southeast-2:123456789012:launch-template/*", false) ||
+          action == "ec2:RunInstances" && statement.Resource == ["arn:aws:ec2:ap-southeast-2:123456789012:launch-template/*"] &&
+          try(statement.Condition.StringEquals["aws:ResourceTag/Project"] == "mosemo", false) ||
+          action == "ec2:CreateTags" &&
+          contains(["CreateLaunchTemplate", "RunInstances"], try(statement.Condition.StringEquals["ec2:CreateAction"], ""))
+        )
       ])
     ])
-    error_message = "Launch template permissions must not grant direct instance launches or general tagging."
+    error_message = "Instances may launch only from a launch template and tags may be set only while creating it or its instances."
+  }
+
+  assert {
+    condition = alltrue([
+      for statement in jsondecode(aws_iam_policy.infrastructure["nodes"].policy).Statement :
+      try(statement.Condition.StringEquals["ec2:InstanceType"] == "t3.small", false) &&
+      try(statement.Condition.ArnLike["ec2:LaunchTemplate"] == "arn:aws:ec2:ap-southeast-2:123456789012:launch-template/*", false)
+      if contains(statement.Action, "ec2:RunInstances") && contains(statement.Resource, "arn:aws:ec2:ap-southeast-2:123456789012:instance/*")
+      ]) && alltrue([
+      for statement in jsondecode(aws_iam_policy.infrastructure["nodes"].policy).Statement :
+      try(statement.Condition.StringEquals["aws:ResourceTag/Project"] == "mosemo", false) &&
+      try(statement.Condition.StringEquals["aws:ResourceTag/Environment"] == "lab", false) &&
+      try(statement.Condition.StringEquals["aws:ResourceTag/ManagedBy"] == "terraform", false)
+      if contains(statement.Action, "ec2:RunInstances") && contains(statement.Resource, "arn:aws:ec2:ap-southeast-2:123456789012:launch-template/*")
+    ])
+    error_message = "Node instances must be t3.small launched from a launch template, and only project-tagged launch templates may be used."
+  }
+
+  assert {
+    condition = toset(flatten([
+      for statement in jsondecode(aws_iam_policy.infrastructure["nodes"].policy).Statement : statement.Resource
+      if contains(statement.Action, "ec2:RunInstances")
+      ])) == toset([
+      "arn:aws:ec2:ap-southeast-2:123456789012:instance/*",
+      "arn:aws:ec2:ap-southeast-2:123456789012:launch-template/*",
+      "arn:aws:ec2:ap-southeast-2:123456789012:volume/*",
+      "arn:aws:ec2:ap-southeast-2:123456789012:network-interface/*",
+      "arn:aws:ec2:ap-southeast-2:123456789012:subnet/*",
+      "arn:aws:ec2:ap-southeast-2:123456789012:security-group/*",
+      "arn:aws:ec2:ap-southeast-2::image/*",
+      ]) && alltrue([
+      for statement in jsondecode(aws_iam_policy.infrastructure["nodes"].policy).Statement :
+      toset(statement.Resource) == toset([
+        "arn:aws:ec2:ap-southeast-2:123456789012:instance/*",
+        "arn:aws:ec2:ap-southeast-2:123456789012:volume/*",
+        "arn:aws:ec2:ap-southeast-2:123456789012:network-interface/*",
+      ])
+      if try(statement.Condition.StringEquals["ec2:CreateAction"], "") == "RunInstances"
+    ])
+    error_message = "CreateNodegroup with a launch template needs RunInstances on exactly the launched resource types and CreateTags only on new instances, volumes, and network interfaces."
   }
   assert {
     condition = alltrue([
@@ -225,7 +273,7 @@ run "node_group_permission_contract" {
       ]) && length([
       for statement in jsondecode(aws_iam_policy.infrastructure["addons"].policy).Statement : statement if contains(statement.Action, "eks:UpdateAddon")
       ]) > 0 && alltrue([
-      for action in ["ec2:CreateLaunchTemplate", "ec2:CreateLaunchTemplateVersion", "ec2:DeleteLaunchTemplate"] :
+      for action in ["ec2:CreateLaunchTemplate", "ec2:CreateLaunchTemplateVersion", "ec2:DeleteLaunchTemplate", "ec2:RunInstances"] :
       length([for statement in jsondecode(aws_iam_policy.infrastructure["nodes"].policy).Statement : statement if contains(statement.Action, action)]) > 0
     ])
     error_message = "Node group, ALB attachment, add-on, and launch template permissions must exist, not just be scoped."
