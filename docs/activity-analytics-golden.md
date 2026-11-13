@@ -269,6 +269,10 @@ JSON 한 파일(`schema: mosemo-golden/1`).
 창 제목·URL을 읽지 않아 접근성·자동화 권한이 필요 없고, 이 Mac에 있는 Swift 6.0.3(`swiftc`)으로 추가 설치
 없이 빌드된다.
 
+로거는 CLI 프로세스라 화면 잠자기/깨우기(`screensDidSleep/Wake`)와 세션 전환 알림을 받지 못한다(2026-11-13
+리허설 2, 원인 미확인). 시스템 잠자기/깨우기(`willSleep`/`didWake`)와 앱 활성화는 받는다. 화면이 꺼지거나
+잠기면 `com.apple.loginwindow` 활성화가 남으므로 비교 도구는 이것을 화면 꺼짐으로 해석한다(제외 규칙).
+
 독립성의 범위: 로거는 Mosemo 클라이언트의 코드·큐·개인정보 필터·전송·서버·projection과 독립이다. 그러나
 Mosemo 클라이언트(`mosemo-macos` `cd4f109`, `WorkspaceObserver.swift`)도 같은 OS 알림을 받고 0.5초 주기
 폴링(`CollectorViewModel.swift`의 `pollTimer`)을 함께 쓴다. 그래서 OS 알림 자체가 빠지는 경우는 둘이 같이
@@ -281,7 +285,7 @@ Mosemo 클라이언트(`mosemo-macos` `cd4f109`, `WorkspaceObserver.swift`)도 �
 | 앱 활성화 로거 | `swiftc -O activation_logger.swift -o activation_logger` 후 실행 중에 `open -b com.apple.finder`와 원래 앞 앱을 번갈아 4회(약 3초), `lsappinfo front`를 20ms마다 확인 | 사건 `start`·`activate`×4·`stop`, 순서가 명령과 같음. 로거 시각이 `lsappinfo`가 앞 앱 변경을 본 시각보다 31~44ms 이름. `open` 명령부터 로거 기록까지 36~42ms. 끝난 뒤 원래 앱이 앞에 있음 | 없음 |
 | 같은 시험의 첫 시도 | `open`을 끝날 때까지 기다리며 1.5초 간격 | `open` 뒤 활성화까지 2.9~3.3초 걸려 4번째 활성화가 로거 종료 뒤에 일어남 | 없음 |
 | 로거 시계 | 각 줄의 벽시계−가동 시간 | 시험 중 흩어짐 0.7ms(시계 보정 없음) | 없음 |
-| 화면·시스템 잠자기 알림 | 실행하지 않음(사용자 화면을 끔) | 확인하지 못함. 리허설에서 확인(준비 6) | 없음(예상) |
+| 화면·시스템 잠자기 알림 | 2026-11-13 리허설 2: 로거와 Mosemo를 같이 켜고 `pmset displaysleepnow` 2회, 그 사이 시스템 잠자기 2회 | 로거: `system_will_sleep`·`system_wake` 각 2건, `screens_sleep`·`screens_wake`·`session_*` 0건. 화면이 꺼지는 순간 `com.apple.loginwindow` 활성화(15:20:30, 15:24:00), 다시 켜면 원래 앱 활성화. Mosemo: `screen_sleep` suspended·active 2쌍(로거보다 0.24~0.34초 먼저), 잠금 화면을 앱으로 관찰하지 않음 | 없음 |
 | Chrome 방문 기록 | `sqlite3 "file:…/Google/Chrome/Default/History?mode=ro&immutable=1"`로 행 수와 마지막 방문 시각만 조회 | 읽힘(urls·visits 행 수, 마지막 방문 2026-11-11). URL은 출력하지 않음 | 없음 |
 | Safari 방문 기록 | 같은 방법으로 `~/Library/Safari/History.db` | `authorization denied`, `~/Library/Safari` 목록도 `Operation not permitted` | 터미널의 전체 디스크 접근 |
 | 클라이언트 시계 | `mosemo-macos` 코드 확인 | 관찰 시각은 이벤트 시각이나 `Date()`(같은 Mac의 벽시계) | — |
@@ -294,10 +298,13 @@ Mosemo 클라이언트(`mosemo-macos` `cd4f109`, `WorkspaceObserver.swift`)도 �
 
 ### 오차 예산과 판정 기준
 
-사전 등록 SHA-256: `590c087ecc23d98f0fea59c4dc698f3622fc72f6a76608f18f33dad691437545`
+사전 등록 SHA-256: `ec4896cf579a8b250d86a08bb1d3c20dd9996a74497b9d8fcdbaf1cc860040ca`
 
 판정 방법과 기준은 산출물 폴더의 `prereg.json`에 기록일 전, 데이터를 보기 전에 고정했다. 일지 정답의 허용
 오차 정책도 이 파일에서 읽는다. 파일이 바뀌면 `golden.py`와 `machine.py`가 `PRE/prereg`로 실패한다.
+2026-11-13에 판 `2026-11-13`으로 다시 고정했다(옛 판 `2026-11-11-b`, SHA-256 `590c087e…`, 산출물 폴더
+`prereg.json.2026-11-11-b`). 바뀐 것은 제외 규칙 한 줄(loginwindow 구간)과 `note`의 개정 사유뿐이며, 오차
+예산·M1·M2 기준값은 그대로다. 리허설 2 데이터를 보고 바꿨지만 기록일 데이터를 보기 전이다.
 
 오차 예산(L = 1.05초):
 
@@ -317,7 +324,12 @@ Mosemo 클라이언트(`mosemo-macos` `cd4f109`, `WorkspaceObserver.swift`)도 �
 | M2 | C2 앱 단위 전환을 시각 창 [−0.5, +1.05]초로 일대일 매칭(시간순 탐욕, 이전·다음 앱이 같아야 매칭) | recall = 1, precision = 1 | 예산 안에서는 모든 OS 전환이 창 안에 관찰된다. 놓치거나 더 생긴 전환은 우연이 아니라 층 하나의 결함이므로 한 건도 허용하지 않고, 결과에 층과 시각을 남긴다. |
 
 제외(사전 등록): 로거 실행 구간 밖의 시간, 전환 직전·직후의 Mosemo 상태가 앱 미확인·불투명인 OS 전환과
-그 시간의 OS 앱 시간(정의상 Mosemo가 앱을 모름), 로거 bundleId가 null인 활성화.
+그 시간의 OS 앱 시간(정의상 Mosemo가 앱을 모름), 로거 bundleId가 null인 활성화, 로거의
+`com.apple.loginwindow` 활성화부터 다음 loginwindow가 아닌 활성화(또는 깨어난 뒤 첫 활성화)까지의 시간과
+그 경계 전환(X → loginwindow, loginwindow → X). 마지막 것은 화면 꺼짐·잠금이며 Mosemo의 `screen_sleep`
+수집 공백에 대응한다. 예: 15:20:12 Ghostty, 15:20:30 loginwindow, 15:20:36 Ghostty이면 OS 쪽은 Ghostty
+15:20:12~15:20:30과 15:20:36~ 두 구간이고 전환은 0건이다. 경계 너머 앱이 달라도(Ghostty → loginwindow →
+Firefox) 전환으로 세지 않는다(Mosemo도 수집 공백을 사이에 둔 앱 변화를 전환으로 세지 않음).
 
 ### 층별 비교 도구
 
@@ -339,6 +351,11 @@ Mosemo 쪽만 바꿔 비교한다.
 - 음성: 12초 머문 앱을 놓침(M2 recall, L1 수집 누락), 전환을 5초 늦게 관찰(L1 지연 초과·잘못된 전환),
   OS에 없는 2초 전환(M2 precision, M1 칸, L1), 하트비트 100초 누락(M1 칸, L2), 5초 미만 체류 전환을 빼는
   C2 구현(M2 recall, L3), 칸 앞 30분을 더하는 C1 구현(M1 칸, L3). 모두 기대한 층의 이유로 실패한다.
+- loginwindow 회귀(2026-11-13): 모의 로거의 화면 잠자기를 실제 CLI 로거 모양(loginwindow 활성화, 그 사이
+  시스템 잠자기와 loginwindow로 깨어남, 화면 켜짐 = 앱 활성화)으로 바꾼다. 양성: 그대로, 깨어난 2초 뒤 3초
+  메신저 전환을 Mosemo도 관찰. 음성: 제외 규칙을 뺀 변이(M2 recall L1 수집 누락, M1 칸 loginwindow =
+  리허설 2 재현), 깨어난 2초 뒤 실제 전환을 Mosemo가 놓침(M2 recall, 11:00:02), 화면 꺼짐 중 Mosemo가
+  수집을 멈추지 않음(M1 칸, Editor). 규칙이 실제 누락·과다 집계를 가리지 않는다.
 
 M1 칸 기준은 전환이 많은 칸에서 느슨하다(경계 수에 비례). 12초 누락이나 5초 지연은 M1 칸 기준을 넘지 않을
 수 있으며 M2가 잡는다.
@@ -409,8 +426,10 @@ PSL 최소 재현: 시험용 목록(`psl_fixture.dat`, 규칙 11개)과 이 Mac�
    관찰되는지(잠금 화면이 앱으로 관찰되는지) 덤프로 확인한다. 2026-11-13 리허설 결과:
    - Firefox URL은 `github.com/explore`처럼 scheme 없이 왔다. 지표 명세 D9(scheme 없는 URL은 비웹
      scheme이 아니면 `https://`를 붙여 해석)로 해결해 S1의 사이트 검사에 그대로 쓴다.
-   - 화면 잠자기·잠금 화면이 어떻게 관찰되는지는 확인하지 못했다. 기록일 전에 이 부분만 다시
-     리허설한다.
+   - 2026-11-13 리허설 2(15:20~15:24): `screen_sleep` 중단·재개가 정상으로 남았고, 잠금 화면(loginwindow)은
+     Mosemo에 앱으로 잡히지 않았다. 로거·Mosemo 전환은 0~1초 안에 일치하고 누락이 없었다. CLI 로거는 화면
+     잠자기 알림을 받지 못하고 loginwindow 활성화를 남겨, 비교 도구가 이를 제외하도록 사전 등록을 다시
+     고정했다(기계 정답 절). 고친 비교로 15:19:30~15:26:30을 다시 비교하면 M1·M2가 모두 통과한다.
    - 로거와 Mosemo를 같이 켜고 비교했을 때 약 3초 머문 Chrome 활성화 1건이 Mosemo 관찰에 없었고,
      1건은 Mosemo가 약 2초 늦게 관찰했다. 기계 정답 판정 기준 M2(recall = 1, 매칭 창 +1.05초)로는
      두 건 모두 실패에 해당한다. 원인 층은 기록일의 층별 비교(L1)로 확인한다.
@@ -419,6 +438,9 @@ PSL 최소 재현: 시험용 목록(`psl_fixture.dat`, 규칙 11개)과 이 Mac�
    `~/mosemo-golden/<기록일>/`에 두고 골든 파일의 `psl`에 경로·SHA-256을 적는다.
 8. 방해 금지 모드를 켜고, Chrome에 `youtube.com`, Firefox에 `github.com` 탭을 미리 연다. `W`·`M`·`T`·`F`로
    쓸 앱을 정해 골든 파일의 `roles`에 적는다(`M`은 불투명으로 수집되지 않는 앱).
+8a. 리허설 2와 같은 잠금 설정(화면이 꺼지면 바로 암호 요구)을 유지하고 화면 보호기를 끈다. 화면이 꺼져도
+    loginwindow가 앞에 오지 않으면 로거에는 화면 꺼짐이 남지 않아 OS 앱 시간이 이어지고 M1이 거짓으로
+    실패한다.
 
 기록일:
 
@@ -448,14 +470,20 @@ PSL 최소 재현: 시험용 목록(`psl_fixture.dat`, 규칙 11개)과 이 Mac�
 
 - 관찰 지연 30초 상한(G1·G2)은 PRD 계약이며 실제 클라이언트에서 측정하지 않았다.
 - 화면 잠자기는 실제 10월 기록에서 `screen_sleep` suspended·active로 남았다(23건). 화면 잠금은 그런 사유가
-  없어 통제 구간 경계로 쓰지 않는다. 깨운 직후 잠금 화면이 어떻게 관찰되는지는 2026-11-13 리허설에서도
-  확인하지 못했다(준비 6, 다시 리허설 필요).
+  없어 통제 구간 경계로 쓰지 않는다. 리허설 2에서 잠금 화면은 Mosemo에 앱으로 관찰되지 않았고
+  `screen_sleep` suspended·active 사이 공백으로 남았다(준비 6).
 - 클라이언트의 일시중지 동작과, 일시중지 중 관찰에 `focusSessionId`를 붙이지 않는지는 실제 기록으로
   확인하지 못했다. 확인되면 일지의 일시중지 시각을 원본으로 교차 확인할 수 있다.
 - 클라이언트 관찰 처리 지연 0.5초와 매칭 창 아래쪽 −0.5초는 측정 전 가정이다(기계 정답 절). 로거 지연은
   4회만 측정했다. 2026-11-13 리허설에서 약 2초 늦은 관찰 1건과 약 3초 활성화 누락 1건을 보았다(준비 6).
   이 가정을 넘는 사례이므로 기록일 결과에서 같은 일이 반복되는지 본다.
-- 로거의 화면·시스템 잠자기/깨우기 알림은 2026-11-13 리허설에서도 확인하지 못했다(다시 리허설 필요).
+- 로거는 시스템 잠자기/깨우기 알림은 받지만 화면 잠자기/깨우기와 세션 전환 알림은 받지 못한다(2026-11-13
+  리허설 2). 원인은 확인하지 못했다. 가설은 NSApplication을 실행하지 않는 CLI 프로세스라는 점이다(Mosemo는
+  같은 `NSWorkspace.shared.notificationCenter`를 `queue: .main`으로 구독하지만 SwiftUI 앱으로 실행된다).
+  확인용 최소 재현 `logger/screen_probe.swift`(cli·app 두 모드)는 화면 끄기가 필요해 실행하지 않았다. 비교는
+  loginwindow 구간 제외로 대신하므로 기록일에 로거를 바꾸지 않는다.
+- loginwindow 제외는 화면이 꺼질 때 loginwindow가 앞에 온다는 관찰(리허설 2, 2회)에 기댄다. 잠금 없이
+  화면만 꺼지는 설정, 화면 보호기(`com.apple.ScreenSaver.Engine`)는 확인하지 않았다(준비 8a).
 - 로거가 하루 종일 켜져 있을 때의 안정성(앱 낮잠 App Nap, 터미널 종료)은 확인하지 못했다.
 - 일지 정답의 G1·G2는 관찰 지연 30초(PRD)를 쓴다. 클라이언트 코드는 0.5초 폴링이라 이 값은 보수적이다.
   고정한 정책이므로 바꾸지 않는다.
