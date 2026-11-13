@@ -719,7 +719,7 @@ def test_case(case_id: str) -> None:
 def test_daily_case_holds_on_segments_read_for_the_day(case_id: str) -> None:
     case = CASES[case_id]
     day, psl = case["args"]
-    chosen = only(case["data"], read_day(case["data"], day))
+    chosen = only(case["data"], read_day(case["data"], day, psl))
 
     output = daily(chosen, day, psl)
 
@@ -735,7 +735,7 @@ def test_read_day_matches_full_daily_on_every_spanned_day(case_id: str) -> None:
     data = CASES[case_id]["data"]
 
     for day in spanned_days(data):
-        chosen = only(data, read_day(data, day))
+        chosen = only(data, read_day(data, day, PSL))
         assert daily(chosen, day, PSL) == daily(data, day, PSL), day
 
 

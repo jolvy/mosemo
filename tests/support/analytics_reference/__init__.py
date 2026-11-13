@@ -4,7 +4,7 @@
 `docs/requirements/activity-analytics.md`(FR·AC), `docs/ubiquitous-language.md` 「활동 분석」과
 #268 본문뿐이며, 문서가 다르면 지표 명세를 따른다. 표준 라이브러리만 쓴다.
 
-공개 함수: `read_day(data, day)`, `daily(data, day, psl)`, `session(data, session_id, psl)`.
+공개 함수: `read_day(data, day, psl)`, `daily(data, day, psl)`, `session(data, session_id, psl)`.
 입력·출력 형태는 #268 「지켜야 할 계약」을 따른다.
 
 명세 해석
@@ -39,10 +39,9 @@
 
 그 밖의 해석:
 
-8. `read_day`는 PSL을 받지 않으므로 D2 거슬러 읽기의 "같은 사용 대상"을 PSL 없이 판단한다
-   (C2-B10). 실제로 같은 대상이면 반드시 참인 조건(같은 bundleId, 두 호스트의 마지막
-   레이블이 같음, 호스트가 bundleId이거나 그 하위 호스트)으로 넉넉히 읽는다. 더 읽은
-   구간은 날짜 밖이라 `daily` 결과를 바꾸지 않는다.
+8. D2 거슬러 읽기(C2-B10, #268 사후 정정): `read_day`는 `psl`로 정한 사용 대상이 첫 구간과
+   같은 맞닿은 앞 구간만 읽는다. 첫 구간에 사용 대상이 없으면(수집 공백·불투명·앱 미확인)
+   거슬러 읽지 않는다. 그런 구간에서 끝나는 전환은 없기 때문이다.
 9. C5 진입(C5 「포함」·「불변식」): 집중 이탈을 시작하는 이탈 조각은 직전 조각과 사용
    대상이 같아도 진입 1회다(코딩 `A` → 여가 `A`). 그래야 "진입 횟수 합 ≥ 이탈 건수"가 늘
    성립한다. 이탈 중에는 직전 조각과 다를 때만 센다.

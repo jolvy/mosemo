@@ -61,8 +61,8 @@ def test_ambiguity_2_read_day_reads_capture_gaps_by_the_same_condition() -> None
         gap("g2", 30, None),
     )
 
-    assert read_day(data, DAY) == ["s1", "g1", "s2", "g2"]
-    assert read_day(data, NEXT_DAY) == ["g2"]
+    assert read_day(data, DAY, PSL) == ["s1", "g1", "s2", "g2"]
+    assert read_day(data, NEXT_DAY, PSL) == ["g2"]
 
 
 def test_ambiguity_2_zero_second_gap_keeps_neighbours_apart_on_read() -> None:
@@ -72,8 +72,8 @@ def test_ambiguity_2_zero_second_gap_keeps_neighbours_apart_on_read() -> None:
         activity("s2", 10, 20, app("B")),
     )
 
-    assert "g1" in read_day(data, DAY)
-    assert daily(only(data, read_day(data, DAY)), DAY, PSL)["c2"] == []
+    assert "g1" in read_day(data, DAY, PSL)
+    assert daily(only(data, read_day(data, DAY, PSL)), DAY, PSL)["c2"] == []
 
 
 def zero_second_lapses() -> dict:
@@ -282,14 +282,14 @@ def test_every_known_ambiguity_has_a_test() -> None:
     assert numbers == set(range(1, 8))
 
 
-def test_read_day_reads_back_possible_same_site_without_psl() -> None:
+def test_read_day_reads_back_same_site_across_midnight() -> None:
     data = timeline(
         activity("s1", -30, -10, browser("https://m.youtube.com/")),
         activity("s2", -10, 10, browser("https://www.youtube.com/")),
         activity("s3", 10, 20, app("A")),
     )
 
-    assert read_day(data, DAY) == ["s1", "s2", "s3"]
+    assert read_day(data, DAY, PSL) == ["s1", "s2", "s3"]
     assert daily(data, DAY, PSL)["c2"][0]["dwell_us"] == 40 * MIN
 
 
@@ -299,7 +299,25 @@ def test_read_day_stops_at_a_different_app() -> None:
         activity("s2", -10, 10, app("A")),
     )
 
-    assert read_day(data, DAY) == ["s2"]
+    assert read_day(data, DAY, PSL) == ["s2"]
+
+
+def test_read_day_stops_at_a_different_site() -> None:
+    data = timeline(
+        activity("s1", -30, -10, browser("https://github.com/")),
+        activity("s2", -10, 10, browser("https://www.youtube.com/")),
+    )
+
+    assert read_day(data, DAY, PSL) == ["s2"]
+
+
+def test_read_day_does_not_read_back_from_a_segment_without_target() -> None:
+    data = timeline(
+        activity("s1", -30, -10, OPAQUE),
+        activity("s2", -10, 10, OPAQUE),
+    )
+
+    assert read_day(data, DAY, PSL) == ["s2"]
 
 
 def test_lapse_start_on_same_target_as_focus_is_an_entry() -> None:

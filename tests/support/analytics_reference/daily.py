@@ -26,13 +26,15 @@ def day_window(timezone: str, day: str) -> tuple[datetime, datetime]:
     return start.astimezone(UTC), end.astimezone(UTC)
 
 
-def read_day(data: Mapping[str, Any], day: str) -> list[str]:
+def read_day(data: Mapping[str, Any], day: str, psl: str) -> list[str]:
     """일간 통계 계산에 읽는 구간 id(구간 순서).
 
     D1: `started_at < 끝 AND COALESCE(ended_at, last_observed_at) >= 시작`.
-    D2: 첫 구간에서 같은 사용 대상일 수 있는 맞닿은 앞 구간을 날짜 밖까지 거슬러 읽는다.
+    D2: 첫 구간에서 같은 사용 대상으로 맞닿은 앞 구간을 날짜 밖까지 거슬러 읽는다.
+    `psl`은 사용 대상(사이트) 비교에 쓰며 의미는 `daily`와 같다(#268 사후 정정).
     """
     timeline = parse(data)
+    sites = PublicSuffixList(psl)
     segments = timeline.segments
     start, end = day_window(timeline.timezone, day)
     chosen = [
@@ -43,26 +45,16 @@ def read_day(data: Mapping[str, Any], day: str) -> list[str]:
     ]
     if chosen:
         index = chosen[0]
-        while index > 0 and adjacent(segments[index - 1], segments[index]):
-            if not may_share_target(segments[index - 1], segments[index]):
-                break
+        target = segments[index].target(sites)
+        while (
+            target is not None
+            and index > 0
+            and adjacent(segments[index - 1], segments[index])
+            and segments[index - 1].target(sites) == target
+        ):
             index -= 1
             chosen.append(index)
     return [segments[index].id for index in sorted(set(chosen))]
-
-
-def may_share_target(first: Segment, second: Segment) -> bool:
-    """PSL 없이 판단한 "같은 사용 대상일 수 있음". 실제로 같으면 반드시 참이다."""
-    if first.app is None or second.app is None:
-        return False
-    hosts = (first.host, second.host)
-    if hosts[0] is None and hosts[1] is None:
-        return first.app == second.app
-    if hosts[0] is not None and hosts[1] is not None:
-        return hosts[0].rsplit(".", 1)[-1] == hosts[1].rsplit(".", 1)[-1]
-    host = hosts[0] or hosts[1] or ""
-    app = second.app if hosts[0] is not None else first.app
-    return host == app or host.endswith(f".{app}")
 
 
 def daily(data: Mapping[str, Any], day: str, psl: str) -> dict[str, Any]:
