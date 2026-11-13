@@ -10,3 +10,4 @@
 - [활동 분석 지표 명세](activity-analytics-metrics.md)
 - [활동 분석 골든 데이터셋](activity-analytics-golden.md)
 - [활동 분석 검증 계획](activity-analytics-verification.md)
+- [활동 분석 위험](activity-analytics-risks.md)
