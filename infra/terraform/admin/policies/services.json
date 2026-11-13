@@ -33,7 +33,8 @@
       "Resource": [
         "arn:aws:eks:ap-southeast-2:${account_id}:cluster/mosemo-lab",
         "arn:aws:eks:ap-southeast-2:${account_id}:nodegroup/mosemo-lab/mosemo-lab-kafka/*",
-        "arn:aws:eks:ap-southeast-2:${account_id}:nodegroup/mosemo-lab/mosemo-lab-app/*"
+        "arn:aws:eks:ap-southeast-2:${account_id}:nodegroup/mosemo-lab/mosemo-lab-app/*",
+        "arn:aws:eks:ap-southeast-2:${account_id}:nodegroup/mosemo-lab/mosemo-lab-loadgen/*"
       ],
       "Condition": {
         "StringEquals": {
@@ -58,7 +59,8 @@
       "Resource": [
         "arn:aws:eks:ap-southeast-2:${account_id}:cluster/mosemo-lab",
         "arn:aws:eks:ap-southeast-2:${account_id}:nodegroup/mosemo-lab/mosemo-lab-kafka/*",
-        "arn:aws:eks:ap-southeast-2:${account_id}:nodegroup/mosemo-lab/mosemo-lab-app/*"
+        "arn:aws:eks:ap-southeast-2:${account_id}:nodegroup/mosemo-lab/mosemo-lab-app/*",
+        "arn:aws:eks:ap-southeast-2:${account_id}:nodegroup/mosemo-lab/mosemo-lab-loadgen/*"
       ],
       "Condition": {
         "StringEquals": {

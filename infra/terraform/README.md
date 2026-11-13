@@ -21,8 +21,9 @@
 2. foundation: 한 번 적용하고 유지한다. ECR 이미지, ACM 인증서(검증 CNAME 포함), ALB 접근 로그
    버킷(90일 수명 주기)은 세션 destroy와 무관하게 남는다.
 3. infrastructure: 작업 세션마다 `session-up.sh`로 apply, `session-down.sh`로 destroy한다.
-   foundation의 `ecr_repository_url`·`api_certificate_arn` 두 출력만 참조하므로 foundation이
-   먼저 적용돼 있어야 한다. API CNAME `mosemo-api.danuh.com`(DNS only, TTL 300)은 ALB와
+   foundation의 `ecr_repository_url`·`api_certificate_arn`·`alb_access_log_bucket` 출력만 참조하므로
+   foundation이 먼저 적용돼 있어야 한다. 5단계 측정 세션은 `session-up.sh --profile measurement`로
+   loadgen 노드 그룹을 더한다(변수 `measurement`, tfvars 파일 없이 세션 스크립트가 환경 변수로 전달). API CNAME `mosemo-api.danuh.com`(DNS only, TTL 300)은 ALB와
    같은 수명으로 Terraform이 만들고 지운다.
 
 Cloudflare 변경은 `CLOUDFLARE_API_TOKEN`(danuh.com Zone:DNS:Edit 전용) 환경 변수로만 인증한다.

@@ -220,6 +220,49 @@ run "session_stack_contract" {
     )
     error_message = "The ALB must be deletion protected and log to the foundation bucket under mosemo-lab."
   }
+
+  assert {
+    condition     = toset(keys(aws_eks_node_group.main)) == toset(["kafka", "app"])
+    error_message = "A normal session must not create the loadgen node group."
+  }
+}
+
+run "measurement_profile_adds_isolated_loadgen" {
+  command = apply
+
+  variables {
+    measurement = true
+  }
+
+  assert {
+    condition     = toset(keys(aws_eks_node_group.main)) == toset(["kafka", "app", "loadgen"])
+    error_message = "The measurement profile must add exactly the loadgen node group."
+  }
+
+  assert {
+    condition = (
+      aws_eks_node_group.main["loadgen"].node_group_name == "mosemo-lab-loadgen" &&
+      aws_eks_node_group.main["loadgen"].scaling_config[0].min_size == 1 &&
+      aws_eks_node_group.main["loadgen"].scaling_config[0].desired_size == 1 &&
+      aws_eks_node_group.main["loadgen"].scaling_config[0].max_size == 1 &&
+      aws_eks_node_group.main["loadgen"].subnet_ids == toset([aws_subnet.public["a"].id]) &&
+      aws_eks_node_group.main["loadgen"].labels["pool"] == "loadgen" &&
+      length(aws_eks_node_group.main["loadgen"].taint) == 1 &&
+      one(aws_eks_node_group.main["loadgen"].taint).key == "dedicated" &&
+      one(aws_eks_node_group.main["loadgen"].taint).value == "loadgen" &&
+      one(aws_eks_node_group.main["loadgen"].taint).effect == "NO_SCHEDULE" &&
+      aws_eks_node_group.main["loadgen"].launch_template[0].id == aws_launch_template.node.id
+    )
+    error_message = "loadgen must be one tainted t3.small in 2a from the shared launch template."
+  }
+
+  assert {
+    condition = (
+      aws_autoscaling_attachment.api.autoscaling_group_name == "eks-mosemo-lab-app-mock" &&
+      aws_eks_node_group.main["app"].scaling_config[0].desired_size == 1
+    )
+    error_message = "The measurement profile must leave the app group and its ALB attachment unchanged."
+  }
 }
 
 run "session_down_skips_final_snapshot_only_when_asked" {

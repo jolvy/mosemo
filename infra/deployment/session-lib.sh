@@ -1,4 +1,4 @@
-# Shared by session-up.sh, deploy.sh and session-down.sh; source, do not run.
+# Shared by the session, deploy and measurement scripts; source, do not run. Bash 3.2 compatible (macOS).
 # Never print secret values: no `set -x`, and secrets only flow through files and pipes.
 # shellcheck disable=SC2034 # Constants are used by the sourcing scripts.
 set -euo pipefail
@@ -18,6 +18,12 @@ SESSION_DIR=${MOSEMO_SESSION_DIR:-$HOME/.mosemo/lab}
 SECRETS_FILE="$SESSION_DIR/secrets.env"
 RENDER_DIR="$SESSION_DIR/rendered"
 export KUBECONFIG="$SESSION_DIR/kubeconfig"
+# Session profile: "measurement" adds the loadgen node group (Terraform) and drops batch (deploy.sh).
+PROFILE_FILE="$SESSION_DIR/profile"
+# Present from measurement-lock.sh start until end; while it exists nothing may change the lab.
+LOCK_FILE="$SESSION_DIR/measurement.lock"
+MEASUREMENT_DIR="$SESSION_DIR/measurement"
+MEASUREMENT_KUBECONFIG="$SESSION_DIR/measurement.kubeconfig"
 SECRET_KEYS=(DB_PASSWORD AUTH_JWT_SECRET_KEY KAKAO_REST_API_KEY KAKAO_CLIENT_SECRET GOOGLE_API_KEY)
 
 step() { printf '\n==> %s\n' "$*"; }
@@ -63,6 +69,21 @@ load_db_password() {
   db_password=$(sed -n 's/^DB_PASSWORD=//p' "$SECRETS_FILE")
 }
 
+# Call before any aws, kubectl or terraform command.
+check_measurement_lock() {
+  if [[ -e $LOCK_FILE ]]; then
+    fail "measurement lock $LOCK_FILE exists: a measurement is running. Wait for measurement-lock.sh end"
+  fi
+}
+
+session_profile() {
+  if [[ -f $PROFILE_FILE ]]; then
+    cat "$PROFILE_FILE"
+  else
+    echo default
+  fi
+}
+
 check_cloudflare_token() {
   [[ -n ${CLOUDFLARE_API_TOKEN:-} ]] || fail "CLOUDFLARE_API_TOKEN is not set (danuh.com Zone:DNS:Edit token)"
 }
@@ -77,11 +98,14 @@ check_cluster_access() {
   kubectl get namespace "$NAMESPACE" >/dev/null || fail "cannot reach namespace $NAMESPACE in the session cluster"
 }
 
+# The profile reaches Terraform only here, so every subcommand (apply, plan, output, destroy) sees the same value.
 tf() {
+  local measurement=false
+  [[ $(session_profile) == measurement ]] && measurement=true
   if [[ -n ${db_password:-} ]]; then
-    TF_VAR_db_password=$db_password terraform -chdir="$TF_DIR" "$@"
+    TF_VAR_db_password=$db_password TF_VAR_measurement=$measurement terraform -chdir="$TF_DIR" "$@"
   else
-    terraform -chdir="$TF_DIR" "$@"
+    TF_VAR_measurement=$measurement terraform -chdir="$TF_DIR" "$@"
   fi
 }
 
@@ -108,6 +132,14 @@ run_job() {
     ((elapsed += 5))
   done
   fail "job/$name did not finish within ${timeout}s"
+}
+
+# Kubernetes quantity (Ki, Mi, Gi, or bytes) to whole MiB.
+quantity_mib() {
+  python3 -c '
+import re, sys
+value, unit = re.fullmatch(r"([0-9]+)([KMG]i)?", sys.argv[1]).groups()
+print(int(value) * {"Ki": 1024, "Mi": 1024**2, "Gi": 1024**3, None: 1}[unit] // 1024**2)' "$1"
 }
 
 # Reads `terraform show -json` of the skip_final_snapshot plan on stdin and prints what is not allowed.

@@ -23,7 +23,8 @@ API·consumer·batch·migration은 **같은 새 이미지 digest**를 사용한�
 이미지의 digest는 재사용할 수 없다. batch는 label proposal 작업을 시작 시와 5분마다 실행하는
 스케줄러 1개다. `LABEL_MODEL`(ConfigMap, `google:gemini-3.1-flash-lite`)과 `GOOGLE_API_KEY`(Secret)를 쓴다.
 같은 작업이 두 프로세스에서 돌지 않도록 replicas=1, maxSurge=0이다. HTTP Service·probe는 없고,
-deploy.sh는 시작 직후 실행한 작업의 성공 로그로 확인한다.
+deploy.sh는 시작 직후 실행한 작업의 성공 로그로 확인한다. 측정 프로필 세션에서는 batch를 띄우지 않는다
+([5단계 측정 세션](#5단계-측정-세션)).
 
 API와 consumer는 같은 DB·BATCH_TOPIC·BATCH_GROUP_ID·Kafka 주소를 사용한다.
 consumer에는 HTTP Service·가짜 HTTP probe를 붙이지 않는다. consumer Pod Running은
@@ -127,20 +128,23 @@ uv run --locked python scripts/verify_focus_session_client.py --client-root /abs
   RDS(TF_VAR_db_password)와 앱 Secret에 같은 값으로 쓰인다. 전용 kubeconfig도 이 디렉터리에 만든다.
 
 ```sh
-bash infra/deployment/session-up.sh    # 세션 시작
+bash infra/deployment/session-up.sh    # 세션 시작 (--profile measurement: 5단계 측정 세션)
 bash infra/deployment/deploy.sh        # 현재 커밋 배포 (반복 가능)
 bash infra/deployment/session-down.sh  # 세션 종료
 ```
 
-1. session-up.sh: 세션 스택 `terraform apply`(plan을 검토하고 yes 입력; Cloudflare API CNAME 포함)
-   → 전용 kubeconfig → 노드 Ready·prefix delegation·노드별 Pod 상한·CSI node plugin 확인
+1. session-up.sh: 프로필 기록(`$MOSEMO_SESSION_DIR/profile`) → 세션 스택 `terraform apply`(plan을 검토하고
+   yes 입력; Cloudflare API CNAME 포함) → 같은 환경의 `terraform plan -detailed-exitcode`가 0인지 확인
+   → 전용 kubeconfig → 노드 Ready·prefix delegation·노드별 Pod 상한·allocatable memory(app 노드 1236Mi 미만이면
+   "allocatable memory too low"로 멈춤)·CSI node plugin 확인
    → namespace·PriorityClass·LimitRange → 새 RDS 출력으로 렌더링한 ConfigMap → Secret(server-side apply)
    → 시드니 RDS CA ConfigMap → Kafka NetworkPolicy → StorageClass·StatefulSet rollout·PVC Bound·kafka 노드 배치 확인
    → topic 초기화 Job 성공.
 2. deploy.sh: 깨끗한 작업 트리의 커밋 SHA 태그로 ECR 이미지를 찾고, 없을 때만 linux/amd64로 빌드·push한다
    (ECR 인증은 --password-stdin). 같은 `repository@sha256` digest로 migration Job 성공을 확인한 뒤
    API·consumer·batch를 rollout하고, ALB에 직접 연결해 HTTPS `/openapi.json` 200·비인증 `/api/v1/accounts/me` 401·
-   HTTP 301, Cloudflare CNAME, consumer group Stable, batch label-proposals 성공 로그를 확인한다. 대화형 단계가 없어 G2 CI가 재사용할 수 있다.
+   HTTP 301, Cloudflare CNAME, consumer group Stable, batch label-proposals 성공 로그를 확인한다. 측정 프로필이면 batch 렌더·rollout·로그 확인을
+   건너뛰고 남은 `mosemo-batch` Deployment를 지운다. 대화형 단계가 없어 G2 CI가 재사용할 수 있다.
 3. session-down.sh: 최종 스냅샷 `mosemo-lab-final`이 이미 있으면 알리고 아무것도 바꾸지 않고 멈춤
    → Kafka StatefulSet·PVC 삭제 → Retain PV의 EBS를 volume ID로 삭제·확인 → PV 삭제
    → `-var skip_final_snapshot=true` plan이 RDS update 하나뿐인지 확인 후 apply

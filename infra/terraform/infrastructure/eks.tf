@@ -77,7 +77,7 @@ resource "aws_launch_template" "node" {
 }
 
 locals {
-  node_groups = {
+  base_node_groups = {
     # Kafka's EBS volume is bound to 2a, so its node never leaves that AZ.
     kafka = {
       subnet_keys = ["a"]
@@ -93,6 +93,16 @@ locals {
       taints      = []
     }
   }
+  # Measurement profile only: the load generator never shares a node with the API it measures.
+  loadgen_node_group = {
+    loadgen = {
+      subnet_keys = ["a"]
+      min_size    = 1
+      max_size    = 1
+      taints      = [{ key = "dedicated", value = "loadgen", effect = "NO_SCHEDULE" }]
+    }
+  }
+  node_groups = merge(local.base_node_groups, { for key, group in local.loadgen_node_group : key => group if var.measurement })
 }
 
 resource "aws_eks_node_group" "main" {

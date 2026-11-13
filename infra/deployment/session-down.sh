@@ -6,7 +6,7 @@
 # shellcheck source=session-lib.sh source-path=SCRIPTDIR
 source "$(dirname "$0")/session-lib.sh"
 
-step "Preflight"
+step "Preflight (profile $(session_profile))"
 require_tools terraform aws kubectl python3
 check_session_dir
 check_secrets_file
@@ -108,5 +108,6 @@ tf destroy -input=true -var skip_final_snapshot=true \
 [[ -z $(tf state list) ]] || fail "session state still lists resources after destroy"
 
 step "Clean session files"
-rm -rf "$KUBECONFIG" "$RENDER_DIR" "$SESSION_DIR/rds-ca.pem"
+# Measurement results (measurement/) stay for the report; session-up archives them on the next measurement.
+rm -rf "$KUBECONFIG" "$RENDER_DIR" "$SESSION_DIR/rds-ca.pem" "$PROFILE_FILE"
 echo "Session stack destroyed; foundation stack untouched."

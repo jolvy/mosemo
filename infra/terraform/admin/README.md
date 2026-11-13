@@ -20,7 +20,7 @@
 | 실행 역할 정책 | 범위 |
 | --- | --- |
 | network | 기존 시드니 VPC·subnet·routing·security group |
-| services | 지정 EKS·node group(kafka·app)·ALB·RDS(최종 스냅샷 `mosemo-lab-final` 포함)·ECR 수명주기, app ASG의 ALB 연결 |
+| services | 지정 EKS·node group(kafka·app·측정 프로필 loadgen)·ALB·RDS(최종 스냅샷 `mosemo-lab-final` 포함)·ECR 수명주기, app ASG의 ALB 연결 |
 | identity | 지정 역할 조회·PassRole·기존 service-linked role 초기화 |
 | state | 세션(mosemo/lab)·장기(mosemo/foundation) state key와 lock |
 | addons | 지정 cluster의 add-on/Pod Identity 생성, vpc-cni·EBS CSI·Pod Identity Agent add-on 및 association 관리 |

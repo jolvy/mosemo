@@ -173,10 +173,11 @@ run "node_group_permission_contract" {
       for statement in jsondecode(aws_iam_policy.infrastructure["services"].policy).Statement :
       contains(statement.Resource, "arn:aws:eks:ap-southeast-2:123456789012:nodegroup/mosemo-lab/mosemo-lab-kafka/*") &&
       contains(statement.Resource, "arn:aws:eks:ap-southeast-2:123456789012:nodegroup/mosemo-lab/mosemo-lab-app/*") &&
+      contains(statement.Resource, "arn:aws:eks:ap-southeast-2:123456789012:nodegroup/mosemo-lab/mosemo-lab-loadgen/*") &&
       !contains(statement.Resource, "arn:aws:eks:ap-southeast-2:123456789012:nodegroup/mosemo-lab/mosemo-lab-public/*")
       if contains(statement.Action, "eks:CreateNodegroup") || contains(statement.Action, "eks:DescribeNodegroup")
     ])
-    error_message = "Node group lifecycle must target exactly the kafka and app groups."
+    error_message = "Node group lifecycle must target exactly the kafka, app, and measurement loadgen groups."
   }
 
   assert {

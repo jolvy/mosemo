@@ -36,6 +36,12 @@ variable "skip_final_snapshot" {
   default     = false
 }
 
+variable "measurement" {
+  description = "Step 5 measurement profile: adds the loadgen node group. Set only through session-lib.sh (TF_VAR_measurement)."
+  type        = bool
+  default     = false
+}
+
 variable "cloudflare_zone_id" {
   description = "Cloudflare zone ID of danuh.com. Supply through an uncommitted terraform.tfvars."
   type        = string
