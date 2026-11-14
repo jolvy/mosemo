@@ -1,4 +1,6 @@
-from collections.abc import AsyncIterator
+import logging
+from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
 from uuid import uuid4
 
 import pytest
@@ -334,3 +336,160 @@ async def test_invalid_activity_focus_link_rolls_back_and_retains_original(
     assert response.status_code == (409 if invalid_link == "time" else 404)
     async with factory() as session:
         assert await session.get(ActivityRecord, activity["eventId"]) is None
+
+
+@contextmanager
+def completion_logs(caplog) -> Iterator[list[logging.LogRecord]]:
+    # Alembic's fileConfig in the migration fixture disables existing loggers,
+    # and logging configuration decides where `mosemo` records propagate, so
+    # deliver the use case logger's records to caplog alone.
+    logger = logging.getLogger("mosemo.observation.application.focus_sessions")
+    saved = (logger.disabled, logger.propagate, logger.level)
+    logger.disabled, logger.propagate = False, False
+    logger.setLevel(logging.INFO)
+    logger.addHandler(caplog.handler)
+    try:
+        yield caplog.records
+    finally:
+        logger.removeHandler(caplog.handler)
+        logger.disabled, logger.propagate = saved[:2]
+        logger.setLevel(saved[2])
+
+
+def completed_records(records: list[logging.LogRecord]) -> list[logging.LogRecord]:
+    return [r for r in records if r.getMessage() == "focus session completed"]
+
+
+def pause(start: str, end: str) -> dict[str, str]:
+    return {
+        "startedAt": f"2026-10-07T00:{start}.123456Z",
+        "endedAt": f"2026-10-07T00:{end}.123456Z",
+    }
+
+
+async def start_session(client, headers, device_id) -> str:
+    request = start_request(device_id)
+    response = await client.post(
+        "/api/v1/focus-sessions", headers=headers, json=request
+    )
+    assert response.status_code == 201, response.text
+    return "/api/v1/focus-sessions/" + request["id"] + "/completion"
+
+
+@pytest.mark.parametrize(
+    "pauses",
+    [
+        pytest.param([pause("10:00", "21:00")], id="after-session-end"),
+        pytest.param(
+            [
+                {
+                    "startedAt": "2026-10-06T23:59:00Z",
+                    "endedAt": "2026-10-07T00:01:00Z",
+                }
+            ],
+            id="before-session-start",
+        ),
+        pytest.param(
+            [pause("02:00", "06:00"), pause("05:00", "08:00")], id="overlapping"
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_completion_rejects_pauses_outside_the_session_or_overlapping(
+    focus_client, pauses
+):
+    client, _, headers, _, device_id, label_id, _ = focus_client
+    complete_url = await start_session(client, headers, device_id)
+
+    response = await client.put(
+        complete_url,
+        headers=headers,
+        json=completion(label_id, workSeconds=600, pauses=pauses),
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["status"] == "INVALID_ARGUMENT"
+
+
+@pytest.mark.asyncio
+async def test_completion_stores_sorted_pauses_and_logs_the_work_gap(
+    focus_client, caplog
+):
+    client, _, headers, _, device_id, label_id, _ = focus_client
+    complete_url = await start_session(client, headers, device_id)
+    pauses = [pause("10:00", "15:00"), pause("03:00", "03:00"), pause("01:00", "02:00")]
+
+    with completion_logs(caplog) as records:
+        # 20 minutes minus 6 paused minutes leaves 840 analysable seconds.
+        finished = await client.put(
+            complete_url,
+            headers=headers,
+            json=completion(label_id, workSeconds=830, pauses=pauses),
+        )
+
+    assert finished.status_code == 200, finished.text
+    assert finished.json()["pauses"] == [
+        pause("01:00", "02:00"),
+        pause("10:00", "15:00"),
+    ]
+    listed = await client.get("/api/v1/focus-sessions?date=2026-10-07", headers=headers)
+    assert listed.json() == [finished.json()]
+    [record] = completed_records(records)
+    assert record.__dict__["work_seconds_gap"] == 10
+    assert record.__dict__["dropped_zero_pauses"] == 1
+
+    caplog.clear()
+    with completion_logs(caplog) as records:
+        retry = await client.put(
+            complete_url,
+            headers=headers,
+            json=completion(label_id, workSeconds=830, pauses=pauses[::-1]),
+        )
+    assert retry.json() == finished.json()
+    assert completed_records(records) == []
+    conflict = await client.put(
+        complete_url,
+        headers=headers,
+        json=completion(label_id, workSeconds=830, pauses=pauses[:1]),
+    )
+    assert conflict.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_completion_without_pauses_returns_null_and_zero_pauses_return_empty(
+    focus_client,
+):
+    client, factory, headers, _, device_id, label_id, _ = focus_client
+    without_info_url = await start_session(client, headers, device_id)
+    zero_only_url = await start_session(client, headers, device_id)
+
+    without_info = await client.put(
+        without_info_url, headers=headers, json=completion(label_id)
+    )
+    zero_only = await client.put(
+        zero_only_url,
+        headers=headers,
+        json=completion(label_id, pauses=[pause("05:00", "05:00")]),
+    )
+
+    assert without_info.status_code == 200, without_info.text
+    assert without_info.json()["pauses"] is None
+    assert zero_only.status_code == 200, zero_only.text
+    assert zero_only.json()["pauses"] == []
+    async with factory() as session:
+        stored = await session.get(FocusSession, zero_only.json()["id"])
+        assert stored.pauses_reported
+        assert stored.pauses == []
+
+
+@pytest.mark.asyncio
+async def test_completion_accepts_work_two_seconds_over_the_session(focus_client):
+    client, _, headers, _, device_id, label_id, _ = focus_client
+    complete_url = await start_session(client, headers, device_id)
+
+    # The database check allows the same 2-second tolerance as the aggregate.
+    response = await client.put(
+        complete_url, headers=headers, json=completion(label_id, workSeconds=1202)
+    )
+
+    assert response.status_code == 200, response.text

@@ -31,7 +31,7 @@ from mosemo.shared.presentation.current_account import (
 
 SOURCE = Path(mosemo.__file__).parent
 # ADR 0013: 식별자 이름 규칙의 예외.
-COMPOSITE_PK_TABLES = {"activity_batch_receipts"}
+COMPOSITE_PK_TABLES = {"activity_batch_receipts", "focus_session_pauses"}
 NATURAL_PRIMARY_KEYS = {
     ("activity_records", "event_id"),  # 클라이언트가 만든 식별자
     ("native_auth_codes", "code_digest"),  # 인가 코드 해시인 자연 키

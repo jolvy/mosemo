@@ -43,6 +43,24 @@ def test_json_formatter_emits_expected_fields(monkeypatch) -> None:
     assert payload["timestamp"].endswith("Z")
 
 
+def test_json_formatter_emits_focus_session_completion_counts() -> None:
+    record = logging.makeLogRecord(
+        {
+            "name": "mosemo.test",
+            "levelno": logging.INFO,
+            "levelname": "INFO",
+            "msg": "focus session completed",
+            "work_seconds_gap": -2,
+            "dropped_zero_pauses": 0,
+        }
+    )
+
+    payload = json.loads(JsonFormatter().format(record))
+
+    assert payload["work_seconds_gap"] == -2
+    assert payload["dropped_zero_pauses"] == 0
+
+
 def test_json_formatter_excludes_exception_message() -> None:
     formatter = JsonFormatter()
 

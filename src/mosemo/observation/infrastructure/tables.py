@@ -3,6 +3,7 @@ from uuid import uuid7
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -14,16 +15,18 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    false,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 
 from mosemo.observation.domain.activities import (
     ActivityBatchReceipt,
     ActivityRecord,
     RecordType,
 )
-from mosemo.observation.domain.focus_sessions import FocusSession
+from mosemo.observation.domain.focus_sessions import FocusSession, FocusSessionPause
 from mosemo.observation.domain.timeline import ActivityTimelineSegment, SegmentType
 from mosemo.platform.database.persistence import (
     ORM_METADATA,
@@ -71,6 +74,13 @@ focus_sessions = Table(
         default=None,
     ),
     Column("description", Text, nullable=False, default=""),
+    Column(
+        "pauses_reported",
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false(),
+    ),
     CheckConstraint("target_seconds >= 0", name="target_non_negative"),
     CheckConstraint(
         "work_seconds IS NULL OR work_seconds >= 0", name="work_non_negative"
@@ -81,14 +91,32 @@ focus_sessions = Table(
         name="completion_fields",
     ),
     CheckConstraint(
-        "work_seconds IS NULL OR work_seconds <= EXTRACT(EPOCH FROM (ended_at - started_at))",
+        "work_seconds IS NULL OR work_seconds <= EXTRACT(EPOCH FROM (ended_at - started_at)) + 2",
         name="work_within_duration",
+    ),
+    CheckConstraint(
+        "ended_at IS NOT NULL OR NOT pauses_reported", name="pauses_after_completion"
     ),
     CheckConstraint(
         "target_seconds = 0 OR work_seconds IS NULL OR work_seconds <= target_seconds",
         name="work_within_target",
     ),
     Index("focus_sessions_account_id_started_at_idx", "account_id", "started_at"),
+)
+
+# Overlaps are rejected by the FocusSession aggregate, not by the database.
+focus_session_pauses = Table(
+    "focus_session_pauses",
+    ORM_METADATA,
+    Column(
+        "focus_session_id",
+        Uuid,
+        ForeignKey("focus_sessions.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("started_at", DateTime(timezone=True), primary_key=True),
+    Column("ended_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("ended_at > started_at", name="time_order"),
 )
 
 activity_records = Table(
@@ -238,8 +266,24 @@ activity_batch_receipts = Table(
 def map_tables() -> None:
     """Map the observation entities to their tables once per process."""
     mapped = {mapper.class_ for mapper in mapper_registry.mappers}
+    if FocusSessionPause not in mapped:
+        mapper_registry.map_imperatively(FocusSessionPause, focus_session_pauses)
+    if FocusSession not in mapped:
+        # The aggregate loads and replaces its pauses as a whole (ADR 0013).
+        mapper_registry.map_imperatively(
+            FocusSession,
+            focus_sessions,
+            properties={
+                "pauses": relationship(
+                    FocusSessionPause,
+                    order_by=focus_session_pauses.c.started_at,
+                    cascade="all, delete-orphan",
+                    passive_deletes=True,
+                    lazy="selectin",
+                )
+            },
+        )
     for entity, table in (
-        (FocusSession, focus_sessions),
         (ActivityRecord, activity_records),
         (ActivityTimelineSegment, activity_timeline_segments),
         (ActivityBatchReceipt, activity_batch_receipts),

@@ -22,6 +22,8 @@ OPTIONAL_FIELDS: Final = (
     "method",
     "route",
     "request_url",
+    "work_seconds_gap",
+    "dropped_zero_pauses",
 )
 REDACTIONS: Final = (
     (

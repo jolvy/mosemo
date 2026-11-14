@@ -24,6 +24,15 @@ class FocusSessionCreateRequest(ApiRequestModel):
     )
 
 
+class FocusSessionPauseRequest(ApiRequestModel):
+    """세션 안의 일시중지 구간 [시작, 종료)입니다."""
+
+    started_at: ObservationTimestamp = Field(
+        description="UTC 일시중지 시작 시각입니다."
+    )
+    ended_at: ObservationTimestamp = Field(description="UTC 일시중지 종료 시각입니다.")
+
+
 class FocusSessionCompleteRequest(ApiRequestModel):
     """종료한 세션의 작업 시간과 라벨을 확정하는 요청입니다."""
 
@@ -37,6 +46,18 @@ class FocusSessionCompleteRequest(ApiRequestModel):
     description: str = Field(
         default="", max_length=10000, description="선택적인 작업 설명입니다."
     )
+    pauses: list[FocusSessionPauseRequest] | None = Field(
+        default=None,
+        max_length=1000,
+        description="일시중지 구간 [시작, 종료). 보내지 않으면 일시중지 정보가 없는 세션입니다.",
+    )
+
+
+class FocusSessionPauseResponse(ApiResponseModel):
+    """저장된 일시중지 구간 [시작, 종료)입니다."""
+
+    started_at: TimelineTimestamp = Field(description="UTC 일시중지 시작 시각입니다.")
+    ended_at: TimelineTimestamp = Field(description="UTC 일시중지 종료 시각입니다.")
 
 
 class FocusSessionResponse(ApiResponseModel):
@@ -56,6 +77,9 @@ class FocusSessionResponse(ApiResponseModel):
         description="완료 시 확정된 라벨입니다. 완료 전에는 null입니다."
     )
     description: str = Field(description="작업 설명입니다.")
+    pauses: list[FocusSessionPauseResponse] | None = Field(
+        description="시작 순으로 정렬한 일시중지 구간입니다. 일시중지 정보가 없으면 null입니다."
+    )
 
     @classmethod
     def from_session(cls, focus_session: FocusSession) -> FocusSessionResponse:
@@ -68,4 +92,12 @@ class FocusSessionResponse(ApiResponseModel):
             work_seconds=focus_session.work_seconds,
             label_id=focus_session.label_id,
             description=focus_session.description,
+            pauses=[
+                FocusSessionPauseResponse(
+                    started_at=pause.started_at, ended_at=pause.ended_at
+                )
+                for pause in focus_session.pauses
+            ]
+            if focus_session.pauses_reported
+            else None,
         )
