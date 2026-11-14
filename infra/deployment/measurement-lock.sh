@@ -2,8 +2,10 @@
 # Measurement lock. While $SESSION_DIR/measurement.lock exists, session-up, deploy, session-down and
 # measurement-ready refuse to run, so nothing changes the lab during a measurement.
 #   start POD_NAME EXPECTED_END_UTC  Before the measurement Pod exists. Records the loadgen node and issues
-#                                    the 13-hour step5-operator kubeconfig (measurement.kubeconfig).
-#   end [--invalid REASON]           Removes the lock and records measurement/window (and invalid).
+#                                    the step5-operator kubeconfig (measurement.kubeconfig) with a token valid
+#                                    until 30 minutes after the expected end (at least 1 hour, at most 13 hours).
+#   end [--invalid REASON]           Removes the lock and records measurement/window; writes measurement/invalid
+#                                    with --invalid, otherwise removes an earlier one.
 # Over 12 hours without an end signal: delete the measurement Pod, run `end --invalid`, tell the user.
 # Never session-down without the user's instruction.
 # shellcheck source=session-lib.sh source-path=SCRIPTDIR
@@ -13,7 +15,7 @@ utc_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
 start() {
   [[ $# -eq 2 ]] || fail "usage: measurement-lock.sh start POD_NAME EXPECTED_END_UTC (e.g. 2026-11-20T21:00:00Z)"
-  local pod=$1 expected_end=$2 expected_epoch nodes node exp
+  local pod=$1 expected_end=$2 expected_epoch nodes node duration exp
   [[ $pod =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || fail "invalid Pod name: $pod"
   expected_epoch=$(python3 -c '
 import datetime, sys
@@ -30,7 +32,11 @@ print(int(end.timestamp()))' "$expected_end") || fail "EXPECTED_END_UTC must loo
   [[ $(grep -c . <<<"$nodes") -eq 1 ]] || fail "expected exactly one loadgen node, found: ${nodes:-none}"
   node=$nodes
 
-  exp=$(issue_operator_kubeconfig "$MEASUREMENT_KUBECONFIG" 13h)
+  # Expected end + 30 minutes, clamped to 1-13 hours: no longer-lived credential than the measurement needs.
+  duration=$((expected_epoch - $(date +%s) + 1800))
+  ((duration >= 3600)) || duration=3600
+  ((duration <= 46800)) || duration=46800
+  exp=$(issue_operator_kubeconfig "$MEASUREMENT_KUBECONFIG" "${duration}s")
   if ((exp < expected_epoch)); then
     rm -f "$MEASUREMENT_KUBECONFIG"
     fail "token expires at $exp, before the expected end $expected_end ($expected_epoch)"
@@ -57,6 +63,8 @@ end() {
   if [[ -n $invalid ]]; then
     printf '%s\n' "$invalid" >"$MEASUREMENT_DIR/invalid"
     echo "measurement recorded as invalid: $invalid"
+  else
+    rm -f "$MEASUREMENT_DIR/invalid"
   fi
   rm -f "$LOCK_FILE"
   echo "measurement lock removed; window $(tr '\n' ' ' <"$MEASUREMENT_DIR/window")"

@@ -31,6 +31,11 @@ case $cmd in
     esac
     ;;
   aws)
+    # A canned answer in $FAKE_STATE/aws.<service>.<operation> (exit status in <file>.exit) wins.
+    if [[ -f $state/aws.$1.$2 ]]; then
+      cat "$state/aws.$1.$2"
+      exit "$(cat "$state/aws.$1.$2.exit" 2>/dev/null || echo 0)"
+    fi
     case $args in
       *" sts get-caller-identity "*) echo "arn:aws:sts::123456789012:assumed-role/MosemoInfrastructureRole/test" ;;
       *" eks update-kubeconfig "*)
@@ -61,6 +66,18 @@ print(part({"alg": "none"}) + "." + part({"exp": int(sys.argv[1])}) + ".sig")' "
       *" get nodes -l pool=loadgen "*) cat "$state/loadgen_nodes" ;;
       *" get nodes -o jsonpath="*allocatable*) cat "$state/nodes" ;;
       *" get nodes --no-headers "*) cat "$state/nodes" ;;
+      *" get nodes -o json "*) cat "$state/nodes.json" ;;
+      *" get pods -A -o json "* | *" get pods -l app=mosemo-server -o json "*) echo '{"items": []}' ;;
+      *" get pods -l app=mosemo-server -o jsonpath="*) echo node-app ;;
+      *" get limitrange "*) echo '{"spec": {"limits": [{"default": {"cpu": "1"}}]}}' ;;
+      *" apply -f - "*) cat >/dev/null ;;
+      *" get pod step5-"*"status.phase"*) echo Succeeded ;;
+      *" get pod step5-"*" -o json "*)
+        echo '{"spec": {"nodeName": "node-loadgen"}, "status": {"containerStatuses": [{"imageID": "postgres@sha256:x"}]}}'
+        ;;
+      *" logs step5-alembic "*) echo "a3b4c5d6e7f8 (head)" ;;
+      *" logs step5-ready "*) printf 'create_extension=yes\nrds_5432=yes\napi_http=200\n' ;;
+      *" get deployment "*'"Available"'*) echo True ;;
       *"ENABLE_PREFIX_DELEGATION"*) echo true ;;
       *" daemonset ebs-csi-node -o jsonpath="*) wc -l <"$state/nodes" | tr -d ' ' ;;
       *" get pvc "*) echo Bound ;;
@@ -298,6 +315,29 @@ if ((STATUS == 0)) && [[ ! -e $lock ]] && grep -qx rehearsal "$MOSEMO_SESSION_DI
 else
   not_ok "f end --invalid removes the lock and writes window and invalid (exit $STATUS)" "$OUTPUT"
 fi
+run measurement-lock.sh start step5-tools "$end_utc"
+run measurement-lock.sh end
+if ((STATUS == 0)) && [[ ! -e $lock && ! -e $MOSEMO_SESSION_DIR/measurement/invalid ]]; then
+  ok "f a normal end after an invalid one removes the earlier invalid"
+else
+  not_ok "f a normal end after an invalid one removes the earlier invalid (exit $STATUS)" "$OUTPUT"
+fi
+# The token lasts until 30 minutes after the expected end, clamped to 1-13 hours.
+token_seconds() { sed -n 's/.*create token step5-operator --duration=\([0-9]*\)s.*/\1/p' "$FAKE_LOG" | tail -n1; }
+utc_in() { date -u -r $(($(date +%s) + $1)) +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d "+$1 seconds" +%Y-%m-%dT%H:%M:%SZ; }
+for case_ in "36000 37740 37800" "600 3600 3600" "72000 46800 46800"; do
+  read -r ahead low high <<<"$case_"
+  new_case
+  kubeconfig
+  profile measurement
+  run measurement-lock.sh start step5-tools "$(utc_in "$ahead")"
+  got=$(token_seconds)
+  if [[ -n $got ]] && ((got >= low && got <= high)); then
+    ok "f expected end in ${ahead}s requests a ${got}s token (${low}-${high}s)"
+  else
+    not_ok "f expected end in ${ahead}s requests a ${low}-${high}s token, got '${got}' (exit $STATUS)" "$OUTPUT"
+  fi
+done
 new_case
 kubeconfig
 profile measurement
@@ -386,5 +426,103 @@ done
 kafka_init abc none
 if ((STATUS != 0)) && [[ ! -s $KT_LOG ]]; then ok "h a non-numeric target fails before any kafka-topics call"; else not_ok "h a non-numeric target fails before any kafka-topics call"; fi
 
+echo "i. measurement-ready manifest"
+# Canned AWS answers for one node group (mosemo-lab-app over subnets in 2a and 2b) on INSTANCE_TYPE nodes
+# and an RDS of RDS_CLASS; ADDONS is the list-addons text ("" for none, "fail" for a denied call).
+ready_case() { # ready_case INSTANCE_TYPE RDS_CLASS ADDONS
+  new_case
+  kubeconfig
+  profile measurement
+  mkdir -p "$MOSEMO_SESSION_DIR/measurement"
+  echo '{"profile": "measurement", "plan_exit_code": 0}' >"$MOSEMO_SESSION_DIR/measurement/terraform.json"
+  python3 - "$FAKE_STATE" "$1" "$2" <<'PY_'
+import json, os, sys
+state, itype, rds_class = sys.argv[1:]
+w = lambda name, data: open(os.path.join(state, name), "w").write(data if isinstance(data, str) else json.dumps(data))
+pools = {"app": "mosemo-lab-app", "kafka": "mosemo-lab-kafka", "loadgen": "mosemo-lab-loadgen"}
+w("nodes.json", {"items": [{
+    "metadata": {"name": f"node-{pool}", "labels": {"pool": pool, "eks.amazonaws.com/nodegroup": group,
+                                                    "topology.kubernetes.io/zone": "ap-southeast-2a"}},
+    "spec": {"providerID": f"aws:///ap-southeast-2a/i-{pool}"},
+    "status": {"allocatable": {"cpu": "1930m", "memory": "7000Mi"}}} for pool, group in pools.items()]})
+w("aws.ec2.describe-instances", {"Reservations": [{"Instances": [
+    {"InstanceId": f"i-{pool}", "InstanceType": itype, "LaunchTime": "2026-11-20T09:00:00+00:00",
+     "Placement": {"AvailabilityZone": "ap-southeast-2a"}} for pool in pools]}]})
+w("aws.ec2.describe-instance-credit-specifications",
+  {"InstanceCreditSpecifications": [{"InstanceId": f"i-{pool}", "CpuCredits": "standard"} for pool in pools]})
+w("aws.ec2.describe-subnets", {"Subnets": [{"SubnetId": "subnet-a", "AvailabilityZone": "ap-southeast-2a"},
+                                          {"SubnetId": "subnet-b", "AvailabilityZone": "ap-southeast-2b"}]})
+w("aws.eks.describe-cluster", {"cluster": {"version": "1.36"}})
+w("aws.eks.describe-addon", {"addon": {"addonName": "vpc-cni", "addonVersion": "v1.20.0-eksbuild.1"}})
+w("aws.eks.list-nodegroups", "mosemo-lab-app\n")
+w("aws.eks.describe-nodegroup", {"nodegroup": {
+    "nodegroupName": "mosemo-lab-app", "instanceTypes": [itype], "amiType": "AL2023_x86_64_STANDARD",
+    "releaseVersion": "1.36.5-20261107", "subnets": ["subnet-b", "subnet-a"],
+    "scalingConfig": {"desiredSize": 1}, "taints": []}})
+w("aws.rds.describe-db-instances", {"DBInstances": [{
+    "EngineVersion": "18.3", "DBInstanceClass": rds_class, "StorageType": "gp3", "AllocatedStorage": 20,
+    "DBParameterGroups": [{"DBParameterGroupName": "default.postgres18"}], "AvailabilityZone": "ap-southeast-2a"}]})
+w("aws.cloudwatch.get-metric-data", {"MetricDataResults": []})
+PY_
+  case $3 in
+    fail)
+      echo "AccessDeniedException: not authorized to perform eks:ListAddons" >"$FAKE_STATE/aws.eks.list-addons"
+      echo 254 >"$FAKE_STATE/aws.eks.list-addons.exit"
+      ;;
+    *) printf '%s\n' "$3" >"$FAKE_STATE/aws.eks.list-addons" ;;
+  esac
+  run measurement-ready.sh a3b4c5d6e7f8
+  MANIFEST="$MOSEMO_SESSION_DIR/measurement/manifest.json"
+  REPORT="$MOSEMO_SESSION_DIR/measurement/ready.txt"
+  CREDIT_QUERIES="$MOSEMO_SESSION_DIR/measurement/ready-raw/credit-queries.json"
+}
+manifest_is() { # manifest_is PYTHON_EXPRESSION_ON_m
+  python3 -c "import json,sys; m=json.load(open(sys.argv[1])); sys.exit(0 if ($1) else 1)" "$MANIFEST" 2>/dev/null
+}
+ready_case t3.small db.t4g.micro vpc-cni
+if grep -qx 'PASS P9 EKS add-ons: vpc-cni' "$REPORT" && manifest_is 'm["eks"]["addons"] == {"vpc-cni": "v1.20.0-eksbuild.1"}'; then
+  ok "i listed add-ons pass P9 and reach eks.addons"
+else
+  not_ok "i listed add-ons pass P9 and reach eks.addons (exit $STATUS)" "$OUTPUT"
+fi
+if manifest_is 'm["nodegroups"][0]["credit"] == "standard"' && logged '^aws\|.*ec2 describe-instance-credit-specifications --instance-ids i-app i-kafka i-loadgen '; then
+  ok "i t3 node group credit is the instances' CpuCredits (standard)"
+else
+  not_ok "i t3 node group credit is the instances' CpuCredits (exit $STATUS)" "$OUTPUT"
+fi
+if manifest_is 'm["nodegroups"][0]["availability_zones"] == ["ap-southeast-2a", "ap-southeast-2b"]'; then
+  ok "i node group availability_zones come from its subnets"
+else
+  not_ok "i node group availability_zones come from its subnets (exit $STATUS)" "$OUTPUT"
+fi
+if manifest_is 'all(n["instance_type"] == "t3.small" for n in m["nodes"]) and len(m["nodes"]) == 3'; then
+  ok "i nodes[] carry instance_type"
+else
+  not_ok "i nodes[] carry instance_type (exit $STATUS)" "$OUTPUT"
+fi
+if manifest_is 'm["rds"]["credit"] == "unlimited"' && grep -q '"rds mosemo-lab"' "$CREDIT_QUERIES"; then
+  ok "i db.t* RDS: credit unlimited and P8 queries its CPUCreditBalance"
+else
+  not_ok "i db.t* RDS: credit unlimited and P8 queries its CPUCreditBalance (exit $STATUS)" "$OUTPUT"
+fi
+ready_case m7i.large db.m7g.large vpc-cni
+if manifest_is 'm["nodegroups"][0]["credit"] == "none"' && ! logged 'describe-instance-credit-specifications'; then
+  ok "i m7i node group credit is none without a credit lookup"
+else
+  not_ok "i m7i node group credit is none without a credit lookup (exit $STATUS)" "$OUTPUT"
+fi
+if manifest_is 'm["rds"]["credit"] == "none"' && ! grep -q '"rds mosemo-lab"' "$CREDIT_QUERIES" && ! grep -q 'P8 CPUCreditBalance rds' "$REPORT"; then
+  ok "i non-T RDS: credit none and no P8 RDS CPUCreditBalance"
+else
+  not_ok "i non-T RDS: credit none and no P8 RDS CPUCreditBalance (exit $STATUS)" "$OUTPUT"
+fi
+for addons in "" fail; do
+  ready_case m7i.large db.m7g.large "$addons"
+  if ((STATUS != 0)) && grep -qx 'FAIL P9 eks list-addons failed or listed no add-ons' "$REPORT" && grep -q '^RESULT FAIL' "$REPORT"; then
+    ok "i list-addons ${addons:-empty} fails P9 and the result"
+  else
+    not_ok "i list-addons ${addons:-empty} fails P9 and the result (exit $STATUS)" "$OUTPUT"
+  fi
+done
 printf '\n%s passed, %s failed\n' "$passed" "$failed"
 ((failed == 0))

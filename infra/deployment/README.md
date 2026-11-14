@@ -181,9 +181,9 @@ annotation에 복제하지 않는다. 디렉터리 전체를 일괄 apply하지 
 | 스크립트 | 하는 일 | 결과 (`$MOSEMO_SESSION_DIR/measurement/`) |
 | --- | --- | --- |
 | session-up.sh --profile measurement | apply 직후 plan exit code와 commit·dirty_files 기록, 측정 운영자 RBAC 적용 | terraform.json |
-| measurement-ready.sh EXPECTED_ALEMBIC_HEAD | P1~P9 점검(측정용 권한 매트릭스, 이미지 digest·커밋·alembic head, RDS 설정·5432, API HTTP, postgres:18.3 pull, loadgen 배치·여유, 앱 상태, 크레딧 시작값) | ready.txt, manifest.json, manifest.sha256 |
-| measurement-lock.sh start POD EXPECTED_END_UTC | 측정 Pod 생성 **전에** 실행. 잠금 기록(loadgen 노드 이름 포함), 13시간 토큰 kubeconfig 발급 | `../measurement.lock`, `../measurement.kubeconfig` |
-| measurement-lock.sh end [--invalid 사유] | 잠금 해제 | window, invalid |
+| measurement-ready.sh EXPECTED_ALEMBIC_HEAD | P1~P9 점검(측정용 권한 매트릭스, 이미지 digest·커밋·alembic head, RDS 설정·5432, API HTTP, postgres:18.3 pull, loadgen 배치·여유, 앱 상태, 크레딧 시작값, EKS 애드온 목록). 노드 그룹 크레딧은 T 계열 인스턴스의 실제 값, 그 밖은 `none` | ready.txt, manifest.json, manifest.sha256 |
+| measurement-lock.sh start POD EXPECTED_END_UTC | 측정 Pod 생성 **전에** 실행. 잠금 기록(loadgen 노드 이름 포함), 예상 끝 + 30분(1~13시간) 토큰 kubeconfig 발급 | `../measurement.lock`, `../measurement.kubeconfig` |
+| measurement-lock.sh end [--invalid 사유] | 잠금 해제. `--invalid`가 없으면 이전 invalid를 지운다 | window, invalid |
 | measurement-metrics.sh | 측정 창의 CloudWatch 지표 CSV. **session-down 전에** 실행 | metrics.csv |
 | session-audit.sh | 남은 리소스 0개, 측정 창 CloudTrail 변경 0건 | `../audit.txt` |
 | session-cost.sh YYYY-MM-DD | 다음 날 Cost Explorer 1회($0.01), 서비스 × 기록 유형, 사용·크레딧 합계 | 화면 출력 |
@@ -213,7 +213,7 @@ RBAC는 Pod 생성을 이름으로 제한할 수 없어 다른 Pod도 만들 수
 
 측정 쪽에 알릴 차이:
 
-- kubeconfig는 `$MOSEMO_SESSION_DIR/measurement.kubeconfig`(13시간 토큰, `measurement-lock.sh start`가 발급).
+- kubeconfig는 `$MOSEMO_SESSION_DIR/measurement.kubeconfig`(예상 끝 + 30분, 최소 1시간·최대 13시간 토큰, `measurement-lock.sh start`가 발급).
 - 측정 Pod에 toleration `dedicated=loadgen:NoSchedule`, nodeSelector `pool: loadgen`,
   `activeDeadlineSeconds: 43200`이 필요하다.
 - 측정 세션에는 batch가 없다. scale 대상은 `mosemo-consumer`뿐이다.
@@ -227,7 +227,7 @@ bash infra/deployment/tests/kind-check.sh   # 일회용 kind 클러스터: 매�
 ```
 
 run.sh는 호출을 기록만 하는 가짜 명령을 PATH 앞에 두고 잠금 거절(호출 0건), 측정 프로필 전달,
-batch 제외, session-down 재실행 가드, 잠금 start/end, 프로필 유지를 확인한다. AWS·클러스터 동작의 증거는 아니다.
+batch 제외, session-down 재실행 가드, 잠금 start/end(토큰 기간), 프로필 유지, measurement-ready 매니페스트(애드온·크레딧·AZ·인스턴스 타입)를 확인한다. AWS·클러스터 동작의 증거는 아니다.
 
 ## 실제 인증과 HTTPS
 

@@ -208,17 +208,27 @@ rm -f "$probe_kubeconfig"
 info "P1 measurement kubeconfig is issued by measurement-lock.sh start: $MEASUREMENT_KUBECONFIG"
 
 step "P8 CPU credit balances and P9 environment manifest"
-# aws eks describe-cluster / list-addons / describe-addon -> eks.version, eks.addons
+# aws eks describe-cluster / list-addons / describe-addon -> eks.version, eks.addons (none listed fails P9)
 awscli eks describe-cluster --name "$CLUSTER_NAME" >"$raw/cluster.json"
-for addon in $(awscli eks list-addons --cluster-name "$CLUSTER_NAME" --query 'addons[]' --output text); do
-  awscli eks describe-addon --cluster-name "$CLUSTER_NAME" --addon-name "$addon" >"$raw/addon-$addon.json"
-done
-# aws eks list-nodegroups / describe-nodegroup -> nodegroups; describe-launch-template-versions -> credit mode
+if addons=$(awscli eks list-addons --cluster-name "$CLUSTER_NAME" --query 'addons[]' --output text) &&
+  [[ -n ${addons//[[:space:]]/} && $addons != None ]]; then
+  for addon in $addons; do
+    awscli eks describe-addon --cluster-name "$CLUSTER_NAME" --addon-name "$addon" >"$raw/addon-$addon.json"
+  done
+  pass "P9 EKS add-ons: $(xargs <<<"$addons")"
+else
+  failed "P9 eks list-addons failed or listed no add-ons"
+fi
+# aws eks list-nodegroups / describe-nodegroup -> nodegroups; describe-subnets -> nodegroups[].availability_zones
 for group in $(awscli eks list-nodegroups --cluster-name "$CLUSTER_NAME" --query 'nodegroups[]' --output text); do
   awscli eks describe-nodegroup --cluster-name "$CLUSTER_NAME" --nodegroup-name "$group" >"$raw/nodegroup-$group.json"
-  read -r lt_id lt_version < <(python3 -c 'import json,sys; t=json.load(open(sys.argv[1]))["nodegroup"]["launchTemplate"]; print(t["id"], t["version"])' "$raw/nodegroup-$group.json")
-  awscli ec2 describe-launch-template-versions --launch-template-id "$lt_id" --versions "$lt_version" >"$raw/launch-template-$group.json"
 done
+subnet_ids=$(python3 -c '
+import glob, json, os, sys
+print(" ".join(sorted({s for p in glob.glob(os.path.join(sys.argv[1], "nodegroup-*.json"))
+                       for s in json.load(open(p))["nodegroup"]["subnets"]})))' "$raw")
+# shellcheck disable=SC2086 # One argument per subnet ID.
+awscli ec2 describe-subnets --subnet-ids $subnet_ids >"$raw/subnets.json"
 # kubectl get nodes (providerID) + aws ec2 describe-instances -> instance ID, AZ, launch time
 instance_ids=$(python3 -c '
 import json, sys
@@ -226,15 +236,28 @@ for n in json.load(open(sys.argv[1]))["items"]:
     print(n["spec"]["providerID"].rsplit("/", 1)[-1])' "$raw/nodes.json")
 # shellcheck disable=SC2086 # One argument per instance ID.
 awscli ec2 describe-instances --instance-ids $instance_ids >"$raw/instances.json"
+# aws ec2 describe-instance-credit-specifications -> nodegroups[].credit of burstable (T) instances.
+# The launch template does not show it: the AWS provider drops credit_specification without an instance type there.
+burstable_ids=$(python3 -c '
+import json, re, sys
+print(" ".join(i["InstanceId"] for r in json.load(open(sys.argv[1]))["Reservations"] for i in r["Instances"]
+               if re.match(r"t[0-9]", i["InstanceType"])))' "$raw/instances.json")
+if [[ -n $burstable_ids ]]; then
+  # shellcheck disable=SC2086 # One argument per instance ID.
+  awscli ec2 describe-instance-credit-specifications --instance-ids $burstable_ids >"$raw/instance-credits.json"
+else
+  echo '{"InstanceCreditSpecifications": []}' >"$raw/instance-credits.json"
+fi
 # aws rds describe-db-instances -> rds.* (engine, class, storage, parameter group, AZ)
 awscli rds describe-db-instances --db-instance-identifier "$CLUSTER_NAME" >"$raw/rds.json"
+rds_class=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["DBInstances"][0]["DBInstanceClass"])' "$raw/rds.json")
 # kubectl get limitrange -> limitrange_mosemo; kubectl get pods -l app=mosemo-server -> api_pods
 k get limitrange mosemo-container-resources -o json >"$raw/limitrange.json"
 k get pods -l app=mosemo-server -o json >"$raw/api-pods.json"
-# aws cloudwatch get-metric-data -> latest five-minute CPUCreditBalance of app/loadgen nodes and RDS (no verdict)
-python3 - "$raw/nodes.json" "$CLUSTER_NAME" >"$raw/credit-queries.json" <<'PY'
+# aws cloudwatch get-metric-data -> latest five-minute CPUCreditBalance of app/loadgen nodes and a db.t* RDS (no verdict)
+python3 - "$raw/nodes.json" "$CLUSTER_NAME" "$rds_class" >"$raw/credit-queries.json" <<'PY'
 import json, re, sys
-nodes, rds = json.load(open(sys.argv[1]))["items"], sys.argv[2]
+nodes, rds, rds_class = json.load(open(sys.argv[1]))["items"], sys.argv[2], sys.argv[3]
 queries = []
 for n in nodes:
     pool = n["metadata"]["labels"].get("pool", "")
@@ -243,9 +266,10 @@ for n in nodes:
         queries.append({"Id": re.sub(r"[^a-z0-9_]", "_", f"{pool}_{iid}".lower()), "Label": f"{pool} {iid}", "MetricStat": {
             "Metric": {"Namespace": "AWS/EC2", "MetricName": "CPUCreditBalance", "Dimensions": [{"Name": "InstanceId", "Value": iid}]},
             "Period": 300, "Stat": "Average"}})
-queries.append({"Id": "rds", "Label": f"rds {rds}", "MetricStat": {
-    "Metric": {"Namespace": "AWS/RDS", "MetricName": "CPUCreditBalance", "Dimensions": [{"Name": "DBInstanceIdentifier", "Value": rds}]},
-    "Period": 300, "Stat": "Average"}})
+if rds_class.startswith("db.t"):
+    queries.append({"Id": "rds", "Label": f"rds {rds}", "MetricStat": {
+        "Metric": {"Namespace": "AWS/RDS", "MetricName": "CPUCreditBalance", "Dimensions": [{"Name": "DBInstanceIdentifier", "Value": rds}]},
+        "Period": 300, "Stat": "Average"}})
 print(json.dumps(queries))
 PY
 awscli cloudwatch get-metric-data --metric-data-queries "file://$raw/credit-queries.json" \
@@ -259,21 +283,29 @@ for r in json.load(open(sys.argv[1]))["MetricDataResults"]:
 ' "$raw/credits.json" | while read -r line; do info "$line"; done
 
 python3 - "$raw" "$MEASUREMENT_DIR" "$AWS_REGION" "$image_uri" "$image_digest" "$image_commit" "$alembic_head" <<'PY'
-import datetime, glob, hashlib, json, os, sys
+import datetime, glob, hashlib, json, os, re, sys
 raw, out, region, uri, digest, commit, head = sys.argv[1:]
 load = lambda name: json.load(open(os.path.join(raw, name)))
+burstable = lambda instance_type: re.match(r"t[0-9]", instance_type) is not None
 nodes = load("nodes.json")["items"]
+instance_id = lambda n: n["spec"]["providerID"].rsplit("/", 1)[-1]
 instances = {i["InstanceId"]: i for r in load("instances.json")["Reservations"] for i in r["Instances"]}
+credits = {c["InstanceId"]: c["CpuCredits"] for c in load("instance-credits.json")["InstanceCreditSpecifications"]}
+subnet_zone = {s["SubnetId"]: s["AvailabilityZone"] for s in load("subnets.json")["Subnets"]}
 node_zone = {n["metadata"]["name"]: n["metadata"]["labels"].get("topology.kubernetes.io/zone", "") for n in nodes}
 db = load("rds.json")["DBInstances"][0]
 limits = load("limitrange.json")["spec"]["limits"][0]
 groups = []
 for path in sorted(glob.glob(os.path.join(raw, "nodegroup-*.json"))):
     g = json.load(open(path))["nodegroup"]
-    lt = json.load(open(path.replace("nodegroup-", "launch-template-")))["LaunchTemplateVersions"][0]["LaunchTemplateData"]
+    # The credit mode of the group's running T instances ("none" for non-burstable types).
+    members = [instance_id(n) for n in nodes if n["metadata"]["labels"].get("eks.amazonaws.com/nodegroup") == g["nodegroupName"]]
+    credit = (",".join(sorted({credits.get(i, "unknown") for i in members})) or "unknown"
+              if any(burstable(t) for t in g["instanceTypes"]) else "none")
     groups.append({"name": g["nodegroupName"], "instance_type": ",".join(g["instanceTypes"]),
                    "ami": f'{g["amiType"]} {g.get("releaseVersion", "")}'.strip(),
-                   "credit": lt.get("CreditSpecification", {}).get("CpuCredits", ""),
+                   "credit": credit,
+                   "availability_zones": sorted({subnet_zone[s] for s in g["subnets"]}),
                    "desired": g["scalingConfig"]["desiredSize"], "taints": g.get("taints", [])})
 manifest = {
     "captured_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -285,7 +317,8 @@ manifest = {
                        for p in sorted(glob.glob(os.path.join(raw, "addon-*.json")))}},
     "nodegroups": groups,
     "nodes": [{"name": n["metadata"]["name"], "pool": n["metadata"]["labels"].get("pool", ""),
-               "instance_id": (iid := n["spec"]["providerID"].rsplit("/", 1)[-1]),
+               "instance_id": (iid := instance_id(n)),
+               "instance_type": instances[iid]["InstanceType"],
                "availability_zone": instances[iid]["Placement"]["AvailabilityZone"],
                "launch_time": instances[iid]["LaunchTime"]} for n in nodes],
     "api_pods": [{"name": p["metadata"]["name"], "node": p["spec"].get("nodeName", ""),
@@ -294,8 +327,8 @@ manifest = {
     "rds": {"engine_version": db["EngineVersion"], "class": db["DBInstanceClass"],
             "storage": f'{db["StorageType"]} {db["AllocatedStorage"]}GB',
             "parameter_group": db["DBParameterGroups"][0]["DBParameterGroupName"],
-            # AWS fixes T4g DB instance classes to Unlimited; there is no API field to read.
-            "credit": "unlimited",
+            # RDS runs db.t* classes in Unlimited mode and has no API field for it; other classes have no credits.
+            "credit": "unlimited" if db["DBInstanceClass"].startswith("db.t") else "none",
             "availability_zone": db["AvailabilityZone"]},
     "app_image": {"uri": uri, "digest": digest, "commit": commit, "alembic_head": head},
     "limitrange_mosemo": {"default": limits.get("default", {}), "default_request": limits.get("defaultRequest", {}),
