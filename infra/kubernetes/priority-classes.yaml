@@ -1,0 +1,25 @@
+# Scheduling order on the shared app nodes: API > consumer > batch.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: mosemo-api
+value: 30000
+globalDefault: false
+description: Synchronous, latency-sensitive Mosemo API.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: mosemo-consumer
+value: 20000
+globalDefault: false
+description: Mosemo Kafka consumers, plus the migration and kafka-init Jobs.
+---
+# Used by the batch-deployment.yaml scheduler (label proposals).
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: mosemo-batch
+value: 10000
+globalDefault: false
+description: Mosemo batch work, preempted first.

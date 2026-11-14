@@ -1,0 +1,58 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CreateClusterAddons",
+      "Effect": "Allow",
+      "Action": ["eks:CreateAddon"],
+      "Resource": ["arn:aws:eks:ap-southeast-2:${account_id}:cluster/mosemo-lab"],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:RequestTag/Project": "mosemo",
+          "aws:RequestTag/Environment": "lab",
+          "aws:RequestTag/ManagedBy": "terraform"
+        }
+      }
+    },
+    {
+      "Sid": "ListClusterAddons",
+      "Effect": "Allow",
+      "Action": ["eks:ListAddons"],
+      "Resource": ["arn:aws:eks:ap-southeast-2:${account_id}:cluster/mosemo-lab"],
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-southeast-2"}}
+    },
+    {
+      "Sid": "ManageNamedAddons",
+      "Effect": "Allow",
+      "Action": ["eks:DescribeAddon", "eks:UpdateAddon", "eks:DeleteAddon", "eks:TagResource", "eks:UntagResource", "eks:ListTagsForResource"],
+      "Resource": [
+        "arn:aws:eks:ap-southeast-2:${account_id}:addon/mosemo-lab/aws-ebs-csi-driver/*",
+        "arn:aws:eks:ap-southeast-2:${account_id}:addon/mosemo-lab/eks-pod-identity-agent/*",
+        "arn:aws:eks:ap-southeast-2:${account_id}:addon/mosemo-lab/vpc-cni/*"
+      ],
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-southeast-2"}}
+    },
+    {
+      "Sid": "CreateStoragePodIdentity",
+      "Effect": "Allow",
+      "Action": ["eks:CreatePodIdentityAssociation"],
+      "Resource": ["arn:aws:eks:ap-southeast-2:${account_id}:cluster/mosemo-lab"],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:RequestTag/Project": "mosemo",
+          "aws:RequestTag/Environment": "lab",
+          "aws:RequestTag/ManagedBy": "terraform"
+        }
+      }
+    },
+    {
+      "Sid": "ManageStoragePodIdentity",
+      "Effect": "Allow",
+      "Action": ["eks:DescribePodIdentityAssociation", "eks:UpdatePodIdentityAssociation", "eks:DeletePodIdentityAssociation", "eks:TagResource", "eks:UntagResource", "eks:ListTagsForResource"],
+      "Resource": ["arn:aws:eks:ap-southeast-2:${account_id}:podidentityassociation/mosemo-lab/*"],
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-southeast-2"}}
+    }
+  ]
+}

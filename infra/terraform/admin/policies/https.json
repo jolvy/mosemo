@@ -1,0 +1,74 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "RequestApiCertificate",
+      "Effect": "Allow",
+      "Action": [
+        "acm:RequestCertificate"
+      ],
+      "Resource": [
+        "*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:RequestTag/Project": "mosemo",
+          "aws:RequestTag/Environment": "lab",
+          "aws:RequestTag/ManagedBy": "terraform",
+          "aws:RequestTag/Name": "mosemo-api.danuh.com",
+          "acm:ValidationMethod": "DNS",
+          "acm:Export": "DISABLED",
+          "acm:KeyAlgorithm": "RSA_2048"
+        },
+        "ForAllValues:StringEquals": {
+          "acm:DomainNames": [
+            "mosemo-api.danuh.com"
+          ]
+        },
+        "Null": {
+          "acm:DomainNames": "false",
+          "acm:CertificateAuthority": "true"
+        }
+      }
+    },
+    {
+      "Sid": "ReadSydneyCertificates",
+      "Effect": "Allow",
+      "Action": [
+        "acm:DescribeCertificate",
+        "acm:ListTagsForCertificate"
+      ],
+      "Resource": [
+        "arn:aws:acm:ap-southeast-2:${account_id}:certificate/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2"
+        }
+      }
+    },
+    {
+      "Sid": "ManageTaggedApiCertificate",
+      "Effect": "Allow",
+      "Action": [
+        "acm:DeleteCertificate",
+        "acm:AddTagsToCertificate",
+        "acm:RemoveTagsFromCertificate",
+        "acm:UpdateCertificateOptions"
+      ],
+      "Resource": [
+        "arn:aws:acm:ap-southeast-2:${account_id}:certificate/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:ResourceTag/Project": "mosemo",
+          "aws:ResourceTag/Environment": "lab",
+          "aws:ResourceTag/ManagedBy": "terraform",
+          "aws:ResourceTag/Name": "mosemo-api.danuh.com"
+        }
+      }
+    }
+  ]
+}

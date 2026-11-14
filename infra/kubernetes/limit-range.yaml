@@ -1,0 +1,18 @@
+# Every container gets requests/limits even when a manifest omits them.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: mosemo-container-resources
+  namespace: mosemo
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      default:
+        cpu: "1"
+        memory: 512Mi
+      max:
+        cpu: "1"
+        memory: 768Mi

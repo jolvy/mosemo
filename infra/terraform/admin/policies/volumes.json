@@ -1,0 +1,38 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadVolumesForSessionCleanup",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVolumes"
+      ],
+      "Resource": [
+        "*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2"
+        }
+      }
+    },
+    {
+      "Sid": "DeleteRetainedKafkaVolumes",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DeleteVolume"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:volume/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:ResourceTag/ebs.csi.aws.com/cluster": "true",
+          "aws:ResourceTag/kubernetes.io/created-for/pvc/namespace": "mosemo",
+          "aws:ResourceTag/kubernetes.io/created-for/pvc/name": "data-mosemo-kafka-0"
+        }
+      }
+    }
+  ]
+}

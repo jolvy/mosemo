@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosemo-config
+  namespace: mosemo
+data:
+  MOSEMO_ENV: prod
+  DB_HOST: REPLACE_WITH_RDS_ENDPOINT
+  DB_PORT: '5432'
+  DB_DATABASE: mosemo
+  DB_USER: mosemo
+  KAKAO_REDIRECT_URI: https://mosemo-api.danuh.com/api/v1/auth/kakao/callback
+  AUTH_MACOS_CALLBACK_URI: io.mosemo.app:/auth/callback
+  AUTH_JWT_ISSUER: mosemo
+  AUTH_JWT_AUDIENCE: mosemo-api
+  AUTH_ACCESS_TOKEN_TTL_SECONDS: '86400'
+  AUTH_AUTHORIZATION_CODE_TTL_SECONDS: '60'
+  PGSSLMODE: verify-full
+  PGSSLROOTCERT: /etc/rds-ca/bundle.pem
+  BATCH_ENABLED: 'true'
+  BATCH_BOOTSTRAP_SERVERS: mosemo-kafka.mosemo.svc.cluster.local:9092
+  BATCH_TOPIC: activities.registration-requested
+  BATCH_GROUP_ID: mosemo.activity-batches
+  LABEL_MODEL: google:gemini-3.1-flash-lite

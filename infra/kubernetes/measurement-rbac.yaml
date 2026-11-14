@@ -1,0 +1,47 @@
+# Step 5 measurement operator (measurement profile only). measurement-lock.sh start issues a 13-hour
+# token for this ServiceAccount into $SESSION_DIR/measurement.kubeconfig. RBAC cannot restrict pod
+# creation by name, so the operator can create other Pods in mosemo; it cannot touch anything else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: step5-operator
+  namespace: mosemo
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: step5-operator
+  namespace: mosemo
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [create, delete, get, list, watch]
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list]
+  # Restore runs scale only the consumer to 0 and back; batch is absent in the measurement profile.
+  - apiGroups: [apps]
+    resources: [deployments/scale]
+    resourceNames: [mosemo-consumer]
+    verbs: [get, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: step5-operator
+  namespace: mosemo
+subjects:
+  - kind: ServiceAccount
+    name: step5-operator
+    namespace: mosemo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: step5-operator

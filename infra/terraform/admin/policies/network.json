@@ -1,0 +1,271 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadNetworkAndNodeMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeAccountAttributes",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeVpcAttribute",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeInternetGateways",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSecurityGroupRules",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeNetworkAcls",
+        "ec2:DescribeTags",
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeDhcpOptions",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceCreditSpecifications",
+        "ec2:DescribeInstanceTypes",
+        "ec2:DescribeImages",
+        "ec2:DescribeLaunchTemplates",
+        "ec2:DescribeLaunchTemplateVersions"
+      ],
+      "Resource": [
+        "*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2"
+        }
+      }
+    },
+    {
+      "Sid": "CreateTaggedVpc",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateVpc"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:vpc/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:RequestTag/Project": "mosemo",
+          "aws:RequestTag/Environment": "lab",
+          "aws:RequestTag/ManagedBy": "terraform"
+        }
+      }
+    },
+    {
+      "Sid": "CreateTaggedVpcChildren",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateSubnet",
+        "ec2:CreateRouteTable",
+        "ec2:CreateInternetGateway",
+        "ec2:CreateSecurityGroup"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:subnet/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:route-table/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:internet-gateway/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:RequestTag/Project": "mosemo",
+          "aws:RequestTag/Environment": "lab",
+          "aws:RequestTag/ManagedBy": "terraform"
+        }
+      }
+    },
+    {
+      "Sid": "UseOwnedVpcForNetworkCreation",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateSubnet",
+        "ec2:CreateRouteTable",
+        "ec2:CreateSecurityGroup"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:vpc/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:ResourceTag/Project": "mosemo",
+          "aws:ResourceTag/Environment": "lab",
+          "aws:ResourceTag/ManagedBy": "terraform"
+        }
+      }
+    },
+    {
+      "Sid": "ManageOwnedNetworkResources",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DeleteVpc",
+        "ec2:DeleteSubnet",
+        "ec2:DeleteRouteTable",
+        "ec2:DeleteInternetGateway",
+        "ec2:DeleteSecurityGroup",
+        "ec2:ModifyVpcAttribute",
+        "ec2:ModifySubnetAttribute",
+        "ec2:AttachInternetGateway",
+        "ec2:DetachInternetGateway",
+        "ec2:CreateRoute",
+        "ec2:ReplaceRoute",
+        "ec2:DeleteRoute",
+        "ec2:AssociateRouteTable",
+        "ec2:ReplaceRouteTableAssociation",
+        "ec2:DisassociateRouteTable",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:ModifySecurityGroupRules"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:vpc/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:subnet/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:route-table/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:internet-gateway/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group-rule/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:ResourceTag/Project": "mosemo",
+          "aws:ResourceTag/Environment": "lab",
+          "aws:ResourceTag/ManagedBy": "terraform"
+        }
+      }
+    },
+    {
+      "Sid": "CreateTaggedSecurityGroupRules",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group-rule/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:RequestTag/Project": "mosemo",
+          "aws:RequestTag/Environment": "lab",
+          "aws:RequestTag/ManagedBy": "terraform"
+        }
+      }
+    },
+    {
+      "Sid": "ManageEksClusterSecurityGroup",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:ModifySecurityGroupRules"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:ResourceTag/aws:eks:cluster-name": "mosemo-lab"
+        }
+      }
+    },
+    {
+      "Sid": "TagNetworkResourcesDuringCreation",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateTags"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:vpc/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:subnet/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:route-table/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:internet-gateway/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group-rule/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "ec2:CreateAction": [
+            "CreateVpc",
+            "CreateSubnet",
+            "CreateRouteTable",
+            "CreateInternetGateway",
+            "CreateSecurityGroup",
+            "AuthorizeSecurityGroupIngress",
+            "AuthorizeSecurityGroupEgress"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "UpdateTagsOnOwnedNetworkResources",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateTags"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:vpc/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:subnet/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:route-table/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:internet-gateway/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group-rule/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:ResourceTag/Project": "mosemo",
+          "aws:ResourceTag/Environment": "lab",
+          "aws:ResourceTag/ManagedBy": "terraform"
+        },
+        "StringEqualsIfExists": {
+          "aws:RequestTag/Project": "mosemo",
+          "aws:RequestTag/Environment": "lab",
+          "aws:RequestTag/ManagedBy": "terraform"
+        }
+      }
+    },
+    {
+      "Sid": "RemoveNonOwnershipNetworkTags",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DeleteTags"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-southeast-2:${account_id}:vpc/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:subnet/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:route-table/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:internet-gateway/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group/*",
+        "arn:aws:ec2:ap-southeast-2:${account_id}:security-group-rule/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-southeast-2",
+          "aws:ResourceTag/Project": "mosemo",
+          "aws:ResourceTag/Environment": "lab",
+          "aws:ResourceTag/ManagedBy": "terraform"
+        },
+        "ForAllValues:StringNotEqualsIgnoreCase": {
+          "aws:TagKeys": [
+            "Project",
+            "Environment",
+            "ManagedBy"
+          ]
+        },
+        "Null": {
+          "aws:TagKeys": "false"
+        }
+      }
+    }
+  ]
+}

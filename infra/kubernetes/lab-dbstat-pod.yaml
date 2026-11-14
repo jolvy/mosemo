@@ -1,0 +1,82 @@
+# Measurement-only DB statistics sampler, created and deleted by infra/deployment/measurement-observe.sh.
+# Prints one pg_stat_database CSV row every 30 seconds; the script saves the log as observe/pg-stat-database.csv.
+# Runs on the kafka node so it never takes CPU from the app nodes being measured.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lab-dbstat
+  namespace: mosemo
+  labels:
+    app: lab-dbstat
+spec:
+  restartPolicy: Never
+  activeDeadlineSeconds: 50400 # 14 hours: outlives a 12-hour measurement, never a forgotten session
+  automountServiceAccountToken: false
+  nodeSelector:
+    pool: kafka
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: kafka
+      effect: NoSchedule
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: dbstat
+      image: postgres:18.3
+      command:
+        - bash
+        - -c
+        - |
+          while true; do
+            psql -XAt -F, -c "SELECT now(), xact_commit, xact_rollback, numbackends, tup_inserted, tup_updated, blks_hit, blks_read FROM pg_stat_database WHERE datname = current_database()"
+            sleep 30
+          done
+      env:
+        - name: HOME
+          value: /tmp
+        - name: PGHOST
+          valueFrom:
+            configMapKeyRef: {name: mosemo-config, key: DB_HOST}
+        - name: PGPORT
+          valueFrom:
+            configMapKeyRef: {name: mosemo-config, key: DB_PORT}
+        - name: PGDATABASE
+          valueFrom:
+            configMapKeyRef: {name: mosemo-config, key: DB_DATABASE}
+        - name: PGUSER
+          valueFrom:
+            configMapKeyRef: {name: mosemo-config, key: DB_USER}
+        - name: PGSSLMODE
+          valueFrom:
+            configMapKeyRef: {name: mosemo-config, key: PGSSLMODE}
+        - name: PGSSLROOTCERT
+          valueFrom:
+            configMapKeyRef: {name: mosemo-config, key: PGSSLROOTCERT}
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef: {name: mosemo-secrets, key: DB_PASSWORD}
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      volumeMounts:
+        - name: rds-ca
+          mountPath: /etc/rds-ca
+          readOnly: true
+  volumes:
+    - name: rds-ca
+      configMap:
+        name: mosemo-rds-ca
