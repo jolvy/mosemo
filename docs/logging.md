@@ -10,7 +10,10 @@ responsible only for selecting the approved fields and serializing them.
 Every event includes `timestamp`, `service`, `environment`, `logger`, `level`,
 and `event`. The optional fields are `error_code`, `duration_ms`, `request_id`,
 `operation`, `outcome`, `attempt`, `retryable`, `status_code`, `method`, `route`,
-and `request_url`. Do not put user activity URLs, window or activity
+`request_url`, `work_seconds_gap`, and `dropped_zero_pauses`. The first
+completion of a focus session logs `work_seconds_gap` (whole seconds of the
+session minus its pauses, minus the reported work; negative when the work is
+larger) and `dropped_zero_pauses` (zero-length pauses dropped from the request). Do not put user activity URLs, window or activity
 titles, account or device identifiers, tokens, cookies, authorization data, or
 request and response bodies in log messages or fields. Uvicorn access logging is
 disabled because its raw request target can contain authentication values in URL

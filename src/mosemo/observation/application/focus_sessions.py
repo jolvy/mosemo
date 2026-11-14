@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from datetime import date, datetime
+import logging
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from mosemo.observation.domain.activities import (
 )
 from mosemo.observation.domain.focus_sessions import (
     FocusSession,
+    FocusSessionCompletion,
     FocusSessionConflictError,
     FocusSessionNotFoundError,
 )
@@ -25,17 +26,11 @@ from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.application.use_case import UseCase
 from mosemo.shared.domain.timezones import timeline_date_window
 
+logger = logging.getLogger(__name__)
+
 
 class FocusSessionLabelNotAvailableError(Exception):
     pass
-
-
-@dataclass(frozen=True, slots=True)
-class FocusSessionCompletion:
-    ended_at: datetime
-    work_seconds: int
-    label_id: UUID
-    description: str
 
 
 class FocusSessionLinks:
@@ -130,7 +125,9 @@ class CompleteFocusSession(UseCase):
 
         Raises `FocusSessionNotFoundError`, `FocusSessionLabelNotAvailableError`,
         and the session's `FocusSessionConflictError`/`FocusSessionInvalidTimeError`.
+        The first completion logs the work gap and the dropped zero-length pauses.
         """
+        first_completion = False
         async with unit_of_work(db_session, self._dispatcher):
             stored = await self._focus_sessions.find_owned(
                 db_session, account_id=account_id, focus_session_id=focus_session_id
@@ -144,12 +141,18 @@ class CompleteFocusSession(UseCase):
             last_observed_at = await self._activity_records.find_last_observed_at(
                 db_session, focus_session_id
             )
-            stored.complete(
-                ended_at=completion.ended_at,
-                work_seconds=completion.work_seconds,
-                label_id=completion.label_id,
-                description=completion.description,
-                last_observed_at=last_observed_at,
+            first_completion = stored.ended_at is None
+            stored.complete(completion, last_observed_at=last_observed_at)
+        if first_completion:
+            logger.info(
+                "focus session completed",
+                extra={
+                    "operation": "focus_session_complete",
+                    "work_seconds_gap": stored.work_seconds_gap(),
+                    # Normalization drops only zero-length pauses.
+                    "dropped_zero_pauses": len(completion.pauses or ())
+                    - len(stored.pauses),
+                },
             )
         return stored
 

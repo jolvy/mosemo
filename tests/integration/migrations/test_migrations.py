@@ -21,6 +21,7 @@ IDENTITY_KEY_REVISION = "d0e1f2a3b4c5"
 LABEL_KEY_REVISION = "e1f2a3b4c5d6"
 OBSERVATION_KEY_REVISION = "f2a3b4c5d6e7"
 LABELING_KEY_REVISION = "a3b4c5d6e7f8"
+FOCUS_PAUSE_REVISION = "b4c5d6e7f8a9"
 # Drift that already existed at c9d0e1f2a3b4; any other difference fails.
 ALLOWED_METADATA_DRIFT = [
     ("modify_type", "activity_records", "timezone_id"),
@@ -251,7 +252,7 @@ def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == [LABELING_KEY_REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == [FOCUS_PAUSE_REVISION]
     # The assertions below describe the schema up to the batch receipts revision.
     command.downgrade(config, RECEIPT_REVISION)
     account_id = uuid4()
@@ -647,7 +648,11 @@ def test_observation_primary_key_migration_renames_columns_and_keeps_foreign_key
     assert after["segment_pk"] == ["id"]
     # The one foreign key to a renamed primary key still points at it.
     assert before["referred"] == [("activity_records", "focus_sessions", "session_id")]
-    assert after["referred"] == [("activity_records", "focus_sessions", "id")]
+    # Head also has the pause table added later, which refers to the renamed key.
+    assert after["referred"] == [
+        ("activity_records", "focus_sessions", "id"),
+        ("focus_session_pauses", "focus_sessions", "id"),
+    ]
 
 
 async def labeling_key_columns(database_url: str) -> dict[str, Any]:
@@ -697,6 +702,137 @@ def test_labeling_primary_key_migration_renames_columns(
     }
     # No foreign key refers to either primary key.
     assert before["referred"] == after["referred"] == []
+
+
+async def insert_completed_focus_session(database_url: str) -> UUID:
+    account_id, device_id, label_id, session_id = uuid4(), uuid4(), uuid4(), uuid4()
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as connection:
+            for statement in (
+                (
+                    "INSERT INTO accounts (id, provider, provider_subject) "
+                    "VALUES (:account_id, 'KAKAO', :subject)"
+                ),
+                (
+                    "INSERT INTO devices (id, account_id, idempotency_key) "
+                    "VALUES (:device_id, :account_id, :device_id)"
+                ),
+                (
+                    "INSERT INTO labels (id, account_id, display_name) "
+                    "VALUES (:label_id, :account_id, 'migration')"
+                ),
+                (
+                    "INSERT INTO focus_sessions (id, account_id, device_id, "
+                    "started_at, ended_at, target_seconds, work_seconds, label_id) "
+                    "VALUES (:session_id, :account_id, :device_id, "
+                    "'2026-11-01T00:00:00Z', '2026-11-01T00:20:00Z', 0, 1200, "
+                    ":label_id)"
+                ),
+            ):
+                await connection.execute(
+                    text(statement),
+                    {
+                        "account_id": account_id,
+                        "device_id": device_id,
+                        "label_id": label_id,
+                        "session_id": session_id,
+                        "subject": f"migration-{account_id}",
+                    },
+                )
+    finally:
+        await engine.dispose()
+    return account_id
+
+
+async def focus_pause_schema(database_url: str, account_id: UUID) -> dict[str, Any]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            schema = await connection.run_sync(_inspect_focus_pauses)
+            schema["reported"] = (
+                await connection.execute(
+                    text(
+                        "SELECT pauses_reported FROM focus_sessions "
+                        "WHERE account_id = :account_id"
+                    ),
+                    {"account_id": account_id},
+                )
+            ).scalar_one()
+            return schema
+    finally:
+        await engine.dispose()
+
+
+def _inspect_focus_pauses(connection: Any) -> dict[str, Any]:
+    inspector = inspect(connection)
+    if "focus_session_pauses" not in inspector.get_table_names():
+        columns = {column["name"] for column in inspector.get_columns("focus_sessions")}
+        return {"table": False, "reported_column": "pauses_reported" in columns}
+    return {
+        "table": True,
+        "pk": inspector.get_pk_constraint("focus_session_pauses")[
+            "constrained_columns"
+        ],
+        "fks": [
+            (fk["referred_table"], fk["options"].get("ondelete"))
+            for fk in inspector.get_foreign_keys("focus_session_pauses")
+        ],
+        "checks": sorted(
+            check["name"]
+            for check in inspector.get_check_constraints("focus_session_pauses")
+        ),
+        "session_checks": {
+            check["name"]: check["sqltext"]
+            for check in inspector.get_check_constraints("focus_sessions")
+        },
+    }
+
+
+def test_focus_pause_migration_marks_existing_sessions_without_pause_info(
+    integration_database_url: str,
+) -> None:
+    config = alembic_config(integration_database_url)
+    command.downgrade(config, LABELING_KEY_REVISION)
+    account_id = asyncio.run(insert_completed_focus_session(integration_database_url))
+    try:
+        command.upgrade(config, FOCUS_PAUSE_REVISION)
+        upgraded = asyncio.run(focus_pause_schema(integration_database_url, account_id))
+        command.downgrade(config, LABELING_KEY_REVISION)
+        downgraded = asyncio.run(_no_pause_schema(integration_database_url))
+    finally:
+        command.upgrade(config, "head")
+        asyncio.run(delete_accounts_by_id(integration_database_url, account_id))
+
+    assert upgraded["reported"] is False
+    assert upgraded["pk"] == ["focus_session_id", "started_at"]
+    assert upgraded["fks"] == [("focus_sessions", "CASCADE")]
+    assert upgraded["checks"] == ["focus_session_pauses_time_order_check"]
+    checks = upgraded["session_checks"]
+    assert "pauses_reported" in checks["focus_sessions_pauses_after_completion_check"]
+    assert "+ 2" in checks["focus_sessions_work_within_duration_check"]
+    assert downgraded == {"table": False, "reported_column": False}
+
+
+async def _no_pause_schema(database_url: str) -> dict[str, Any]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            return await connection.run_sync(_inspect_focus_pauses)
+    finally:
+        await engine.dispose()
+
+
+async def delete_accounts_by_id(database_url: str, account_id: UUID) -> None:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text("DELETE FROM accounts WHERE id = :account_id"),
+                {"account_id": account_id},
+            )
+    finally:
+        await engine.dispose()
 
 
 def _drift_key(operation: tuple[Any, ...]) -> tuple[str, ...]:

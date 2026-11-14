@@ -4,6 +4,7 @@ from mosemo.observation.application.timeline import (
     ObservationTimeline,
     ObservedSegment,
 )
+from mosemo.observation.domain.events import FocusSessionCompleted
 from mosemo.observation.domain.timeline import (
     ActivityTimelineBusyError,
     ActivityTimelineKind,
@@ -27,6 +28,7 @@ __all__ = [
     "CapturedString",
     "CapturedWindow",
     "DetailedActivityContext",
+    "FocusSessionCompleted",
     "ObservationErrorCode",
     "ObservationTimeline",
     "ObservedSegment",
