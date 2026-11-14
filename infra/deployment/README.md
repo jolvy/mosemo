@@ -185,7 +185,9 @@ API·consumer는 각 4 replica로 app 노드마다 1개씩 둔다(deploy.sh가 �
 | session-up.sh --profile measurement | apply 직후 plan exit code와 commit·dirty_files 기록, 측정 운영자 RBAC 적용 | terraform.json |
 | measurement-ready.sh EXPECTED_ALEMBIC_HEAD | P1~P9 점검(측정용 권한 매트릭스, 이미지 digest·커밋·alembic head, RDS 설정·5432, API HTTP, postgres:18.3 pull, loadgen 배치·여유, 앱 상태, 크레딧 시작값, EKS 애드온 목록). 노드 그룹 크레딧은 T 계열 인스턴스의 실제 값, 그 밖은 `none` | ready.txt, manifest.json, manifest.sha256 |
 | measurement-lock.sh start POD EXPECTED_END_UTC | 측정 Pod 생성 **전에** 실행. 잠금 기록(loadgen 노드 이름 포함), 예상 끝 + 30분(1~13시간) 토큰 kubeconfig 발급 | `../measurement.lock`, `../measurement.kubeconfig` |
+| measurement-observe.sh start | 잠금 start 뒤. kafka 노드에 lab-dbstat Pod(30초마다 pg_stat_database), 백그라운드 샘플러(30초마다 API·consumer Pod별 cgroup cpu.stat·memory.current). 잠금이 없으면 거절. 샘플러는 잠금이 사라지면 스스로 멈춘다 | observe/cpu-stat.csv, observe/sampler.pid, observe/observe.log |
 | measurement-lock.sh end [--invalid 사유] | 잠금 해제. `--invalid`가 없으면 이전 invalid를 지운다 | window, invalid |
+| measurement-observe.sh stop | 잠금 end 뒤(window가 없거나 잠금이 있으면 거절). 샘플러 종료, lab-dbstat 로그 저장 후 Pod 삭제, 측정 창 RDS 1분 지표(DatabaseConnections 평균·최대, CPUUtilization, Read/WriteIOPS, DiskQueueDepth, WriteLatency, FreeableMemory) | observe/pg-stat-database.csv, observe/rds-extra.csv |
 | measurement-metrics.sh | 측정 창의 CloudWatch 지표 CSV. **session-down 전에** 실행 | metrics.csv |
 | session-audit.sh | 남은 리소스 0개, 측정 창 CloudTrail 변경 0건 | `../audit.txt` |
 | session-cost.sh YYYY-MM-DD | 다음 날 Cost Explorer 1회($0.01), 서비스 × 기록 유형, 사용·크레딧 합계 | 화면 출력 |
@@ -198,20 +200,22 @@ RBAC는 Pod 생성을 이름으로 제한할 수 없어 다른 Pod도 만들 수
 리허설(첫 기동, 사용자 허락 후):
 
 1. `session-up.sh --profile measurement` → `deploy.sh` → `measurement-ready.sh <alembic head>`
-2. `measurement-lock.sh start step5-tools <UTC 끝>`
+2. `measurement-lock.sh start step5-tools <UTC 끝>` → `measurement-observe.sh start`
 3. 측정 쪽 점검 약 15분: `measurement.kubeconfig`로 step5-tools Pod 생성 → `kubectl cp` 소형 덤프 →
    RDS `pg_restore --clean` → API HTTP 1회 → Pod 삭제
-4. `measurement-lock.sh end --invalid "rehearsal"` → `measurement-metrics.sh` → `session-down.sh` → `session-audit.sh`
+4. `measurement-lock.sh end --invalid "rehearsal"` → `measurement-observe.sh stop` → `measurement-metrics.sh` →
+   `session-down.sh` → `session-audit.sh`
 
 측정:
 
 1. `session-up.sh --profile measurement` → `deploy.sh` → `measurement-ready.sh <alembic head>`
    (ready.txt·manifest.json·manifest.sha256을 측정 쪽에 전달)
-2. `measurement-lock.sh start step5-tools <UTC 끝>` → 측정 → 측정 쪽 "측정 끝" 신호 → `measurement-lock.sh end`
-3. `measurement-metrics.sh` → `session-down.sh` → `session-audit.sh` → 다음 날 `session-cost.sh <측정일>`
+2. `measurement-lock.sh start step5-tools <UTC 끝>` → `measurement-observe.sh start` → 측정 →
+   측정 쪽 "측정 끝" 신호 → `measurement-lock.sh end`
+3. `measurement-observe.sh stop` → `measurement-metrics.sh` → `session-down.sh` → `session-audit.sh` → 다음 날 `session-cost.sh <측정일>`
 
 12시간을 넘겨도 "측정 끝" 신호가 없으면: 측정 Pod 삭제 → `measurement-lock.sh end --invalid "<사유>"` →
-사용자에게 알린다. 랩 내리기(session-down)는 사용자 지시가 있을 때만 한다.
+`measurement-observe.sh stop` → 사용자에게 알린다. 랩 내리기(session-down)는 사용자 지시가 있을 때만 한다.
 
 측정 쪽에 알릴 차이:
 
@@ -225,6 +229,7 @@ RBAC는 Pod 생성을 이름으로 제한할 수 없어 다른 Pod도 만들 수
 
 ```sh
 bash infra/deployment/tests/run.sh         # 가짜 aws·kubectl·terraform·docker(·git·curl·dig)로 스크립트 분기 검증
+bash infra/deployment/tests/observe.sh      # 가짜 kubectl·aws로 measurement-observe.sh 거절 조건과 start/stop 결과 검증
 bash infra/deployment/tests/kind-check.sh   # 일회용 kind 클러스터: 매니페스트(측정 프로필 렌더 포함) server dry-run, 측정 RBAC 매트릭스
 ```
 
