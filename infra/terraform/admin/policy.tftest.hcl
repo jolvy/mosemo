@@ -432,3 +432,26 @@ run "session_observability_permission_contract" {
     error_message = "Cost Explorer is served from us-east-1 and must not carry the Sydney region condition."
   }
 }
+
+run "measurement_manifest_read_contract" {
+  command = plan
+
+  assert {
+    condition = length([
+      for statement in jsondecode(aws_iam_policy.infrastructure["addons"].policy).Statement : statement
+      if statement.Action == ["eks:ListAddons"] &&
+      statement.Resource == ["arn:aws:eks:ap-southeast-2:123456789012:cluster/mosemo-lab"] &&
+      try(statement.Condition.StringEquals["aws:RequestedRegion"] == "ap-southeast-2", false)
+    ]) == 1
+    error_message = "measurement-ready.sh must be able to list add-ons of the lab cluster only."
+  }
+
+  assert {
+    condition = length([
+      for statement in jsondecode(aws_iam_policy.infrastructure["network"].policy).Statement : statement
+      if contains(statement.Action, "ec2:DescribeInstanceCreditSpecifications") &&
+      try(statement.Condition.StringEquals["aws:RequestedRegion"] == "ap-southeast-2", false)
+    ]) == 1
+    error_message = "measurement-ready.sh must be able to read the credit mode of burstable node instances in Sydney."
+  }
+}

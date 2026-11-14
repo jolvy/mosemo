@@ -16,6 +16,13 @@
       }
     },
     {
+      "Sid": "ListClusterAddons",
+      "Effect": "Allow",
+      "Action": ["eks:ListAddons"],
+      "Resource": ["arn:aws:eks:ap-southeast-2:${account_id}:cluster/mosemo-lab"],
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-southeast-2"}}
+    },
+    {
       "Sid": "ManageNamedAddons",
       "Effect": "Allow",
       "Action": ["eks:DescribeAddon", "eks:UpdateAddon", "eks:DeleteAddon", "eks:TagResource", "eks:UntagResource", "eks:ListTagsForResource"],
