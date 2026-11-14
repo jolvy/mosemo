@@ -150,7 +150,7 @@ P7_B2 = timeline(
 )
 P7_SILENCE_AT_MIDNIGHT = timeline(
     activity("s1", -10, -5, app("A")),
-    activity("s2", 5, 10, app("B"), last=8),
+    activity("s2", 5, None, app("B"), last=8),
 )
 
 CASES: dict[str, dict] = {
