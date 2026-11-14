@@ -1,0 +1,242 @@
+"""#268 입력 형식의 무작위 입력 생성기(4단계 B·C용, 저장소 코드 아님).
+
+gen(rnd) → (data, days, session_ids). seed를 고정한 random.Random을 넘긴다.
+경계 시각(자정, 세션 시작·끝, 일시중지 시작·끝)을 먼저 정하고, 구간 끝을 그 시각에 정확히 맞추는
+"맞춤"을 자주 해서 경계에 놓인 구간·0초 구간을 많이 만든다.
+
+python3 gen.py [N] [SEED] : 분포를 측정해 출력한다.
+"""
+
+from __future__ import annotations
+
+import random
+import sys
+import unicodedata
+from collections import Counter
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+S = timedelta(seconds=1)
+M = timedelta(minutes=1)
+
+# (시간대, 기준 날짜). NY 2026-03-08은 23시간, 2026-11-01은 25시간.
+TZ_DAYS = [("Asia/Seoul", date(2026, 11, 4)), ("UTC", date(2026, 11, 4)),
+           ("America/New_York", date(2026, 11, 4)), ("America/New_York", date(2026, 3, 8)),
+           ("America/New_York", date(2026, 11, 1))]
+TZ_W = [4, 2, 2, 1, 1]
+
+APPS = ["com.a.editor", "com.b.term", "com.tinyspeck.slackmacgap", "com.kakao.KakaoTalkMac"]
+BROWSERS = ["com.google.Chrome", "com.apple.Safari"]  # 생성 때 Firefox도 더한다(D9)
+URLS = {  # 분류 → URL. D7(IP·localhost·점 없는 호스트·공개 접미사 자체·비 http)·정규화(대소문자·끝 점)·IDN
+    "site": ["https://m.youtube.com/watch?v=1", "https://www.youtube.com/", "https://github.com/x",
+             "https://gist.github.com/y", "https://foo.github.io/", "https://a.b.co.kr/"],
+    "ip": ["http://192.168.0.1:8080/", "http://[::1]:3000/"],
+    "localhost": ["http://localhost:8000/docs", "http://intranet/wiki"],
+    "public_suffix": ["https://github.io/", "https://co.kr/"],
+    "non_http": ["chrome://settings", "about:blank", "file:///Users/a.pdf"],
+    "case_dot": ["https://WWW.YouTube.COM./x", "https://GitHub.com./"],
+    "idn": ["https://예시.한국/", "https://xn--9n2bp8q.xn--3e0b707e/",
+            # D12(2026-11-13): 표기만 다른 같은 호스트(NFD, 전각, 끝 점 둘)
+            "https://" + unicodedata.normalize("NFD", "예시.한국") + "/", "https://ｇｉｔｈｕｂ.com/", "https://github.com../"],
+    # D9(2026-11-13): Firefox처럼 scheme 없이 온 URL. 비웹 scheme이 아니면 https://를 붙여 해석한다
+    "scheme_less": ["meet.google.com/x", "github.com/explore", "localhost:8000/docs", "192.168.0.1:8080/",
+                    "about:blank", "mailto:a@b.com", "About:blank", "example.com/?r=https://a.com",
+                    "javascript:void(0)", "data:text/html,hi"],
+}
+URL_KINDS = list(URLS)
+LABELS = ["L-coding", "L-leisure", "L-chat"]
+WILD_DURS = [0, 0, 1, 5, 59, 60, 61, 300, 600, 1800, 3600, 7200]
+
+
+def iso(t: datetime) -> str:
+    return t.isoformat(timespec="microseconds")
+
+
+def local_midnight(tz: ZoneInfo, d: date) -> datetime:
+    return datetime(d.year, d.month, d.day, tzinfo=tz).astimezone(UTC)
+
+
+def gen(rnd: random.Random, stats: Counter | None = None):
+    st = stats if stats is not None else Counter()
+    tzname, d = rnd.choices(TZ_DAYS, TZ_W)[0]
+    tz = ZoneInfo(tzname)
+    mid0 = local_midnight(tz, d)
+    mid1 = local_midnight(tz, d + timedelta(days=1))
+    t0 = mid0 - rnd.choice([0, 1, 59, 600, 3600, 3 * 3600]) * S
+    if rnd.random() < .3:  # 시각이 밀리초·마이크로초 단위
+        t0 += timedelta(microseconds=rnd.choice([1, 123000, 999999]))
+    # 다음 자정에 닿는 입력도 만든다
+    if rnd.random() < .25:
+        t0 = mid1 - rnd.choice([0, 1, 600, 3600]) * S
+
+    # ---- 세션(경계 시각을 먼저 정한다) ----
+    sessions, points = [], [mid0, mid1]
+    for k in range(rnd.choice([0, 1, 1, 2])):
+        ss = t0 + rnd.choice([0, 60, 600, 1800, 3600, 7200]) * S + k * 4 * 3600 * S
+        se = ss + rnd.choice([60, 600, 1800, 3600, 5400]) * S
+        mode = rnd.random()
+        if mode < .25:
+            pauses = None
+        elif mode < .45:
+            pauses = []
+        else:
+            pauses, cur = [], ss
+            for _ in range(rnd.choice([1, 1, 2, 3])):
+                p0 = cur + rnd.choice([0, 0, 60, 300, 600]) * S
+                p1 = p0 + rnd.choice([1, 60, 300, 600]) * S
+                if p1 > se or p0 >= se:
+                    break
+                pauses.append((p0, p1))
+                cur = p1
+            if rnd.random() < .2 and pauses and pauses[-1][1] < se:  # 일시중지로 끝나는 세션
+                pauses[-1] = (pauses[-1][0], se)
+        sessions.append({"id": f"f{k + 1}", "started_at": iso(ss), "ended_at": iso(se),
+                         "label_id": rnd.choice(["L-coding", "L-coding", "L-leisure"]),
+                         "pauses": None if pauses is None else [[iso(a), iso(b)] for a, b in pauses]})
+        points += [ss, se] + [x for p in (pauses or []) for x in p]
+        st["sess"] += 1
+        st["sess.pauses=null" if pauses is None else ("sess.pauses=[]" if not pauses else "sess.pauses>=1")] += 1
+        if pauses and pauses[0][0] == ss:
+            st["sess.pause_at_start"] += 1
+        if pauses and pauses[-1][1] == se:
+            st["sess.pause_at_end"] += 1
+    points = sorted(set(points))
+    mids = {mid0, mid1}
+    sess_pts = {p for x in sessions for p in (datetime.fromisoformat(x["started_at"]),
+                                              datetime.fromisoformat(x["ended_at"]))}
+    pause_pts = {datetime.fromisoformat(v) for x in sessions for p in (x["pauses"] or []) for v in p}
+
+    # ---- 구간 ----
+    segs, confs = [], []
+    t = t0
+    n = rnd.randint(1, 40)
+    for i in range(n):
+        nxt = [p for p in points if p >= t]
+        if nxt and rnd.random() < .35:  # 다음 경계 시각에 끝을 맞춘다(0초도 생긴다)
+            p = nxt[0] if rnd.random() < .7 else rnd.choice(nxt)
+            dur = p - t
+            st["snap"] += 1
+        else:
+            dur = rnd.choice(WILD_DURS) * S
+        end = t + dur
+        sid, eid = f"s{i}", f"e{i}"
+        k = rnd.random()
+        last = i == n - 1
+        if k < .07:
+            st["seg.gap"] += 1
+            open_ = last and rnd.random() < .4
+            st["seg.gap_open"] += open_
+            segs.append({"id": sid, "segment_type": "capture_gap", "started_at": iso(t),
+                         "ended_at": None if open_ else iso(end), "first_event_id": eid})
+            t = end
+            continue
+        version = rnd.choice(["v1", "v1", "v2"])
+        if k < .13:
+            ctx = {"kind": "opaque"}
+            st["seg.opaque"] += 1
+        else:
+            ctx = context(rnd, st)
+        seg = {"id": sid, "segment_type": "activity", "started_at": iso(t), "ended_at": iso(end),
+               "last_observed_at": iso(end), "first_event_id": eid, "version": version, "context": ctx}
+        if last and rnd.random() < .3:  # 열린 구간
+            seg["ended_at"] = None
+            st["seg.open"] += 1
+        segs.append(seg)
+        st["seg.activity"] += 1
+        st["seg.zero"] += dur == timedelta(0)
+        # 확정
+        c = rnd.random()
+        if c < .7:
+            label = None if rnd.random() < .12 else rnd.choice(LABELS)
+            sv = version if rnd.random() < .88 else ("v0" if version != "v0" else "v1")
+            confs.append({"first_event_id": eid, "segment_version": sv, "label_id": label})
+            st["conf"] += 1
+            st["conf.unclassified"] += label is None
+            st["conf.stale"] += sv != version
+            st["conf.on_opaque"] += ctx["kind"] == "opaque"
+        t = end
+        if not last and rnd.random() < .12:  # 60초 초과 침묵: 다음 구간은 늦게 시작
+            t = end + rnd.choice([61, 120, 900]) * S
+            st["silence"] += 1
+    # 경계 맞춤 측정(구간 시작·끝이 경계 시각과 정확히 같은 입력 수)
+    bounds = set()
+    for s in segs:
+        bounds.add(datetime.fromisoformat(s["started_at"]))
+        if s.get("ended_at"):
+            bounds.add(datetime.fromisoformat(s["ended_at"]))
+    st["in.midnight_aligned"] += bool(bounds & mids)
+    st["in.session_aligned"] += bool(bounds & sess_pts)
+    st["in.pause_aligned"] += bool(bounds & pause_pts)
+    zero_at = {datetime.fromisoformat(s["started_at"]) for s in segs
+               if s.get("ended_at") == s["started_at"] and s["segment_type"] == "activity"}
+    st["in.zero_at_midnight"] += bool(zero_at & mids)
+    st["in.zero_at_session_or_pause"] += bool(zero_at & (sess_pts | pause_pts))
+    st["in"] += 1
+
+    data = {"timezone": tzname, "segments": segs, "confirmations": confs, "sessions": sessions}
+    days = covered_days(data)
+    return data, days, [x["id"] for x in sessions]
+
+
+def context(rnd, st) -> dict:
+    r = rnd.random()
+    if r < .08:  # 앱 미확인
+        st["seg.unknown_app"] += 1
+        return {"kind": "detailed",
+                "app": {"name": {"status": "unavailable"}, "bundleId": {"status": rnd.choice(["absent", "unavailable"])}},
+                "window": {"status": "unavailable"}, "web": {"kind": "not_applicable"}}
+    title = rnd.choice(["t1", "t2"])
+    win = {"status": "captured", "title": {"status": "captured", "value": title}}
+    if r < .45:
+        bid = rnd.choice(BROWSERS + ["org.mozilla.firefox"])
+        st["seg.browser"] += 1
+        if rnd.random() < .2:
+            st["url.not_captured"] += 1
+            url = {"status": rnd.choice(["redacted", "unavailable"])}
+        else:
+            kind = rnd.choices(URL_KINDS, [6, 1, 1, 1, 1, 1, 1, 1])[0]
+            st["url." + kind] += 1
+            url = {"status": "captured", "value": rnd.choice(URLS[kind])}
+        web = {"kind": "browser", "url": url}
+    else:
+        bid = rnd.choice(APPS + BROWSERS[:1])  # 브라우저 bundleId인데 web.kind가 not_applicable(Q3)
+        st["seg.app"] += 1
+        web = {"kind": "not_applicable"}
+    return {"kind": "detailed",
+            "app": {"name": {"status": "captured", "value": bid.split(".")[-1]},
+                    "bundleId": {"status": "captured", "value": bid}},
+            "window": win, "web": web}
+
+
+def covered_days(data: dict) -> list[str]:
+    """구간·세션이 걸친 계정 시간대 날짜(앞뒤 하루 포함)."""
+    tz = ZoneInfo(data["timezone"])
+    ts = []
+    for s in data["segments"]:
+        ts.append(datetime.fromisoformat(s["started_at"]))
+        e = s.get("ended_at") or s.get("last_observed_at")
+        if e:
+            ts.append(datetime.fromisoformat(e))
+    if not ts:
+        return []
+    d0 = min(ts).astimezone(tz).date() - timedelta(days=1)
+    d1 = max(ts).astimezone(tz).date() + timedelta(days=1)
+    out = []
+    while d0 <= d1:
+        out.append(d0.isoformat())
+        d0 += timedelta(days=1)
+    return out
+
+
+if __name__ == "__main__":
+    n = int(sys.argv[1]) if len(sys.argv) > 1 else 20000
+    seed = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+    rnd, st = random.Random(seed), Counter()
+    nsegs = []
+    for _ in range(n):
+        data, _, _ = gen(rnd, st)
+        nsegs.append(len(data["segments"]))
+    print(f"입력 {n}개, seed {seed}, 구간 수 합 {sum(nsegs)} (입력당 평균 {sum(nsegs) / n:.1f}, 최소 {min(nsegs)}, 최대 {max(nsegs)})")
+    for k in sorted(st):
+        base = st["in"] if k.startswith("in.") else (st["sess"] if k.startswith("sess.") else sum(nsegs))
+        print(f"  {k:32s} {st[k]:8d}  ({st[k] / base:6.1%} of {'입력' if k.startswith('in.') else ('세션' if k.startswith('sess.') else '구간')})")

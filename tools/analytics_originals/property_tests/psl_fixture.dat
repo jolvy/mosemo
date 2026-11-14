@@ -1,0 +1,14 @@
+// 시험용 최소 공개 접미사 목록. 규칙은 https://publicsuffix.org/list/public_suffix_list.dat 에서 옮겼다.
+// ===BEGIN ICANN DOMAINS===
+com
+org
+io
+kr
+co.kr
+*.ck
+!www.ck
+한국
+// ===END ICANN DOMAINS===
+// ===BEGIN PRIVATE DOMAINS===
+github.io
+// ===END PRIVATE DOMAINS===

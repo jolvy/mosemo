@@ -1,0 +1,155 @@
+"""사이트(eTLD+1) 계산: 공개 접미사 목록(PSL) 알고리즘을 표준 라이브러리로 구현한다(산출물, 저장소 코드 아님).
+
+알고리즘은 https://publicsuffix.org/list/ 의 「Algorithm」을 따른다(예외 규칙 우선, 그다음 가장 긴 규칙,
+없으면 `*`). ICANN·PRIVATE 절을 모두 쓴다(브라우저와 같다). 국제화 도메인은 라벨마다 IDNA(표준
+라이브러리 `idna` 코덱, IDNA 2003)로 ASCII로 바꿔 비교하고 결과도 ASCII로 낸다.
+
+FR-2(2026-11-12 결정): `http`·`https`가 아니거나 호스트가 없는 URL은 사이트가 없다(브라우저 앱).
+D9(2026-11-13 결정): `://`가 없는 URL은 비웹 scheme(`about:`)이 아니면 `https://`를 붙여 해석한다.
+`http`·`https`인데 eTLD+1을 정할 수 없는 호스트(IP 주소, 점 없는 호스트, 공개 접미사 자체 등)는 호스트
+그대로(포트 제외)가 사이트다. PSL이 없으면 근사하지 않고 SiteUndetermined를 낸다.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import re
+from pathlib import Path
+from urllib.parse import urlsplit
+
+
+class SiteUndetermined(Exception):
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
+_rules: dict[tuple[str, ...], bool] | None = None  # 오른쪽부터의 라벨 → 예외 규칙 여부
+
+
+def _ascii(label: str) -> str:
+    if label == "*":
+        return label
+    try:
+        return label.encode("idna").decode("ascii").lower()
+    except UnicodeError as e:
+        raise SiteUndetermined("idna") from e
+
+
+def parse(text: str) -> dict[tuple[str, ...], bool]:
+    rules = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("//"):
+            continue
+        rule = line.split()[0]
+        exc = rule.startswith("!")
+        labels = rule.lstrip("!").split(".")
+        rules[tuple(_ascii(x) for x in reversed(labels))] = exc
+    return rules
+
+
+def load(path: Path | str | None) -> None:
+    global _rules
+    _rules = None if path is None else parse(Path(path).read_text(encoding="utf-8"))
+
+
+def _matches(rule: tuple[str, ...], rev: list[str]) -> bool:
+    return len(rule) <= len(rev) and all(r in ("*", h) for r, h in zip(rule, rev))
+
+
+def site_of_host(host: str, *, idna: bool = True) -> str:
+    """eTLD+1. idna=False면 레이블을 변환하지 않고 그대로 규칙(ASCII)과 비교한다(IDNA 변환이 실패한 키, D12)."""
+    if _rules is None:
+        raise SiteUndetermined("no_psl")
+    host = host.rstrip(".").lower()
+    if not host:
+        raise SiteUndetermined("no_host")
+    try:
+        ipaddress.ip_address(host)
+        raise SiteUndetermined("ip_address")
+    except ValueError:
+        pass
+    labels = [_ascii(x) for x in host.split(".")] if idna else host.split(".")
+    if len(labels) < 2 or any(not x for x in labels):
+        raise SiteUndetermined("single_label" if len(labels) < 2 else "empty_label")
+    rev = labels[::-1]
+    hits = [r for r in _rules if _matches(r, rev)]
+    exc = [r for r in hits if _rules[r]]
+    if exc:
+        n = len(max(exc, key=len)) - 1
+    else:
+        n = max((len(r) for r in hits), default=1)
+    if len(rev) <= n:
+        raise SiteUndetermined("public_suffix")
+    return ".".join(reversed(rev[: n + 1]))
+
+
+WEB_SCHEMES = {"http", "https"}
+
+
+# re.ASCII: RFC 3986 scheme은 ASCII ALPHA다. 없으면 IGNORECASE가 ſ(U+017F)·K(U+212A)도 s·k로 맞춘다(STEP4-A2).
+SCHEME_SLASHES = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE | re.ASCII)
+NON_WEB_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:(?![0-9])", re.IGNORECASE | re.ASCII)
+# IDNA 2003(RFC 3490 §3.1)이 레이블 구분자로 읽는 점. D12 「끝의 점은 모두 지운다」의 점(STEP4-A2).
+IDNA_DOTS = "." + "\u3002\uff0e\uff61"
+
+
+def host_key(host: str) -> str:
+    """D12 호스트 키: 끝 점(IDNA 점)을 지우고 호스트 전체를 IDNA 2003 ASCII 소문자로, 변환 뒤 끝 점도 지운다.
+    변환이 실패하면 소문자로 바꾸고 끝 점을 지운 호스트 그대로다(STEP4-A2: 레이블을 ASCII 점으로 먼저
+    나누지 않는다. `a。b.com`은 레이블 셋이다)."""
+    h = host.rstrip(IDNA_DOTS)
+    try:
+        return h.encode("idna").decode("ascii").lower().rstrip(".")
+    except UnicodeError:
+        return h.lower()
+
+
+def analysis_url(url: str) -> str | None:
+    """FR-2·D9(2026-11-13): 분석에서 해석할 URL. None이면 비웹(브라우저 앱).
+
+    scheme 바로 뒤에 `://`가 있으면 그대로(D7). 없으면 `^[a-z][a-z0-9+.-]*:` 뒤 첫 글자가 숫자가 아닐 때
+    (`about:blank`, `javascript:`, `data:`) 비웹이고, 그 밖(`meet.google.com/x`, `localhost:8000/docs`,
+    `example.com/?r=https://a.com`)은 `https://`를 붙인다. scheme은 대소문자를 가리지 않는다(RFC 3986).
+    원본 URL은 바꾸지 않는다.
+    """
+    if SCHEME_SLASHES.match(url):
+        return url
+    if NON_WEB_SCHEME.match(url):
+        return None
+    return "https://" + url
+
+
+def site_of_url(url: str | None) -> str | None:
+    """FR-2 사이트. None이면 브라우저 앱(URL 없음, 비웹, `http`·`https` 아님, 호스트 없음, 해석 불가).
+
+    `http`·`https`이고 eTLD+1을 정할 수 없으면 호스트 그대로. PSL이 없으면 SiteUndetermined.
+    IDNA 변환이 실패한 호스트도 그 키(소문자, 끝 점 제거)의 레이블 그대로 PSL을 적용한다(D12, STEP4-A2 쟁점 1 Y).
+    """
+    if not url:
+        return None
+    if _rules is None:
+        raise SiteUndetermined("no_psl")
+    url = analysis_url(url)
+    if url is None:
+        return None
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+    except ValueError:
+        return None
+    if parts.scheme not in WEB_SCHEMES or not host:
+        return None
+    host = host_key(host)
+    if not host:
+        return None
+    try:
+        return site_of_host(host)
+    except SiteUndetermined as e:
+        if e.reason != "idna":
+            return host
+    try:
+        return site_of_host(host, idna=False)
+    except SiteUndetermined:
+        return host
