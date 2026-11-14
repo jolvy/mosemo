@@ -87,6 +87,7 @@ api/openapi.py                    public_openapi()가 모든 BC의 ERROR_DOCS를
   | `LabelErrorCode` | `LABEL_` |
   | `ObservationErrorCode` | `ACTIVITY_`, `FOCUS_SESSION_` |
   | `LabelingErrorCode` | `LABELING_` |
+  | `AnalyticsErrorCode` | `ANALYTICS_` |
 - labeling의 오류 4개 이름을 바꾼다.
 
   | 현재 | 변경 |

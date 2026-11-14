@@ -65,6 +65,14 @@ class Segment:
         return web_host(url["value"])
 
     @property
+    def is_browser_app(self) -> bool:
+        """사용 대상이 브라우저 앱인 구간(`web.kind = browser`이고 URL로 사이트를 정하지 못함)."""
+        web = (self.context or {}).get("web", {})
+        return (
+            self.app is not None and web.get("kind") == "browser" and self.host is None
+        )
+
+    @property
     def is_unknown_app(self) -> bool:
         return self.is_activity and not self.is_opaque and self.app is None
 
@@ -131,7 +139,11 @@ def parse(data: Mapping[str, Any]) -> Timeline:
             item["first_event_id"]: (item["segment_version"], item["label_id"])
             for item in data.get("confirmations", [])
         },
-        sessions={item["id"]: parse_session(item) for item in data.get("sessions", [])},
+        sessions={
+            item["id"]: parse_session(item)
+            for item in data.get("sessions", [])
+            if item.get("ended_at") is not None  # 진행 중 세션은 분석하지 않는다.
+        },
     )
 
 
