@@ -21,7 +21,7 @@ resource "aws_db_instance" "main" {
   identifier             = local.name
   engine                 = "postgres"
   engine_version         = "18.3"
-  instance_class         = "db.t4g.micro"
+  instance_class         = "db.m7g.large"
   allocated_storage      = 20
   storage_type           = "gp3"
   storage_encrypted      = true
@@ -34,6 +34,8 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [aws_security_group.database.id]
   multi_az               = false
   publicly_accessible    = false
+  # Lab: apply class changes right before a measurement; production keeps false (maintenance window).
+  apply_immediately = true
   # Single-AZ in 2a with Kafka and the loadgen node, so measured DB round trips never cross AZs.
   availability_zone = aws_subnet.private["a"].availability_zone
 
