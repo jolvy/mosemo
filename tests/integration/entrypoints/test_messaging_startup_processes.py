@@ -32,40 +32,43 @@ def process_environment(bootstrap_port):
 @pytest.mark.parametrize("entrypoint", ["api", "consumer"])
 @pytest.mark.parametrize("scenario", ["unavailable", "failure", "cancel"])
 def test_startup_error_or_task_cancellation_exits_real_entrypoint(entrypoint, scenario):
-    # Reserve a loopback port without listening, so actual Kafka connection fails.
+    # Pick a free loopback port and release it before starting the process, so the
+    # actual Kafka connection is refused at once. Connecting to a bound but
+    # unlistened port can time out instead (macOS), leaving the client retrying.
     with socket.socket() as unavailable:
         unavailable.bind(("127.0.0.1", 0))
-        environment = process_environment(unavailable.getsockname()[1])
-        if scenario == "unavailable":
-            command = (
-                [
-                    "uvicorn",
-                    "mosemo.entrypoints.api.main:app",
-                    "--host",
-                    "127.0.0.1",
-                    "--port",
-                    "0",
-                    "--lifespan",
-                    "on",
-                ]
-                if entrypoint == "api"
-                else ["mosemo.entrypoints.consumer"]
-            )
-        else:
-            command = [
-                "tests.support.processes.messaging_startup",
-                entrypoint,
-                scenario,
+        bootstrap_port = unavailable.getsockname()[1]
+    environment = process_environment(bootstrap_port)
+    if scenario == "unavailable":
+        command = (
+            [
+                "uvicorn",
+                "mosemo.entrypoints.api.main:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "0",
+                "--lifespan",
+                "on",
             ]
-        result = subprocess.run(
-            [sys.executable, "-m", *command],
-            cwd=ROOT,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=15,
-            check=False,
+            if entrypoint == "api"
+            else ["mosemo.entrypoints.consumer"]
         )
+    else:
+        command = [
+            "tests.support.processes.messaging_startup",
+            entrypoint,
+            scenario,
+        ]
+    result = subprocess.run(
+        [sys.executable, "-m", *command],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
     assert result.returncode > 0, result.stdout + result.stderr
     assert "Application startup complete" not in result.stderr
     if scenario != "unavailable":
