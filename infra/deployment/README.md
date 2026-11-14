@@ -17,7 +17,7 @@ Terraform state·plan, 로컬 handoff·Secret은 이미지에 복사하지 않�
 | Batch jobs (label proposals) | batch-deployment.yaml | python -m mosemo.entrypoints.batch serve |
 | Migration | migration-job.yaml | alembic upgrade head |
 | Lab Kafka | kafka.yaml | StatefulSet 1개, cp-kafka 7.8.0, KRaft broker/controller |
-| Topic 초기화 | kafka-init-job.yaml | 2 partitions, replication factor 1 |
+| Topic 초기화 | kafka-init-job.yaml | 4 partitions(기존 토픽이 더 적으면 4로 늘림, 줄이지 않음), replication factor 1 |
 
 API·consumer·batch·migration은 **같은 새 이미지 digest**를 사용한다. 기존 삭제한 ECR
 이미지의 digest는 재사용할 수 없다. batch는 label proposal 작업을 시작 시와 5분마다 실행하는
@@ -34,7 +34,7 @@ consumer의 30초 drain보다 길게 두었다. API probes는 /openapi.json만 �
 
 ## 노드 배치와 자원
 
-노드는 t3.small 2대가 기본이다. Kafka 전용 그룹 1대(ap-southeast-2a, taint `dedicated=kafka:NoSchedule`)와
+노드는 t3.small 2대가 기본이다(측정 프로필은 아래 [5단계 측정 세션](#5단계-측정-세션)). Kafka 전용 그룹 1대(ap-southeast-2a, taint `dedicated=kafka:NoSchedule`)와
 API·consumer·batch·migration·시스템 add-on이 함께 쓰는 app 그룹 1~2대(2a·2b)다. Kafka StatefulSet만
 `pool: kafka` nodeSelector와 toleration을 가진다. API·consumer는 각각 224Mi를 요청하고 limit 512Mi,
 batch는 160Mi 요청(로컬 유휴 실측 118MiB)·limit 512Mi, Kafka는 512Mi 요청·768Mi limit, heap max 256Mi, log cleaner dedupe buffer 32Mi다.
@@ -170,8 +170,9 @@ annotation에 복제하지 않는다. 디렉터리 전체를 일괄 apply하지 
 
 ## 5단계 측정 세션
 
-측정 프로필(`session-up.sh --profile measurement`)은 loadgen 노드 그룹(t3.small 1대, 2a, taint
-`dedicated=loadgen:NoSchedule`, label `pool=loadgen`)을 더하고 batch를 뺀다. 프로필은 tfvars가 아니라
+측정 프로필(`session-up.sh --profile measurement`)은 loadgen 노드 그룹(1대, 2a, taint
+`dedicated=loadgen:NoSchedule`, label `pool=loadgen`)을 더하고 batch를 뺀다. 모든 노드는 크레딧 없는
+`m7i.large`이고 2a에 있으며, app 그룹은 4대 고정(kafka·loadgen 각 1대)이다. 프로필은 tfvars가 아니라
 세션 디렉터리의 `profile` 기록으로 정해지며 `tf()`가 모든 terraform 호출에 `TF_VAR_measurement`를 붙인다.
 플래그 없이 다시 실행하면 기록을 따른다. state가 남아 있는데 다른 프로필을 요청하면 실패한다.
 측정 프로필로 새로 시작할 때 이전 `measurement/`는 `measurement.<UTC>/`로 옮긴다.
@@ -215,8 +216,7 @@ RBAC는 Pod 생성을 이름으로 제한할 수 없어 다른 Pod도 만들 수
 - 측정 Pod에 toleration `dedicated=loadgen:NoSchedule`, nodeSelector `pool: loadgen`,
   `activeDeadlineSeconds: 43200`이 필요하다.
 - 측정 세션에는 batch가 없다. scale 대상은 `mosemo-consumer`뿐이다.
-- 크레딧 지표(CPUCreditBalance 등)는 AWS 고정 5분 해상도다. EC2 CPUUtilization과 RDS 지표는 1분.
-- loadgen 노드는 T3 standard라 launch credit 없이 크레딧 0에서 시작한다.
+- 노드는 m7i.large(버스트 없음)라 EC2 CPU 크레딧 지표는 없다. EC2 CPUUtilization과 RDS 지표는 1분 해상도다.
 
 ## 오프라인 검증
 

@@ -36,7 +36,15 @@ spec:
             - |
               kafka-topics --bootstrap-server "$BATCH_BOOTSTRAP_SERVERS" \
                 --create --if-not-exists --topic "$BATCH_TOPIC" \
-                --partitions 2 --replication-factor 1
+                --partitions 4 --replication-factor 1
+              # An existing topic with fewer partitions is grown to 4; partitions are never reduced.
+              partitions=$(kafka-topics --bootstrap-server "$BATCH_BOOTSTRAP_SERVERS" \
+                --describe --topic "$BATCH_TOPIC" | sed -n 's/.*PartitionCount: *\([0-9][0-9]*\).*/\1/p' | head -n1)
+              [ -n "$partitions" ] || { echo "cannot read the partition count of $BATCH_TOPIC" >&2; exit 1; }
+              if [ "$partitions" -lt 4 ]; then
+                kafka-topics --bootstrap-server "$BATCH_BOOTSTRAP_SERVERS" \
+                  --alter --topic "$BATCH_TOPIC" --partitions 4
+              fi
               kafka-topics --bootstrap-server "$BATCH_BOOTSTRAP_SERVERS" \
                 --describe --topic "$BATCH_TOPIC"
           securityContext:

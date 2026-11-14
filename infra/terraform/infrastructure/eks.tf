@@ -40,15 +40,26 @@ resource "aws_eks_addon" "vpc_cni" {
   })
 }
 
+locals {
+  # The measurement profile uses a non-burst family so a later same-spec re-measurement (after step 7)
+  # does not depend on CPU credits; all of its nodes run in 2a.
+  node_instance_type = var.measurement ? "m7i.large" : "t3.small"
+  burstable_nodes    = startswith(local.node_instance_type, "t3.")
+}
+
 # No AMI: EKS keeps merging its bootstrap user data and calculating max-pods.
 resource "aws_launch_template" "node" {
   name                   = "${local.name}-node"
-  description            = "Mosemo EKS managed nodes: standard T3 credits, IMDSv2 hop limit 1, encrypted 20 GiB gp3 root volume, detailed monitoring."
+  description            = "Mosemo EKS managed nodes: ${local.burstable_nodes ? "standard T3 credits, " : ""}IMDSv2 hop limit 1, encrypted 20 GiB gp3 root volume, detailed monitoring."
   update_default_version = true
 
-  # Never bill surplus credits; a throttled node is preferred over spending account credits.
-  credit_specification {
-    cpu_credits = "standard"
+  # T3 only: never bill surplus credits; a throttled node is preferred over spending account credits.
+  dynamic "credit_specification" {
+    for_each = local.burstable_nodes ? [1] : []
+
+    content {
+      cpu_credits = "standard"
+    }
   }
 
   # IMDSv2 only, unreachable from Pod network namespaces; host-network agents keep access.
@@ -86,10 +97,11 @@ locals {
       taints      = [{ key = "dedicated", value = "kafka", effect = "NO_SCHEDULE" }]
     }
     # Shared by API, consumer, migration, and system add-ons; the only ALB target.
+    # Measurement: four fixed nodes in 2a; normal sessions: one to two nodes across 2a and 2b.
     app = {
-      subnet_keys = ["a", "b"]
-      min_size    = 1
-      max_size    = 2
+      subnet_keys = var.measurement ? ["a"] : ["a", "b"]
+      min_size    = var.measurement ? 4 : 1
+      max_size    = var.measurement ? 4 : 2
       taints      = []
     }
   }
@@ -115,7 +127,7 @@ resource "aws_eks_node_group" "main" {
   version         = aws_eks_cluster.main.version
   ami_type        = "AL2023_x86_64_STANDARD"
   capacity_type   = "ON_DEMAND"
-  instance_types  = ["t3.small"]
+  instance_types  = [local.node_instance_type]
   labels          = { pool = each.key }
 
   launch_template {

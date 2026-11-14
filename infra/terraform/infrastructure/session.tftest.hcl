@@ -225,6 +225,15 @@ run "session_stack_contract" {
     condition     = toset(keys(aws_eks_node_group.main)) == toset(["kafka", "app"])
     error_message = "A normal session must not create the loadgen node group."
   }
+
+  assert {
+    condition = (
+      alltrue([for group in aws_eks_node_group.main : length(group.instance_types) == 1 && contains(group.instance_types, "t3.small")]) &&
+      length(aws_launch_template.node.credit_specification) == 1 &&
+      aws_launch_template.node.credit_specification[0].cpu_credits == "standard"
+    )
+    error_message = "A normal session keeps t3.small nodes with standard credits."
+  }
 }
 
 run "measurement_profile_adds_isolated_loadgen" {
@@ -259,9 +268,25 @@ run "measurement_profile_adds_isolated_loadgen" {
   assert {
     condition = (
       aws_autoscaling_attachment.api.autoscaling_group_name == "eks-mosemo-lab-app-mock" &&
-      aws_eks_node_group.main["app"].scaling_config[0].desired_size == 1
+      aws_eks_node_group.main["app"].scaling_config[0].min_size == 4 &&
+      aws_eks_node_group.main["app"].scaling_config[0].desired_size == 4 &&
+      aws_eks_node_group.main["app"].scaling_config[0].max_size == 4 &&
+      aws_eks_node_group.main["app"].subnet_ids == toset([aws_subnet.public["a"].id])
     )
-    error_message = "The measurement profile must leave the app group and its ALB attachment unchanged."
+    error_message = "The measurement profile must run four fixed app nodes in 2a, still the only ALB target."
+  }
+
+  assert {
+    condition = alltrue([
+      for group in aws_eks_node_group.main :
+      length(group.instance_types) == 1 && contains(group.instance_types, "m7i.large") && group.subnet_ids == toset([aws_subnet.public["a"].id])
+    ])
+    error_message = "Every measurement node must be a non-burst m7i.large in 2a."
+  }
+
+  assert {
+    condition     = length(aws_launch_template.node.credit_specification) == 0 && !strcontains(aws_launch_template.node.description, "credits")
+    error_message = "A non-burst node family must not carry a CPU credit specification."
   }
 }
 

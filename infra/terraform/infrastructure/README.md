@@ -11,16 +11,17 @@
   private subnet 10.20.16.0/20·10.20.32.0/20, AZ a·b.
 - public subnet은 Internet Gateway, private subnet은 VPC 내부 경로만 사용한다.
   NAT Gateway·VPC Endpoint는 없다.
-- EKS 1.36, AL2023 amd64. 관리형 노드 그룹 2개(측정 프로필은 3개), 모두 On-Demand `t3.small`:
+- EKS 1.36, AL2023 amd64. 관리형 노드 그룹 2개(측정 프로필은 3개), 모두 On-Demand. 일반 세션은 `t3.small`,
+  측정 프로필은 크레딧 없는 `m7i.large`(7단계 뒤 같은 사양 재측정용)이고 모든 노드가 2a에 있다:
 
   | 그룹 | 크기 (min/desired/max) | subnet | label·taint | 용도 |
   | --- | --- | --- | --- | --- |
   | mosemo-lab-kafka | 1/1/1 | public-a | `pool=kafka`, `dedicated=kafka:NoSchedule` | Kafka StatefulSet (EBS가 2a에 고정) |
-  | mosemo-lab-app | 1/1/2 | public-a·b | `pool=app` | API·consumer·batch·migration·시스템 add-on, ALB target |
+  | mosemo-lab-app | 1/1/2 (측정 4/4/4) | public-a·b (측정 public-a) | `pool=app` | API·consumer·batch·migration·시스템 add-on, ALB target |
   | mosemo-lab-loadgen | 1/1/1 | public-a | `pool=loadgen`, `dedicated=loadgen:NoSchedule` | 측정 프로필(`measurement = true`)만. 5단계 측정 Pod |
 
   모든 그룹은 공유 launch template `mosemo-lab-node`를 쓴다. AMI·user data·instance type은 지정하지
-  않고 `cpu_credits=standard`, IMDSv2 강제(hop limit 1, Pod 네트워크에서 노드 자격증명 차단),
+  않고 `cpu_credits=standard`(t3일 때만), IMDSv2 강제(hop limit 1, Pod 네트워크에서 노드 자격증명 차단),
   암호화(aws/ebs) 20GiB gp3 root volume, detailed monitoring(EC2 지표 1분, 크레딧 지표는 AWS 고정 5분)만
   설정한다. EKS가 bootstrap user data와 max-pods를 계속 계산한다. loadgen을 더해도 ALB target은
   app 그룹 ASG 그대로다.
