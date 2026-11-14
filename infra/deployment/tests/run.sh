@@ -142,6 +142,13 @@ run() { # run SCRIPT ARGS... ; sets STATUS and OUTPUT
   set -e
 }
 logged() { grep -E "$1" "$FAKE_LOG" >/dev/null; }
+# The rendered kafka-init Job is the one applied, and only its partition target differs from the source.
+rendered_partitions() {
+  local rendered="$MOSEMO_SESSION_DIR/rendered/kafka-init-job.yaml"
+  logged "^kubectl\\|.*apply -f $rendered" &&
+    [[ $(diff "$DEPLOY_DIR/../kubernetes/kafka-init-job.yaml" "$rendered" | grep -c '^[<>]') -eq $(($1 == 4 ? 0 : 2)) ]] &&
+    grep -A1 'name: KAFKA_TOPIC_PARTITIONS' "$rendered" | grep -q "value: \"$1\""
+}
 
 echo "a. control run calls the fakes"
 new_case
@@ -150,6 +157,11 @@ if ((STATUS == 0)) && logged '^terraform\|.*\| *-chdir=.* apply' && logged '^kub
   ok "a session-up completes against the fakes"
 else
   not_ok "a session-up completes against the fakes (exit $STATUS)" "$OUTPUT"
+fi
+if rendered_partitions 4; then
+  ok "a default profile applies the kafka-init Job rendered with 4 partitions"
+else
+  not_ok "a default profile applies the kafka-init Job rendered with 4 partitions" "$OUTPUT"
 fi
 new_case
 kubeconfig
@@ -192,6 +204,11 @@ if ((STATUS == 0)) &&
   ok "c every terraform call carries TF_VAR_measurement=true; terraform.json recorded"
 else
   not_ok "c every terraform call carries TF_VAR_measurement=true (exit $STATUS)" "$OUTPUT"
+fi
+if rendered_partitions 8; then
+  ok "c measurement profile applies the kafka-init Job rendered with 8 partitions"
+else
+  not_ok "c measurement profile applies the kafka-init Job rendered with 8 partitions" "$OUTPUT"
 fi
 new_case
 profile measurement
@@ -326,6 +343,48 @@ if ((STATUS == 0)) && [[ -n $archived && -f $archived/window && ! -f $MOSEMO_SES
 else
   not_ok "g a new measurement session archives the previous measurement directory (exit $STATUS)" "$OUTPUT"
 fi
+
+echo "h. kafka-init script grows the topic to the target and never shrinks it"
+# The Job's own shell script against a fake kafka-topics that keeps the partition count in a file.
+python3 -c '
+import sys
+text = open(sys.argv[1]).read()
+block = text.split("- |\n", 1)[1].split("          securityContext:")[0]
+print("\n".join(line[14:] for line in block.splitlines()))' "$DEPLOY_DIR/../kubernetes/kafka-init-job.yaml" >"$WORK/kafka-init.sh"
+mkdir -p "$WORK/kafka-bin"
+cat >"$WORK/kafka-bin/kafka-topics" <<'KT'
+#!/bin/sh
+echo "kafka-topics $*" >>"$KT_LOG"
+case " $* " in
+  *" --create "*) [ -f "$KT_STATE" ] || echo "$*" | sed 's/.*--partitions \([0-9]*\).*/\1/' >"$KT_STATE" ;;
+  *" --alter "*) echo "$*" | sed 's/.*--partitions \([0-9]*\).*/\1/' >"$KT_STATE" ;;
+  *" --describe "*) printf 'Topic: t\tTopicId: x\tPartitionCount: %s\tReplicationFactor: 1\n' "$(cat "$KT_STATE")" ;;
+esac
+KT
+chmod +x "$WORK/kafka-bin/kafka-topics"
+kafka_init() { # kafka_init TARGET EXISTING ; sets STATUS, KT_STATE, KT_LOG
+  export KT_STATE="$WORK/kt-state-$1-$2" KT_LOG="$WORK/kt-log-$1-$2"
+  rm -f "$KT_STATE" "$KT_LOG"
+  [[ $2 == none ]] || echo "$2" >"$KT_STATE"
+  set +e
+  PATH="$WORK/kafka-bin:$PATH" KAFKA_TOPIC_PARTITIONS=$1 BATCH_BOOTSTRAP_SERVERS=kafka:9092 BATCH_TOPIC=t \
+    sh -e "$WORK/kafka-init.sh" >/dev/null 2>&1
+  STATUS=$?
+  set -e
+}
+for case_ in "4 none 4 no" "8 none 8 no" "8 4 8 yes" "8 2 8 yes" "8 8 8 no" "4 8 8 no" "8 10 10 no"; do
+  read -r target existing want altered <<<"$case_"
+  kafka_init "$target" "$existing"
+  got_alter=no
+  grep -q -- '--alter' "$KT_LOG" && got_alter=yes
+  if ((STATUS == 0)) && [[ $(cat "$KT_STATE") == "$want" && $got_alter == "$altered" ]]; then
+    ok "h target $target, existing $existing -> $want partitions (alter: $altered)"
+  else
+    not_ok "h target $target, existing $existing -> $want partitions (alter: $altered); got $(cat "$KT_STATE" 2>/dev/null), alter $got_alter, exit $STATUS"
+  fi
+done
+kafka_init abc none
+if ((STATUS != 0)) && [[ ! -s $KT_LOG ]]; then ok "h a non-numeric target fails before any kafka-topics call"; else not_ok "h a non-numeric target fails before any kafka-topics call"; fi
 
 printf '\n%s passed, %s failed\n' "$passed" "$failed"
 ((failed == 0))

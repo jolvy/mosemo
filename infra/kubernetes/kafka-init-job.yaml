@@ -31,19 +31,27 @@ spec:
           env:
             - name: KAFKA_HEAP_OPTS
               value: -Xms32m -Xmx64m
+            # Target partition count. session-up.sh renders 8 for the measurement profile:
+            # consumer 4 Pods x max_workers 2 = 8 group members, one partition each.
+            - name: KAFKA_TOPIC_PARTITIONS
+              value: "4"
           command: [/bin/sh, -ec]
           args:
             - |
+              target=$KAFKA_TOPIC_PARTITIONS
+              case $target in
+                "" | *[!0-9]* | 0) echo "KAFKA_TOPIC_PARTITIONS must be a positive integer: '$target'" >&2; exit 1 ;;
+              esac
               kafka-topics --bootstrap-server "$BATCH_BOOTSTRAP_SERVERS" \
                 --create --if-not-exists --topic "$BATCH_TOPIC" \
-                --partitions 4 --replication-factor 1
-              # An existing topic with fewer partitions is grown to 4; partitions are never reduced.
+                --partitions "$target" --replication-factor 1
+              # An existing topic with fewer partitions is grown to the target; partitions are never reduced.
               partitions=$(kafka-topics --bootstrap-server "$BATCH_BOOTSTRAP_SERVERS" \
                 --describe --topic "$BATCH_TOPIC" | sed -n 's/.*PartitionCount: *\([0-9][0-9]*\).*/\1/p' | head -n1)
               [ -n "$partitions" ] || { echo "cannot read the partition count of $BATCH_TOPIC" >&2; exit 1; }
-              if [ "$partitions" -lt 4 ]; then
+              if [ "$partitions" -lt "$target" ]; then
                 kafka-topics --bootstrap-server "$BATCH_BOOTSTRAP_SERVERS" \
-                  --alter --topic "$BATCH_TOPIC" --partitions 4
+                  --alter --topic "$BATCH_TOPIC" --partitions "$target"
               fi
               kafka-topics --bootstrap-server "$BATCH_BOOTSTRAP_SERVERS" \
                 --describe --topic "$BATCH_TOPIC"

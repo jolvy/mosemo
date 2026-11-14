@@ -17,7 +17,7 @@ Terraform state·plan, 로컬 handoff·Secret은 이미지에 복사하지 않�
 | Batch jobs (label proposals) | batch-deployment.yaml | python -m mosemo.entrypoints.batch serve |
 | Migration | migration-job.yaml | alembic upgrade head |
 | Lab Kafka | kafka.yaml | StatefulSet 1개, cp-kafka 7.8.0, KRaft broker/controller |
-| Topic 초기화 | kafka-init-job.yaml | 4 partitions(기존 토픽이 더 적으면 4로 늘림, 줄이지 않음), replication factor 1 |
+| Topic 초기화 | kafka-init-job.yaml | 목표 파티션 `KAFKA_TOPIC_PARTITIONS`(일반 4, 측정 프로필 8; 기존 토픽이 더 적으면 목표까지 늘리고 줄이지 않음), replication factor 1 |
 
 API·consumer·batch·migration은 **같은 새 이미지 digest**를 사용한다. 기존 삭제한 ECR
 이미지의 digest는 재사용할 수 없다. batch는 label proposal 작업을 시작 시와 5분마다 실행하는
@@ -140,7 +140,7 @@ bash infra/deployment/session-audit.sh # 남은 리소스 0개 확인
    "allocatable memory too low"로 멈춤)·CSI node plugin 확인
    → namespace·PriorityClass·LimitRange → 새 RDS 출력으로 렌더링한 ConfigMap → Secret(server-side apply)
    → 시드니 RDS CA ConfigMap → Kafka NetworkPolicy → StorageClass·StatefulSet rollout·PVC Bound·kafka 노드 배치 확인
-   → topic 초기화 Job 성공.
+   → 프로필별 목표 파티션(일반 4, 측정 8)으로 렌더한 topic 초기화 Job 성공.
 2. deploy.sh: 깨끗한 작업 트리의 커밋 SHA 태그로 ECR 이미지를 찾고, 없을 때만 linux/amd64로 빌드·push한다
    (ECR 인증은 --password-stdin). 같은 `repository@sha256` digest로 migration Job 성공을 확인한 뒤
    API·consumer·batch를 rollout하고, ALB에 직접 연결해 HTTPS `/openapi.json` 200·비인증 `/api/v1/accounts/me` 401·
@@ -172,7 +172,8 @@ annotation에 복제하지 않는다. 디렉터리 전체를 일괄 apply하지 
 
 측정 프로필(`session-up.sh --profile measurement`)은 loadgen 노드 그룹(1대, 2a, taint
 `dedicated=loadgen:NoSchedule`, label `pool=loadgen`)을 더하고 batch를 뺀다. 모든 노드는 크레딧 없는
-`m7i.large`이고 2a에 있으며, app 그룹은 4대 고정(kafka·loadgen 각 1대)이다. 프로필은 tfvars가 아니라
+`m7i.large`이고 2a에 있으며, app 그룹은 4대 고정(kafka·loadgen 각 1대)이다. 토픽 파티션은 8개다
+(consumer 4 Pod × max_workers 2 = 그룹 멤버 8과 1:1). session-up.sh가 kafka-init Job을 렌더할 때 넣는다. 프로필은 tfvars가 아니라
 세션 디렉터리의 `profile` 기록으로 정해지며 `tf()`가 모든 terraform 호출에 `TF_VAR_measurement`를 붙인다.
 플래그 없이 다시 실행하면 기록을 따른다. state가 남아 있는데 다른 프로필을 요청하면 실패한다.
 측정 프로필로 새로 시작할 때 이전 `measurement/`는 `measurement.<UTC>/`로 옮긴다.

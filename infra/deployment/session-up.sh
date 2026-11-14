@@ -156,7 +156,16 @@ kubectl -n "$NAMESPACE" rollout status statefulset/mosemo-kafka --timeout=10m
 kafka_node=$(kubectl -n "$NAMESPACE" get pod mosemo-kafka-0 -o jsonpath='{.spec.nodeName}')
 [[ $(kubectl get node "$kafka_node" -o jsonpath='{.metadata.labels.pool}') == kafka ]] \
   || fail "Kafka is not running on the kafka node group"
-run_job "$K8S_DIR/kafka-init-job.yaml" mosemo-kafka-init 210
+# Topic partitions per profile; measurement: consumer 4 Pods x max_workers 2 = 8 group members, one partition each.
+partitions=4
+[[ $profile == measurement ]] && partitions=8
+mkdir -p "$RENDER_DIR"
+sed "/name: KAFKA_TOPIC_PARTITIONS/{n;s/value: .*/value: \"$partitions\"/;}" "$K8S_DIR/kafka-init-job.yaml" \
+  >"$RENDER_DIR/kafka-init-job.yaml"
+grep -A1 'name: KAFKA_TOPIC_PARTITIONS' "$RENDER_DIR/kafka-init-job.yaml" | grep -q "value: \"$partitions\"" \
+  || fail "could not render KAFKA_TOPIC_PARTITIONS=$partitions into kafka-init-job.yaml"
+echo "topic partitions target: $partitions"
+run_job "$RENDER_DIR/kafka-init-job.yaml" mosemo-kafka-init 210
 
 step "Session is up (profile $profile)"
 echo "Next: bash infra/deployment/deploy.sh"

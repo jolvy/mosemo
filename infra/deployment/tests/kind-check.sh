@@ -24,11 +24,15 @@ failed=0
 echo "1. server dry-run"
 kubectl apply -f "$K8S_DIR/namespace.yaml" -f "$K8S_DIR/priority-classes.yaml" >/dev/null
 sed 's|REPLACE_WITH_RDS_ENDPOINT|mosemo-lab.abc123.ap-southeast-2.rds.amazonaws.com|' "$K8S_DIR/configmap.yaml" >"$WORK/configmap.yaml"
-for manifest in "$K8S_DIR"/*.yaml "$WORK/configmap.yaml"; do
+# The measurement profile's kafka-init Job, rendered like session-up.sh does.
+mkdir -p "$WORK/measurement"
+sed '/name: KAFKA_TOPIC_PARTITIONS/{n;s/value: .*/value: "8"/;}' "$K8S_DIR/kafka-init-job.yaml" >"$WORK/measurement/kafka-init-job.yaml"
+for manifest in "$K8S_DIR"/*.yaml "$WORK/configmap.yaml" "$WORK/measurement/kafka-init-job.yaml"; do
   case $(basename "$manifest") in namespace.yaml | priority-classes.yaml) continue ;; esac
   [[ $manifest == "$K8S_DIR/configmap.yaml" ]] && continue
   if out=$(kubectl apply --dry-run=server -f "$manifest" 2>&1); then
-    printf 'ok   %s\n' "$(basename "$manifest")"
+    label=${manifest#"$WORK/"}
+    printf 'ok   %s\n' "${label#"$K8S_DIR/"}"
   else
     printf 'FAIL %s\n%s\n' "$(basename "$manifest")" "$out"
     failed=$((failed + 1))
