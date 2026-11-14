@@ -373,7 +373,7 @@ def test_validate_rejects_transaction_calls_outside_transaction_helper(
         ["src/mosemo/x/service.py:5", "CS-P13"],
         ["src/mosemo/y/transactions.py:1", "CS-P13"],
     ]
-    assert "`unit_of_work`·`read_snapshot`으로 연다" in errors[0]
+    assert "`unit_of_work`·`read_snapshot`·`consistent_snapshot`으로 연다" in errors[0]
 
 
 ALLOWED_BROAD_EXCEPTS = {

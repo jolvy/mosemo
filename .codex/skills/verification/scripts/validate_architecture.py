@@ -59,7 +59,7 @@ PORTS_FILE = PurePosixPath("application/ports.py")
 EVENTS_FILE = PurePosixPath("domain/events.py")
 USE_CASE = "UseCase"
 DOMAIN_EVENT = "DomainEvent"
-TRANSACTION_HELPERS = {"unit_of_work", "read_snapshot"}
+TRANSACTION_HELPERS = {"unit_of_work", "read_snapshot", "consistent_snapshot"}
 ROUTE_DECORATORS = {
     "get",
     "post",
@@ -330,8 +330,8 @@ def transaction_helper_lines(
 
 def check_transaction_helpers(file: ContextFile, names: ContextNames) -> list[str]:
     return [
-        f"{line}: ADR 0013: `unit_of_work`·`read_snapshot`은 `UseCase` 하위 클래스의 "
-        "메서드 안에서만 쓴다. 트랜잭션을 여는 코드를 UseCase로 옮긴다"
+        f"{line}: ADR 0013: `unit_of_work`·`read_snapshot`·`consistent_snapshot`은 "
+        "`UseCase` 하위 클래스의 메서드 안에서만 쓴다. 트랜잭션을 여는 코드를 UseCase로 옮긴다"
         for line in transaction_helper_lines(file.tree, names, inside=False)
     ]
 
@@ -642,7 +642,7 @@ def check_public_collaborators(
             for child in ast.walk(node)
         ):
             problems.append(
-                "`unit_of_work`·`read_snapshot`을 쓰지 않고 호출한 UseCase의 "
+                "`unit_of_work`·`read_snapshot`·`consistent_snapshot`을 쓰지 않고 호출한 UseCase의 "
                 "트랜잭션 안에서 실행된다"
             )
         errors.extend(

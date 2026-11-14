@@ -34,7 +34,8 @@ VALID_CONTEXT = {
     ),
     f"{BC}/application/samples.py": (
         "from sqlalchemy.ext.asyncio import AsyncSession\n"
-        "from mosemo.platform.database.transactions import read_snapshot, unit_of_work\n"
+        "from mosemo.platform.database.transactions import (\n"
+        "    consistent_snapshot,\n    read_snapshot,\n    unit_of_work,\n)\n"
         "from mosemo.shared.application.use_case import UseCase\n\n"
         "class StartSample(UseCase):\n"
         "    def __init__(self, *, dispatcher):\n"
@@ -47,7 +48,10 @@ VALID_CONTEXT = {
         "        async def inner():\n"
         "            async with read_snapshot(db_session):\n"
         "                pass\n"
-        "        await inner()\n"
+        "        await inner()\n\n"
+        "    async def _consistent_read(self, db_session: AsyncSession) -> None:\n"
+        "        async with consistent_snapshot(db_session):\n"
+        "            pass\n"
     ),
     f"{BC}/domain/events.py": (
         "from dataclasses import dataclass\n"
@@ -322,6 +326,7 @@ def test_application_class_with_execute_must_inherit_use_case(
             3,
         ),
         ("infrastructure/repository.py", "run = read_snapshot\n", 1),
+        ("infrastructure/queries.py", "run = consistent_snapshot\n", 1),
         ("presentation/router.py", "uow = unit_of_work(s, d)\n", 1),
     ],
 )

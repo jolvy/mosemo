@@ -15,6 +15,7 @@
     ├── labels/            # BC: 계정의 라벨 목록, 가입 시 기본 라벨
     ├── observation/       # BC: 활동 레코드, 관찰 타임라인 투영과 조회, 집중 세션
     ├── labeling/          # BC: 라벨 확정·정정, AI 라벨 제안과 제안 job, 라벨 타임라인
+    ├── analytics/         # BC: 활동 분석 결과, 일간 통계, 다시 계산 표시, 배치
     ├── shared/            # 공용 커널(domain·application·presentation)
     ├── platform/          # 누구 소유도 아닌 실행 기반: 로깅·시계·provider·스케줄링
     │   ├── database/      # DB 설정(config, `DB_*`), 엔진·세션(engine), 매핑 registry·MetaData(persistence), 트랜잭션 헬퍼(transactions)
@@ -25,7 +26,7 @@
         └── batch/         # 배치 job 등록과 진입점
 ```
 
-- Bounded Context 사이 의존은 labeling → observation → labels → identity 방향으로만 둔다.
+- Bounded Context 사이 의존은 analytics → labeling → observation → labels → identity 방향으로만 둔다.
 - BC마다 루트에 `public.py`(다른 BC용)·`bootstrap.py`(조립 루트용)·`__init__.py`를 두고, 계층은
   presentation → application → infrastructure → domain 방향으로만 의존한다.
 - BC는 `mosemo.entrypoints`를 직접·간접 모두 import하지 않는다. `shared`·`platform`은 BC와 진입점을

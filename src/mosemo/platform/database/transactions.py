@@ -20,7 +20,7 @@ class TransactionAlreadyOpenError(RuntimeError):
     def __init__(self) -> None:
         super().__init__(
             "the session already has an open transaction; run every database "
-            "access inside unit_of_work or read_snapshot"
+            "access inside unit_of_work, read_snapshot or consistent_snapshot"
         )
 
 
@@ -108,6 +108,25 @@ async def read_snapshot(db_session: AsyncSession) -> AsyncIterator[None]:
         async with db_session.begin():
             connection = await db_session.connection()
             await connection.exec_driver_sql("SET TRANSACTION READ ONLY")
+            yield
+    finally:
+        _discard_events(db_session.sync_session)
+
+
+@asynccontextmanager
+async def consistent_snapshot(db_session: AsyncSession) -> AsyncIterator[None]:
+    """Open a read-only REPEATABLE READ transaction; it dispatches no events.
+
+    Every statement inside reads the same snapshot, so a reader that combines
+    several queries never sees rows committed between them.
+    """
+    _ensure_no_transaction(db_session)
+    try:
+        async with db_session.begin():
+            connection = await db_session.connection()
+            await connection.exec_driver_sql(
+                "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
+            )
             yield
     finally:
         _discard_events(db_session.sync_session)

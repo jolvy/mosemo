@@ -5,13 +5,24 @@ from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import Column, MetaData, String, Table, Uuid, func, insert, select
+from sqlalchemy import (
+    Column,
+    MetaData,
+    String,
+    Table,
+    Uuid,
+    func,
+    insert,
+    select,
+    text,
+)
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import registry
 
 from mosemo.platform.database.transactions import (
     TransactionAlreadyOpenError,
+    consistent_snapshot,
     read_snapshot,
     record_event,
     reset_session,
@@ -328,6 +339,9 @@ async def test_entering_with_an_open_transaction_fails(
     with pytest.raises(TransactionAlreadyOpenError):
         async with read_snapshot(db_session):
             pass
+    with pytest.raises(TransactionAlreadyOpenError):
+        async with consistent_snapshot(db_session):
+            pass
 
 
 @pytest.mark.asyncio
@@ -376,3 +390,32 @@ async def test_reset_session_with_an_open_transaction_fails(
 
     with pytest.raises(TransactionAlreadyOpenError):
         reset_session(db_session)
+
+
+@pytest_asyncio.fixture
+async def plain_session(integration_database_url: str) -> AsyncIterator[AsyncSession]:
+    # No outer transaction: Postgres sets the isolation level only before the
+    # first statement of a real transaction, never inside a savepoint.
+    engine = create_async_engine(integration_database_url)
+    try:
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            yield session
+    finally:
+        await engine.dispose()
+
+
+async def show(db_session: AsyncSession, setting: str) -> str:
+    return (await db_session.execute(text(f"SHOW {setting}"))).scalar_one()
+
+
+@pytest.mark.asyncio
+async def test_consistent_snapshot_is_repeatable_read_and_read_only(
+    plain_session: AsyncSession,
+) -> None:
+    async with consistent_snapshot(plain_session):
+        isolation = await show(plain_session, "transaction_isolation")
+        read_only = await show(plain_session, "transaction_read_only")
+
+    assert isolation == "repeatable read"
+    assert read_only == "on"
+    assert not plain_session.in_transaction()
