@@ -68,7 +68,7 @@ end() {
   fi
   rm -f "$LOCK_FILE"
   echo "measurement lock removed; window $(tr '\n' ' ' <"$MEASUREMENT_DIR/window")"
-  echo "Next: bash infra/deployment/measurement-metrics.sh (before session-down.sh)"
+  echo "Next: bash infra/deployment/measurement-observe.sh stop, then bash infra/deployment/measurement-metrics.sh (both before session-down.sh)"
 }
 
 command=${1:-}

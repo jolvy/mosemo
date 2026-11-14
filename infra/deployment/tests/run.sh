@@ -370,6 +370,11 @@ if ((STATUS == 0)) && [[ ! -e $lock && ! -e $MOSEMO_SESSION_DIR/measurement/inva
 else
   not_ok "f a normal end after an invalid one removes the earlier invalid (exit $STATUS)" "$OUTPUT"
 fi
+if grep -q '^Next: bash infra/deployment/measurement-observe.sh stop, then bash infra/deployment/measurement-metrics.sh' <<<"$OUTPUT"; then
+  ok "f end points to measurement-observe.sh stop, then measurement-metrics.sh"
+else
+  not_ok "f end points to measurement-observe.sh stop, then measurement-metrics.sh" "$OUTPUT"
+fi
 # The token lasts until 30 minutes after the expected end, clamped to 1-13 hours.
 token_seconds() { sed -n 's/.*create token step5-operator --duration=\([0-9]*\)s.*/\1/p' "$FAKE_LOG" | tail -n1; }
 utc_in() { date -u -r $(($(date +%s) + $1)) +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d "+$1 seconds" +%Y-%m-%dT%H:%M:%SZ; }
