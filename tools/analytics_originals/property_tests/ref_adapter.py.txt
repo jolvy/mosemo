@@ -1,0 +1,213 @@
+"""#268 입출력 계약 ↔ ref.py 어댑터(4단계 B·C용, 저장소 코드 아님).
+
+#268 입력 dict를 ref.Seg/Session으로 바꿔 ref 계산을 부르고, 결과를 #268 출력 dict로 낸다.
+함수 이름·시그니처는 #268(사후 정정 포함)과 같다: read_day(data, day, psl), daily(data, day, psl), session(data, session_id, psl).
+
+`Impl(refmod)`로 ref 모듈을 바꿔 끼울 수 있다(mutants.py가 변이 사본을 넣는다).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import psl as _psl
+import ref as _ref
+
+UNKNOWN = "앱 미확인"
+FIXTURE_PSL = (Path(__file__).parent / "psl_fixture.dat").read_text(encoding="utf-8")
+US = timedelta(microseconds=1)
+
+_psl_cache: dict[str, dict] = {}
+
+
+def _use_psl(text: str) -> None:
+    rules = _psl_cache.get(text)
+    if rules is None:
+        rules = _psl_cache[text] = _psl.parse(text)
+    _psl._rules = rules
+
+
+_site_cache: dict[tuple[int, str], str | None] = {}
+
+
+def _site(url: str) -> str | None:
+    k = (id(_psl._rules), url)  # _rules는 _psl_cache가 붙잡고 있어 id가 재사용되지 않는다
+    if k not in _site_cache:
+        _site_cache[k] = _psl.site_of_url(url)
+    return _site_cache[k]
+
+
+def _t(s: str | None) -> datetime | None:
+    return None if s is None else datetime.fromisoformat(s)
+
+
+def _iso(t: datetime) -> str:
+    return t.astimezone(UTC).isoformat(timespec="microseconds")
+
+
+def _us(td: timedelta) -> int:
+    return td // US
+
+
+def day_window(data: dict, day: str) -> tuple[datetime, datetime]:
+    tz = ZoneInfo(data["timezone"])
+    d = date.fromisoformat(day)
+    n = d + timedelta(days=1)
+    w0 = datetime(d.year, d.month, d.day, tzinfo=tz).astimezone(UTC)
+    w1 = datetime(n.year, n.month, n.day, tzinfo=tz).astimezone(UTC)
+    return w0, w1
+
+
+class Impl:
+    def __init__(self, refmod=_ref):
+        self.r = refmod
+        self._cache = None
+
+    # ---------------- 입력 변환 ----------------
+    def segs(self, data: dict, psl_text: str | None):
+        """(Seg 목록, id(Seg) → 원본 구간 dict). 같은 data 객체·PSL이면 변환을 다시 하지 않는다
+        (data를 제자리에서 고치지 않는다는 전제. 캐시가 data를 참조하므로 id 재사용은 없다)."""
+        c = self._cache
+        if c is not None and c[0] is data and c[1] == psl_text:
+            return c[2], c[3]
+        out, raw = self._segs(data, psl_text)
+        self._cache = (data, psl_text, out, raw)
+        return out, raw
+
+    def _segs(self, data: dict, psl_text: str | None):
+        r = self.r
+        if psl_text is not None:
+            _use_psl(psl_text)
+        conf = {c["first_event_id"]: c for c in data.get("confirmations", [])}
+        out, raw = [], {}
+        for d in data["segments"]:
+            start, end = _t(d["started_at"]), _t(d.get("ended_at"))
+            if d["segment_type"] == "capture_gap":
+                s = r.Seg(start=start, end=end, gap=True)
+            else:
+                ctx = d["context"]
+                kw = dict(start=start, end=end, last_obs=_t(d.get("last_observed_at")), version=d["version"])
+                c = conf.get(d["first_event_id"])
+                if c is not None:
+                    kw["label"] = r.UNCLASSIFIED if c["label_id"] is None else c["label_id"]
+                    kw["confirmed_version"] = c["segment_version"]
+                if ctx["kind"] == "opaque":
+                    s = r.Seg(opaque=True, **kw)
+                else:
+                    bid = ctx.get("app", {}).get("bundleId", {})
+                    app = bid.get("value") if bid.get("status") == "captured" else None
+                    web = ctx.get("web") or {}
+                    browser = web.get("kind") == "browser"
+                    url = None
+                    if browser and (web.get("url") or {}).get("status") == "captured":
+                        url = web["url"].get("value")
+                    site = _site(url) if url else None
+                    w = ctx.get("window") or {}
+                    title = (w.get("title") or {}).get("value") if (w.get("title") or {}).get("status") == "captured" else None
+                    s = r.Seg(app=app, browser=browser, site=site, url=url, title=title, **kw)
+            out.append(s)
+            raw[id(s)] = d
+        return out, raw
+
+    def sess(self, data: dict, session_id: str):
+        r = self.r
+        d = next(x for x in data["sessions"] if x["id"] == session_id)
+        pauses = None if d["pauses"] is None else tuple((_t(a), _t(b)) for a, b in d["pauses"])
+        return r.Session(start=_t(d["started_at"]), end=_t(d["ended_at"]), label=d["label_id"], pauses=pauses)
+
+    # ---------------- 계약 함수 ----------------
+    def read_day(self, data: dict, day: str, psl: str) -> list[str]:
+        """#268 사후 정정(2026-11-13): psl로 정한 사용 대상으로 D2 거슬러 읽기를 판정한다."""
+        segs, raw = self.segs(data, psl)
+        w0, w1 = day_window(data, day)
+        return [raw[id(s)]["id"] for s in self.r.bin_segments(segs, w0, size=w1 - w0)]
+
+    def daily(self, data: dict, day: str, psl: str) -> dict:
+        r = self.r
+        segs, _ = self.segs(data, psl)
+        w0, w1 = day_window(data, day)
+        c1 = r.c1(segs, w0, w1)
+        return {
+            "c1": {"apps": _rank(c1.apps), "targets": _rank(c1.targets),
+                   "unknown_app_us": _us(c1.unknown_app), "opaque_us": _us(c1.opaque),
+                   "observed_us": _us(c1.observed)},
+            "c2": [_tr(x) for x in r.in_window(r.c2(segs), w0, w1)],
+            "c7": [_lt(x) for x in r.in_window(r.c7(segs), w0, w1)],
+        }
+
+    def session(self, data: dict, session_id: str, psl: str) -> dict:
+        r = self.r
+        segs, raw = self.segs(data, psl)
+        s = self.sess(data, session_id)
+        c2all = r.c2(segs)
+        c4 = r.c4(segs, s)
+        t = c4.times
+        lap = r.lapses(segs, s, c2all)
+        prev_unknown = self._prev_focus_unknown(segs, s)
+        c5 = r.c5(segs, s)
+        return {
+            "has_pause_info": c4.has_pause_info,
+            "analysis_us": _us(s.analysis_time()),
+            "c3": [_tr(x) for x in r.c3(c2all, s)],
+            "c4": {"focus_us": _us(t[r.FOCUS]), "lapse_us": _us(t[r.LAPSE]), "unclassified_us": _us(t[r.UNCL]),
+                   "pending_us": _us(t[r.PENDING]), "opaque_us": _us(t[r.OPAQUE]),
+                   "unobserved_us": _us(t["미관찰"]), "lapse_count": c4.lapse_count},
+            "c5": sorted(({"key": UNKNOWN if k == r.UNKNOWN_TARGET else k, "entries": n, "lapse_us": _us(d)}
+                          for k, (n, d) in c5.items()), key=lambda x: (-x["lapse_us"], x["key"])),
+            "c6": [{"start": _iso(x.start), "end": _iso(x.end),
+                    "entry_segment_id": raw[id(x.entry)]["id"],
+                    "entry_target": x.entry.target if x.entry.target is not None else UNKNOWN,
+                    "entry_label_id": x.entry.valid_label,
+                    "entry_context": raw[id(x.entry)]["context"],
+                    "prev_focus_target": (x.prev_focus_target if x.prev_focus_target is not None
+                                          else (UNKNOWN if pu else None)),
+                    "elapsed_us": _us(x.elapsed), "lapse_us": _us(x.lapse_time),
+                    "transitions": x.transitions, "returned": x.returned}
+                   for x, pu in zip(lap, prev_unknown, strict=True)],
+            "c7": [_lt(x) for x in r.c3(r.c7(segs), s)],
+        }
+
+    def _prev_focus_unknown(self, segs, s) -> list[bool]:
+        """ref.Lapse.prev_focus_target은 '직전 집중 없음'과 '직전 집중이 앱 미확인'을 둘 다 None으로 낸다.
+        #268은 둘을 null / `앱 미확인`으로 구분하므로 이탈마다 직전 집중 조각이 있었는지 따로 본다
+        (ref.lapses와 같은 조각 순회)."""
+        r = self.r
+        out, in_lapse, had_focus = [], False, False
+        for p in r.pieces(segs, s):
+            if p.kind == r.LAPSE and not in_lapse:
+                in_lapse = True
+                out.append(had_focus)
+            elif p.kind == r.FOCUS:
+                in_lapse = False
+                had_focus = True
+        return out
+
+
+def _rank(d) -> list[dict]:
+    rows = [{"key": k, "us": _us(v)} for k, v in d.items() if _us(v) > 0]
+    return sorted(rows, key=lambda x: (-x["us"], x["key"]))
+
+
+def _tr(x) -> dict:
+    return {"at": _iso(x.at), "prev": x.prev, "next": x.next, "dwell_us": _us(x.dwell)}
+
+
+def _lt(x) -> dict:
+    return {"at": _iso(x.at), "prev": x.prev, "next": x.next}
+
+
+_default = Impl()
+
+
+def read_day(data: dict, day: str, psl: str) -> list[str]:
+    return _default.read_day(data, day, psl)
+
+
+def daily(data: dict, day: str, psl: str) -> dict:
+    return _default.daily(data, day, psl)
+
+
+def session(data: dict, session_id: str, psl: str) -> dict:
+    return _default.session(data, session_id, psl)

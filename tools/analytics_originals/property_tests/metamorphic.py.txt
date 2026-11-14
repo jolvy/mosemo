@@ -1,0 +1,661 @@
+"""4단계 B 변성 관계(사전 등록 prereg-step4.md). #268 입출력만 쓰므로 어느 구현에도 돌릴 수 있다.
+
+관계는 입력 x를 x'로 바꾸고, 같은 구현의 출력 f(x)와 f(x')이 지켜야 할 관계를 확인한다.
+기대 변화는 입력과 f(x)에서만 끌어낸다(다른 구현의 출력이나 ref 내부를 쓰지 않는다).
+사용 대상이 같은지는 구현마다 해석(알려진 모호점 1)이 갈릴 수 있으므로, "같은 대상"이 필요한 곳은
+bundleId·web.kind·URL 원문이 모두 같은 구간만 고른다.
+
+R1 같은 문맥 구간 분할   (FR-5·6·8·11·13·17, C2-B1·C2-X1·C5-X2)
+  바꿈: 활동 구간 하나를 시각 m(시작 ≤ m < 끝, 끝 = ended_at 또는 last_observed_at. 0초 구간은 m = 시작)에서
+        둘로 나눈다. m = 끝은 빼는데, 원래 없던 0초 조각이 끝 시각에 생기고 0초 구간은 명세상 독립된 관찰이라
+        (D3, C4-B6) 끝이 작업 구간 시작이면 0초 이탈이 새로 생기기 때문이다(보고서 「R1 정의 경계」).
+        앞 조각은 원래 id·first_event_id·[시작, m)·last_observed_at=m, 뒤 조각은 새 id(`<id>~b`)·
+        [m, 원래 끝)·원래 last_observed_at(열린 구간이면 뒤 조각이 열린 구간). context·version 같음,
+        확정이 있으면 같은 segment_version·label_id로 뒤 조각에도 복사. m은 시작(0초 앞 조각)과
+        자정·세션·일시중지 경계를 자주 고른다.
+  기대: 모든 출력 같음. 단 id를 담는 곳(read_day, c6.entry_segment_id)은 `<id>~b` → `<id>`로 바꾸고
+        read_day는 바꾼 뒤 중복을 하나로 합쳐 비교한다.
+R2 하루 평행이동         (FR-5·10·24, C1-X3)
+  바꿈: 모든 시각(구간·세션·일시중지)에 +24시간, 날짜 인자 +1일.
+  적용 조건: 입력의 모든 시각 t와 걸친 날짜의 자정에서 시간대 오프셋(t) = 오프셋(t+24h).
+        아니면(일광 절약 전환이 끼면 하루 = 23·25시간이라 관계가 성립하지 않음) 건너뛰고 건너뛴 수를 센다.
+  기대: read_day 같음, 출력의 at·start·end는 +24시간, 나머지 같음.
+R3 식별자 치환           (FR-1·4·17·18·20, AC-8001)
+  바꿈: bundleId·label_id·구간 id·first_event_id·세션 id·version 문자열을 각각 일대일로 새 문자열로
+        바꾼다(사이트·`앱 미확인`과 겹치지 않는 이름, 정렬 순서는 무작위로 바뀜). URL은 그대로.
+  기대: f(x') = 치환(f(x)). 치환은 키·prev·next·entry_*·prev_focus_target·entry_context에 적용하고,
+        c1 apps·targets·c5는 FR-4 순서(시간 내림차순, 같으면 key 오름차순)로 다시 정렬한 뒤 비교한다.
+R4 같은 대상 사이 불투명 삽입 (FR-9·11·16·17·23, C2-B5·C2-X3·C5-B3·C7-B4)
+  고름: 배열에서 이웃하고 맞닿은(a.ended_at = b.started_at = P) 두 활동 구간 a, b가 같은 대상이고 a 길이 > 0
+        (불투명 아님, bundleId captured이고 같음, web.kind 같음, 브라우저면 url status·value 같음).
+  R4a 바꿈: a와 b 사이에 0초 불투명 구간 [P, P)를 넣는다.
+      기대: c2·c3에서 at ≥ P이고 at − dwell ≤ P인 행(체류가 P를 지나는 행)은 dwell = at − P
+            (체류가 불투명에서 끊김), a·b가 모두 유효 확정(미분류 아님)이고 라벨이 다르면 c7(날짜·세션)에서
+            (at=P, prev=a 라벨, next=b 라벨) 행 하나가 빠짐. 나머지(c1, c4, c5, c6, 전환 수) 같음.
+            read_day(x') − {새 id} ⊆ read_day(x)(거슬러 읽기가 불투명에서 멈출 수 있음).
+  R4b 바꿈: a의 끝 L초(0 < L < a 길이)를 불투명 [P−L, P)로 잘라 낸다(a는 [시작, P−L)).
+      기대(날짜 출력만): c1 opaque += 겹친 L, observed·unknown 같음, apps와 targets는 각각 키 하나만
+            겹친 L만큼 줄어듦(0이 되면 행이 빠짐), c2·c7은 R4a와 같은 변화.
+R5 확정 → 판정 대기      (FR-14·16·17·22·23, C4-B2·C7-B2·C7-B5·AC-8021)
+  고름: 확정이 있는 활동 구간 g. 바꿈 두 가지: (가) 그 확정을 지움, (나) g.version을 새 값으로 바꿈.
+  기대: (가)와 (나)의 출력은 같다(C4-B2: version이 바뀐 확정 = 확정 없음).
+        g의 확정이 원래 무효(불투명 구간이거나 segment_version ≠ version)면 모든 출력 같음.
+        유효했다면: read_day·c1·c2·c3·analysis_us·has_pause_info 같음. c7(날짜·세션)에서 g가 낀 맞닿은 쌍
+        (앞 이웃, g)·(g, 뒤 이웃)이 만들던 행만 빠짐. c4: g의 판정(집중·이탈·미분류) 시간에서 g와 작업
+        구간의 겹침 ov를 빼서 pending에 더함, 나머지 같음, lapse_count는 미분류면 같고 아니면 n 또는 n−1.
+        c5(D11, 2026-11-13: 이탈을 시작하는 조각은 늘 진입): 미분류면 같음. 집중이면 lapse_us는 같고
+        entries는 키 하나가 1 줄 수 있음(두 이탈이 합쳐져 뒤 이탈의 시작 진입이 사라짐). 이탈이면 lapse_us는
+        g의 키 하나만 ov 줄고(남은 이탈 조각이 없으면 행이 빠짐), entries는 키마다 −1·0·+1이며 +1은 많아야
+        한 키(g 다음 이탈 조각이 새 시작이 됨), 합은 그대로이거나 1 줄어듦. 어느 경우든 Σentries ≥ lapse_count.
+        c6: 미분류면 같음. 아니면 행 수 n 또는 n−1, lapse_us 합이 (이탈이면 ov) 줄고, end < g 시작인 행은 같음.
+P2 (사전 등록 B의 5개 밖, 참고 열) 날짜 읽기: daily(read_day(x, d)로 고른 구간, d) = daily(x, d). AC-8022.
+
+python3 metamorphic.py [-n N] [--seed S] [--impl ref|mutant:<이름>|py:<모듈>] [--procs P]
+"""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import importlib
+import json
+import random
+import sys
+from collections import Counter
+from datetime import UTC, datetime, timedelta
+from multiprocessing import Pool
+from zoneinfo import ZoneInfo
+
+import gen
+from ref_adapter import FIXTURE_PSL, UNKNOWN, day_window
+
+PSL = FIXTURE_PSL
+DAY = timedelta(days=1)
+RELS = ["R1", "R2", "R3", "R4a", "R4b", "R5", "P2"]
+
+
+# ---------------- 구현 선택 ----------------
+def get_impl(spec: str):
+    if spec == "ref":
+        import ref_adapter
+        return ref_adapter
+    if spec.startswith("mutant:"):
+        import mutants
+        return mutants.impl(spec.split(":", 1)[1])
+    if spec.startswith("py:"):
+        return importlib.import_module(spec[3:])
+    raise ValueError(spec)
+
+
+def evaluate(impl, data, days, sids):
+    return {"read_day": {d: impl.read_day(data, d, PSL) for d in days},
+            "daily": {d: impl.daily(data, d, PSL) for d in days},
+            "session": {s: impl.session(data, s, PSL) for s in sids}}
+
+
+# ---------------- 공통 ----------------
+def T(s):
+    return None if s is None else datetime.fromisoformat(s)
+
+
+def iso(t):
+    return t.isoformat(timespec="microseconds")
+
+
+def uiso(t):
+    return t.astimezone(UTC).isoformat(timespec="microseconds")
+
+
+def eff_end(seg):
+    return T(seg.get("ended_at") or seg.get("last_observed_at"))
+
+
+def is_act(seg):
+    return seg["segment_type"] == "activity"
+
+
+def same_target_fields(a, b) -> bool:
+    if not (is_act(a) and is_act(b)) or a["context"]["kind"] != "detailed" or b["context"]["kind"] != "detailed":
+        return False
+    ca, cb = a["context"], b["context"]
+    ba, bb = ca["app"]["bundleId"], cb["app"]["bundleId"]
+    if ba.get("status") != "captured" or ba != bb:
+        return False
+    wa, wb = ca.get("web") or {}, cb.get("web") or {}
+    if wa.get("kind") != wb.get("kind"):
+        return False
+    return wa.get("kind") != "browser" or wa.get("url") == wb.get("url")
+
+
+def adjacent(a, b) -> bool:
+    return (a["segment_type"] != "capture_gap" and b["segment_type"] != "capture_gap"
+            and a.get("ended_at") is not None and T(a["ended_at"]) == T(b["started_at"]))
+
+
+def valid_label(data, seg):
+    """유효한 확정 라벨. 없으면 (False, None), 미분류면 (True, None)."""
+    if not is_act(seg) or seg["context"]["kind"] == "opaque":
+        return False, None
+    for c in data["confirmations"]:
+        if c["first_event_id"] == seg["first_event_id"]:
+            return (c["segment_version"] == seg["version"]), c["label_id"]
+    return False, None
+
+
+def c7_row(data, a, b):
+    """맞닿은 이웃 (a, b)가 만드는 라벨 전환 행(FR-22·23). 없으면 None."""
+    if not adjacent(a, b):
+        return None
+    va, la = valid_label(data, a)
+    vb, lb = valid_label(data, b)
+    if not (va and vb) or la is None or lb is None or la == lb:
+        return None
+    return {"at": uiso(T(b["started_at"])), "prev": la, "next": lb}
+
+
+def work_intervals(sess):
+    s0, s1 = T(sess["started_at"]), T(sess["ended_at"])
+    out, cur = [], s0
+    for p0, p1 in sorted((T(a), T(b)) for a, b in (sess["pauses"] or [])):
+        if p0 > cur:
+            out.append((cur, p0))
+        cur = max(cur, p1)
+    if s1 > cur:
+        out.append((cur, s1))
+    return out
+
+
+def in_work(sess, at_iso):
+    t = T(at_iso)
+    return any(a < t < b for a, b in work_intervals(sess))
+
+
+def ov_us(a0, a1, b0, b1):
+    return max(0, (min(a1, b1) - max(a0, b0)) // timedelta(microseconds=1))
+
+
+def remove_rows(rows, drop):
+    """drop: (행, k) 목록. 같은 내용의 행 중 k번째(0부터)를 지운다. 같은 시각의 행은 구간 순서라
+    (0초 구간이 이어지면 같은 행이 여러 번 나온다) 몇 번째인지는 입력에서 앞 쌍들로 센다."""
+    rows = list(rows)
+    for r, k in sorted(drop, key=lambda x: -x[1]):
+        idx = [j for j, x in enumerate(rows) if x == r]
+        if len(idx) <= k:
+            return None  # 있어야 할 행이 원래 출력에 없음
+        del rows[idx[k]]
+    return rows
+
+
+def c7_row_k(data, i):
+    """쌍 (i, i+1)의 라벨 전환 행과, 앞 쌍들이 만든 같은 내용 행의 수."""
+    segs = data["segments"]
+    r = c7_row(data, segs[i], segs[i + 1])
+    if r is None:
+        return None
+    return r, sum(1 for j in range(i) if c7_row(data, segs[j], segs[j + 1]) == r)
+
+
+def diff(tag, got, want, out):
+    if got != want:
+        out.append(f"{tag}: got={json.dumps(got, ensure_ascii=False)[:400]} want={json.dumps(want, ensure_ascii=False)[:400]}")
+
+
+# ---------------- R1 ----------------
+def r1(rnd, data, days, sids, impl, o):
+    acts = [i for i, s in enumerate(data["segments"]) if is_act(s)]
+    if not acts:
+        return None
+    i = rnd.choice(acts)
+    seg = data["segments"][i]
+    s0, e = T(seg["started_at"]), eff_end(seg)
+    pts = [p for p in boundary_points(data) if s0 < p < e]
+    k = rnd.random()
+    if k < .3 or e == s0:
+        m = s0
+    elif k < .65 and pts:
+        m = rnd.choice(pts)
+    else:
+        m = s0 + (e - s0) * rnd.random()
+    x = copy.deepcopy(data)
+    a = x["segments"][i]
+    b = copy.deepcopy(a)
+    a["ended_at"] = iso(m)
+    a["last_observed_at"] = iso(m)
+    b["id"], b["first_event_id"], b["started_at"] = a["id"] + "~b", a["first_event_id"] + "~b", iso(m)
+    x["segments"].insert(i + 1, b)
+    for c in list(x["confirmations"]):
+        if c["first_event_id"] == a["first_event_id"]:
+            x["confirmations"].append({**c, "first_event_id": b["first_event_id"]})
+    o2 = evaluate(impl, x, days, sids)
+    unb = lambda v: v[:-2] if isinstance(v, str) and v.endswith("~b") else v
+    v = []
+    for d in days:
+        got = list(dict.fromkeys(unb(z) for z in o2["read_day"][d]))
+        diff(f"read_day {d}", got, o["read_day"][d], v)
+        diff(f"daily {d}", o2["daily"][d], o["daily"][d], v)
+    for s in sids:
+        got = copy.deepcopy(o2["session"][s])
+        for row in got["c6"]:
+            row["entry_segment_id"] = unb(row["entry_segment_id"])
+        diff(f"session {s}", got, o["session"][s], v)
+    return v, {"split": seg["id"], "at": iso(m)}
+
+
+def boundary_points(data):
+    out = set()
+    for d in gen.covered_days(data):
+        w0, _ = day_window(data, d)
+        out.add(w0)
+    for s in data["sessions"]:
+        out |= {T(s["started_at"]), T(s["ended_at"])}
+        out |= {T(p) for q in (s["pauses"] or []) for p in q}
+    return sorted(out)
+
+
+# ---------------- R2 ----------------
+def times_in(data):
+    for s in data["segments"]:
+        for k in ("started_at", "ended_at", "last_observed_at"):
+            if s.get(k):
+                yield T(s[k])
+    for s in data["sessions"]:
+        yield T(s["started_at"])
+        yield T(s["ended_at"])
+        for p in s["pauses"] or []:
+            yield from map(T, p)
+
+
+def r2(rnd, data, days, sids, impl, o):
+    tz = ZoneInfo(data["timezone"])
+    ts = list(times_in(data)) + [day_window(data, d)[0] for d in days] + [day_window(data, d)[1] for d in days]
+    if any(t.astimezone(tz).utcoffset() != (t + DAY).astimezone(tz).utcoffset() for t in ts):
+        return "skip"
+    x = copy.deepcopy(data)
+    sh = lambda s: iso(T(s) + DAY)
+    for s in x["segments"]:
+        for k in ("started_at", "ended_at", "last_observed_at"):
+            if s.get(k):
+                s[k] = sh(s[k])
+    for s in x["sessions"]:
+        s["started_at"], s["ended_at"] = sh(s["started_at"]), sh(s["ended_at"])
+        if s["pauses"] is not None:
+            s["pauses"] = [[sh(a), sh(b)] for a, b in s["pauses"]]
+    days2 = [(datetime.fromisoformat(d) + DAY).date().isoformat() for d in days]
+    o2 = evaluate(impl, x, days2, sids)
+    ush = lambda s: uiso(T(s) + DAY)
+
+    def shift_out(out):
+        out = copy.deepcopy(out)
+        for key in ("c2", "c3", "c7", "c6"):
+            for row in out.get(key, []):
+                for f in ("at", "start", "end"):
+                    if f in row:
+                        row[f] = ush(row[f])
+        return out
+
+    v = []
+    for d, d2 in zip(days, days2):
+        diff(f"read_day {d}", o2["read_day"][d2], o["read_day"][d], v)
+        diff(f"daily {d}", o2["daily"][d2], shift_out(o["daily"][d]), v)
+    for s in sids:
+        diff(f"session {s}", o2["session"][s], shift_out(o["session"][s]), v)
+    return v, {}
+
+
+# ---------------- R3 ----------------
+def r3(rnd, data, days, sids, impl, o):
+    def fresh(prefix, vals):
+        vals = sorted(vals)
+        names = [f"{prefix}{rnd.randrange(10**6):06d}.{j}" for j in range(len(vals))]
+        rnd.shuffle(names)
+        return dict(zip(vals, names))
+
+    bids, labels, versions = set(), set(), set()
+    for s in data["segments"]:
+        if is_act(s):
+            versions.add(s["version"])
+            b = s["context"].get("app", {}).get("bundleId", {})
+            if b.get("status") == "captured":
+                bids.add(b["value"])
+    for c in data["confirmations"]:
+        versions.add(c["segment_version"])
+        if c["label_id"] is not None:
+            labels.add(c["label_id"])
+    for s in data["sessions"]:
+        labels.add(s["label_id"])
+    mb, ml, mv = fresh("zz.app", bids), fresh("M-", labels), fresh("ver", versions)
+    mid = {s["id"]: f"q{j}-{rnd.randrange(1000)}" for j, s in enumerate(data["segments"])}
+    mev = {s["first_event_id"]: f"ev{j}" for j, s in enumerate(data["segments"])}
+    msid = {s["id"]: f"F{j}-{rnd.randrange(1000)}" for j, s in enumerate(data["sessions"])}
+
+    def map_ctx(ctx):
+        ctx = copy.deepcopy(ctx)
+        b = ctx.get("app", {}).get("bundleId", {})
+        if b.get("status") == "captured":
+            b["value"] = mb[b["value"]]
+        return ctx
+
+    x = copy.deepcopy(data)
+    for s in x["segments"]:
+        s["id"], s["first_event_id"] = mid[s["id"]], mev[s["first_event_id"]]
+        if is_act(s):
+            s["version"] = mv[s["version"]]
+            s["context"] = map_ctx(s["context"])
+    for c in x["confirmations"]:
+        c["first_event_id"], c["segment_version"] = mev[c["first_event_id"]], mv[c["segment_version"]]
+        c["label_id"] = None if c["label_id"] is None else ml[c["label_id"]]
+    for s in x["sessions"]:
+        s["id"], s["label_id"] = msid[s["id"]], ml[s["label_id"]]
+    o2 = evaluate(impl, x, days, [msid[s] for s in sids])
+
+    tgt = lambda k: mb.get(k, k) if k is not None else None  # 사이트·`앱 미확인`은 그대로
+    lab = lambda k: None if k is None else ml.get(k, k)
+    rank = lambda rows, f: sorted(rows, key=lambda r: (-r[f], r["key"]))
+
+    def map_daily(out):
+        out = copy.deepcopy(out)
+        c1 = out["c1"]
+        c1["apps"] = rank([{**r, "key": tgt(r["key"])} for r in c1["apps"]], "us")
+        c1["targets"] = rank([{**r, "key": tgt(r["key"])} for r in c1["targets"]], "us")
+        out["c2"] = [{**r, "prev": tgt(r["prev"]), "next": tgt(r["next"])} for r in out["c2"]]
+        out["c7"] = [{**r, "prev": lab(r["prev"]), "next": lab(r["next"])} for r in out["c7"]]
+        return out
+
+    def map_sess(out):
+        out = copy.deepcopy(out)
+        out["c3"] = [{**r, "prev": tgt(r["prev"]), "next": tgt(r["next"])} for r in out["c3"]]
+        out["c7"] = [{**r, "prev": lab(r["prev"]), "next": lab(r["next"])} for r in out["c7"]]
+        out["c5"] = rank([{**r, "key": tgt(r["key"])} for r in out["c5"]], "lapse_us")
+        for r in out["c6"]:
+            r["entry_segment_id"] = mid[r["entry_segment_id"]]
+            r["entry_target"] = tgt(r["entry_target"])
+            r["entry_label_id"] = lab(r["entry_label_id"])
+            r["entry_context"] = map_ctx(r["entry_context"])
+            r["prev_focus_target"] = tgt(r["prev_focus_target"])
+        return out
+
+    v = []
+    for d in days:
+        diff(f"read_day {d}", o2["read_day"][d], [mid[z] for z in o["read_day"][d]], v)
+        diff(f"daily {d}", o2["daily"][d], map_daily(o["daily"][d]), v)
+    for s in sids:
+        diff(f"session {s}", o2["session"][msid[s]], map_sess(o["session"][s]), v)
+    return v, {}
+
+
+# ---------------- R4 ----------------
+def r4_pairs(data):
+    segs = data["segments"]
+    return [i for i in range(len(segs) - 1) if adjacent(segs[i], segs[i + 1]) and same_target_fields(segs[i], segs[i + 1])
+            and T(segs[i]["ended_at"]) > T(segs[i]["started_at"])]
+
+
+def dwell_cut(rows, P):
+    out = []
+    for r in rows:
+        at = T(r["at"])
+        if at >= P and at - timedelta(microseconds=r["dwell_us"]) <= P:
+            r = {**r, "dwell_us": (at - P) // timedelta(microseconds=1)}
+        out.append(r)
+    return out
+
+
+def r4(rnd, data, days, sids, impl, o, carve: bool):
+    pairs = r4_pairs(data)
+    if not pairs:
+        return None
+    i = rnd.choice(pairs)
+    segs = data["segments"]
+    a, b = segs[i], segs[i + 1]
+    P = T(a["ended_at"])
+    x = copy.deepcopy(data)
+    if carve:
+        a0 = T(a["started_at"])
+        L = (P - a0) * rnd.choice([.001, .5, .999])
+        L = max(L, timedelta(microseconds=1))
+        if L >= P - a0:
+            return None
+        q0 = P - L
+        x["segments"][i]["ended_at"] = x["segments"][i]["last_observed_at"] = iso(q0)
+    else:
+        q0 = P
+    opq = {"id": f"op{i}", "segment_type": "activity", "started_at": iso(q0), "ended_at": iso(P),
+           "last_observed_at": iso(P), "first_event_id": f"opev{i}", "version": "v1", "context": {"kind": "opaque"}}
+    x["segments"].insert(i + 1, opq)
+    o2 = evaluate(impl, x, days, sids)
+    rk7 = c7_row_k(data, i)
+    row7 = rk7[0] if rk7 else None
+    v = []
+    for d in days:
+        w0, w1 = day_window(data, d)
+        want = copy.deepcopy(o["daily"][d])
+        want["c2"] = dwell_cut(want["c2"], P)
+        if row7 is not None and w0 <= T(row7["at"]) < w1:
+            want["c7"] = remove_rows(want["c7"], [rk7])
+            if want["c7"] is None:
+                v.append(f"daily {d}: 원래 c7에 {row7} 없음")
+                continue
+        got = copy.deepcopy(o2["daily"][d])
+        if carve:
+            L_us = ov_us(q0, P, w0, w1)
+            c1o, c1n = want["c1"], got["c1"]
+            if c1n["opaque_us"] != c1o["opaque_us"] + L_us:
+                v.append(f"daily {d}: opaque_us {c1n['opaque_us']} != {c1o['opaque_us']} + {L_us}")
+            for f in ("observed_us", "unknown_app_us"):
+                if c1n[f] != c1o[f]:
+                    v.append(f"daily {d}: {f} 바뀜")
+            for f in ("apps", "targets"):
+                if not one_key_minus(c1o[f], c1n[f], L_us, "us"):
+                    v.append(f"daily {d}: {f}가 키 하나 −{L_us}가 아님: {c1o[f]} → {c1n[f]}")
+            want.pop("c1")
+            got.pop("c1")
+        else:
+            rd = [z for z in o2["read_day"][d] if z != opq["id"]]
+            if not set(rd) <= set(o["read_day"][d]):
+                v.append(f"read_day {d}: {rd} ⊄ {o['read_day'][d]}")
+        diff(f"daily {d}", got, want, v)
+    if not carve:
+        for s in sids:
+            sess = next(z for z in data["sessions"] if z["id"] == s)
+            want = copy.deepcopy(o["session"][s])
+            want["c3"] = dwell_cut(want["c3"], P)
+            if row7 is not None and in_work(sess, row7["at"]):
+                want["c7"] = remove_rows(want["c7"], [rk7])
+                if want["c7"] is None:
+                    v.append(f"session {s}: 원래 c7에 {row7} 없음")
+                    continue
+            diff(f"session {s}", o2["session"][s], want, v)
+    return v, {"pair": [a["id"], b["id"]], "P": iso(P), "opaque_from": iso(q0)}
+
+
+def one_key_minus(old, new, dec, f):
+    """old → new에서 키 하나만 dec 줄고(0이면 행 삭제) 나머지 같다. dec=0이면 같아야 한다."""
+    od, nd = {r["key"]: r[f] for r in old}, {r["key"]: r[f] for r in new}
+    if dec == 0:
+        return old == new
+    ch = [k for k in od.keys() | nd.keys() if od.get(k, 0) != nd.get(k, 0)]
+    return (len(ch) == 1 and od.get(ch[0], 0) - nd.get(ch[0], 0) == dec
+            and new == sorted(new, key=lambda r: (-r[f], r["key"])))
+
+
+# ---------------- R5 ----------------
+def r5(rnd, data, days, sids, impl, o):
+    confd = {c["first_event_id"] for c in data["confirmations"]}
+    cand = [i for i, s in enumerate(data["segments"]) if is_act(s) and s["first_event_id"] in confd]
+    if not cand:
+        return None
+    i = rnd.choice(cand)
+    g = data["segments"][i]
+    xa = copy.deepcopy(data)
+    xa["confirmations"] = [c for c in xa["confirmations"] if c["first_event_id"] != g["first_event_id"]]
+    xb = copy.deepcopy(data)
+    xb["segments"][i]["version"] = g["version"] + "+1"
+    oa = evaluate(impl, xa, days, sids)
+    ob = evaluate(impl, xb, days, sids)
+    v = []
+    diff("(가) 확정 삭제 ≠ (나) version 변경", oa, ob, v)
+    valid, label = valid_label(data, g)
+    info = {"seg": g["id"], "valid": valid}
+    if not valid:
+        diff("무효 확정 제거", oa, o, v)
+        return v, info
+    segs = data["segments"]
+    rows7 = [r for r in (c7_row_k(data, i - 1) if i > 0 else None,
+                         c7_row_k(data, i) if i + 1 < len(segs) else None) if r is not None]
+    g0, g1 = T(g["started_at"]), eff_end(g)
+    for d in days:
+        w0, w1 = day_window(data, d)
+        diff(f"read_day {d}", oa["read_day"][d], o["read_day"][d], v)
+        want = copy.deepcopy(o["daily"][d])
+        want["c7"] = remove_rows(want["c7"], [r for r in rows7 if w0 <= T(r[0]["at"]) < w1])
+        if want["c7"] is None:
+            v.append(f"daily {d}: 원래 c7에 g 쌍 행 없음")
+            continue
+        diff(f"daily {d}", oa["daily"][d], want, v)
+    for s in sids:
+        sess = next(z for z in data["sessions"] if z["id"] == s)
+        old, new = o["session"][s], oa["session"][s]
+        cls = "unclassified_us" if label is None else ("focus_us" if label == sess["label_id"] else "lapse_us")
+        ov = sum(ov_us(g0, g1, a, b) for a, b in work_intervals(sess))
+        for f in ("has_pause_info", "analysis_us", "c3"):
+            diff(f"session {s} {f}", new[f], old[f], v)
+        w7 = remove_rows(old["c7"], [r for r in rows7 if in_work(sess, r[0]["at"])])
+        if w7 is None:
+            v.append(f"session {s}: 원래 c7에 g 쌍 행 없음")
+        else:
+            diff(f"session {s} c7", new["c7"], w7, v)
+        w4 = dict(old["c4"])
+        w4[cls] -= ov
+        w4["pending_us"] += ov
+        n = old["c4"]["lapse_count"]
+        ok_n = new["c4"]["lapse_count"] == n if cls == "unclassified_us" else new["c4"]["lapse_count"] in (n, n - 1)
+        if not ok_n:
+            v.append(f"session {s}: lapse_count {n} → {new['c4']['lapse_count']} ({cls})")
+        w4["lapse_count"] = new["c4"]["lapse_count"]
+        diff(f"session {s} c4", new["c4"], w4, v)
+        if sum(r["entries"] for r in new["c5"]) < new["c4"]["lapse_count"]:
+            v.append(f"session {s} c5: 진입 합 < 이탈 건수(D11 불변식)")
+        if cls == "unclassified_us":
+            diff(f"session {s} c5", new["c5"], old["c5"], v)
+        else:
+            od = {r["key"]: r for r in old["c5"]}
+            nd = {r["key"]: r for r in new["c5"]}
+            okc = new["c5"] == sorted(new["c5"], key=lambda r: (-r["lapse_us"], r["key"]))
+            lch = [k for k in od.keys() | nd.keys()
+                   if (k in od) != (k in nd) or od[k]["lapse_us"] != nd[k]["lapse_us"]]
+            if cls == "focus_us":
+                okc = okc and not lch
+            elif lch:
+                k = lch[0]
+                r0, r1 = od.get(k), nd.get(k)
+                okc = okc and len(lch) == 1 and r0 is not None and (
+                    (r1 is None and r0["lapse_us"] == ov) or (r1 is not None and r0["lapse_us"] - r1["lapse_us"] == ov))
+            else:
+                okc = okc and ov == 0
+            de = {k: (nd[k]["entries"] if k in nd else 0) - (od[k]["entries"] if k in od else 0)
+                  for k in od.keys() | nd.keys()}
+            okc = okc and all(x in (-1, 0, 1) for x in de.values()) and sum(1 for x in de.values() if x == 1) <= 1
+            if cls == "focus_us":
+                okc = okc and all(x <= 0 for x in de.values()) and sum(1 for x in de.values() if x) <= 1
+            else:
+                okc = okc and sum(de.values()) in (-1, 0)
+            if not okc:
+                v.append(f"session {s} c5: {old['c5']} → {new['c5']} (ov {ov}, {cls})")
+        if cls != "unclassified_us":
+            n6 = len(old["c6"])
+            if len(new["c6"]) not in (n6, n6 - 1):
+                v.append(f"session {s}: c6 행 수 {n6} → {len(new['c6'])}")
+            dec = ov if cls == "lapse_us" else 0
+            if sum(r["lapse_us"] for r in new["c6"]) != sum(r["lapse_us"] for r in old["c6"]) - dec:
+                v.append(f"session {s}: c6 lapse_us 합이 {dec} 줄지 않음")
+            before_old = [r for r in old["c6"] if T(r["end"]) < g0]
+            before_new = [r for r in new["c6"] if T(r["end"]) < g0]
+            diff(f"session {s} c6(end < g 시작)", before_new, before_old, v)
+        else:
+            diff(f"session {s} c6", new["c6"], old["c6"], v)
+    return v, info
+
+
+# ---------------- P2 ----------------
+def p2(rnd, data, days, sids, impl, o):
+    v = []
+    for d in days:
+        keep = set(o["read_day"][d])
+        sub = {**data, "segments": [s for s in data["segments"] if s["id"] in keep]}
+        diff(f"daily(read_day) {d}", impl.daily(sub, d, PSL), o["daily"][d], v)
+    return v, {}
+
+
+REL_FN = {"R1": r1, "R2": r2, "R3": r3, "R4a": lambda *a: r4(*a, carve=False),
+          "R4b": lambda *a: r4(*a, carve=True), "R5": r5, "P2": p2}
+
+
+# ---------------- 실행 ----------------
+def input_at(seed, i):
+    return gen.gen(random.Random(seed * 1_000_003 + i))
+
+
+def run_chunk(args):
+    spec, seed, lo, hi, rels = args
+    impl = get_impl(spec)
+    res = {r: Counter() for r in rels}
+    ex = {}
+    for i in range(lo, hi):
+        data, days, sids = input_at(seed, i)
+        try:
+            o = evaluate(impl, data, days, sids)
+        except Exception as e:  # 원 입력에서 실패
+            for r in rels:
+                res[r]["crash"] += 1
+            ex.setdefault("crash", (i, repr(e)))
+            continue
+        for r in rels:
+            rnd = random.Random(f"{seed}/{i}/{r}")
+            try:
+                out = REL_FN[r](rnd, data, days, sids, impl, o)
+            except Exception as e:
+                res[r]["crash"] += 1
+                ex.setdefault(r, (i, f"crash {e!r}"))
+                continue
+            if out is None:
+                res[r]["n/a"] += 1
+            elif out == "skip":
+                res[r]["skip"] += 1
+            else:
+                v, info = out
+                res[r]["checked"] += 1
+                if v:
+                    res[r]["viol"] += 1
+                    ex.setdefault(r, (i, info, v[:3]))
+    return res, ex
+
+
+def run(spec="ref", n=20000, seed=1, procs=8, rels=RELS):
+    chunks = [(spec, seed, lo, min(n, lo + 250), rels) for lo in range(0, n, 250)]
+    tot = {r: Counter() for r in rels}
+    ex = {}
+    with Pool(procs) as pool:
+        for res, e in pool.imap_unordered(run_chunk, chunks):
+            for r in rels:
+                tot[r].update(res[r])
+            for k, val in e.items():
+                ex.setdefault(k, val)
+    return tot, ex
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-n", type=int, default=20000)
+    ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--impl", default="ref")
+    ap.add_argument("--procs", type=int, default=8)
+    ap.add_argument("--rels", default=",".join(RELS))
+    a = ap.parse_args()
+    tot, ex = run(a.impl, a.n, a.seed, a.procs, a.rels.split(","))
+    print(f"impl={a.impl} n={a.n} seed={a.seed}")
+    for r in a.rels.split(","):
+        c = tot[r]
+        print(f"  {r:4s} 검사 {c['checked']:6d}  위반 {c['viol']:5d}  해당 없음 {c['n/a']:5d}  건너뜀 {c['skip']:5d}  실패 {c['crash']}")
+    for k, val in ex.items():
+        print(f"  예 {k}: {json.dumps(val, ensure_ascii=False, default=str)[:1500]}")
+    sys.exit(1 if any(tot[r]["viol"] or tot[r]["crash"] for r in tot) else 0)
