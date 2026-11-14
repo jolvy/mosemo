@@ -145,7 +145,8 @@ bash infra/deployment/session-audit.sh # 남은 리소스 0개 확인
    (ECR 인증은 --password-stdin). 같은 `repository@sha256` digest로 migration Job 성공을 확인한 뒤
    API·consumer·batch를 rollout하고, ALB에 직접 연결해 HTTPS `/openapi.json` 200·비인증 `/api/v1/accounts/me` 401·
    HTTP 301, Cloudflare CNAME, consumer group Stable, batch label-proposals 성공 로그를 확인한다. 측정 프로필이면 batch 렌더·rollout·로그 확인을
-   건너뛰고 남은 `mosemo-batch` Deployment를 지운다. 대화형 단계가 없어 G2 CI가 재사용할 수 있다.
+   건너뛰고 남은 `mosemo-batch` Deployment를 지운다. 또 API·consumer를 replicas 4와 hostname
+   topologySpreadConstraints(maxSkew 1, DoNotSchedule)로 렌더하고, rollout 뒤 app 노드마다 API 1·consumer 1인지 확인한다. 대화형 단계가 없어 G2 CI가 재사용할 수 있다.
 3. session-down.sh: 최종 스냅샷 `mosemo-lab-final`이 이미 있으면 알리고 아무것도 바꾸지 않고 멈춤
    → Kafka StatefulSet·PVC 삭제 → Retain PV의 EBS를 volume ID로 삭제·확인 → PV 삭제
    → `-var skip_final_snapshot=true` plan이 RDS update 하나뿐인지 확인 후 apply
@@ -173,7 +174,8 @@ annotation에 복제하지 않는다. 디렉터리 전체를 일괄 apply하지 
 측정 프로필(`session-up.sh --profile measurement`)은 loadgen 노드 그룹(1대, 2a, taint
 `dedicated=loadgen:NoSchedule`, label `pool=loadgen`)을 더하고 batch를 뺀다. 모든 노드는 크레딧 없는
 `m7i.large`이고 2a에 있으며, app 그룹은 4대 고정(kafka·loadgen 각 1대)이다. 토픽 파티션은 8개다
-(consumer 4 Pod × max_workers 2 = 그룹 멤버 8과 1:1). session-up.sh가 kafka-init Job을 렌더할 때 넣는다. 프로필은 tfvars가 아니라
+(consumer 4 Pod × max_workers 2 = 그룹 멤버 8과 1:1). session-up.sh가 kafka-init Job을 렌더할 때 넣는다.
+API·consumer는 각 4 replica로 app 노드마다 1개씩 둔다(deploy.sh가 렌더·배치 확인). 프로필은 tfvars가 아니라
 세션 디렉터리의 `profile` 기록으로 정해지며 `tf()`가 모든 terraform 호출에 `TF_VAR_measurement`를 붙인다.
 플래그 없이 다시 실행하면 기록을 따른다. state가 남아 있는데 다른 프로필을 요청하면 실패한다.
 측정 프로필로 새로 시작할 때 이전 `measurement/`는 `measurement.<UTC>/`로 옮긴다.
@@ -216,18 +218,18 @@ RBAC는 Pod 생성을 이름으로 제한할 수 없어 다른 Pod도 만들 수
 - kubeconfig는 `$MOSEMO_SESSION_DIR/measurement.kubeconfig`(예상 끝 + 30분, 최소 1시간·최대 13시간 토큰, `measurement-lock.sh start`가 발급).
 - 측정 Pod에 toleration `dedicated=loadgen:NoSchedule`, nodeSelector `pool: loadgen`,
   `activeDeadlineSeconds: 43200`이 필요하다.
-- 측정 세션에는 batch가 없다. scale 대상은 `mosemo-consumer`뿐이다.
+- 측정 세션에는 batch가 없다. scale 대상은 `mosemo-consumer`뿐이며, 0으로 줄였다면 4로 되돌린다.
 - 노드는 m7i.large(버스트 없음)라 EC2 CPU 크레딧 지표는 없다. EC2 CPUUtilization과 RDS 지표는 1분 해상도다.
 
 ## 오프라인 검증
 
 ```sh
 bash infra/deployment/tests/run.sh         # 가짜 aws·kubectl·terraform·docker(·git·curl·dig)로 스크립트 분기 검증
-bash infra/deployment/tests/kind-check.sh   # 일회용 kind 클러스터: 매니페스트 server dry-run, 측정 RBAC 매트릭스
+bash infra/deployment/tests/kind-check.sh   # 일회용 kind 클러스터: 매니페스트(측정 프로필 렌더 포함) server dry-run, 측정 RBAC 매트릭스
 ```
 
 run.sh는 호출을 기록만 하는 가짜 명령을 PATH 앞에 두고 잠금 거절(호출 0건), 측정 프로필 전달,
-batch 제외, session-down 재실행 가드, 잠금 start/end(토큰 기간), 프로필 유지, measurement-ready 매니페스트(애드온·크레딧·AZ·인스턴스 타입)를 확인한다. AWS·클러스터 동작의 증거는 아니다.
+batch 제외, 프로필별 API·consumer 렌더(replicas·spread)와 측정 배치 확인, session-down 재실행 가드, 잠금 start/end(토큰 기간), 프로필 유지, measurement-ready 매니페스트(애드온·크레딧·AZ·인스턴스 타입)를 확인한다. AWS·클러스터 동작의 증거는 아니다.
 
 ## 실제 인증과 HTTPS
 

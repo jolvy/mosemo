@@ -2,6 +2,7 @@
 # Server-side validation of infra/kubernetes on a throwaway kind cluster (deleted on exit):
 #   1. namespace and PriorityClasses applied for real, every other manifest `kubectl apply --dry-run=server`
 #      (configmap rendered with a sample RDS endpoint);
+#      plus the measurement profile's renders (kafka-init 8 partitions, API and consumer replicas 4 with spread);
 #   2. measurement-rbac.yaml applied and the step5-operator `kubectl auth can-i` answers compared with
 #      measurement-rbac-matrix.txt (the same matrix measurement-ready.sh P1 checks on EKS).
 # Requires Docker and kind. Usage: bash infra/deployment/tests/kind-check.sh
@@ -27,7 +28,19 @@ sed 's|REPLACE_WITH_RDS_ENDPOINT|mosemo-lab.abc123.ap-southeast-2.rds.amazonaws.
 # The measurement profile's kafka-init Job, rendered like session-up.sh does.
 mkdir -p "$WORK/measurement"
 sed '/name: KAFKA_TOPIC_PARTITIONS/{n;s/value: .*/value: "8"/;}' "$K8S_DIR/kafka-init-job.yaml" >"$WORK/measurement/kafka-init-job.yaml"
-for manifest in "$K8S_DIR"/*.yaml "$WORK/configmap.yaml" "$WORK/measurement/kafka-init-job.yaml"; do
+# The measurement profile's API and consumer (replicas 4, hostname spread), rendered by deploy.sh's own function.
+fail() {
+  echo "FAIL $*"
+  exit 1
+}
+eval "$(sed -n '/^measurement_render() {/,/^}/p' "$DEPLOY_DIR/deploy.sh")"
+for pair in deployment.yaml:server:mosemo-server consumer-deployment.yaml:consumer:mosemo-consumer; do
+  IFS=: read -r file container app <<<"$pair"
+  kubectl set image --local -f "$K8S_DIR/$file" "$container=example.com/mosemo@sha256:$(printf 'a%.0s' {1..64})" -o yaml \
+    >"$WORK/measurement/$file"
+  measurement_render "$WORK/measurement/$file" "$app"
+done
+for manifest in "$K8S_DIR"/*.yaml "$WORK/configmap.yaml" "$WORK/measurement/"*.yaml; do
   case $(basename "$manifest") in namespace.yaml | priority-classes.yaml) continue ;; esac
   [[ $manifest == "$K8S_DIR/configmap.yaml" ]] && continue
   if out=$(kubectl apply --dry-run=server -f "$manifest" 2>&1); then

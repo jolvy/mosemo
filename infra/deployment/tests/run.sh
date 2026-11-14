@@ -64,6 +64,8 @@ part = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstri
 print(part({"alg": "none"}) + "." + part({"exp": int(sys.argv[1])}) + ".sig")' "$(cat "$state/token_exp")"
         ;;
       *" get nodes -l pool=loadgen "*) cat "$state/loadgen_nodes" ;;
+      *" get nodes -l pool=app "*) cat "$state/app_nodes" ;;
+      *" get pods -l app=mosemo-"*deletionTimestamp*) cat "$state/pod_nodes" ;;
       *" get nodes -o jsonpath="*allocatable*) cat "$state/nodes" ;;
       *" get nodes --no-headers "*) cat "$state/nodes" ;;
       *" get nodes -o json "*) cat "$state/nodes.json" ;;
@@ -147,6 +149,10 @@ new_case() {
   : >"$FAKE_STATE/tfstate"
   printf 'node-kafka kafka 110 1900000Ki\nnode-app app 110 1900000Ki\n' >"$FAKE_STATE/nodes"
   echo node-loadgen >"$FAKE_STATE/loadgen_nodes"
+  printf 'node-app-%s\n' 4 2 3 1 >"$FAKE_STATE/app_nodes"
+  # "<deletionTimestamp> <node>": one Pod per app node, plus a terminating one the check must ignore.
+  printf ' node-app-%s\n' 1 2 3 4 >"$FAKE_STATE/pod_nodes"
+  echo "2026-11-20T09:00:00Z node-app-1" >>"$FAKE_STATE/pod_nodes"
   echo $(($(date +%s) + 14 * 3600)) >"$FAKE_STATE/token_exp"
   echo "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/mosemo-lab-server@sha256:$(printf 'a%.0s' {1..64})" >"$FAKE_STATE/image"
 }
@@ -187,6 +193,28 @@ if ((STATUS == 0)) && logged 'apply -f .*/batch-deployment.yaml'; then
   ok "a deploy (default profile) rolls out batch"
 else
   not_ok "a deploy (default profile) rolls out batch (exit $STATUS)" "$OUTPUT"
+fi
+# rendered_workload FILE REPLICAS SPREAD_APP|none
+rendered_workload() {
+  local rendered="$MOSEMO_SESSION_DIR/rendered/$1"
+  grep -qx "  replicas: $2" "$rendered" || return 1
+  if [[ $3 == none ]]; then
+    [[ $(grep -c topologySpreadConstraints "$rendered") -eq 0 ]]
+  else
+    python3 - "$rendered" "$3" <<'PY'
+import sys
+text, app = open(sys.argv[1]).read(), sys.argv[2]
+assert text.count("topologySpreadConstraints:") == 1
+assert ("      topologySpreadConstraints:\n      - maxSkew: 1\n        topologyKey: kubernetes.io/hostname\n"
+        "        whenUnsatisfiable: DoNotSchedule\n        nodeTaintsPolicy: Honor\n        labelSelector:\n"
+        "          matchLabels:\n            app: " + app + "\n") in text
+PY
+  fi
+}
+if rendered_workload deployment.yaml 1 none && rendered_workload consumer-deployment.yaml 1 none && ! logged 'get nodes -l pool=app'; then
+  ok "a default profile renders API and consumer with 1 replica, no spread, no placement check"
+else
+  not_ok "a default profile renders API and consumer with 1 replica, no spread, no placement check" "$OUTPUT"
 fi
 
 echo "b. measurement lock blocks every changing script before any call"
@@ -258,6 +286,26 @@ if ((STATUS == 0)) && ! logged 'batch-deployment.yaml' && logged '^kubectl\|.*de
 else
   not_ok "d no batch apply, existing mosemo-batch deleted, no batch smoke (exit $STATUS)" "$OUTPUT"
 fi
+if rendered_workload deployment.yaml 4 mosemo-server && rendered_workload consumer-deployment.yaml 4 mosemo-consumer &&
+  grep -q "one mosemo-server and one mosemo-consumer Pod on each app node" <<<"$OUTPUT"; then
+  ok "d API and consumer rendered with 4 replicas and the hostname spread; placement checked"
+else
+  not_ok "d API and consumer rendered with 4 replicas and the hostname spread; placement checked" "$OUTPUT"
+fi
+for pods in "1 2 3" "1 1 2 3" "1 2 3 4 5"; do
+  new_case
+  kubeconfig
+  profile measurement
+  printf 'node-app-%s\n' 1 2 3 4 >"$FAKE_STATE/app_nodes"
+  # shellcheck disable=SC2086 # Word-split node suffixes.
+  printf ' node-app-%s\n' $pods >"$FAKE_STATE/pod_nodes"
+  run deploy.sh
+  if ((STATUS != 0)) && grep -q "Pods are not one per app node" <<<"$OUTPUT" && ! grep -q "Smoke check" <<<"$OUTPUT"; then
+    ok "d Pods on app nodes [$pods] fail the placement check before the smoke check"
+  else
+    not_ok "d Pods on app nodes [$pods] fail the placement check before the smoke check (exit $STATUS)" "$OUTPUT"
+  fi
+done
 
 echo "e. session-down rerun guard"
 plan_json() { # plan_json ALB_AFTER_JSON

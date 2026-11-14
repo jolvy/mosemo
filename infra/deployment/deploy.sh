@@ -2,6 +2,7 @@
 # Deploy the current commit: image digest (build and push only when the commit has no image) ->
 # migration Job -> API, consumer and batch rollout -> smoke check. Stops at the first failed check.
 # The measurement profile (see session-up.sh) never runs batch: it is skipped and an existing one removed.
+# It runs API and consumer with 4 replicas spread one per app node, and checks that placement after the rollout.
 # Run after session-up.sh; kept free of interactive steps so G2 CI can reuse it.
 # shellcheck source=session-lib.sh source-path=SCRIPTDIR
 source "$(dirname "$0")/session-lib.sh"
@@ -48,10 +49,35 @@ image="$repo_url@$digest"
 echo "image: $image"
 
 render() { kubectl set image --local -f "$K8S_DIR/$1" "$2=$image" -o yaml >"$RENDER_DIR/$1"; }
+# Measurement profile: the app group is 4 m7i.large nodes and each runs one API and one consumer Pod.
+# Topic partitions 8 = consumer 4 Pods x max_workers 2. Reads kubectl -o yaml output (template spec at 4 spaces).
+measurement_render() { # FILE APP
+  awk -v app="$2" '
+    /^  replicas: / { print "  replicas: 4"; next }
+    { print }
+    /^    spec:$/ {
+      print "      topologySpreadConstraints:"
+      print "      - maxSkew: 1"
+      print "        topologyKey: kubernetes.io/hostname"
+      print "        whenUnsatisfiable: DoNotSchedule"
+      print "        nodeTaintsPolicy: Honor"
+      print "        labelSelector:"
+      print "          matchLabels:"
+      print "            app: " app
+    }' "$1" >"$1.tmp"
+  mv "$1.tmp" "$1"
+  [[ $(grep -cx '  replicas: 4' "$1") -eq 1 && $(grep -cx '      topologySpreadConstraints:' "$1") -eq 1 ]] \
+    || fail "could not render replicas 4 and the hostname spread into $1"
+}
 render migration-job.yaml migration
 render deployment.yaml server
 render consumer-deployment.yaml consumer
-[[ $profile == measurement ]] || render batch-deployment.yaml batch
+if [[ $profile == measurement ]]; then
+  measurement_render "$RENDER_DIR/deployment.yaml" mosemo-server
+  measurement_render "$RENDER_DIR/consumer-deployment.yaml" mosemo-consumer
+else
+  render batch-deployment.yaml batch
+fi
 
 step "Migration"
 run_job "$RENDER_DIR/migration-job.yaml" mosemo-migration 330
@@ -69,6 +95,17 @@ for deployment in $workloads; do
   [[ $(kubectl -n "$NAMESPACE" get deployment "$deployment" -o jsonpath='{.spec.template.spec.containers[0].image}') == "$image" ]] \
     || fail "deployment/$deployment does not run $image"
 done
+if [[ $profile == measurement ]]; then
+  # Sorted node lists are equal only when every app node runs exactly one Pod and no Pod runs elsewhere.
+  app_nodes=$(kubectl get nodes -l pool=app -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | sort)
+  for deployment in mosemo-server mosemo-consumer; do
+    pod_nodes=$(kubectl -n "$NAMESPACE" get pods -l "app=$deployment" \
+      -o jsonpath='{range .items[*]}{.metadata.deletionTimestamp}{" "}{.spec.nodeName}{"\n"}{end}' | awk 'NF == 1 { print $1 }' | sort)
+    [[ -n $app_nodes && $pod_nodes == "$app_nodes" ]] \
+      || fail "$deployment Pods are not one per app node: nodes [$(tr '\n' ' ' <<<"$app_nodes")], Pods on [$(tr '\n' ' ' <<<"$pod_nodes")]"
+  done
+  echo "one mosemo-server and one mosemo-consumer Pod on each app node: $(tr '\n' ' ' <<<"$app_nodes")"
+fi
 
 step "Smoke check"
 # Pin the connection to this session's ALB so stale resolver caches cannot hide a failure.
