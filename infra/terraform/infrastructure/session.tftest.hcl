@@ -123,12 +123,12 @@ run "session_stack_contract" {
   assert {
     condition = alltrue([
       for group in aws_eks_node_group.main :
-      length(group.instance_types) == 1 && contains(group.instance_types, "t3.small") &&
+      length(group.instance_types) == 0 &&
       group.capacity_type == "ON_DEMAND" &&
       group.launch_template[0].id == aws_launch_template.node.id &&
       group.launch_template[0].version == tostring(aws_launch_template.node.latest_version)
     ])
-    error_message = "Every node must be an on-demand t3.small launched from the shared template."
+    error_message = "Every node must be on-demand from the shared template, with the instance type left to the template (EKS rejects both)."
   }
 
   assert {
@@ -137,7 +137,6 @@ run "session_stack_contract" {
       aws_launch_template.node.metadata_options[0].http_tokens == "required" &&
       aws_launch_template.node.metadata_options[0].http_put_response_hop_limit == 1 &&
       aws_launch_template.node.image_id == null &&
-      aws_launch_template.node.instance_type == null &&
       aws_launch_template.node.user_data == null
     )
     error_message = "The launch template must set standard credits and IMDSv2 hop limit 1, leaving AMI, bootstrap, and max-pods to EKS."
@@ -228,11 +227,12 @@ run "session_stack_contract" {
 
   assert {
     condition = (
-      alltrue([for group in aws_eks_node_group.main : length(group.instance_types) == 1 && contains(group.instance_types, "t3.small")]) &&
+      # The AWS provider sends credit_specification only when the template itself names a burstable type.
+      aws_launch_template.node.instance_type == "t3.small" &&
       length(aws_launch_template.node.credit_specification) == 1 &&
       aws_launch_template.node.credit_specification[0].cpu_credits == "standard"
     )
-    error_message = "A normal session keeps t3.small nodes with standard credits."
+    error_message = "A normal session's launch template must name t3.small so its standard credit specification reaches EC2."
   }
 }
 
@@ -262,7 +262,7 @@ run "measurement_profile_adds_isolated_loadgen" {
       one(aws_eks_node_group.main["loadgen"].taint).effect == "NO_SCHEDULE" &&
       aws_eks_node_group.main["loadgen"].launch_template[0].id == aws_launch_template.node.id
     )
-    error_message = "loadgen must be one tainted t3.small in 2a from the shared launch template."
+    error_message = "loadgen must be one tainted node in 2a from the shared launch template."
   }
 
   assert {
@@ -279,8 +279,8 @@ run "measurement_profile_adds_isolated_loadgen" {
   assert {
     condition = alltrue([
       for group in aws_eks_node_group.main :
-      length(group.instance_types) == 1 && contains(group.instance_types, "m7i.large") && group.subnet_ids == toset([aws_subnet.public["a"].id])
-    ])
+      length(group.instance_types) == 0 && group.subnet_ids == toset([aws_subnet.public["a"].id])
+    ]) && aws_launch_template.node.instance_type == "m7i.large"
     error_message = "Every measurement node must be a non-burst m7i.large in 2a."
   }
 

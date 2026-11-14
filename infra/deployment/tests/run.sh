@@ -504,7 +504,7 @@ w("aws.eks.describe-cluster", {"cluster": {"version": "1.36"}})
 w("aws.eks.describe-addon", {"addon": {"addonName": "vpc-cni", "addonVersion": "v1.20.0-eksbuild.1"}})
 w("aws.eks.list-nodegroups", "mosemo-lab-app\n")
 w("aws.eks.describe-nodegroup", {"nodegroup": {
-    "nodegroupName": "mosemo-lab-app", "instanceTypes": [itype], "amiType": "AL2023_x86_64_STANDARD",
+    "nodegroupName": "mosemo-lab-app", "instanceTypes": None, "amiType": "AL2023_x86_64_STANDARD",
     "releaseVersion": "1.36.5-20261107", "subnets": ["subnet-b", "subnet-a"],
     "scalingConfig": {"desiredSize": 1}, "taints": []}})
 w("aws.rds.describe-db-instances", {"DBInstances": [{
@@ -554,6 +554,11 @@ else
   not_ok "i db.t* RDS: credit unlimited and P8 queries its CPUCreditBalance (exit $STATUS)" "$OUTPUT"
 fi
 ready_case m7i.large db.m7g.large vpc-cni
+if manifest_is 'm["nodegroups"][0]["instance_type"] == "m7i.large"'; then
+  ok "i a launch-template node group (instanceTypes null) records its instances' type"
+else
+  not_ok "i a launch-template node group (instanceTypes null) records its instances' type (exit $STATUS)" "$OUTPUT"
+fi
 if manifest_is 'm["nodegroups"][0]["credit"] == "none"' && ! logged 'describe-instance-credit-specifications'; then
   ok "i m7i node group credit is none without a credit lookup"
 else

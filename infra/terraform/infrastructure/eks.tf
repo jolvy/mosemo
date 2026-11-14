@@ -48,8 +48,11 @@ locals {
 }
 
 # No AMI: EKS keeps merging its bootstrap user data and calculating max-pods.
+# The instance type lives here, not on the node groups (EKS rejects both): the AWS provider sends
+# credit_specification only when the template itself names a burstable instance type.
 resource "aws_launch_template" "node" {
   name                   = "${local.name}-node"
+  instance_type          = local.node_instance_type
   description            = "Mosemo EKS managed nodes: ${local.burstable_nodes ? "standard T3 credits, " : ""}IMDSv2 hop limit 1, encrypted 20 GiB gp3 root volume, detailed monitoring."
   update_default_version = true
 
@@ -127,7 +130,6 @@ resource "aws_eks_node_group" "main" {
   version         = aws_eks_cluster.main.version
   ami_type        = "AL2023_x86_64_STANDARD"
   capacity_type   = "ON_DEMAND"
-  instance_types  = [local.node_instance_type]
   labels          = { pool = each.key }
 
   launch_template {

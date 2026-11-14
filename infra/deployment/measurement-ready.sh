@@ -298,11 +298,13 @@ limits = load("limitrange.json")["spec"]["limits"][0]
 groups = []
 for path in sorted(glob.glob(os.path.join(raw, "nodegroup-*.json"))):
     g = json.load(open(path))["nodegroup"]
-    # The credit mode of the group's running T instances ("none" for non-burstable types).
     members = [instance_id(n) for n in nodes if n["metadata"]["labels"].get("eks.amazonaws.com/nodegroup") == g["nodegroupName"]]
+    # instanceTypes is null when the launch template names the type: read it from the group's instances.
+    types = sorted({instances[i]["InstanceType"] for i in members}) or (g.get("instanceTypes") or [])
+    # The credit mode of the group's running T instances ("none" for non-burstable types).
     credit = (",".join(sorted({credits.get(i, "unknown") for i in members})) or "unknown"
-              if any(burstable(t) for t in g["instanceTypes"]) else "none")
-    groups.append({"name": g["nodegroupName"], "instance_type": ",".join(g["instanceTypes"]),
+              if any(burstable(t) for t in types) else "none")
+    groups.append({"name": g["nodegroupName"], "instance_type": ",".join(types),
                    "ami": f'{g["amiType"]} {g.get("releaseVersion", "")}'.strip(),
                    "credit": credit,
                    "availability_zones": sorted({subnet_zone[s] for s in g["subnets"]}),
