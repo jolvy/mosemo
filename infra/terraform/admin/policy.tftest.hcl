@@ -230,7 +230,7 @@ run "node_group_permission_contract" {
   assert {
     condition = alltrue([
       for statement in jsondecode(aws_iam_policy.infrastructure["nodes"].policy).Statement :
-      try(statement.Condition.StringEquals["ec2:InstanceType"] == "t3.small", false) &&
+      try(toset(statement.Condition.StringEquals["ec2:InstanceType"]) == toset(["t3.small", "m7i.large"]), false) &&
       try(statement.Condition.ArnLike["ec2:LaunchTemplate"] == "arn:aws:ec2:ap-southeast-2:123456789012:launch-template/*", false)
       if contains(statement.Action, "ec2:RunInstances") && contains(statement.Resource, "arn:aws:ec2:ap-southeast-2:123456789012:instance/*")
       ]) && alltrue([
@@ -240,7 +240,7 @@ run "node_group_permission_contract" {
       try(statement.Condition.StringEquals["aws:ResourceTag/ManagedBy"] == "terraform", false)
       if contains(statement.Action, "ec2:RunInstances") && contains(statement.Resource, "arn:aws:ec2:ap-southeast-2:123456789012:launch-template/*")
     ])
-    error_message = "Node instances must be t3.small launched from a launch template, and only project-tagged launch templates may be used."
+    error_message = "Node instances must be t3.small (normal) or m7i.large (measurement) launched from a launch template, and only project-tagged launch templates may be used."
   }
 
   assert {

@@ -68,7 +68,10 @@
       "Condition": {
         "StringEquals": {
           "aws:RequestedRegion": "ap-southeast-2",
-          "ec2:InstanceType": "t3.small"
+          "ec2:InstanceType": [
+            "t3.small",
+            "m7i.large"
+          ]
         },
         "ArnLike": {
           "ec2:LaunchTemplate": "arn:aws:ec2:ap-southeast-2:${account_id}:launch-template/*"
