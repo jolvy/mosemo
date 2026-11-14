@@ -190,15 +190,35 @@ def distractions(pieces: list[Piece], sites: PublicSuffixList) -> list[dict[str,
     ]
 
 
+@dataclass(frozen=True, kw_only=True)
+class Measure:
+    """세션 하나의 작업 구간·분석 시간·조각·집중 이탈. 세션 분석과 일간 행 세션 합이 함께 쓴다."""
+
+    intervals: list[Interval]
+    analysis: timedelta
+    pieces: list[Piece]
+    lapses: list[Lapse]
+
+
+def measure(timeline: Timeline, focus: Session) -> Measure:
+    intervals = work_intervals(focus)
+    pieces = pieces_of(timeline, focus, intervals)
+    return Measure(
+        intervals=intervals,
+        analysis=sum((high - low for low, high in intervals), timedelta()),
+        pieces=pieces,
+        lapses=lapses_of(pieces, intervals[-1][1] if intervals else None),
+    )
+
+
 def session(data: Mapping[str, Any], session_id: str, psl: str) -> dict[str, Any]:
     """그 세션의 C3~C6과 세션별 C7."""
     timeline = parse(data)
     sites = PublicSuffixList(psl)
     focus = timeline.sessions[session_id]
-    intervals = work_intervals(focus)
-    analysis = sum((high - low for low, high in intervals), timedelta())
-    pieces = pieces_of(timeline, focus, intervals)
-    lapses = lapses_of(pieces, intervals[-1][1] if intervals else None)
+    measured = measure(timeline, focus)
+    intervals, analysis = measured.intervals, measured.analysis
+    pieces, lapses = measured.pieces, measured.lapses
     c3 = [
         transition
         for transition in target_transitions(timeline.segments, sites)

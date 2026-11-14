@@ -1,4 +1,4 @@
-"""지표 명세의 경계 사례·반례(`C\\d-[BX]\\d+`) 80개를 데이터로 고정한다.
+"""지표 명세의 경계 사례·반례(`C\\d-[BX]\\d+`, `P7-B\\d+`) 98개를 데이터로 고정한다.
 
 `CASES`의 값은 `{"data", "call", "args", "expect"}`이고 `expect`의 키는 출력 경로다
 (`tests.support.analytics_timelines.resolve`: 점으로 나누고 숫자는 목록 위치, `#`은 길이,
@@ -73,6 +73,29 @@ def c4(**values: int) -> dict[str, int]:
     }
 
 
+def sessions(
+    count: int = 0,
+    analysis: int = 0,
+    distractions: list[dict[str, Any]] | None = None,
+    **values: int,
+) -> dict[str, Any]:
+    """일간 행 세션 합 전체 값. 시간은 분이다."""
+    return {
+        "count": count,
+        "analysis_us": analysis * MIN,
+        "composition": c4(**values),
+        "distractions": distractions or [],
+    }
+
+
+def entry(key: str, entries: int, minutes: int) -> dict[str, Any]:
+    return {"key": key, "entries": entries, "lapse_us": minutes * MIN}
+
+
+def kst(moment: str) -> str:
+    return f"2026-{moment}:00+09:00"
+
+
 C2_B1 = timeline(
     activity("s1", 0, 5, browser(YT)),
     activity("s2", 5, 6, browser(YT2)),
@@ -118,6 +141,16 @@ C7_B2 = timeline(
     activity("s2", 10, 20, app("B")),
     activity("s3", 20, 30, app("C")),
     labels={"s1": CODING, "s3": LEISURE},
+)
+P7_B2 = timeline(
+    activity("s1", kst("11-01T23:30"), kst("11-02T00:10"), app("A")),
+    activity("s2", kst("11-02T00:10"), kst("11-02T00:40"), app("B")),
+    labels={"s1": CODING, "s2": LEISURE},
+    sessions=[focus(start=kst("11-01T23:30"), end=kst("11-02T00:40"))],
+)
+P7_SILENCE_AT_MIDNIGHT = timeline(
+    activity("s1", -10, -5, app("A")),
+    activity("s2", 5, 10, app("B"), last=8),
 )
 
 CASES: dict[str, dict] = {
@@ -841,6 +874,171 @@ CASES: dict[str, dict] = {
     ),
     "C7-X1": on_day(C7_B2, {"c7.#": 0}),
     "C7-X2": on_day(C7_B1, {"c7.#": 2}),
+    # P7 일간 행 세션 합
+    "P7-B1": on_day(
+        timeline(
+            activity("s1", 0, 40, app("A")),
+            activity("s2", 40, 50, browser(YT)),
+            activity("s3", 50, 60, app("A")),
+            activity("s4", 120, 150, app("A")),
+            activity("s5", 150, 160, browser(YT2)),
+            activity("s6", 160, 170, app(SLACK)),
+            labels={
+                "s1": CODING,
+                "s2": LEISURE,
+                "s3": CODING,
+                "s4": CODING,
+                "s5": LEISURE,
+                "s6": LEISURE,
+            },
+            sessions=[focus(), focus(sid="f2", start=120, end=180)],
+        ),
+        {
+            "sessions": sessions(
+                count=2,
+                analysis=120,
+                focus=80,
+                lapse=30,
+                unobserved=10,
+                lapse_count=2,
+                distractions=[entry("youtube.com", 2, 20), entry(SLACK, 1, 10)],
+            )
+        },
+    ),
+    "P7-B2": on_day(
+        P7_B2,
+        {
+            "sessions": sessions(
+                count=1,
+                analysis=70,
+                focus=40,
+                lapse=30,
+                lapse_count=1,
+                distractions=[entry("B", 1, 30)],
+            )
+        },
+        day="2026-11-01",
+    ),
+    "P7-B3": on_day(P7_B2, {"sessions": sessions()}, day="2026-11-02"),
+    "P7-B4": on_day(
+        timeline(
+            activity("s1", 0, 90, app("A")),
+            labels={"s1": CODING},
+            sessions=[
+                focus(),
+                focus(sid="f2", start=70, end=90) | {"ended_at": None},
+            ],
+        ),
+        {"sessions": sessions(count=1, analysis=60, focus=60)},
+    ),
+    # P7 5초 미만 체류 전환 수
+    "P7-B5": on_day(
+        timeline(
+            activity("s1", 0, 5, app("A")),
+            activity("s2", 5, at(5, 4), app("B")),
+            activity("s3", at(5, 4), at(5, 9), app("A")),
+            activity("s4", at(5, 9), 10, app("C")),
+        ),
+        {"c2.#": 3, "aux.short_dwell_transition_count": 1},
+    ),
+    "P7-B6": on_day(
+        timeline(
+            activity("s1", 0, 5, app("A")),
+            activity("s2", 5, 5, app("B")),
+            activity("s3", 5, 10, app("C")),
+        ),
+        {"aux.short_dwell_transition_count": 1},
+    ),
+    "P7-B7": on_day(
+        timeline(
+            activity("s1", at(1439, 58), at(1440, 1), app("A")),
+            activity("s2", at(1440, 1), 1450, app("B")),
+        ),
+        {"c2.0.dwell_us": 3_000_000, "aux.short_dwell_transition_count": 1},
+        day=NEXT_DAY,
+    ),
+    # P7 URL 없는 브라우저 앱 시간
+    "P7-B8": on_day(
+        timeline(
+            activity("s1", 0, 20, browser(YT)),
+            activity("s2", 20, 25, browser(None)),
+            activity("s3", 25, 55, app("A")),
+        ),
+        {"aux.browser_without_url_us": 5 * MIN},
+    ),
+    "P7-B9": on_day(
+        timeline(
+            activity("s1", 0, 2, browser("about:blank")),
+            activity("s2", 2, 4, browser("chrome://settings")),
+            activity("s3", 4, 7, unknown_app() | {"web": browser(None)["web"]}),
+            activity("s4", 7, 9, OPAQUE),
+            activity("s5", 9, 13, browser("https://github.com/")),
+        ),
+        {"aux.browser_without_url_us": 4 * MIN},
+    ),
+    "P7-B10": on_day(
+        timeline(activity("s1", -10, 10, browser(None))),
+        {"aux.browser_without_url_us": 10 * MIN},
+    ),
+    # P7 수집 공백 횟수
+    "P7-B11": on_day(
+        timeline(
+            activity("s1", 0, 10, app("A")),
+            gap("g1", 10, 10),
+            activity("s2", 10, 20, app("A")),
+            gap("g2", 20, 30),
+        ),
+        {"aux.capture_gap_count": 2},
+    ),
+    "P7-B12": on_day(
+        timeline(
+            gap("g1", -10, 0),
+            activity("s1", 0, 1440, app("A")),
+            gap("g2", 1440, 1450),
+        ),
+        {"aux.capture_gap_count": 1},
+    ),
+    "P7-B13": on_day(
+        timeline(activity("s1", -20, -10, app("A")), gap("g1", -10, None)),
+        {"aux.capture_gap_count": 1},
+    ),
+    # P7 관찰 침묵 횟수
+    "P7-B14": on_day(
+        timeline(
+            activity("s1", 0, 10, app("A")),
+            activity("s2", 20, 30, app("B")),
+            activity("s3", 30, 40, app("C")),
+            activity("s4", 50, None, app("D"), last=55),
+        ),
+        {"aux.silence_count": 2},
+    ),
+    "P7-B15": on_day(
+        timeline(
+            activity("s1", 1430, 1435, app("A")),
+            activity("s2", 1445, 1450, app("B")),
+        ),
+        {"aux.silence_count": 1},
+    ),
+    "P7-B16": on_day(P7_SILENCE_AT_MIDNIGHT, {"aux.silence_count": 0}),
+    # P7 판정 대기 시간
+    "P7-B17": on_day(
+        timeline(
+            activity("s1", 0, 10, app("A")),
+            activity("s2", 10, 20, app("B")),
+            activity("s3", 20, 30, app("C")),
+            activity("s4", 30, 40, OPAQUE),
+            activity("s5", 40, 45, unknown_app()),
+            activity("s6", 45, 50, app("D"), version="v2"),
+            gap("g1", 50, 60),
+            labels={"s1": CODING, "s3": None},
+            stale={"s6": LEISURE},
+        ),
+        {"aux.pending_us": 20 * MIN},
+    ),
+    "P7-B18": on_day(
+        timeline(activity("s1", -10, None, app("A"), last=10)),
+        {"aux.pending_us": 10 * MIN},
+    ),
 }
 
 CALLS: dict[str, Any] = {"daily": daily, "session": session, "read_day": read_day}
@@ -855,7 +1053,7 @@ def spec_case_ids() -> set[str]:
     return {
         match.group(1)
         for row in rows
-        if (match := re.match(r"^\|\s*(C\d-[BX]\d+)\s*\|", row))
+        if (match := re.match(r"^\|\s*((?:C\d|P7)-[BX]\d+)\s*\|", row))
     }
 
 
@@ -863,7 +1061,7 @@ def spanned_days(data: dict[str, Any]) -> list[str]:
     zone = ZoneInfo(data["timezone"])
     moments = [
         datetime.fromisoformat(value).astimezone(zone).date()
-        for item in data["segments"]
+        for item in data["segments"] + data["sessions"]
         for value in (
             item["started_at"],
             item["ended_at"],
@@ -914,7 +1112,7 @@ def test_read_day_matches_full_daily_on_every_spanned_day(case_id: str) -> None:
 
 
 def test_cases_cover_every_spec_case_id() -> None:
-    assert len(spec_case_ids()) == 80
+    assert len(spec_case_ids()) == 98
     assert set(CASES) == spec_case_ids()
 
 
