@@ -93,6 +93,7 @@ forbidden_modules = [
     "mosemo.labels",
     "mosemo.observation",
     "mosemo.labeling",
+    "mosemo.analytics",
     "mosemo.entrypoints",
 ]
 
@@ -149,6 +150,7 @@ source_modules = [
     "mosemo.labels",
     "mosemo.observation",
     "mosemo.labeling",
+    "mosemo.analytics",
 ]
 forbidden_modules = ["mosemo.entrypoints"]
 
@@ -162,6 +164,7 @@ source_modules = [
     "mosemo.labels",
     "mosemo.observation",
     "mosemo.labeling",
+    "mosemo.analytics",
 ]
 forbidden_modules = [
     "mosemo.platform.database.config",
@@ -169,12 +172,12 @@ forbidden_modules = [
 ]
 allow_indirect_imports = true
 
-# Direction between bounded contexts (ADR 0011 「Context Map」). analytics goes
-# above labeling when it is added.
+# Direction between bounded contexts (ADR 0011 「Context Map」).
 [[tool.importlinter.contracts]]
-name = "bounded contexts: labeling > observation > labels > identity"
+name = "bounded contexts: analytics > labeling > observation > labels > identity"
 type = "layers"
 layers = [
+    "mosemo.analytics",
     "mosemo.labeling",
     "mosemo.observation",
     "mosemo.labels",
@@ -626,6 +629,119 @@ type = "forbidden"
 source_modules = [
     "mosemo.labeling.application",
     "mosemo.labeling.infrastructure",
+]
+forbidden_modules = ["mosemo.shared.presentation"]
+allow_indirect_imports = true
+
+# analytics bounded context (ADR 0011 「강제 방법」).
+[[tool.importlinter.contracts]]
+name = "analytics layers: presentation > application > infrastructure > domain"
+type = "layers"
+containers = ["mosemo.analytics"]
+layers = ["presentation", "application", "infrastructure", "domain"]
+
+[[tool.importlinter.contracts]]
+name = "analytics presentation does not import its infrastructure directly"
+type = "forbidden"
+source_modules = ["mosemo.analytics.presentation"]
+forbidden_modules = ["mosemo.analytics.infrastructure"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "analytics layers are imported only by analytics"
+type = "protected"
+protected_modules = [
+    "mosemo.analytics.presentation",
+    "mosemo.analytics.application",
+    "mosemo.analytics.domain",
+    "mosemo.analytics.infrastructure",
+]
+allowed_importers = ["mosemo.analytics"]
+
+[[tool.importlinter.contracts]]
+name = "analytics bootstrap is imported only by entrypoints"
+type = "protected"
+protected_modules = ["mosemo.analytics.bootstrap"]
+allowed_importers = ["mosemo.entrypoints"]
+
+[[tool.importlinter.contracts]]
+name = "analytics presentation imports only platform.providers from platform"
+type = "forbidden"
+source_modules = ["mosemo.analytics.presentation"]
+forbidden_modules = [
+    "mosemo.platform.clock",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.persistence",
+    "mosemo.platform.database.transactions",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.scheduling",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "analytics application imports only platform.database.transactions from platform"
+type = "forbidden"
+source_modules = ["mosemo.analytics.application"]
+forbidden_modules = [
+    "mosemo.platform.clock",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.persistence",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.providers",
+    "mosemo.platform.scheduling",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "analytics infrastructure imports only platform.database.persistence from platform"
+type = "forbidden"
+source_modules = ["mosemo.analytics.infrastructure"]
+forbidden_modules = [
+    "mosemo.platform.clock",
+    "mosemo.platform.database.engine",
+    "mosemo.platform.database.transactions",
+    "mosemo.platform.logging",
+    "mosemo.platform.messaging",
+    "mosemo.platform.providers",
+    "mosemo.platform.scheduling",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "analytics domain does not import platform"
+type = "forbidden"
+source_modules = ["mosemo.analytics.domain"]
+forbidden_modules = ["mosemo.platform"]
+
+[[tool.importlinter.contracts]]
+name = "analytics domain does not import sqlalchemy, fastapi or pydantic"
+type = "forbidden"
+source_modules = ["mosemo.analytics.domain"]
+forbidden_modules = ["sqlalchemy", "fastapi", "pydantic"]
+
+[[tool.importlinter.contracts]]
+name = "analytics application does not import fastapi directly"
+type = "forbidden"
+source_modules = ["mosemo.analytics.application"]
+forbidden_modules = ["fastapi"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "analytics domain imports only shared.domain from shared"
+type = "forbidden"
+source_modules = ["mosemo.analytics.domain"]
+forbidden_modules = ["mosemo.shared.application", "mosemo.shared.presentation"]
+
+# Direct imports only: the public modules of the other contexts re-export
+# presentation modules that reach shared.presentation.
+[[tool.importlinter.contracts]]
+name = "analytics application and infrastructure do not import shared.presentation"
+type = "forbidden"
+source_modules = [
+    "mosemo.analytics.application",
+    "mosemo.analytics.infrastructure",
 ]
 forbidden_modules = ["mosemo.shared.presentation"]
 allow_indirect_imports = true

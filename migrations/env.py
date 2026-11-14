@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # ADR 0011: table metadata comes only from the mapping function of each
 # bounded context's bootstrap.py.
+from mosemo.analytics import bootstrap as analytics_bootstrap
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.labeling import bootstrap as labeling_bootstrap
 from mosemo.labels import bootstrap as labels_bootstrap
@@ -19,6 +20,7 @@ identity_bootstrap.map_tables()
 labels_bootstrap.map_tables()
 observation_bootstrap.map_tables()
 labeling_bootstrap.map_tables()
+analytics_bootstrap.map_tables()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

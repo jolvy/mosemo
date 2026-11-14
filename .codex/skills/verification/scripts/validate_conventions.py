@@ -299,7 +299,8 @@ def check_transaction_calls(tree: ast.AST) -> list[str]:
     return [
         f"{node.lineno}: CS-P13: `{TRANSACTION_HELPER_FILE}` 밖에서는 `begin`·"
         "`begin_nested`·`commit`·`rollback`을 직접 호출하지 않는다. 트랜잭션은 "
-        "UseCase가 `platform.database.transactions`의 `unit_of_work`·`read_snapshot`으로 연다"
+        "UseCase가 `platform.database.transactions`의 `unit_of_work`·`read_snapshot`·"
+        "`consistent_snapshot`으로 연다"
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)

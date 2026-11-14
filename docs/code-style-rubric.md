@@ -115,7 +115,7 @@ Context로 옮긴 뒤(#154) 대상 파일이 없어졌고, BC 패키지는
   - Ruff `TID251` 대신 검사기로 판정한다. `banned-api`는 금지 항목마다 허용 경로를 줄 수 없어
     `exception_handlers.py`를 허용하려면 `per-file-ignores`에 `TID251`을 넣어야 하고, 그러면 그 파일에서
     CS-P15의 현재 시각 API 금지까지 꺼진다.
-- **CS-P13**: 트랜잭션은 UseCase가 `platform.database.transactions`의 `unit_of_work`·`read_snapshot`으로 연다
+- **CS-P13**: 트랜잭션은 UseCase가 `platform.database.transactions`의 `unit_of_work`·`read_snapshot`·`consistent_snapshot`으로 연다
   ([ADR 0012](adr/0012-notify-cross-context-changes-with-in-process-domain-events.md)).
   - 대상은 `src`의 모든 `.py` 파일이다. 메서드 이름이 `begin`·`begin_nested`·`commit`·`rollback`인 속성 호출이면
     수신 객체(`db_session`, session factory, engine)와 관계없이 위반이다. `flush`는 대상이 아니다.
