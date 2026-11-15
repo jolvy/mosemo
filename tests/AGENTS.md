@@ -19,7 +19,7 @@
 
 ## 기본 실행에서 빠지는 테스트
 
-- `poe test`·`poe coverage`와 CI Test 단계는 `-m "not fault_injection and not e2e"`로 장애 주입(FI)·E2E 테스트를 뺀다. FI는 PR CI의 `Fault injection tests` job, E2E는 `E2E tests` job에서 따로 돈다.
+- `poe test`·`poe coverage`와 CI `Tests` job은 `-m "not fault_injection and not e2e"`로 장애 주입(FI)·E2E 테스트를 뺀다. FI는 PR CI의 `Fault injection tests` job, E2E는 `E2E tests` job에서 따로 돈다.
 - 로컬에서 직접 실행하려면 FI만 `uv run --locked poe test -q tests -m fault_injection`, E2E만 `uv run --locked poe test -q tests -m e2e`, 전부 `uv run --locked poe test -q tests -m ""`를 쓴다. 뒤에 붙인 `-m`이 poe 작업의 `-m`을 덮는다(pytest는 마지막 `-m`만 쓴다).
 - 그래서 `poe test`에 다른 `-m`(예: `not requires_db and not requires_kafka`)을 붙이면 기본 제외도 사라진다. 제외를 유지하려면 `-m "not fault_injection and not e2e and not requires_db and not requires_kafka"`처럼 전체 식을 쓴다.
 - E2E는 테스트가 API·Consumer 프로세스를 빈 포트에 띄우고 끝나면 SIGTERM으로 끈다. 배치는 필요한 단계마다 `python -m mosemo.entrypoints.batch run JOB_NAME`으로 한 번 실행한다(`serve` 금지). 계정은 DB에 직접 만들고 access token은 `tests/support/identity.py`의 `token_service`로 발급한다. 외부 네트워크(Kakao, AI 모델)를 호출하지 않는다.

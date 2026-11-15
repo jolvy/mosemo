@@ -1,6 +1,6 @@
 """The E2E system: the real API and Consumer processes and the batch job process.
 
-Every process gets the same settings: the CI Test step names with the test
+Every process gets the same settings: the CI Tests job names with the test
 values of `ApiConfig`, the test database and Kafka, and `LABEL_MODEL`.
 Inherited application settings are dropped so a local `.env` or a provider key
 cannot leak in; nothing calls an outside network.

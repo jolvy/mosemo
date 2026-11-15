@@ -14,8 +14,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Quality
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      openwiki_only: ${{ steps.detect.outputs.openwiki_only }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      # main 대상 pull_request에서 openwiki/ 아래만 바뀌었으면 테스트 job을 건너뛴다.
+      - name: Detect openwiki-only changes
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: python3 .codex/skills/verification/scripts/ci_gate.py changes --event "$EVENT_NAME" --base-ref "$BASE_REF" >> "$GITHUB_OUTPUT"
+
+  static:
+    name: Static checks
     runs-on: ubuntu-latest
 
     steps:
@@ -63,6 +83,28 @@ jobs:
       - name: Check OpenAPI snapshot
         run: uv run --locked pytest -q tests/integration/entrypoints/test_openapi_descriptions.py
 
+  tests:
+    name: Tests
+    needs: changes
+    if: needs.changes.outputs.openwiki_only != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --locked
+
       - name: Test
         env:
           MOSEMO_ENV: test
@@ -81,8 +123,30 @@ jobs:
       - name: Check coverage thresholds
         run: uv run --locked python scripts/check_coverage.py
 
+  # 필수 검사 이름 Quality를 유지하는 집계 job이다. skipped job은 필수 검사를 통과한
+  # 것으로 처리되므로 취소돼도 실행되게 always()를 쓴다.
+  quality:
+    name: Quality
+    needs:
+      - changes
+      - static
+      - tests
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Check required jobs
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 .codex/skills/verification/scripts/ci_gate.py verdict
+
   fault-injection:
     name: Fault injection tests
+    needs: changes
+    if: needs.changes.outputs.openwiki_only != 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -118,6 +182,8 @@ jobs:
 
   e2e:
     name: E2E tests
+    needs: changes
+    if: needs.changes.outputs.openwiki_only != 'true'
     runs-on: ubuntu-latest
 
     steps:
