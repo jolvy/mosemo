@@ -16,7 +16,8 @@ status: draft
 - API·consumer Pod에서 돌리지 않는다. 5단계 측정에서 재처리가 조회와 같은 CPU를 쓰면 조회 p95가 62ms에서
   2~4초로 늘었다.
 - 실행 한 번의 시간 예산은 120초이며 날짜 사이에서만 확인한다. 한 번에 표시를 최대 50개 선점하고, 다 처리하면
-  다시 선점한다. 같은 표시는 한 실행에서 한 번만 처리한다(실행 시작 시각 기준).
+  다시 선점한다. 같은 표시는 한 실행에서 한 번만 처리한다(실행 시작 시각 기준). 예산이 끝나 처리하지 못한
+  선점 날짜는 시도 횟수를 되돌리고 바로 다음 실행의 대상이 된다(로그 `released`). 그래서 예산 초과가 정상 날짜를 격리하지 않는다.
 
 ## Kafka 파티션 규칙
 
@@ -91,7 +92,7 @@ WHERE attempts >= 6;  -- 필요하면 account_id·local_date 조건을 더한다
 | 마지막 성공 실행 시각 | `operation = analytics-daily-stats`, `outcome = success`인 마지막 로그의 `timestamp` |
 | 조회 중 원천 계산 비율 | `analytics read` 로그의 `source = computed` 비율 |
 | 원천 쓰기 `lock_timeout` 수 | 원천 쓰기의 `ACTIVITY_TIMELINE_BUSY` 오류 응답 수 |
-| 실행 로그 카운터 | job 결과 로그의 `saved`, `superseded`(저장했지만 계산 중 원천이 바뀌어 표시가 남음), `stale`(더 새 저장 행이 있어 무시), `failed`와 분류별 `failed_*`, `quarantined_new`, `definition_mismatch`, `aborted`, `max_source_read_ms`, `max_compute_ms` ([로깅 규칙](logging.md)) |
+| 실행 로그 카운터 | job 결과 로그의 `saved`, `superseded`(저장했지만 계산 중 원천이 바뀌어 표시가 남음), `stale`(더 새 저장 행이 있어 무시), `failed`와 분류별 `failed_*`, `quarantined_new`, `released`(예산 초과로 되돌린 선점), `definition_mismatch`, `aborted`, `max_source_read_ms`, `max_compute_ms` ([로깅 규칙](logging.md)) |
 
 연결 오류로 끝난 실행은 job 실패로 기록되고(날짜 처리 중이면 `aborted=connection`, 시작 확인·선점 중이면 카운터 없이 실패 로그만), 선점한 날짜는 lease(10분) 뒤 다시 처리된다.
 

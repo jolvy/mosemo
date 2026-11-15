@@ -175,6 +175,22 @@ class RecomputeMarkerRepository:
         )
         return deleted is not None
 
+    async def release_claim(
+        self, db_session: AsyncSession, released: RecomputeMarker
+    ) -> bool:
+        """Store the attempts and due time of `released` (after its `release`)
+        only if the marker still has the version that was claimed."""
+        updated = await db_session.scalar(
+            update(markers)
+            .where(markers.c.version == released.version)
+            .values(
+                attempts=released.attempts,
+                next_attempt_at=released.next_attempt_at,
+            )
+            .returning(markers.c.version)
+        )
+        return updated is not None
+
     async def record_failure(
         self, db_session: AsyncSession, failed: RecomputeMarker
     ) -> bool:

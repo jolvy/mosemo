@@ -39,6 +39,7 @@ OPTIONAL_FIELDS: Final = (
     "failed_statement_timeout",
     "failed_serialization",
     "quarantined_new",
+    "released",
     "definition_mismatch",
     "aborted",
     "max_source_read_ms",

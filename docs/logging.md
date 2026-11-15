@@ -23,7 +23,7 @@ future result logs 0 for the three times and the count.
 Each daily stats batch run (`analytics-daily-stats`) adds its counters to the job
 result line: `saved`, `superseded`, `stale`, `failed` with `failed_compute`,
 `failed_lock_timeout`, `failed_statement_timeout` and `failed_serialization`,
-`quarantined_new`, `definition_mismatch`, `aborted` (`connection` or
+`quarantined_new`, `released` (claimed dates given back when the time budget ran out), `definition_mismatch`, `aborted` (`connection` or
 `definition`), `max_source_read_ms` and `max_compute_ms`. The definition marks
 (`analytics-definition-mark`) add `accounts` and `markers`. Do not put user activity URLs, window or activity
 titles, account or device identifiers, tokens, cookies, authorization data, or

@@ -111,6 +111,17 @@ def test_claim_counts_the_attempt_and_leases_for_ten_minutes() -> None:
     assert claimed.next_attempt_at == NOW + timedelta(minutes=10)
 
 
+def test_release_gives_back_an_unprocessed_claim() -> None:
+    claimed = marker()
+    claimed.claim(now=NOW, policy=RETRY_POLICY)
+
+    claimed.release(now=NOW)
+
+    assert claimed.attempts == 0
+    assert claimed.next_attempt_at == NOW
+    assert (claimed.last_error, claimed.last_failed_at) == (None, None)
+
+
 def test_failures_back_off_and_the_sixth_attempt_is_quarantined() -> None:
     failing = marker()
     delays = []

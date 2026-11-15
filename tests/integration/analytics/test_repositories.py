@@ -145,6 +145,42 @@ async def test_delete_and_failure_apply_only_to_the_claimed_version(
     assert await markers.find(session, account_id=account_id, local_date=DAY) is None
 
 
+@pytest.mark.asyncio
+async def test_release_claim_gives_back_only_the_claimed_version(
+    integration_session: AsyncSession,
+) -> None:
+    session = integration_session
+    markers = RecomputeMarkerRepository()
+    account_id = await new_account(session)
+    eligible = MarkScope.eligible_at(DAY, SEOUL)
+    await markers.upsert_source(
+        session, account_id=account_id, local_date=DAY, eligible_at=eligible, now=NOW
+    )
+    later = NOW + timedelta(days=1)
+    (claimed,) = await markers.claim_due(
+        session, now=later, limit=1, definition_limit=0, policy=RETRY_POLICY
+    )
+    session.expunge(claimed)
+    released = replace_marker(claimed)
+    released.release(now=later)
+
+    assert await markers.release_claim(session, released)
+    stored = await markers.find(session, account_id=account_id, local_date=DAY)
+    assert stored is not None
+    assert (stored.attempts, stored.next_attempt_at) == (0, later)
+
+    (again,) = await markers.claim_due(
+        session, now=later, limit=1, definition_limit=0, policy=RETRY_POLICY
+    )
+    session.expunge(again)
+    stale = replace_marker(again)
+    stale.release(now=later)
+    await markers.upsert_source(
+        session, account_id=account_id, local_date=DAY, eligible_at=eligible, now=NOW
+    )
+    assert not await markers.release_claim(session, stale)
+
+
 def replace_marker(marker: RecomputeMarker) -> RecomputeMarker:
     """A detached copy, as the batch holds it after its claim transaction."""
     return RecomputeMarker(

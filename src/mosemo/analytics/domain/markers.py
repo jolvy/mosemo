@@ -65,6 +65,12 @@ class RecomputeMarker(AggregateRoot):
         self.attempts += 1
         self.next_attempt_at = now + policy.lease
 
+    def release(self, *, now: datetime) -> None:
+        """Give back a claim that was never processed (the run's time budget
+        ran out): the attempt is not counted and the marker is due again."""
+        self.attempts -= 1
+        self.next_attempt_at = now
+
     def fail(self, classification: str, *, now: datetime, policy: RetryPolicy) -> None:
         """Back off after a failed attempt and keep only the failure class name."""
         self.next_attempt_at = now + policy.delay_after(self.attempts)
