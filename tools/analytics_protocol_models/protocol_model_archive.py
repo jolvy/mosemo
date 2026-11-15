@@ -1,0 +1,1330 @@
+"""6단계 후속 F-3: 90일 지난 날짜의 아카이브·S3 재계산·늦은 관찰 거부·계정 삭제 상태 모델(표준 라이브러리만).
+
+기존 파일(protocol_model*.py)은 고치지 않는다. 추천 프로토콜(V5 + 재시도·격리 + 시간대 결정 (a))을 옮겨 적고,
+사용자 결정(2026-11-13, PLAN.md 끝 줄 UD-1·UD-2·UD-3)의 아카이브 경로를 더한다.
+
+날짜의 원천 상태(ast): 'db'(DB 원천) → 'arch'(아카이브 중, DB 원천 그대로) → 's3'(S3 원천).
+
+원천 모델: 부분(part)은 같은 시각 범위의 구간·라벨 확정이다(값 = 변경 횟수). 시각 순서 p < l < c < q < r.
+  p  d1의 구간                         l  d1의 라벨 확정(원본 레코드 삭제 시 CASCADE로 함께 지워짐)
+  c  d1에서 시작해 d2로 이어지는 구간  q  d2의 구간            r  d3의 구간
+  T1에서 날짜별 읽기 집합(D1 경계 읽기 + D2 거슬러 읽기): d1 = {p,l,c}, d2 = {c,q}, d3 = {r}.
+  c는 d2 계산에도 읽힌다(자정을 넘는 체류이거나 D2로 거슬러 읽는 앞 구간). home(c) = d1(시작 날짜).
+  시간대 T2는 시나리오가 정한다: 'behind'(예 서울→뉴욕, 시각의 날짜가 같거나 하루 앞) / 'ahead'(반대).
+
+아카이브(6단계 초안 R-P2 순서, 날짜 d1 → d2 차례로, 날짜가 90일을 지난 뒤에만):
+  A.start   계정 advisory 잠금 안에서: 계정이 살아 있고, 날짜가 동결되었고, 그 날짜에 표시가 없고, 저장 행이 있으면
+            ast = 'arch' 커밋. 아니면 그 실행의 아카이브를 멈춘다(다음 날 다시, 모델 밖).
+  A.copy    ① DB에서 대상 날짜의 구간·확정을 S3 파일 (계정, 날짜)에 쓴다(파일에 쓴 때의 tz 기록). 잠금 없음.
+  A.verify  ② 파일 내용 = 지금 DB 내용인지 확인. 다르면 ①로.
+  A.delseg  ③ 한 트랜잭션: 확정·구간 삭제 + ast = 's3'.
+  A.delrec  ④ 원본 레코드 삭제(그 날짜를 시작으로 하는 구간이 DB에 남아 있으면 FK 때문에 남김). ⑤ 세션 삭제는 일간
+            통계와 무관해 넣지 않았다.
+원천 변경(늦은 관찰 포함): 잠금 → 계정 tz 읽기 → 동결 확인(그 부분을 읽는 날짜 중 동결된 날짜가 있으면 거부) → 커밋
+  (DB 값 +1, 읽는 날짜마다 표시). 동결은 시간이 지나며 d1, d2 차례로 일어나는 사건(라벨 기준, 현재 tz의 날짜).
+배치(V5 + 재시도·격리): 선점(attempts < K, attempts+1, version·ast 기억) → 읽기(ast가 db·arch면 DB 부분을 하나씩,
+  s3면 S3 파일을 읽기 규칙대로 한 번에) → 저장 트랜잭션(정의·tz·계정 살아 있음·ast가 선점 때와 같은 경로인지 확인,
+  sv guard, 같은 version일 때만 표시 삭제) 또는 실패(표시 남음).
+조회(REPEATABLE READ 한 스냅샷 = 한 단계): 계정이 삭제됨이면 거부. ast = s3면 계산하지 않는다: 표시가 있거나
+  저장 행의 정의·tz가 현재와 다르면 저장 값 + "이전 기준", 아니면 저장 값. ast = db·arch면 4B·F-2 그대로.
+정의 변경: 정의 행 올림 → 잠금 → 옛 정의 저장 날짜(S3 날짜 포함)에 표시.
+시간대 변경: 잠금 → tz UPDATE → (저장 ∪ 표시) ±1일에 표시 → 커밋.
+계정 삭제(UD-1): 삭제 요청(잠금 안에서 acct = 'deleted') → 새벽 배치: DB 삭제(한 트랜잭션) → S3 삭제 → 'purged'.
+
+불변식(기존 I1~I9를 아카이브 날짜에 맞게 정밀화, I10~I14 새로):
+  I1  조회 결과: ast가 db·arch인 날짜는 "현재 정의·현재 tz·논리 원천"의 계산값. ast가 s3인 날짜는 같은 값이거나,
+      "이전 기준" 표시가 붙은 저장 값이고 그 저장 값 = (저장 행의 정의·tz, 지금의 논리 원천)의 계산값이다. 즉 기준만
+      바뀐 옛 값은 허용, 원천이 바뀐 옛 값은 금지. 논리 원천 = 받아들인 원천 변경을 모두 반영한 값(유령 변수).
+      조회는 한 단계이므로 모든 상태·모든 날짜에서 검사한다(J).
+  I2  끝 상태에서 격리를 해제하고 배치를 혼자 최대 2번 더 돌리면 표시 0, 저장 행 = 현재 정의·tz·논리 원천 계산값
+      (S3 날짜도 S3 재계산으로). 계정이 지워졌으면 생략.
+  I3  저장 값의 정의 = 그 행의 정의(배치가 코드 정의로 계산) — 구조로 성립, I5와 함께 검사.
+  I4  원천 커밋은 배치·아카이브가 계산·복사 동안 쥔 잠금을 기다리지 않는다 — 구조로 성립(아카이브가 잠금을 쥐는 것은
+      A.start 한 단계뿐이고 S3 쓰기 동안은 쥐지 않음).
+  I5  저장 행의 정의 version은 줄지 않는다.      I9  저장 행의 tz는 새 tz가 된 뒤 옛 tz로 돌아가지 않는다.
+  I6  격리된 표시(attempts >= K)는 저장 없이 사라지지 않는다(삭제 배치 제외).  I7  attempts <= 현재 version 선점 수.
+  I8  I2 상태에서 현재 tz로 활동이 있는 날짜는 저장 행이 있다.
+  I10 아카이브 중 원천 유실 없음: 모든 상태에서 각 부분의 논리 값이 DB에 있거나(같은 값), DB에 없으면 어느 S3
+      파일에 같은 값으로 있다. 라벨 확정(l)의 유실은 I11로 따로 센다.
+  I12 동결: arch·s3 날짜가 (현재 tz로) 읽는 부분을 바꾸는 원천 커밋이 없다.
+  I13 계정 삭제 배치가 끝난 뒤(purged) DB(원천·레코드·표시·저장 행)와 S3가 모두 비어 있다(모든 상태).
+  I14 삭제된 계정은 조회되지 않는다: 계정 삭제 요청 커밋 뒤의 스냅샷으로 데이터를 돌려주는 조회가 없다.
+
+실행(저장소 루트에서):
+  python -m tools.analytics_protocol_models.protocol_model_archive  # 모든 변형, 요약표
+  python -m tools.analytics_protocol_models.protocol_model_archive R0 X1 --trace  # 일부 변형, 위반 반례 출력
+  python -m tools.analytics_protocol_models.protocol_model_archive R3 S4 S6  # 일부 시나리오(기대 결과와 비교하지 않음)
+  python -m tools.analytics_protocol_models.protocol_model_archive --small  # CI용 작은 시나리오
+변형마다 결과가 EXPECTED와 다르면 종료 코드 1로 끝난다.
+"""
+
+from __future__ import annotations
+
+import sys
+import time
+from collections import deque
+from dataclasses import dataclass, field, replace
+from typing import Any
+
+type State = tuple[Any, ...]
+
+K = 2
+DATES = ("d1", "d2", "d3")
+ND = 3
+PARTS = ("p", "l", "c", "q", "r")
+PI = {x: i for i, x in enumerate(PARTS)}
+CONF = {"l"}
+T1, T2 = 1, 2
+ARCH_DATES = (0, 1)
+FREEZE_DATES = 2  # 시간이 지나 차례로 동결되는 날짜 수(d1, d2)
+BATCHES = 2
+NEW_DEF = 2  # 정의 변경 뒤의 정의 version
+SOLO_RUNS = 2
+
+# 날짜별 읽기 집합과 시작 날짜(home). T2는 시나리오의 shift가 정한다.
+LAYOUT = {
+    "none": {
+        T1: (
+            (("p", "l", "c"), ("c", "q"), ("r",)),
+            {"p": 0, "l": 0, "c": 0, "q": 1, "r": 2},
+        )
+    },
+    # 서울→뉴욕처럼 시각의 날짜가 같거나 하루 앞(더 이른 날짜)으로: q가 d1로, r이 d2로
+    "behind": {
+        T1: (
+            (("p", "l", "c"), ("c", "q"), ("r",)),
+            {"p": 0, "l": 0, "c": 0, "q": 1, "r": 2},
+        ),
+        T2: (
+            (("p", "l", "c", "q"), ("r",), ()),
+            {"p": 0, "l": 0, "c": 0, "q": 0, "r": 1},
+        ),
+    },
+    # 뉴욕→서울처럼 하루 뒤로: c가 d2로(d1은 p,l만), q는 d2 그대로 d3까지 이어짐
+    "ahead": {
+        T1: (
+            (("p", "l", "c"), ("c", "q"), ("r",)),
+            {"p": 0, "l": 0, "c": 0, "q": 1, "r": 2},
+        ),
+        T2: (
+            (("p", "l"), ("c", "q"), ("q", "r")),
+            {"p": 0, "l": 0, "c": 1, "q": 1, "r": 2},
+        ),
+    },
+}
+
+
+def reads_of(shift: str, tz: int, *, di: int) -> tuple[str, ...]:
+    return LAYOUT[shift][tz][0][di]
+
+
+def home(shift: str, tz: int, *, x: str) -> int:
+    return LAYOUT[shift][tz][1][x]
+
+
+def readers(shift: str, tz: int, *, x: str) -> list[int]:
+    return [d for d in range(ND) if x in reads_of(shift, tz, di=d)]
+
+
+def f(dfn: int, tz: int, *, di: int, vals: Any, shift: str) -> tuple[Any, ...]:
+    """일간 통계 계산: (정의, tz, 날짜, 읽기 집합의 (부분, 값)). 읽지 못한 부분은 값 None."""
+    return (
+        dfn,
+        tz,
+        DATES[di],
+        tuple((x, vals[PI[x]]) for x in reads_of(shift, tz, di=di)),
+    )
+
+
+# ---------------------------------------------------------------- 변형
+
+
+@dataclass(frozen=True)
+class Variant:
+    name: str
+    note: str
+    fc: str = "home"  # S3 파일 내용: home(그 날짜에 시작한 구간·확정) | read(그 날짜의 읽기 집합 전부)
+    dr: str = "home"  # DB 삭제 대상: home(그 날짜에 시작한 것) | need(현재 tz로 DB 날짜가 더는 읽지 않는 것)
+    # | needall(지원하는 어느 tz로도 DB 날짜가 읽지 않는 것 = 실제로는 하루 여유)
+    rr: str = "dprev"  # S3 재계산 읽기: d(그 날짜 파일만) | dprev(그 날짜+전날 파일) | nbr(전날·그 날짜·다음 날 파일)
+    # | union(nbr 파일 ∪ DB에 남은 행)
+    late: str = "reject"  # 동결 날짜를 읽는 부분의 원천 변경: reject | allow
+    freeze: str = "label"  # label: 동결 = 현재 tz 날짜가 90일 지남(날짜 라벨) | mono: 한 번 동결된 시각은 tz가 바뀌어도
+    # 동결 그대로(계정별 동결 시각 하한, 줄지 않음)
+    order: str = "design"  # design | conf_last(구간만 복사·삭제 → 원본 삭제 → 확정 복사) | flip_late(ast=s3를 삭제 뒤
+    # 별도 커밋) | s3_first(시작에서 바로 ast=s3)
+    verify: bool = True  # ② 확인(False면 ②도, ③에서 "그 값이 S3 파일에 있는 행만 지움" 대조도 없음)
+    startlock: bool = True  # A.start가 계정 잠금을 잡는가(늦은 관찰 경합 차단)
+    mkblock: bool = True  # 표시 있는 날짜는 아카이브하지 않음
+    astcheck: bool = True  # 배치 저장 때 ast 경로 확인
+    qold: bool = True  # s3 날짜 조회가 표시 있으면 옛 값+이전 기준(사용자 결정). False면 원천 계산 시도(S3 읽기 없음 = DB)
+    delexcl: bool = True  # 삭제 배치와 아카이브 날짜 처리가 겹치지 않음(같은 job 차례 실행 또는 계정 아카이브 잠금)
+    bdelcheck: bool = True  # 배치 저장 트랜잭션이 계정 삭제 여부 확인
+    sdelcheck: bool = True  # 원천 쓰기가 계정 삭제 여부 확인
+    qdelcheck: bool = True  # 조회 스냅샷이 계정 삭제 여부 확인
+
+
+@dataclass(frozen=True)
+class Scenario:
+    name: str
+    changes: tuple = ()  # 원천 변경이 바꾸는 부분 순서
+    def_change: bool = False
+    shift: str = "none"  # 시간대 변경 있음이면 behind | ahead
+    delete: bool = False
+    marker: int = -1  # 시작 때 이 날짜에 원천 표시(저장 대기) 하나
+    fails: int = 0  # 배치 계산 실패 예산
+    cfaults: int = 0  # 부분 복사(확정 누락) 예산
+    batches: int = 2
+
+    def label(self):
+        bits = [self.name, "변경 " + ("→".join(self.changes) or "없음")]
+        if self.def_change:
+            bits.append("정의변경")
+        if self.shift != "none":
+            bits.append("tz " + self.shift)
+        if self.delete:
+            bits.append("계정삭제")
+        if self.marker >= 0:
+            bits.append(f"초기표시 {DATES[self.marker]}")
+        if self.fails:
+            bits.append(f"실패{self.fails}")
+        if self.cfaults:
+            bits.append(f"부분복사{self.cfaults}")
+        return "·".join(bits)
+
+
+# ---------------------------------------------------------------- 상태
+# 전역 g
+TRUTH, SRC, REC, S3, AST, FRZ, SEQ, TZ, MK, ST, DEF, ADV, ACCT, FB, CB, QDEL, FZP = (
+    range(17)
+)
+NG = 17
+# 프로세스
+P_CLK, P_ARC, P_SRC, P_TZ, P_DEF, P_B1, P_B2, P_DEL, P_Q = range(NG, NG + 9)
+
+
+def initial(sc: Scenario) -> State:
+    vals = (0,) * len(PARTS)
+    st = [None] * ND
+    mk = [None] * ND
+    for d in range(ND):
+        if reads_of(sc.shift, T1, di=d):
+            st[d] = (1, T1, 1, f(1, T1, di=d, vals=vals, shift=sc.shift))
+    seq = 2
+    if sc.marker >= 0:
+        mk[sc.marker] = (seq, 0, 0)
+        seq += 1
+    g = (
+        vals,
+        vals,
+        (True,) * ND,
+        (None,) * ND,
+        ("db",) * ND,
+        0,
+        seq,
+        T1,
+        tuple(mk),
+        tuple(st),
+        1,
+        None,
+        "live",
+        sc.fails,
+        sc.cfaults,
+        False,
+        frozenset(),
+    )
+    clk = ("run",)
+    arc = ("start", 0)
+    srcp = ("draw", 0, None, None) if sc.changes else ("done", 0, None, None)
+    tzp = ("start",) if sc.shift != "none" else ("done",)
+    defp = ("bump",) if sc.def_change else ("done",)
+    batch = ("start", None, None, None, None, None, ())
+    b2 = batch if sc.batches >= BATCHES else ("done", None, None, None, None, None, ())
+    delp = ("flag",) if sc.delete else ("done",)
+    q = ("idle", None) if sc.delete else ("done", None)
+    return g + (clk, arc, srcp, tzp, defp, batch, b2, delp, q)
+
+
+def setp(tup: Any, i: int, *, val: Any) -> tuple[Any, ...]:
+    lst = list(tup)
+    lst[i] = val
+    return tuple(lst)
+
+
+def s3_lookup(v: Variant, g: Any, *, di: int, shift: str) -> tuple[Any, ...]:
+    """S3 재계산이 읽는 값: 읽기 규칙의 파일들(+union이면 DB). 가까운 파일이 먼저."""
+    order = {
+        "d": [di],
+        "dprev": [di, di - 1],
+        "nbr": [di, di - 1, di + 1],
+        "union": [di, di - 1, di + 1],
+    }[v.rr]
+    vals = [None] * len(PARTS)
+    if v.rr == "union":
+        for i, x in enumerate(g[SRC]):
+            if x is not None:
+                vals[i] = x
+    for d in order:
+        if 0 <= d < ND and g[S3][d] is not None:
+            for x, val in g[S3][d][1]:
+                if vals[PI[x]] is None:
+                    vals[PI[x]] = val
+    return tuple(vals)
+
+
+def query(v: Variant, g: Any, *, di: int, shift: str) -> tuple[Any, bool]:
+    """조회 한 스냅샷. (결과, 이전 기준 표시) 또는 ('denied', False)."""
+    if v.qdelcheck and g[ACCT] != "live":
+        return "denied", False
+    mk, row, cur, tz = g[MK][di], g[ST][di], g[DEF], g[TZ]
+    if g[AST][di] == "s3" and v.qold:
+        if row is None:
+            return None, False
+        old = mk is not None or row[0] != cur or row[1] != tz
+        return row[3], old
+    if mk is None and row is not None and row[0] == cur and row[1] == tz:
+        return row[3], False
+    return f(cur, tz, di=di, vals=g[SRC], shift=shift), False
+
+
+def query_ok(g: Any, *, di: int, shift: str, res: Any, old: bool) -> bool:
+    if res == "denied":
+        return True
+    truth = g[TRUTH]
+    if not old:
+        return res == f(g[DEF], g[TZ], di=di, vals=truth, shift=shift)
+    row = g[ST][di]
+    return res is not None and res == f(row[0], row[1], di=di, vals=truth, shift=shift)
+
+
+def frozen_dates(g: Any) -> set[int]:
+    return set(range(g[FRZ]))
+
+
+def copy_parts(
+    v: Variant, g: Any, *, di: int, shift: str, kinds: str = "both"
+) -> list[str]:
+    """S3에 복사할 부분. kinds: both(구간·확정) | seg(구간만) | conf(확정만)."""
+    tz = g[TZ]
+    if v.fc == "home":
+        xs = [x for x in PARTS if home(shift, tz, x=x) == di]
+    else:
+        xs = list(reads_of(shift, tz, di=di))
+    return [
+        x
+        for x in xs
+        if (x in CONF and kinds != "seg") or (x not in CONF and kinds != "conf")
+    ]
+
+
+def delete_parts(
+    v: Variant, g: Any, *, di: int, shift: str, ast_after: Any
+) -> list[str]:
+    """③에서 DB에서 지울 부분. ast_after: 이 날짜를 s3로 본 날짜별 상태."""
+    tz = g[TZ]
+    if v.dr == "home":
+        return [x for x in PARTS if home(shift, tz, x=x) == di]
+    # need: 현재 tz로 그 행을 읽는 날짜가 모두 S3 원천이고, 그 행이 어느 S3 파일에 같은 값으로 있을 때만 지운다.
+    out = []
+    for x in PARTS:
+        val = g[SRC][PI[x]]
+        if val is None:
+            continue
+        tzs = (tz,) if v.dr == "need" else tuple(LAYOUT[shift])
+        if all(ast_after[d] == "s3" for t in tzs for d in readers(shift, t, x=x)) and (
+            not v.verify or any(fl is not None and (x, val) in fl[1] for fl in g[S3])
+        ):
+            out.append(x)
+    return out
+
+
+def successors(v: Variant, sc: Scenario, *, s: State) -> list[Any]:
+    shift = sc.shift
+    out = []
+    procs = list(s[NG:])
+
+    def emit(label: str, gl: list[Any], *, newprocs: list[Any], viol: Any = ()) -> None:
+        g = tuple(gl)
+        found: list[str] = list(viol)
+        for d in range(ND):
+            a, b = s[ST][d], g[ST][d]
+            if a is not None and b is not None:
+                if b[0] < a[0]:
+                    found.append("I5")
+                if a[1] == g[TZ] and b[1] != g[TZ]:
+                    found.append("I9")
+            ma, mb = s[MK][d], g[MK][d]
+            if (
+                ma is not None
+                and mb is None
+                and g[ACCT] == "live"
+                and (b is None or b[2] < ma[0])
+            ):
+                found.append("I6" if ma[1] >= K else "I6g")
+        out.append((label, g + tuple(newprocs), found))
+
+    def copy_globals() -> list[Any]:
+        return list(s[:NG])
+
+    def with_proc(i: int, val: Any) -> list[Any]:
+        p = list(procs)
+        p[i - NG] = val
+        return p
+
+    adv_free = s[ADV] is None
+
+    # 시간(동결): d1, d2 차례로 90일을 지난다
+    if s[P_CLK][0] == "run" and s[FRZ] < FREEZE_DATES:
+        g = copy_globals()
+        g[FRZ] += 1
+        g[FZP] = g[FZP] | frozenset(reads_of(shift, g[TZ], di=s[FRZ]))
+        emit(
+            f"시간 경과: {DATES[s[FRZ]]}가 90일을 지남(동결)",
+            g,
+            newprocs=with_proc(P_CLK, ("run",) if g[FRZ] < FREEZE_DATES else ("done",)),
+        )
+
+    # 아카이브
+    apc, adi = s[P_ARC]
+    excl_block = False
+    if apc != "done":
+        if apc == "start":
+            if adi >= len(ARCH_DATES):
+                emit(
+                    "아카이브: 끝",
+                    copy_globals(),
+                    newprocs=with_proc(P_ARC, ("done", adi)),
+                )
+            elif s[FRZ] > adi and (adv_free or not v.startlock):
+                d = ARCH_DATES[adi]
+                ok = (
+                    s[ACCT] == "live"
+                    and s[ST][d] is not None
+                    and (s[MK][d] is None or not v.mkblock)
+                )
+                if not ok:
+                    emit(
+                        f"아카이브 {DATES[d]} 시작 불가(표시·저장 행·계정) → 이번 실행 멈춤",
+                        copy_globals(),
+                        newprocs=with_proc(P_ARC, ("done", adi)),
+                    )
+                else:
+                    g = copy_globals()
+                    g[AST] = setp(
+                        g[AST], d, val="s3" if v.order == "s3_first" else "arch"
+                    )
+                    emit(
+                        f"아카이브 {DATES[d]} 시작: ast={g[AST][d]}",
+                        g,
+                        newprocs=with_proc(P_ARC, ("copy", adi)),
+                    )
+        else:
+            d = ARCH_DATES[adi]
+            if apc == "copy":
+                conf_now = v.order != "conf_last"
+                xs = copy_parts(
+                    v, s, di=d, shift=shift, kinds="both" if conf_now else "seg"
+                )
+                content = tuple(
+                    sorted((x, s[SRC][PI[x]]) for x in xs if s[SRC][PI[x]] is not None)
+                )
+                nxt = "verify" if v.verify else "delseg"
+                g = copy_globals()
+                g[S3] = setp(g[S3], d, val=(s[TZ], content))
+                emit(
+                    f"아카이브 {DATES[d]} ① S3 복사 {content}",
+                    g,
+                    newprocs=with_proc(P_ARC, (nxt, adi)),
+                )
+                if s[CB] > 0 and any(x in CONF for x, _ in content):
+                    part = tuple(c for c in content if c[0] not in CONF)
+                    g = copy_globals()
+                    g[S3] = setp(g[S3], d, val=(s[TZ], part))
+                    g[CB] -= 1
+                    emit(
+                        f"아카이브 {DATES[d]} ① S3 복사 중 장애: 확정 빠진 파일 {part}",
+                        g,
+                        newprocs=with_proc(P_ARC, (nxt, adi)),
+                    )
+            elif apc == "verify":
+                conf_now = v.order != "conf_last"
+                xs = copy_parts(
+                    v, s, di=d, shift=shift, kinds="both" if conf_now else "seg"
+                )
+                want = tuple(
+                    sorted((x, s[SRC][PI[x]]) for x in xs if s[SRC][PI[x]] is not None)
+                )
+                if s[S3][d] is not None and s[S3][d][1] == want:
+                    emit(
+                        f"아카이브 {DATES[d]} ② 확인 통과",
+                        copy_globals(),
+                        newprocs=with_proc(P_ARC, ("delseg", adi)),
+                    )
+                else:
+                    emit(
+                        f"아카이브 {DATES[d]} ② 확인 실패 → 다시 복사",
+                        copy_globals(),
+                        newprocs=with_proc(P_ARC, ("copy", adi)),
+                    )
+            elif apc == "delseg":
+                g = copy_globals()
+                after = list(g[AST])
+                after[d] = "s3"
+                xs = delete_parts(v, s, di=d, shift=shift, ast_after=after)
+                if v.order == "conf_last":
+                    xs = [x for x in xs if x not in CONF]
+                src = list(g[SRC])
+                for x in xs:
+                    src[PI[x]] = None
+                g[SRC] = tuple(src)
+                if v.order in ("design", "conf_last"):
+                    g[AST] = setp(g[AST], d, val="s3")
+                emit(
+                    f"아카이브 {DATES[d]} ③ 구간·확정 삭제 {xs}"
+                    + (", ast=s3" if v.order in ("design", "conf_last") else ""),
+                    g,
+                    newprocs=with_proc(P_ARC, ("delrec", adi)),
+                )
+            elif apc == "delrec":
+                g = copy_globals()
+                tz = g[TZ]
+                segs_left = [
+                    x
+                    for x in PARTS
+                    if x not in CONF
+                    and home(shift, tz, x=x) == d
+                    and g[SRC][PI[x]] is not None
+                ]
+                if not segs_left:
+                    g[REC] = setp(g[REC], d, val=False)
+                    src = list(g[SRC])
+                    for x in CONF:
+                        if home(shift, tz, x=x) == d:
+                            src[PI[x]] = None  # ON DELETE CASCADE
+                    g[SRC] = tuple(src)
+                nxt = {"conf_last": "copyconf", "flip_late": "flip"}.get(
+                    v.order, "next"
+                )
+                emit(
+                    f"아카이브 {DATES[d]} ④ 원본 레코드 "
+                    + (
+                        "삭제(확정 CASCADE)"
+                        if not segs_left
+                        else f"남김(FK: {segs_left})"
+                    ),
+                    g,
+                    newprocs=with_proc(P_ARC, (nxt, adi)),
+                )
+            elif apc == "copyconf":
+                g = copy_globals()
+                xs = copy_parts(v, s, di=d, shift=shift, kinds="conf")
+                add = tuple((x, s[SRC][PI[x]]) for x in xs if s[SRC][PI[x]] is not None)
+                old = g[S3][d][1] if g[S3][d] else ()
+                g[S3] = setp(g[S3], d, val=(s[TZ], tuple(sorted(old + add))))
+                emit(
+                    f"아카이브 {DATES[d]} 확정 복사 {add}",
+                    g,
+                    newprocs=with_proc(P_ARC, ("next", adi)),
+                )
+            elif apc == "flip":
+                g = copy_globals()
+                g[AST] = setp(g[AST], d, val="s3")
+                emit(
+                    f"아카이브 {DATES[d]} ast=s3 커밋(삭제 뒤 따로)",
+                    g,
+                    newprocs=with_proc(P_ARC, ("next", adi)),
+                )
+            elif apc == "next":
+                emit(
+                    f"아카이브 {DATES[d]} 끝",
+                    copy_globals(),
+                    newprocs=with_proc(P_ARC, ("start", adi + 1)),
+                )
+            excl_block = apc not in ("start", "done")
+
+    # 원천 변경
+    pc, k, drawn, htz = s[P_SRC]
+    if pc == "draw" and adv_free:
+        x = sc.changes[k]
+        nxt = (
+            ("draw", k + 1, None, None)
+            if k + 1 < len(sc.changes)
+            else ("done", k + 1, None, None)
+        )
+        rd = readers(shift, s[TZ], x=x)
+        frz = [d for d in rd if d in frozen_dates(s)]
+        if v.freeze == "mono" and x in s[FZP] and not frz:
+            frz = ["동결 시각"]
+        if v.sdelcheck and s[ACCT] != "live":
+            emit(
+                f"원천{k + 1}({x}) 거부: 계정 삭제됨",
+                copy_globals(),
+                newprocs=with_proc(P_SRC, nxt),
+            )
+        elif frz and v.late == "reject":
+            emit(
+                f"원천{k + 1}({x}) 거부: 동결 {[DATES[d] if isinstance(d, int) else d for d in frz]}를 바꿈(늦은 관찰)",
+                copy_globals(),
+                newprocs=with_proc(P_SRC, nxt),
+            )
+        else:
+            g = copy_globals()
+            val = g[SEQ]
+            g[SEQ] += 1
+            g[ADV] = "S"
+            emit(
+                f"원천{k + 1}({x}) 시작: 잠금, nextval={val}, tz=T{s[TZ]}",
+                g,
+                newprocs=with_proc(P_SRC, ("commit", k, val, s[TZ])),
+            )
+    elif pc == "commit":
+        x = sc.changes[k]
+        g = copy_globals()
+        i = PI[x]
+        truth = list(g[TRUTH])
+        truth[i] += 1
+        g[TRUTH] = tuple(truth)
+        g[SRC] = setp(g[SRC], i, val=truth[i])
+        mk = list(g[MK])
+        rd = readers(shift, htz, x=x)
+        for d in rd:
+            mk[d] = (drawn, 0, 0)
+        g[MK] = tuple(mk)
+        g[ADV] = None
+        viol = []
+        if any(s[AST][d] in ("arch", "s3") for d in readers(shift, s[TZ], x=x)):
+            viol.append("I12")
+        if s[ACCT] == "purged":
+            pass  # I13은 상태 검사가 잡는다
+        nxt = (
+            ("draw", k + 1, None, None)
+            if k + 1 < len(sc.changes)
+            else ("done", k + 1, None, None)
+        )
+        emit(
+            f"원천{k + 1}({x}) 커밋: {x}={truth[i]}, 표시 {[DATES[d] for d in rd]}={drawn}",
+            g,
+            newprocs=with_proc(P_SRC, nxt),
+            viol=viol,
+        )
+
+    # 시간대 변경(결정 (a))
+    if s[P_TZ][0] == "start" and adv_free:
+        g = copy_globals()
+        g[ADV] = "T"
+        emit("시간대 변경 시작: 잠금", g, newprocs=with_proc(P_TZ, ("commit",)))
+    elif s[P_TZ][0] == "commit":
+        g = copy_globals()
+        g[TZ] = T2
+        g[FZP] = g[FZP] | frozenset(
+            x for d in range(g[FRZ]) for x in reads_of(shift, T2, di=d)
+        )
+        base = {d for d in range(ND) if g[ST][d] is not None or g[MK][d] is not None}
+        tg = sorted({d + o for d in base for o in (-1, 0, 1) if 0 <= d + o < ND})
+        mk = list(g[MK])
+        for d in tg:
+            mk[d] = (g[SEQ], 0, 0)
+            g[SEQ] += 1
+        g[MK] = tuple(mk)
+        g[ADV] = None
+        emit(
+            f"시간대 변경 커밋: tz=T2, 표시 {[DATES[d] for d in tg]}",
+            g,
+            newprocs=with_proc(P_TZ, ("done",)),
+        )
+
+    # 정의 변경
+    dpc = s[P_DEF][0]
+    if dpc == "bump":
+        g = copy_globals()
+        g[DEF] = NEW_DEF
+        emit("정의 version 1→2", g, newprocs=with_proc(P_DEF, ("lock",)))
+    elif dpc == "lock" and adv_free:
+        g = copy_globals()
+        g[ADV] = "D"
+        emit("정의 재처리 표시 시작: 잠금", g, newprocs=with_proc(P_DEF, ("commit",)))
+    elif dpc == "commit":
+        g = copy_globals()
+        mk = list(g[MK])
+        tg = [d for d in range(ND) if g[ST][d] is not None and g[ST][d][0] < NEW_DEF]
+        for d in tg:
+            mk[d] = (g[SEQ], 0, 0)
+            g[SEQ] += 1
+        g[MK] = tuple(mk)
+        g[ADV] = None
+        emit(
+            f"정의 재처리 표시 커밋: {[DATES[d] for d in tg]}",
+            g,
+            newprocs=with_proc(P_DEF, ("done",)),
+        )
+
+    # 배치
+    for idx in (P_B1, P_B2):
+        name = f"배치{idx - P_B1 + 1}"
+        bpc, mydef, mytz, di, ver, path, reads = s[idx]
+
+        def put(
+            local: Any,
+            g: list[Any],
+            *,
+            label: str,
+            viol: Any = (),
+            slot: tuple[int, str] = (idx, name),
+        ) -> None:
+            emit(f"{slot[1]} {label}", g, newprocs=with_proc(slot[0], local), viol=viol)
+
+        if bpc == "start":
+            put(
+                ("claim", s[DEF], s[TZ], None, None, None, ()),
+                copy_globals(),
+                label=f"시작: 코드 정의={s[DEF]}, tz=T{s[TZ]}",
+            )
+        elif bpc == "claim":
+            anyw = False
+            for d in range(ND):
+                m = s[MK][d]
+                if m is not None and m[1] < K:
+                    anyw = True
+                    g = copy_globals()
+                    g[MK] = setp(g[MK], d, val=(m[0], m[1] + 1, m[2] + 1))
+                    pth = "s3" if s[AST][d] == "s3" else "db"
+                    put(
+                        ("read", mydef, mytz, d, m[0], pth, ()),
+                        g,
+                        label=f"선점 {DATES[d]} 표시 v{m[0]}, 경로 {pth}",
+                    )
+            if not anyw:
+                put(
+                    ("done", None, None, None, None, None, ()),
+                    copy_globals(),
+                    label="선점: 일 없음",
+                )
+        elif bpc == "read":
+            want = reads_of(shift, mytz, di=di)
+            if path == "s3":
+                vals = s3_lookup(v, s, di=di, shift=shift)
+                rd = tuple((x, vals[PI[x]]) for x in want)
+                put(
+                    ("final", mydef, mytz, di, ver, path, rd),
+                    copy_globals(),
+                    label=f"S3 읽기({v.rr}) {rd}",
+                )
+            elif len(reads) < len(want):
+                x = want[len(reads)]
+                nr = reads + ((x, s[SRC][PI[x]]),)
+                put(
+                    (
+                        "read" if len(nr) < len(want) else "final",
+                        mydef,
+                        mytz,
+                        di,
+                        ver,
+                        path,
+                        nr,
+                    ),
+                    copy_globals(),
+                    label=f"DB 읽기 {x}={s[SRC][PI[x]]}",
+                )
+            else:
+                put(
+                    ("final", mydef, mytz, di, ver, path, ()),
+                    copy_globals(),
+                    label="DB 읽기: 부분 없음",
+                )
+        elif bpc == "final":
+            if s[FB] > 0:
+                g = copy_globals()
+                g[FB] -= 1
+                put(
+                    ("done", None, None, None, None, None, ()),
+                    g,
+                    label="계산 실패(표시 남음)",
+                )
+            ok = s[DEF] == mydef and s[TZ] == mytz
+            if v.bdelcheck and s[ACCT] != "live":
+                ok = False
+            if v.astcheck and (("s3" if s[AST][di] == "s3" else "db") != path):
+                ok = False
+            if not ok:
+                put(
+                    ("done", None, None, None, None, None, ()),
+                    copy_globals(),
+                    label="저장 확인 실패: 롤백",
+                )
+                continue
+            g = copy_globals()
+            val = (mydef, mytz, DATES[di], reads)
+            row = g[ST][di]
+            if row is None or ver > row[2]:
+                g[ST] = setp(g[ST], di, val=(mydef, mytz, ver, val))
+            if g[MK][di] is not None and g[MK][di][0] == ver:
+                g[MK] = setp(g[MK], di, val=None)
+            put(
+                ("done", None, None, None, None, None, ()),
+                g,
+                label=f"저장+표시 삭제 커밋 {DATES[di]}={val}",
+            )
+
+    # 계정 삭제
+    dlp = s[P_DEL][0]
+    if dlp == "flag" and adv_free:
+        g = copy_globals()
+        g[ACCT] = "deleted"
+        g[QDEL] = True
+        emit(
+            "계정 삭제 요청 커밋: acct=deleted",
+            g,
+            newprocs=with_proc(P_DEL, ("purge_db",)),
+        )
+    elif dlp == "purge_db" and adv_free and not (v.delexcl and excl_block):
+        g = copy_globals()
+        g[SRC] = (None,) * len(PARTS)
+        g[REC] = (False,) * ND
+        g[MK] = (None,) * ND
+        g[ST] = (None,) * ND
+        g[AST] = ("db",) * ND
+        emit("삭제 배치: DB 삭제 커밋", g, newprocs=with_proc(P_DEL, ("purge_s3",)))
+    elif dlp == "purge_s3" and not (v.delexcl and excl_block):
+        g = copy_globals()
+        g[S3] = (None,) * ND
+        g[ACCT] = "purged"
+        emit("삭제 배치: S3 prefix 삭제, 끝", g, newprocs=with_proc(P_DEL, ("done",)))
+
+    # 조회(삭제 시나리오에서만: 인증 → 스냅샷 두 단계)
+    qpc, qdi = s[P_Q]
+    if qpc == "idle":
+        if s[ACCT] == "live":
+            for d in range(ND):
+                emit(
+                    f"조회({DATES[d]}) 인증 통과",
+                    copy_globals(),
+                    newprocs=with_proc(P_Q, ("snap", d)),
+                )
+        else:
+            emit(
+                "조회 인증 거부(계정 삭제됨)",
+                copy_globals(),
+                newprocs=with_proc(P_Q, ("done", None)),
+            )
+    elif qpc == "snap":
+        res, old = query(v, s, di=qdi, shift=shift)
+        viol = []
+        if res != "denied" and s[QDEL]:
+            viol.append("I14")
+        emit(
+            f"조회({DATES[qdi]}) 스냅샷 → {res}{' (이전 기준)' if old else ''}",
+            copy_globals(),
+            newprocs=with_proc(P_Q, ("done", qdi)),
+            viol=viol,
+        )
+    return out
+
+
+def check_state(v: Variant, sc: Scenario, *, s: State) -> list[str]:
+    viol = []
+    if s[ACCT] == "purged":
+        if (
+            any(x is not None for x in s[SRC])
+            or any(s[REC])
+            or any(m is not None for m in s[MK])
+            or any(r is not None for r in s[ST])
+            or any(f_ is not None for f_ in s[S3])
+        ):
+            viol.append("I13")
+        return viol
+    if s[ACCT] != "live":
+        return viol
+    for d in range(ND):
+        res, old = query(v, s, di=d, shift=sc.shift)
+        if not query_ok(s, di=d, shift=sc.shift, res=res, old=old):
+            viol.append("I1")
+            break
+    for i, x in enumerate(PARTS):
+        t = s[TRUTH][i]
+        if s[SRC][i] == t:
+            continue
+        if s[SRC][i] is None and any(
+            fl is not None and (x, t) in fl[1] for fl in s[S3]
+        ):
+            continue
+        viol.append("I11" if x in CONF else "I10")
+    for d in range(ND):
+        m = s[MK][d]
+        if m is not None and m[1] > m[2]:
+            viol.append("I7")
+    return viol
+
+
+def is_terminal(s: State) -> bool:
+    return all(p[0] == "done" for p in s[NG:])
+
+
+def solo_batch(v: Variant, state: State, *, shift: str) -> tuple[State, bool]:
+    g = list(state)
+    worked = False
+    for d in range(ND):
+        m = g[MK][d]
+        if m is None:
+            continue
+        worked = True
+        if g[AST][d] == "s3":
+            vals = s3_lookup(v, g, di=d, shift=shift)
+        else:
+            vals = g[SRC]
+        val = f(g[DEF], g[TZ], di=d, vals=vals, shift=shift)
+        row = g[ST][d]
+        if row is None or m[0] > row[2]:
+            g[ST] = setp(g[ST], d, val=(g[DEF], g[TZ], m[0], val))
+        g[MK] = setp(g[MK], d, val=None)
+    return tuple(g), worked
+
+
+def rows_ok(g: State, shift: str) -> bool:
+    if any(m is not None for m in g[MK]):
+        return False
+    for d in range(ND):
+        row = g[ST][d]
+        if row is not None and row != (
+            g[DEF],
+            g[TZ],
+            row[2],
+            f(g[DEF], g[TZ], di=d, vals=g[TRUTH], shift=shift),
+        ):
+            return False
+    return True
+
+
+def check_terminal(
+    v: Variant, sc: Scenario, *, s: State
+) -> tuple[list[str], int | None]:
+    g = s[:NG]
+    if g[ACCT] != "live":
+        return [], 0
+    # 격리 해제(runbook SQL): attempts = 0
+    g = setp(g, MK, val=tuple(None if m is None else (m[0], 0, m[2]) for m in g[MK]))
+    for runs in range(SOLO_RUNS + 1):
+        if rows_ok(g, sc.shift):
+            viol = [
+                "I8"
+                for d in range(ND)
+                if reads_of(sc.shift, g[TZ], di=d) and g[ST][d] is None
+            ]
+            return viol[:1], runs
+        if runs == SOLO_RUNS:
+            break
+        g, worked = solo_batch(v, g, shift=sc.shift)
+        if not worked:
+            break
+    return ["I2"], None
+
+
+# ---------------------------------------------------------------- 탐색
+
+
+@dataclass
+class Result:
+    states: int = 0
+    transitions: int = 0
+    terminals: int = 0
+    orders: int = 0
+    max_depth: int = 0
+    solo_runs_max: int = 0
+    s3_terminals: int = 0
+    old_answers: int = 0
+    s3_saves: int = 0
+    violations: dict[str, int] = field(default_factory=dict)
+    first: dict[str, tuple[Any, Any, Any]] = field(default_factory=dict)
+    parents: dict[State, Any] | None = None
+    seconds: float = 0.0
+
+
+def explore(v: Variant, sc: Scenario, *, keep_parents: bool = False) -> Result:
+    t0 = time.perf_counter()
+    init = initial(sc)
+    seen = {init: None}
+    depth = {init: 0}
+    frontier = deque([init])
+    res = Result()
+
+    def hit(kind: str, state: State, *, via: Any = None, prev: Any = None) -> None:
+        res.violations[kind] = res.violations.get(kind, 0) + 1
+        if kind not in res.first:
+            res.first[kind] = (state, via, prev)
+
+    for kind in check_state(v, sc, s=init):
+        hit(kind, init)
+    succ_cache = {}
+    while frontier:
+        s = frontier.popleft()
+        succ = successors(v, sc, s=s)
+        succ_cache[s] = None
+        if not succ:
+            if is_terminal(s):
+                res.terminals += 1
+                if any(a == "s3" for a in s[AST]):
+                    res.s3_terminals += 1
+                viol, runs = check_terminal(v, sc, s=s)
+                for kind in viol:
+                    hit(kind, s)
+                if runs is not None:
+                    res.solo_runs_max = max(res.solo_runs_max, runs)
+            else:
+                hit("DEADLOCK", s)
+            continue
+        for label, ns, viol in succ:
+            res.transitions += 1
+            if (
+                "저장+표시 삭제" in label
+                and s[P_B1 if label.startswith("배치1") else P_B2][5] == "s3"
+            ):
+                res.s3_saves += 1
+            for kind in viol:
+                hit(kind, ns, via=label, prev=s)
+            if ns not in seen:
+                seen[ns] = (s, label) if keep_parents else None
+                depth[ns] = depth[s] + 1
+                res.max_depth = max(res.max_depth, depth[ns])
+                for kind in check_state(v, sc, s=ns):
+                    hit(kind, ns)
+                if ns[ACCT] == "live" and any(
+                    query(v, ns, di=d, shift=sc.shift)[1] for d in range(ND)
+                ):
+                    res.old_answers += 1
+                frontier.append(ns)
+    res.states = len(seen)
+    res.parents = seen if keep_parents else None
+    del depth, succ_cache
+
+    memo = {}
+    onstack = set()
+    stack = [(init, None)]
+    while stack:
+        st, succ = stack.pop()
+        if st in memo:
+            continue
+        if succ is None:
+            succ = [ns for _, ns, _ in successors(v, sc, s=st)]
+            onstack.add(st)
+            stack.append((st, succ))
+            for ns in succ:
+                if ns in onstack:
+                    raise RuntimeError("상태 그래프에 순환이 있다")
+                if ns not in memo:
+                    stack.append((ns, None))
+        else:
+            memo[st] = 1 if not succ else sum(memo[ns] for ns in succ)
+            onstack.discard(st)
+    res.orders = memo[init]
+    res.seconds = time.perf_counter() - t0
+    return res
+
+
+def trace(res: Result, state: State) -> list[tuple[str, State]]:
+    parents = res.parents
+    assert parents is not None
+    path = []
+    while parents[state] is not None:
+        prev, label = parents[state]
+        path.append((label, state))
+        state = prev
+    path.reverse()
+    return path
+
+
+def show_state(s: State) -> str:
+    src = ",".join(
+        f"{x}={'∅' if s[SRC][PI[x]] is None else s[SRC][PI[x]]}" for x in PARTS
+    )
+    tru = ",".join(str(t) for t in s[TRUTH])
+    files = (
+        " ".join(
+            f"{DATES[d]}:T{fl[0]}{dict(fl[1])}"
+            for d, fl in enumerate(s[S3])
+            if fl is not None
+        )
+        or "없음"
+    )
+    rows = "; ".join(
+        f"{DATES[d]}[{s[AST][d]}] 표시={s[MK][d]} 저장={None if s[ST][d] is None else s[ST][d][:3] + (dict(s[ST][d][3][3]),)}"
+        for d in range(ND)
+    )
+    return f"tz=T{s[TZ]} 정의={s[DEF]} 동결={s[FRZ]} 계정={s[ACCT]} | DB({src}) 논리({tru}) | S3 {files} | {rows}"
+
+
+# ---------------------------------------------------------------- 변형·시나리오
+
+R0 = Variant(
+    "R0",
+    "사용자 결정 그대로: 파일 = 그 날짜에 시작한 행, DB 삭제 = 그 날짜에 시작한 행, 재계산 = 그 날짜+전날 파일",
+)
+R1 = replace(
+    R0,
+    name="R1",
+    note="R0 + DB 삭제를 '현재 tz로 DB 날짜가 더는 읽지 않는 행'으로(경계 날짜 보호)",
+    dr="need",
+)
+R2 = replace(
+    R1,
+    name="R2",
+    note="R1 + S3 재계산이 전날·그 날짜·다음 날 파일과 DB 잔여 행을 읽음",
+    rr="union",
+)
+R3 = replace(
+    R2,
+    name="R3",
+    note="추천: R2 + 동결 시각 줄지 않음(tz 변경에도) + DB 삭제는 어느 지원 tz로도 안 읽는 행만",
+    freeze="mono",
+    dr="needall",
+)
+
+VARIANTS = [
+    R0,
+    R1,
+    R2,
+    R3,
+    replace(
+        R3,
+        name="R3f",
+        note="R3에서 파일 = 그 날짜의 읽기 집합 전부(자기 완결 파일)",
+        fc="read",
+    ),
+    replace(
+        R3,
+        name="R3n",
+        note="R3에서 재계산 = 전날·그 날짜·다음 날 파일만(DB 잔여 행 안 읽음)",
+        rr="nbr",
+    ),
+    replace(
+        R3,
+        name="Y1",
+        note="분리: R3에서 동결을 날짜 라벨로(tz 변경 때 풀릴 수 있음)",
+        freeze="label",
+    ),
+    replace(R3, name="Y2", note="분리: R3에서 DB 삭제를 현재 tz 기준으로만", dr="need"),
+    # 대조 변형(모두 R3에서 하나만 바꿈)
+    replace(
+        R3,
+        name="X1",
+        note="대조: 늦은 관찰 허용(동결 날짜 원천 변경 거부 안 함)",
+        late="allow",
+    ),
+    replace(
+        R3,
+        name="X2",
+        note="대조: 확정을 마지막에 복사(구간 복사·삭제 → 원본 삭제(CASCADE) → 확정 복사)",
+        order="conf_last",
+    ),
+    replace(
+        R3, name="X3", note="대조: ② 확인 없이 삭제(③의 파일 대조도 없음)", verify=False
+    ),
+    replace(
+        R3,
+        name="X4",
+        note="대조: ast=s3를 삭제 뒤 별도 트랜잭션으로",
+        order="flip_late",
+    ),
+    replace(
+        R3,
+        name="X5",
+        note="대조: 시작에서 바로 ast=s3(복사 확인 전 S3 원천)",
+        order="s3_first",
+    ),
+    replace(
+        R3,
+        name="X6",
+        note="대조: 아카이브 시작이 계정 잠금을 잡지 않음",
+        startlock=False,
+    ),
+    replace(R3, name="X7", note="대조: 표시 남은 날짜도 아카이브", mkblock=False),
+    replace(
+        R3, name="X8", note="대조: 배치 저장 때 ast 경로 확인 없음", astcheck=False
+    ),
+    replace(R3, name="X9", note="대조: 전날 파일 안 읽음(그 날짜 파일만)", rr="d"),
+    replace(
+        R3, name="X10", note="대조: 삭제 배치와 아카이브가 겹칠 수 있음", delexcl=False
+    ),
+    replace(
+        R3,
+        name="X11",
+        note="대조: 배치 저장이 계정 삭제를 확인하지 않음",
+        bdelcheck=False,
+    ),
+    replace(
+        R3,
+        name="X12",
+        note="대조: 원천 쓰기가 계정 삭제를 확인하지 않음",
+        sdelcheck=False,
+    ),
+    replace(
+        R3,
+        name="X13",
+        note="대조: 조회 스냅샷이 계정 삭제를 확인하지 않음(인증만)",
+        qdelcheck=False,
+    ),
+]
+
+SCENARIOS = [
+    Scenario("S1", ("q", "c")),
+    Scenario("S2", ("c", "q"), fails=1),
+    Scenario("S3", ("l", "r"), cfaults=1),
+    Scenario("S4", ("q",), def_change=True),
+    Scenario("S5", ("q",), marker=0),
+    Scenario("S6", ("q",), shift="behind"),
+    Scenario("S7", ("c",), shift="ahead"),
+    Scenario("S8", ("q",), delete=True, batches=1),
+    Scenario("S9", ("l",), def_change=True, cfaults=1, batches=1),
+    Scenario("S10", (), def_change=True, shift="behind"),
+    Scenario("S11", ("c",), def_change=True, shift="ahead"),
+    Scenario("S12", ("q", "r"), shift="behind"),
+    Scenario("S13", ("r", "c"), shift="ahead", fails=1),
+    Scenario("S14", ("q",), def_change=True, delete=True),
+    Scenario("S15", (), def_change=True, fails=1, marker=1),
+    Scenario("S16", ("c",), shift="ahead", delete=True, batches=1),
+]
+
+
+# 변형별 기대 결과(전체 탐색): 위반한 불변식 집합(빈 집합 = 위반 0). 옮기기 전 원본의 전체 실행 출력
+# protocol_model_archive_run_full.txt 끝 요약에는 R3·R3f만 있고 옛 README는 대조 변형을 "실행 출력 참조"로
+# 두었다. 이 Issue는 전체 탐색을 다시 돌리지 않으므로 나머지 변형의 전체 탐색 기대값은 두지 않는다(비교하지
+# 않음). 대조 변형은 SMALL_EXPECTED의 X1(작은 시나리오 결과)로 확인한다.
+EXPECTED: dict[str, frozenset[str]] = {
+    "R3": frozenset(),
+    "R3f": frozenset(),
+}
+
+# CI용 작은 시나리오: 추천 R3과 대조 X1(늦은 관찰 허용)을 S5(초기 표시 d1, 원천 변경 q) 하나로.
+# X1의 기대값은 이 작은 시나리오의 결과다. 늦은 관찰을 받아들여 동결 뒤 아카이브(arch·s3)된 날짜가 읽는
+# 원천이 바뀌므로(I12) 그 날짜의 조회가 원천과 어긋난다(I1). 변형 설명과 맞는다.
+# 작은 시나리오의 기대 결과(전체 탐색의 EXPECTED와 따로 둔다). --small은 이 변형만 돌리고 이 값과 비교한다.
+SMALL_EXPECTED: dict[str, frozenset[str]] = {
+    "R3": frozenset(),
+    "X1": frozenset({"I1", "I12"}),
+}
+SMALL_SCENARIOS = [sc for sc in SCENARIOS if sc.name == "S5"]
+
+
+def verdict(kinds: frozenset[str]) -> str:
+    return "통과" if not kinds else "실패 " + ",".join(sorted(kinds))
+
+
+def print_counterexamples(v: Variant, rows: list[tuple[Scenario, Result]]) -> None:
+    best: dict[str, Any] = {}
+    for sc, r in rows:
+        for kind, (st, via, prev) in r.first.items():
+            path = [*trace(r, prev), (via, st)] if prev is not None else trace(r, st)
+            if kind not in best or len(path) < len(best[kind][1]):
+                best[kind] = (sc, path, st, via)
+    for kind, (sc, path, st, via) in sorted(best.items()):
+        print(f"  -- {kind} 가장 짧은 반례 ({sc.label()}, {len(path)}단계)")
+        print(f"     0. 초기: {show_state(initial(sc))}")
+        for i, (label, s2) in enumerate(path, 1):
+            print(f"     {i}. {label}\n        → {show_state(s2)}")
+        if kind == "I1" and via is None:
+            for d in range(ND):
+                got, old = query(v, st, di=d, shift=sc.shift)
+                answer = f(st[DEF], st[TZ], di=d, vals=st[TRUTH], shift=sc.shift)
+                basis = " (이전 기준)" if old else ""
+                print(f"     조회 {DATES[d]}: {got}{basis} / 정답 {answer}")
+        if kind in ("I2", "I8"):
+            released = tuple(None if m is None else (m[0], 0, m[2]) for m in st[MK])
+            g = setp(st[:NG], MK, val=released)
+            for n in range(SOLO_RUNS):
+                g2, worked = solo_batch(v, g, shift=sc.shift)
+                print(
+                    f"     +{n + 1}. 추가 배치(혼자): {'처리' if worked else '일 없음'} → "
+                    f"{show_state(g2 + (None,) * 9)}"
+                )
+                g = g2
+            answers = [
+                f"{DATES[d]}={f(st[DEF], st[TZ], di=d, vals=st[TRUTH], shift=sc.shift)}"
+                for d in range(ND)
+            ]
+            print("     정답: " + "; ".join(answers))
+
+
+def run(
+    names: list[str], *, show_trace: bool, small: bool, scen_names: list[str]
+) -> int:
+    default = list(SMALL_EXPECTED) if small else [v.name for v in VARIANTS]
+    chosen = [v for v in VARIANTS if v.name in (names or default)]
+    pool = SMALL_SCENARIOS if small else SCENARIOS
+    scens = [sc for sc in pool if not scen_names or sc.name in scen_names]
+    total_states = total_orders = 0
+    summary = []
+    t_all = time.perf_counter()
+    for v in chosen:
+        agg: dict[str, int] = {}
+        rows = []
+        for sc in scens:
+            r = explore(v, sc, keep_parents=show_trace)
+            total_states += r.states
+            total_orders += r.orders
+            rows.append((sc, r))
+            for k_, n in r.violations.items():
+                agg[k_] = agg.get(k_, 0) + n
+        kinds = frozenset(agg)
+        summary.append(
+            (v, kinds, sum(r.states for _, r in rows), sum(r.orders for _, r in rows))
+        )
+        print(f"\n=== {v.name}: {v.note}", flush=True)
+        for sc, r in rows:
+            vio = (
+                ", ".join(f"{k_}:{n}" for k_, n in sorted(r.violations.items()))
+                or "없음"
+            )
+            print(
+                f"  {sc.label():40s} 상태 {r.states:>9,} 끝 {r.terminals:>6,}"
+                f"(S3 {r.s3_terminals:>6,}) 순서 {r.orders:>20,} 깊이 {r.max_depth:>2} "
+                f"추가배치≤{r.solo_runs_max} 이전기준상태 {r.old_answers:>7,} "
+                f"S3저장 {r.s3_saves:>6,} {r.seconds:6.1f}s 위반 {vio}",
+                flush=True,
+            )
+        print(f"  판정: {verdict(kinds)}")
+        if show_trace and agg:
+            print_counterexamples(v, rows)
+    print("\n=== 요약")
+    compare = not scen_names
+    mismatched = []
+    unchecked: list[str] = []
+    for v, kinds, ns, no in summary:
+        expected = (SMALL_EXPECTED if small else EXPECTED).get(v.name)
+        mark = ""
+        if expected is None:
+            mark = " (이 시나리오의 기대 결과 없음)"
+            unchecked.append(v.name)
+        elif compare and kinds != expected:
+            mark = f" (기대와 다름: {verdict(expected)})"
+            mismatched.append(v.name)
+        print(
+            f"  {v.name:4s} {verdict(kinds):28s} 상태 {ns:>11,} 실행순서 {no:>24,}  {v.note}{mark}"
+        )
+    print(
+        f"\n합계: 상태 {total_states:,}, 실행 순서 {total_orders:,}, "
+        f"{time.perf_counter() - t_all:.1f}s"
+    )
+    if not compare:
+        print("시나리오를 골라 실행하면 기대 결과와 비교하지 않는다")
+        return 0
+    if mismatched:
+        print(f"기대 결과와 다른 변형: {', '.join(mismatched)}")
+        return 1
+    if unchecked:
+        print(f"기대 결과가 없어 비교하지 않은 변형: {', '.join(unchecked)}")
+    print("비교한 모든 변형이 기대 결과와 같다")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    args = [a for a in argv if not a.startswith("--")]
+    vnames = [a for a in args if not a.startswith("S")]
+    snames = [a for a in args if a.startswith("S")]
+    return run(
+        vnames,
+        show_trace="--trace" in argv,
+        small="--small" in argv,
+        scen_names=snames,
+    )
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
