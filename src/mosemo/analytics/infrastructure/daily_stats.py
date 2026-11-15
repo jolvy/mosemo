@@ -242,3 +242,33 @@ class DailyStatsRepository:
             ).returning(stats_table.c.source_version)
         )
         return written is not None
+
+
+class OutdatedStatsQuery:
+    """Stored dates whose definition version is older than a given one."""
+
+    async def list_accounts(
+        self, db_session: AsyncSession, *, below: int
+    ) -> list[UUID]:
+        return list(
+            await db_session.scalars(
+                select(stats_table.c.account_id)
+                .where(stats_table.c.definition_version < below)
+                .distinct()
+                .order_by(stats_table.c.account_id)
+            )
+        )
+
+    async def list_dates(
+        self, db_session: AsyncSession, account_id: UUID, *, below: int
+    ) -> list[date]:
+        return list(
+            await db_session.scalars(
+                select(stats_table.c.local_date)
+                .where(
+                    stats_table.c.account_id == account_id,
+                    stats_table.c.definition_version < below,
+                )
+                .order_by(stats_table.c.local_date)
+            )
+        )

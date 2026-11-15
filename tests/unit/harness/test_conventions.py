@@ -411,6 +411,14 @@ ALLOWED_BROAD_EXCEPTS = {
         "        except Exception:\n"
         "            record()\n"
     ),
+    "src/mosemo/analytics/application/daily_stats_batch.py": (
+        "class RefreshDailyStats:\n"
+        "    async def _refresh(self):\n"
+        "        try:\n"
+        "            pass\n"
+        "        except Exception as error:\n"
+        "            raise Failed() from error\n"
+    ),
     "src/mosemo/platform/scheduling.py": (
         "async def execute_job():\n    try:\n        pass\n    except Exception:\n"
         "        log()\n"

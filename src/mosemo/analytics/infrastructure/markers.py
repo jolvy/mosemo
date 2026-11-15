@@ -2,7 +2,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import Select, delete, false, literal, literal_column, select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import Insert, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.analytics.domain.markers import MarkerKind, RecomputeMarker, RetryPolicy
@@ -40,6 +40,44 @@ def due_markers(
     )
 
 
+def marker_upsert(
+    kind: MarkerKind,
+    *,
+    account_id: UUID,
+    local_date: date,
+    eligible_at: datetime,
+    now: datetime,
+) -> Insert:
+    """Insert, or give the existing marker a new version and `kind` and reset
+    its retry state. The version of an existing marker is drawn in the DO
+    UPDATE clause, that is after the row lock."""
+    statement = insert(markers).values(
+        account_id=account_id,
+        local_date=local_date,
+        version=marker_version_seq.next_value(),
+        kind=kind,
+        marked_at=now,
+        eligible_at=eligible_at,
+        attempts=0,
+        next_attempt_at=now,
+        last_error=None,
+        last_failed_at=None,
+    )
+    return statement.on_conflict_do_update(
+        index_elements=[markers.c.account_id, markers.c.local_date],
+        set_={
+            "version": marker_version_seq.next_value(),
+            "kind": statement.excluded.kind,
+            "marked_at": statement.excluded.marked_at,
+            "eligible_at": statement.excluded.eligible_at,
+            "attempts": 0,
+            "next_attempt_at": statement.excluded.next_attempt_at,
+            "last_error": None,
+            "last_failed_at": None,
+        },
+    )
+
+
 class RecomputeMarkerRepository:
     async def find(
         self, db_session: AsyncSession, *, account_id: UUID, local_date: date
@@ -67,31 +105,34 @@ class RecomputeMarkerRepository:
         The version of an existing marker is drawn in the DO UPDATE clause, that
         is after the row lock, so a later writer always gets a larger version.
         """
-        statement = insert(markers).values(
-            account_id=account_id,
-            local_date=local_date,
-            version=marker_version_seq.next_value(),
-            kind=MarkerKind.SOURCE,
-            marked_at=now,
-            eligible_at=eligible_at,
-            attempts=0,
-            next_attempt_at=now,
-            last_error=None,
-            last_failed_at=None,
-        )
         await db_session.execute(
-            statement.on_conflict_do_update(
-                index_elements=[markers.c.account_id, markers.c.local_date],
-                set_={
-                    "version": marker_version_seq.next_value(),
-                    "kind": statement.excluded.kind,
-                    "marked_at": statement.excluded.marked_at,
-                    "eligible_at": statement.excluded.eligible_at,
-                    "attempts": 0,
-                    "next_attempt_at": statement.excluded.next_attempt_at,
-                    "last_error": None,
-                    "last_failed_at": None,
-                },
+            marker_upsert(
+                MarkerKind.SOURCE,
+                account_id=account_id,
+                local_date=local_date,
+                eligible_at=eligible_at,
+                now=now,
+            )
+        )
+
+    async def upsert_definition(
+        self,
+        db_session: AsyncSession,
+        *,
+        account_id: UUID,
+        local_date: date,
+        eligible_at: datetime,
+        now: datetime,
+    ) -> None:
+        """Like `upsert_source`, for a date stored with an older definition; an
+        existing marker gets a new version and becomes a definition marker."""
+        await db_session.execute(
+            marker_upsert(
+                MarkerKind.DEFINITION,
+                account_id=account_id,
+                local_date=local_date,
+                eligible_at=eligible_at,
+                now=now,
             )
         )
 

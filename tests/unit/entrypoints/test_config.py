@@ -39,7 +39,15 @@ BATCH_JOBS_ENVIRONMENT = {"LABEL_MODEL": "openai:fake-model"}
 EVERY_PROCESS_ENVIRONMENT = (
     DATABASE_ENVIRONMENT | BATCH_ENVIRONMENT | API_ENVIRONMENT | BATCH_JOBS_ENVIRONMENT
 )
-SETTINGS_PREFIXES = ("DB_", "BATCH_", "MOSEMO_ENV", "KAKAO_", "AUTH_", "LABEL_MODEL")
+SETTINGS_PREFIXES = (
+    "DB_",
+    "BATCH_",
+    "MOSEMO_ENV",
+    "KAKAO_",
+    "AUTH_",
+    "LABEL_MODEL",
+    "ANALYTICS_",
+)
 
 
 @pytest.fixture
@@ -136,6 +144,70 @@ def test_batch_jobs_config_rejects_missing_or_empty_label_model(
 
     with pytest.raises(ValidationError):
         BatchJobsConfig()
+
+
+def test_analytics_reprocess_per_run_defaults_to_600(environment) -> None:
+    environment(BATCH_JOBS_ENVIRONMENT)
+
+    config = BatchJobsConfig().analytics()
+
+    assert config.reprocess_per_run == 600
+    assert config.settings().reprocess_per_run == 600
+
+
+def test_analytics_reprocess_per_run_zero_stops_definition_reprocessing(
+    environment,
+) -> None:
+    environment(BATCH_JOBS_ENVIRONMENT | {"ANALYTICS_REPROCESS_PER_RUN": "0"})
+
+    assert BatchJobsConfig().analytics().reprocess_per_run == 0
+
+
+@pytest.mark.parametrize("value", ["-1", "many"])
+def test_analytics_reprocess_per_run_rejects_negative_and_non_integer(
+    environment, value: str
+) -> None:
+    environment(BATCH_JOBS_ENVIRONMENT | {"ANALYTICS_REPROCESS_PER_RUN": value})
+
+    with pytest.raises(ValidationError):
+        BatchJobsConfig()
+
+
+def test_analytics_wait_points_are_off_without_the_test_variable(environment) -> None:
+    environment(BATCH_JOBS_ENVIRONMENT)
+
+    wait_points = BatchJobsConfig().analytics().settings().wait_points
+
+    assert wait_points.enabled is False
+    assert wait_points.names == frozenset()
+
+
+def test_analytics_wait_points_read_the_named_points(environment, tmp_path) -> None:
+    environment(
+        BATCH_JOBS_ENVIRONMENT
+        | {
+            "ANALYTICS_TEST_WAIT_POINTS": "after_claim, before_save_commit",
+            "ANALYTICS_TEST_WAIT_DIRECTORY": str(tmp_path),
+        }
+    )
+
+    wait_points = BatchJobsConfig().analytics().settings().wait_points
+
+    assert wait_points.names == {"after_claim", "before_save_commit"}
+    assert wait_points.directory == tmp_path
+
+
+def test_analytics_wait_points_reject_unknown_names(environment, tmp_path) -> None:
+    environment(
+        BATCH_JOBS_ENVIRONMENT
+        | {
+            "ANALYTICS_TEST_WAIT_POINTS": "after_lunch",
+            "ANALYTICS_TEST_WAIT_DIRECTORY": str(tmp_path),
+        }
+    )
+
+    with pytest.raises(ValueError, match="after_lunch"):
+        BatchJobsConfig().analytics().settings()
 
 
 def test_database_settings_require_db_variables(environment) -> None:

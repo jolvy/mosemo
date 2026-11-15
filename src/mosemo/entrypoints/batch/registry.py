@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mosemo.analytics import bootstrap as analytics_bootstrap
+from mosemo.analytics.bootstrap import AnalyticsBatchConfig
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.labeling import bootstrap as labeling_bootstrap
 from mosemo.labels import bootstrap as labels_bootstrap
@@ -34,7 +35,10 @@ def register_analytics_handlers(dispatcher: EventDispatcher) -> None:
 
 
 def build_jobs(
-    session_factory: async_sessionmaker[AsyncSession], *, label_model: str
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    label_model: str,
+    analytics: AnalyticsBatchConfig,
 ) -> list[BatchJob]:
     # Every context that owns tables maps them before a job touches the database.
     identity_bootstrap.map_tables()
@@ -50,7 +54,27 @@ def build_jobs(
             labels=labels_bootstrap.create_label_catalog(),
             timeline=observation_bootstrap.create_observation_timeline(),
             dispatcher=get_event_dispatcher(),
-        )
+        ),
+        analytics_bootstrap.create_daily_stats_job(
+            session_factory,
+            config=analytics,
+            analytics=analytics_bootstrap.Analytics(
+                accounts=identity_bootstrap.create_account_directory(),
+                timeline=observation_bootstrap.create_observation_timeline(),
+                focus_sessions=observation_bootstrap.create_focus_session_log(),
+                confirmations=labeling_bootstrap.create_label_confirmation_directory(),
+                clock=utc_now,
+            ),
+            dispatcher=get_event_dispatcher(),
+            clock=utc_now,
+        ),
+        analytics_bootstrap.create_definition_mark_job(
+            session_factory,
+            timeline=observation_bootstrap.create_observation_timeline(),
+            accounts=identity_bootstrap.create_account_directory(),
+            dispatcher=get_event_dispatcher(),
+            clock=utc_now,
+        ),
     ]
     ensure_unique_names(jobs)
     return jobs

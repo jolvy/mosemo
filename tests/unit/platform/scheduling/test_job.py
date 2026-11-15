@@ -4,7 +4,7 @@ import logging
 import pytest
 
 from mosemo.platform.logging import OPTIONAL_FIELDS
-from mosemo.platform.scheduling import BatchJob, execute_job, run_job_once
+from mosemo.platform.scheduling import BatchJob, JobReport, execute_job, run_job_once
 
 STANDARD_RECORD_FIELDS = set(vars(logging.makeLogRecord({}))) | {"message"}
 
@@ -94,3 +94,26 @@ async def test_run_job_once_cancels_the_job_when_stopped(
     (record,) = job_records(caplog)
     assert (vars(record)["operation"], vars(record)["outcome"]) == ("hold", "cancelled")
     assert_allowed_fields(record)
+
+
+@pytest.mark.asyncio
+async def test_job_report_fields_join_the_result_line_and_can_fail_the_run(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def counted() -> JobReport:
+        return JobReport(fields={"saved": 3})
+
+    async def stopped() -> JobReport:
+        return JobReport(fields={"aborted": "connection"}, failed=True)
+
+    caplog.set_level(logging.INFO, logger="mosemo.platform.scheduling")
+
+    assert await execute_job(BatchJob("counted", counted)) is True
+    assert await execute_job(BatchJob("stopped", stopped)) is False
+
+    success, failure = job_records(caplog)
+    assert (vars(success)["outcome"], vars(success)["saved"]) == ("success", 3)
+    assert (failure.levelno, vars(failure)["outcome"]) == (logging.ERROR, "failure")
+    assert vars(failure)["aborted"] == "connection"
+    for record in (success, failure):
+        assert_allowed_fields(record)

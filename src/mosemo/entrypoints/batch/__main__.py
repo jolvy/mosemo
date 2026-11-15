@@ -40,7 +40,11 @@ async def run(args: argparse.Namespace) -> int:
     for sig in signals:
         loop.add_signal_handler(sig, stop.set)
     try:
-        jobs = build_jobs(session_factory, label_model=config.label_model)
+        jobs = build_jobs(
+            session_factory,
+            label_model=config.label_model,
+            analytics=config.analytics(),
+        )
         if args.command == "serve":
             await serve(jobs, stop, clock=utc_now)
             return 0

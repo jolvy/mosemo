@@ -6,8 +6,8 @@ creation functions below, and only this module turns it into a trigger.
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from time import perf_counter
 
@@ -43,12 +43,21 @@ def _trigger(schedule: Schedule) -> BaseTrigger:
     return IntervalTrigger(seconds=schedule.interval.total_seconds(), timezone=UTC)
 
 
+@dataclass(frozen=True, kw_only=True)
+class JobReport:
+    """What a run tells its log line: scalar `fields` added to the result line,
+    and whether the run failed without raising (it stopped on its own)."""
+
+    fields: Mapping[str, object] = field(default_factory=dict)
+    failed: bool = False
+
+
 @dataclass(frozen=True)
 class BatchJob:
     """A job must be safe to rerun and to run concurrently with another process."""
 
     name: str
-    run: Callable[[], Awaitable[None]]
+    run: Callable[[], Awaitable[JobReport | None]]
     schedule: Schedule | None = None
 
 
@@ -63,7 +72,7 @@ def _result(job: BatchJob, outcome: str, *, started: float) -> dict[str, object]
 async def execute_job(job: BatchJob) -> bool:
     started = perf_counter()
     try:
-        await job.run()
+        report = await job.run() or JobReport()
     except asyncio.CancelledError:
         logger.warning(
             "batch job cancelled", extra=_result(job, "cancelled", started=started)
@@ -76,7 +85,16 @@ async def execute_job(job: BatchJob) -> bool:
             "batch job failed", extra=_result(job, "failure", started=started)
         )
         return False
-    logger.info("batch job completed", extra=_result(job, "success", started=started))
+    if report.failed:
+        logger.error(
+            "batch job failed",
+            extra={**report.fields, **_result(job, "failure", started=started)},
+        )
+        return False
+    logger.info(
+        "batch job completed",
+        extra={**report.fields, **_result(job, "success", started=started)},
+    )
     return True
 
 

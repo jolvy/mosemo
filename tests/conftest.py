@@ -22,6 +22,8 @@ observation_bootstrap.map_tables()
 CONTAINER_MARKERS = {
     "integration_database_url": "requires_db",
     "integration_kafka_broker": "requires_kafka",
+    # FI-7 restarts a PostgreSQL container of its own.
+    "restartable_database": "requires_db",
 }
 
 
