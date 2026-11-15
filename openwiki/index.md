@@ -12,3 +12,4 @@ okf_version: "0.2"
 - [decisions](decisions/)
 - [development](development/)
 - [domain](domain/)
+- [operations](operations/)

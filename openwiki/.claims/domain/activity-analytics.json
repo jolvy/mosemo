@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:9a0b7651659d9bf1875ea9dfd9df43da1e7efcae42cfa5bbb3fe14e134fa190b",
+  "claims": [
+    {
+      "id": "claim_1b31fb9b8154423c92e223a89142f304",
+      "statement": "활동 분석은 날짜 단위 C1·C2·C7과 완료된 집중 세션 단위 C3~C7의 분석 데이터 7종을 범위로 하며 일시중지 구간은 분석에서 뺀다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/requirements/activity-analytics.md#L18-L37",
+          "version": "repo-lines-v1:sha256:c89ca67a0d8933d9e1cf649f164fa94383c33cf5921666868dca92adeccfb94a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM5ZjYwMzI2OTdmM2M5MjdjMjg3YWEyMGY4YjUyNmM3NzQ3ZjQ4YmQxZDVjMjMyY2U0OTIxMGZkZTYyNGMwZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjNjc3NDkyN2YxZjM2YjQ1MjdlY2EwZGNiZGE4YjUzMDgxNGJjYzEzNzZjYjU2ZGZjMWM1YThhNDYyYjZmMDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzMzk0NjM4NzMxZWU5YTljODY2OGIzNjk4NTBmYjVmMzM0OTEyYjI1NzI2MDljNzlmMDRmYmVjODhhYmM4NTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVlZGNiMDlkZTk3NDIyYzcxOWE1ZDAwYWNlNTNkZjcyYTE0MWY1MWNjYmQyYTZlMjZkNTUwOGQ5NzQ4N2M2YWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_db051294c2dc4582bed2eeff0ea1e8a1",
+      "statement": "제안 ADR 0016은 세션 분석과 오늘의 일간 통계를 조회 때 계산하고 지난 날짜의 일간 통계만 (계정, 계정 시간대 날짜) 단위로 저장한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L43-L60",
+          "version": "repo-lines-v1:sha256:4785476bf2e97506c32be8a2c207d63aefb14b8979e6de194fa26a64e477c42d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlZGY3OTJjODg2MjMxOGZkOTEwODgwYjEzNGFjMzdmNjRmODhhZDdjNTc0NGE5MTIxYjkwMTEwN2MyYzJjYmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkMWUxMzAxZTZhNzA5YjNiYjViNTYxNjEwNTYwZmJhYjU3MzM2NDc0ZjcyM2VlMzhjZjZhNjUyMTkxNzYzMGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU3MGY0OWI2ZGE4ZjBjMjYwYzQ4ZTcxMWJkMDliNzA4N2RkZDFiMjAyZWY3OTExYWQ3ODI4ZDEwZWFmZmFhMTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM5NThmN2QxNmQwNGI4MzRhMTc0YjIzNDJhNTYzZmQ0NjE1N2Q1YjBmNzk0NzkxZjRhZDM4Zjg2ODQxMmJkOWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_15258cc0885049cf858ecfd71cb3b409",
+      "statement": "ADR 0016 제안에서 observation·labeling은 이벤트만 기록하고 analytics의 BEFORE_COMMIT handler가 같은 트랜잭션에서 (계정, 날짜) 다시 계산 표시를 UPSERT한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L68-L96",
+          "version": "repo-lines-v1:sha256:78bab831d47834555137b8fb28504cffeca85e6fa187b19e5ac7a74b40c66b03:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiZDUxOTExZGNiNWNmM2U3YmVkZjhiZDc0MTU5OWZkMjUyN2ZkYzUxNDg3YmEzMmM2ODEwYzAwZGM0MTNkYTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdjYTM2ODk2NGUxODQ3ZjllMjJkOGUwN2I4M2M2YTE4MzZjYmZjNTdmNGRkODIxNzcwOGZhZDcxZTJhNzlmMWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFhNDI3YWU5ODBhYmViNjEwMDE2Yjc4NThmMGMxZTVmYTZkNWM1MGNlNTY1NGM4ZmMzMmRiYmU0ZmMzNTI3ZjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fc93d8551db84e84bbdb2cc12d00fabe",
+      "statement": "ADR 0016 제안에서 표시가 남았거나 definition_version·timezone이 현재와 다른 지난 날짜는 저장 행 대신 조회 때 계산하므로 배치 실패·지연이 결과의 정확성을 깨뜨리지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L97-L106",
+          "version": "repo-lines-v1:sha256:2abb3ab53a7eed093449c16489e2bfaaeb7ad99ec29c1abf4498fd600392ecb1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxZTA4MmJjNDRhYTlkNGY5MmRiMTU3NzgyZDU2NDg1ZjI3YmQ2MmZhNThmNzBiZjAzOWE4MTM0YzIxOGNlYTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZkMGI3ZjI2MmJhNWRlZDRmZjRjMDM4NzdmNDUzMTQzNTM2ZjJlYmE4ODQ1N2ViZGEzNDM4NTBjNDgyYTEyYTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyNDgyOGRkMzliOTU2ODhhMTk1ZWE3ZjUxMGVlNzRmNWI1OTNkZTE1ZjIyOWFiZjhkZDVhNWU5Nzc3MzczMTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b84b30d63fb041b1b35bafeb35ff2a7b",
+      "statement": "tests/support/analytics_reference는 지표 명세·요구사항·용어집만 근거로 한 표준 라이브러리 독립 참조 구현이며 read_day·daily·session을 공개한다.",
+      "evidence": [
+        {
+          "resource": "repo://tests/support/analytics_reference/__init__.py#L1-L12",
+          "version": "repo-lines-v1:sha256:ae52acb97e67cfb7ff4889ce92433586e3635b3af036c4a170d0d1be3716f650:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4ZWJmZDgxMjAwMmMwNWYxNzg0ZmNmZjA1OWMzZjMyMzIzNjBlYjMxYTMzMTI2ZWJkMzY1YTYzNTRjMGRiOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdjNjllOWQ4YzUzOWNhZWJjY2UyNDcwYzE3MzAyZjhhYmM5NWU1MTcxYWRkNWQ0NzliYjc0ZGNmMDA1MDcyMjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU5ZDVjNzAzM2UwYzBlZTA2NzZiZTFmN2I5M2M2MjZkYzYyZTZkNTViNTJkNDMxZjU1OTUyYTdlOGRmOTk0ODYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_37f8ed7c350549dfa912ac3bd45bbf88",
+      "statement": "tools/analytics_protocol_models는 ADR 0016 일간 통계 프로토콜을 BFS로 전수 탐색해 불변식을 검사하고, 기대 결과와 다르면 종료 코드 1로 끝나며, CI는 --small 시나리오만 돌린다.",
+      "evidence": [
+        {
+          "resource": "repo://tools/analytics_protocol_models/README.md#L1-L45",
+          "version": "repo-lines-v1:sha256:012aa22d33cde84fa285d34fc063abf61f308ac46edcba199078e6cdb45c2a6c:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmMDE4OTlkN2RlODBiNzkzZjVmNTY0MjVkMmNjMDYyMGM3NjM3YWFmMTQ3ODU1OTQzZTM1YTllY2E2ODMyM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlmZmZhMGY1OGY1MjVmNDE0ZDBiNGQ5MjE0ZWM5MGUzYTkxNzEzMTM5ZjYyNGFmNDVjNDZhYmJlMjY2ZmI1NDAifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-15T02:51:25.465Z"
+  }
+}

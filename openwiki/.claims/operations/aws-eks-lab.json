@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:d557168e15d8b7681dadedda6f15414ca417e3762974493e12457c21624859e9",
+  "claims": [
+    {
+      "id": "claim_28b03ceb00064c7c92a5a9f450193c5f",
+      "statement": "Terraform은 장기 root admin(IAM)·foundation(ECR·ACM·ALB 로그 버킷)과 작업 세션 root infrastructure(VPC·EKS·ALB·RDS·API CNAME)로 나뉘며 infrastructure는 foundation 출력만 참조한다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/terraform/README.md#L1-L29",
+          "version": "repo-lines-v1:sha256:abb4567ef609ac8c76602968822ebec2d9177a9c0a175d66520336b1552773fd:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVkYmUyNTgzMjE5MTYwYWM2YzdkYzJhNjI1YWQ3ZGEwMGNkMWRiNmZmZWExMWQ0OTY4OGUwYzcwODJjODE4MjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUxZTE3Y2I4YjI5MWYwNmQ4NzBkMzE2ZWY0MThkNThjY2Q3ZTU3YjZjMzU4YzViN2ZlNzIwZjNkZTczYmE5MTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUxZTg2MDBhODhhMzZhN2JkMzZlZmQ2ODE1ZDc5NGYzYWI4YjZjMGJjNjYxZmRjMTY3MjQ2NzUxZjc2YTgwNWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_20d3ebab5c9d403d92103f125a81488d",
+      "statement": "API·consumer·batch·migration은 같은 이미지 digest를 쓰고, batch는 중복 실행을 막기 위해 replicas=1·maxSurge=0이며 consumer에는 HTTP Service·probe가 없다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/deployment/README.md#L7-L33",
+          "version": "repo-lines-v1:sha256:2d9eed587da1e3aef4b6fd41bb65065a8ee68ae0b3f272782242b1aa4610eed4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwNGU3MmE0NDFjYTZjOTM0ZmQ5ZmUzM2UzMDE1M2EzYzBhNWU5ZjA1ZmExOWNjZTBhYTkyMzY2YWYzYmFkNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNzdhMmU5ZjhjNTZmNjEwYWUxZThkNzc4ZGVkOTExZTNkMTQ5YmUyMWRiOGQ1MzE0MjQ5N2I2ZDE1Njg2OTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmMjIxYWUxMDAzOWUzZDVjMGRmZDA1M2IzYjY5YjcxZmUxMjY1ZGVjMzBiM2E5MWI1YmZkZjk1OTI2YzJmYWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyZWZiNjA3YzNjMGY3MDQzNjc0MjQyMmFiM2E2NzgxMGI3MzAyYzk5NTg2MzdhMTQ0NWFlN2ZlNTRhNmJjZmEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ec59fb9f23c94a8982ea5ae11dc5aa61",
+      "statement": "세션 사이 데이터는 보존하지 않으며 session-down.sh는 destroy 전에 Kafka StatefulSet·PVC와 Retain EBS 볼륨을 지운다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/deployment/README.md#L116-L170",
+          "version": "repo-lines-v1:sha256:ce275d5522b7b33f50f3becf7ce1237bee427155641d93a12432dafcafa405a2:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJjY2NiZmNiZDAzZGM4ODQ3MTRjNzQ5MjdmOTY1OWU1ZDMyNjI3YzdlZjhmMDhlMTRlYzJmODI5YzEyMjUwMzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkZmMyZjNlZjVmNDlmNzljMTRkMDc5NjdkYTdlZjllYjEyOGI3MjkxZDEyYWJlYTRkNjI1Yzk2YjhjN2I0NjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI4MjBiMmIwNDliZTY5YWFmYzJlZTg5YTk4ZmRlYTYyYzY1NzMzNzcxYjRiY2Y3ZjY3YzM0MzNmNTRjYzZjMGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3ZDIzMDc3YWM4NTZlZGRjOWZlNTQxOWM2ZDk0NGFhMDNjZjQ4MDQxZDcwZDk3ZGNmOGNiMTVjMTcxNzhiOTUifQ"
+        },
+        {
+          "resource": "repo://infra/deployment/README.md#L68-L78",
+          "version": "repo-lines-v1:sha256:0d6f99f782d6583f1dd5d405cce57895b33f6befdf682952babf283b0d2c086f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMDc4OGY2ZWJkNGFmODU3MmE5MWQ0ZTIyYWJhOTQ0ZTI1NjEwOGZkMmI5ZjNiZGY2NDY0ZjEwN2Y0ZjRhMTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxZTVlNWE1MjFlY2M4MGExZWFhMTkwODYzMTU2ZTk4ZjI1MGNjNDNlZTE4NzM5OTFiZTUzN2FkMzI5MjRhYWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc5OTNlNzRmYjc2MzNlYTlhZTgwNjNkMTRhYjhiNjYxNTczN2E4ZjVjZWUwMTE3ODI3MTA2NTk2YmRiYzQ5NTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0MTQyMmZkNjIyOWY4NWM4NmY1ZWRkYmVlNzU3YjY1ZjM5OWYzNzhhNDkxZDUzYjE4ZWUxYWU3NGMyMDQ4M2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cc960f1c7bac40ec80d9415a0415e8a6",
+      "statement": "측정 프로필 세션은 loadgen 노드 그룹을 더하고 batch를 빼며 m7i.large 노드, app 4대, 토픽 파티션 8개, API·consumer 4 replica를 쓴다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/deployment/README.md#L172-L185",
+          "version": "repo-lines-v1:sha256:1f68d6c92b088d1d75adcf249bd266e91b5733c61510039fbc6d9d3e7dbab913:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwZTE0Y2RjNjEzMWVlZjRmZjg3MGIxZjE0OWQyOWUyYzI2YTdlYmYwMDkwNmUzOTkxZTljY2U3ZDlhZjVmYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkNDRlMjcwNTcyZGRkYTdjODMwMGY2ZmFjMDAyMGFjZWUzODI2MzQ3NjBjNzMxOTIzNWRlMGUyNzVlMDRkMWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEyZDU3ZTdmN2EzMGI0ZWY1NmVhZmZkMDE4NmIzN2MwYjFhNzJlNGM5MTU3OGIwM2QyMjIyZjVmODA0NzQ2YzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMyY2M4ZDcwNTE3YjNjOTI4NmRlMjA0YzE0ZDIzNzg0NGY1NGZjNDIxNWQ0NzYxMmRhOTNkZjU2ZDMzNTYzZjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3a475d5123d047089be46c33fae07597",
+      "statement": "measurement.lock이 있으면 session-up·deploy·session-down·measurement-ready는 AWS·kubectl·terraform 호출 전에 멈춘다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/deployment/README.md#L160-L163",
+          "version": "repo-lines-v1:sha256:83b54f8cdf2e1459f665824c75c2d8cbbbef37d41725e573969aa3ad1427403e:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWY2YjE4ZjQ3NTA4ZTQ4YjhjN2U1OGE3ZmEzODY1NTM4NTljYThmODNhOGIwMjJiODliNTljOWI4NzZjZTUyOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWNlOTFlZTAyOGFkNmRmMDc4OGM3OGUzYzAwYjUxMGRkN2U5OWVlMWJjZDlkZGY1ZDAwNGJjYzE1MjY2ODU3ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjU5NGIwYjIxOTc4ZTg2N2MxNzVjMGRlMWQyMTc0Mjg3MjAxNjQ3MmYwNzVhY2VkMTVlYjAzMmU4YjFmZGNiOCJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-15T02:51:25.465Z"
+  }
+}

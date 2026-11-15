@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-12T08:09:21.750Z
+    at: 2026-11-15T02:51:25.465Z
 sources:
   - id: openwiki-source-8fc10a4767cd01fd40612574
     resource: repo://.codex/skills/verification/scripts/validate.py
@@ -19,11 +19,15 @@ sources:
     resource: repo://pyproject.toml
   - id: openwiki-source-1c9ddf72032c2bd4da068cd8
     resource: repo://scripts/check_coverage.py
+  - id: openwiki-source-5063b6aa8934c32dd8a94ee1
+    resource: repo://tests/AGENTS.md
   - id: openwiki-source-f0a6e7dc03522b2682f88655
     resource: repo://tests/conftest.py
   - id: openwiki-source-d5a25b3d746855d816062422
     resource: repo://tests/integration/conftest.py
-generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
+  - id: openwiki-source-7963bb1002d4efe2b24fef6a
+    resource: repo://tests/unit/harness/test_tests_layout.py
+generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 ---
 
 # 테스트와 검증
@@ -38,9 +42,10 @@ generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
 | Integration | `tests/integration/{패키지}/` | 실제 구성요소 사이 연동, 또는 컴포넌트를 공개 인터페이스(HTTP·메시지·명령어·신호)로 호출하는 검증. Repository·프로세스 수명주기 테스트 포함 |
 | E2E | `tests/e2e/`(첫 테스트를 쓸 때 만든다) | PRD의 핵심 업무 시나리오를 띄운 서버 프로세스에 실제 HTTP로 검증 |
 
-- `{패키지}`는 SUT가 있는 `src/mosemo`의 최상위 패키지(`identity`, `labels`, `observation`, `labeling`, `shared`, `platform`, `entrypoints`)다. 예외로 저장소 도구 테스트 `harness`, `scripts`, `migrations`, `support`가 있다.
+- `{패키지}`는 SUT가 있는 `src/mosemo`의 최상위 패키지(`identity`, `labels`, `observation`, `labeling`, `analytics`, `shared`, `platform`, `entrypoints`)다. 예외로 저장소 도구 테스트 `harness`(`.codex`), `scripts`, 마이그레이션 테스트 `migrations`, 테스트 지원 코드를 검증하는 `support`(`tests/support`), 저장소 도구 테스트 `tools`(`tools/`)가 있다.
 - 공유 테스트 코드는 `tests/support/`에 둔다.
 - 구조 규칙은 `tests/unit/harness/test_tests_layout.py`가 강제한다.
+- 활동 분석의 독립 참조 구현은 `tests/support/analytics_reference/`에 있고 `tests/unit/support/analytics_reference/`가 검증한다. `tools/analytics_protocol_models/`는 `tests/unit/tools/`가 검증한다. 자세한 내용은 [활동 분석](../domain/activity-analytics.md)을 본다.
 
 ## Docker가 필요한 테스트 마커
 
@@ -84,7 +89,12 @@ git diff --cached --check
 
 [.github/workflows/ci.yml](../../.github/workflows/ci.yml)의 `Quality` job이 pull request와 main push에서 돈다. 순서는 문서·아키텍처·코드 규칙 검사 → complexipy → Ruff lint·format → ty → import 계약 → OpenAPI 스냅샷 테스트 → 전체 테스트(`pytest --cov`) → 커버리지 기준 판정이다.
 
+## OpenWiki paths 검사
+
+[.github/workflows/openwiki-paths.yml](../../.github/workflows/openwiki-paths.yml)은 `pull_request_target`에서 `check_openwiki_paths.py`를 실행해, `openwiki/update` 브랜치가 아닌 PR이 `openwiki/INSTRUCTIONS.md` 밖의 `openwiki/` 생성물을 바꾸면 실패시킨다. 스크립트 자체는 `tests/unit/harness/test_check_openwiki_paths.py`가 검증한다. 규칙은 [Engineering Harness 작업 흐름](engineering-harness.md)을 본다.
+
 ## 관련 페이지
 
 - [빠른 시작](../quickstart.md)
 - [Engineering Harness 작업 흐름](engineering-harness.md)
+- [활동 분석](../domain/activity-analytics.md)

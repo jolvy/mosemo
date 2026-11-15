@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:688aec0b4ae058383325873669e65485d169749b763edea8d29977c8b3d3050b",
+  "pageVersion": "sha256:b32b0aa483705026294cf6aa3708fb89b550a513b3a2cb5f47093a03f5f4409c",
   "claims": [
     {
       "id": "claim_2d34ecd86f17470eb1d762380fe5a7af",
@@ -61,14 +61,44 @@
           "version": "repo-lines-v1:sha256:a5f1bef359a63d4164f865acc7a1751727d8d428bbaf0ab782d091e899282f3a:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzIxMjc4YjdhMjlkYjliZmY2ZjQ1MjIxZTFlMDY1ZWFkYzI0MjEyNzBkYzk4YWZkYTQ5OTBiMzlkOTVjZjM4YSJ9"
         },
         {
-          "resource": "repo://docs/ubiquitous-language.md#L121-L161",
+          "resource": "repo://docs/ubiquitous-language.md#L127-L167",
           "version": "repo-lines-v1:sha256:f7056d240028f619147343eb0a269eeaa03571983bd42c8711874ad56d2e4dc8:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiMzNkOGQ1MTdjYWQzZjBlYmRjZDMyNjBjMzU4YWQwMjEzODkzMWUyZDkyODFiOWVhNDVlYjc0NmFjN2VhMjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxMGVjZTIxNjI0MmIzMTllM2E3ZDA3OWRlNGQwOWNiZmM2ZTFkMDQ5OGNiYzgxOWVlZjkxNDMwY2YwYzAzZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjExMTYyN2M4MjhjYzZlYzQ4YmRhMTk5MzBjY2M4NDNhMDE3NDI3NzhmMjc5N2I1ODdkNDdkNWY1MTRkMjA0YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_34156c18892a48bdab593bdd1c983eb6",
+      "statement": "용어집의 일간 통계는 계정 시간대 하루의 C1·C2·C7 결과와 그날 시작한 완료 세션의 합·보조 값이며, 다시 계산 표시가 남은 날짜는 저장 값 대신 조회 때 원천에서 계산한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/ubiquitous-language.md#L196-L208",
+          "version": "repo-lines-v1:sha256:52e56b17c74a703f574e4b7f29d2d8427099f213c7cca5a3c443d3ac5b397a7f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUwZGVmNTQyYTAzMGZkYzBkNzFjNGE4NTBmNzczYWYxNzRkOTExZGZhOTFiNTNiZmRiNGI0YjgwNWUwZDQ2MWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0NmViMWU2MzhhNzliNTZkOGMyOGEzMTU5ZmRmNmM0MmE2ZmFlY2E3MWMwZTkxZWM0NDhjMzc5ZGIyZTg1NjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZiM2IxZTNjZjhkOGQ0ZmRmZDM4YzRlNDllMzRhNDE4MmY2MjMxM2QyZDI3ZTA4NmNlNGIyNGFmNDYyZTE4ZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEzZjNjOTZkODFhNGViOWM0YTFmZmYzMjMxNjU3Y2RhZDQ4MmI0MmZjOWRiMjI3OGRkMDgwZjAxYzdhY2E2NTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_30f228eaafb14c6295b12981a346336a",
+      "statement": "사용 대상은 URL을 수집한 브라우저 구간은 사이트, URL이 없는 브라우저 구간은 브라우저 앱, 그 밖에는 앱이며 앱 미확인 구간과 불투명 활동에는 없다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/ubiquitous-language.md#L185-L189",
+          "version": "repo-lines-v1:sha256:176ded2d6900d6ac71c286701ff35d05b522fc38ba394f65b3348694d482a1ef:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWRmYzM3Mjg3ODc0ZDcwYjQzNDQzNGEyYWM3NDZlNjdiYjU0MWU4NzVmN2MzNzRmZWUwZmYwYjQzNWMwY2Y1NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjg5OGVjODExZTUwYWU2NDQwZWNiODNiMzMwYTlhNGMxMGIwN2Q5NzFmM2ZmMWFhNWYxNmU1NzI5NDE2ZGQ4YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjFjNmE3ZTI3NWU3ZTA3ZmIzMTFiZjBmNDE0MDJmOTY4MTU5MDljYjlkNTIyMGY5ZTg1NWE2YmZhZTAyMTNlMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTVjODQzNTM1NDQxYTJjYWRmYTAzZTVmZGIyYWZkZThiZDc5MjcxMGEyNWU0YjZlOWQzZDM0YTc4ZWE4NDcxNyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_39a160cc7ac347129b7bbfc4373f8a98",
+      "statement": "일시중지 구간은 집중 세션 완료 때 기록하는 세션 안의 겹치지 않는 반개구간이며 그 구간의 관찰은 세션에 연결하지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/ubiquitous-language.md#L113-L118",
+          "version": "repo-lines-v1:sha256:b541644658b1e516eb5de022584030220c1e6efacf1f50a086e02ba0661344b7:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGJkYzg5YzAxZTA3MGRjOWMzNDE1NjNjZWM5ZjA5ZWZkYTQzNjJiNjcyNjViMDNjZWI4NGEzNTY1ZGM2MmM3OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDJlY2MzOWI0ZGJhMzYyODNiNzM1ZDFkNWU1MTk5ZTYzYzhjMWVjNTZiN2QxMmRhYjI0NWZlZGZjYmNmMWU3MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDYwMzUyMTc0N2I4MjM0ODQwZDBmYThmNWNlMmQxN2JjMDg1ZmNlY2Y0ZDU2ZDVjZWJiZjU2ZWNkZmJkZWMzNiJ9"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-12T08:09:21.750Z"
+    "at": "2026-11-15T02:51:25.465Z"
   }
 }

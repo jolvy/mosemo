@@ -1,11 +1,11 @@
 ---
 type: domain
 title: 제품 기능과 도메인 용어
-description: PRD·요구사항·용어집으로 본 Mosemo 서버의 기능 범위(Device 등록, 활동 관찰과 배치 전달, 관찰 타임라인, 집중 세션, 라벨링)와 핵심 용어, 각 기능을 맡는 BC와 공개 API를 정리한다.
+description: PRD·요구사항·용어집으로 본 Mosemo 서버의 기능 범위(Device 등록, 활동 관찰과 배치 전달, 관찰 타임라인, 집중 세션, 라벨링, 설계 중인 활동 분석)와 핵심 용어, 각 기능을 맡는 BC와 공개 API를 정리한다.
 tags: [domain, prd, glossary, api]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-12T08:09:21.750Z
+    at: 2026-11-15T02:51:25.465Z
 sources:
   - id: openwiki-source-8e9d01622c02cac4ba03a4c8
     resource: repo://docs/adr/0005-separate-observation-and-personal-label-confirmation.md
@@ -13,7 +13,7 @@ sources:
     resource: repo://docs/ubiquitous-language.md
   - id: openwiki-source-4f7e1a54ac18078c53e2bab7
     resource: repo://src/mosemo/entrypoints/api/routes.py
-generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
+generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 ---
 
 # 제품 기능과 도메인 용어
@@ -34,6 +34,7 @@ Mosemo는 계정에 등록된 앱 설치(Device)가 관찰한 활동을 받아 �
 | 집중 세션 | `observation` | `GET·POST /focus-sessions`, `PUT /focus-sessions/{focus_session_id}/completion` | [focus-sessions.md](../../docs/prd/focus-sessions.md) |
 | 라벨 목록 | `labels` | `GET /labels` | [activity-labeling.md](../../docs/prd/activity-labeling.md) |
 | 라벨 제안·확정·라벨 타임라인 | `labeling` | `POST /activities/label-confirmations`, `PUT /activities/segments/{segment_id}/label-confirmation`, `GET /activities/segments/{segment_id}/label-state`, `GET /activities/label-timeline` | [activity-labeling.md](../../docs/prd/activity-labeling.md), [activity-label-package-structure.md](../../docs/prd/activity-label-package-structure.md) |
+| 활동 분석(사용 시간·전환·집중 이탈·라벨 전환, 설계 단계) | `analytics` | 아직 없음(엔지니어링 계획에서 정함) | [요구사항](../../docs/requirements/activity-analytics.md), [활동 분석](activity-analytics.md) |
 
 BC 사이 의존과 패키지 구조는 [현재 구조](../architecture/current-structure.md)를, 배치 전달과 타임라인 projection 구현은 [영속성·메시징·배치 실행](../architecture/persistence-and-messaging.md)을 본다.
 
@@ -53,6 +54,7 @@ BC 사이 의존과 패키지 구조는 [현재 구조](../architecture/current-
 - **수집 공백**: 수집 중단이나 관찰 실패로 실제 활동을 알 수 없는 시간. 명시적인 `suspended`로 시작하며 순번 누락이나 침묵만으로 추정하지 않는다.
 - **불투명 활동**: 관찰했지만 개인정보 보호를 위해 식별 정보를 남기지 않은 정상 활동. 라벨링 대상에서 제외한다.
 - **집중 세션**: 사용자가 직접 남긴 작업 의도 기록. 관찰 레코드가 진행 중인 세션을 가리킬 수 있지만, 세션 라벨은 관찰 구간의 확정 라벨과 별개다.
+- **일시중지 구간**: 집중 세션 중 사용자가 타이머를 멈춘 반개구간 `[시작, 종료)`. 세션 완료 때 함께 기록하며 세션 안에 있고 서로 겹치지 않는다. 이 구간의 관찰은 세션에 연결하지 않는다. 수집 공백·집중 이탈과 다르다.
 
 ### 활동 해석
 
@@ -62,7 +64,19 @@ BC 사이 의존과 패키지 구조는 [현재 구조](../architecture/current-
 - **미분류**: 근거가 부족해 라벨이 없는 상태. AI가 남겨 두거나 사용자가 미분류로 확정할 수 있다.
 - **라벨별 활동 시간 / 검토 대기 활동 시간 / 불투명 활동 시간**: 확정 시간, 미확정 시간, 불투명 시간을 서로 섞지 않고 따로 집계한다.
 
+### 활동 분석
+
+설계 단계의 용어다. 계산 규칙은 [활동 분석](activity-analytics.md)과 [지표 명세](../../docs/activity-analytics-metrics.md)를 본다.
+
+- **앱 / 사이트 / 사용 대상**: 앱은 bundleId로 식별한다. 사이트는 브라우저 탭 URL의 eTLD+1이며 비교 키는 IDNA ASCII 소문자다. 사용 대상은 사용 시간과 전환을 세는 단위로, URL을 수집한 브라우저 구간은 사이트, URL이 없는 브라우저 구간은 그 브라우저 앱, 그 밖에는 그 앱이다. 앱 미확인 구간과 불투명 활동에는 사용 대상이 없다.
+- **사용 시간**: 한 앱·사용 대상으로 관찰된 활동 구간의 시간 합계. 열린 구간은 마지막 관찰 시각까지, 수집 공백과 관찰 침묵은 넣지 않는다.
+- **사용 대상 전환 / 라벨 전환**: 경계가 맞닿은 두 구간의 사용 대상(또는 유효한 확정 라벨)이 양쪽 모두 식별되고 서로 다를 때의 전환. 공백·침묵을 사이에 둔 변화는 전환이 아니다.
+- **세션 분석 시간 / 이탈 활동 / 판정 대기 시간 / 집중 이탈**: 세션 분석 시간은 완료된 세션에서 일시중지 구간을 뺀 시간이다. 그 안에서 세션 라벨과 다른 라벨로 확정된 활동이 이탈 활동, 유효한 확정이 없어 판정할 수 없는 시간이 판정 대기 시간이다. 집중 이탈은 이탈이 시작된 뒤 세션 라벨 활동으로 돌아오거나 분석 시간이 끝날 때까지의 묶음이다.
+- **일간 통계**: 계정 시간대 하루의 C1·C2·C7 결과와 그날 시작한 완료 세션의 합, 보조 값. 지난 날짜는 저장하고 원천이 바뀌면 다시 계산하며, 오늘은 조회할 때 계산한다.
+- **다시 계산 표시**: 원천·지표 정의·계정 시간대가 바뀐 (계정, 날짜)에 붙는 표시. 표시가 남은 날짜는 저장된 일간 통계 대신 조회 때 원천에서 계산하고, 배치가 다시 저장하면 사라진다. "갱신 대기"·"dirty 플래그"라고 부르지 않는다.
+
 ## 관련 페이지
 
 - [현재 구조](../architecture/current-structure.md)
 - [유효한 결정](../decisions/active-decisions.md)
+- [활동 분석](activity-analytics.md)
