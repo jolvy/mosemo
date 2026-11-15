@@ -1,4 +1,5 @@
 import pytest
+from hypothesis import settings
 
 from mosemo.entrypoints.api.config import ApiConfig
 from mosemo.identity import bootstrap as identity_bootstrap
@@ -7,6 +8,10 @@ from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.observation import bootstrap as observation_bootstrap
 from mosemo.shared.application.events import EventDispatcher
 from tests.support.identity import sign_up_dispatcher
+
+# Property tests are reproducible: fixed derivation, no example database, no deadline.
+settings.register_profile("mosemo", derandomize=True, database=None, deadline=None)
+settings.load_profile("mosemo")
 
 # Tests use the entities without an assembly root, so map them as the roots do.
 identity_bootstrap.map_tables()

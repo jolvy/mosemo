@@ -25,6 +25,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "complexipy==8.3.0",
+    "hypothesis>=6.170.15",
     "import-linter>=2.15",
     "poethepoet>=0.48.0",
     "pre-commit>=4.6.2",
