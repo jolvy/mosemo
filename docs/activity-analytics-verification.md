@@ -248,7 +248,7 @@ version 값은 고정 숫자가 아니라 크기 비교로 단정한다(nextval�
 | 구분 | 테스트 | 바로 실행하는 방법 |
 | --- | --- | --- |
 | 지금 저장소에 있음 | SC-1~SC-5(테스트 317개, #279에서 모두 통과) | `uv run pytest tests/unit/support/analytics_reference` |
-| 지금 산출물 도구로 있음 | SC-6, DF-1~DF-4, MR-1~MR-6, MU-1·MU-2, SM-1~SM-4, GD-4, PF-3 | 산출물 폴더에서 `python3 cases.py`, `python3 compare_a.py cases`·`random -n 20000`·`targeted`·`real`·`mutants`, `python3 metamorphic.py -n 20000 --impl py:a_impl`, `python3 mutants.py -n 20000`, `python3 protocol_model.py`, `python3 protocol_model_4b.py F5`, `python3 protocol_model_tz.py`, `python3 protocol_model_tz3.py` |
+| 지금 산출물 도구로 있음 | SC-6, DF-1~DF-4, MR-1~MR-6, MU-1·MU-2, SM-1~SM-4, GD-4, PF-3 | 산출물 폴더에서 `python3 cases.py`, `python3 compare_a.py cases`·`random -n 20000`·`targeted`·`real`·`mutants`, `python3 metamorphic.py -n 20000 --impl py:a_impl`, `python3 mutants.py -n 20000`. 상태 모델(SM-1~SM-3)은 저장소 루트에서 `uv run --locked python -m tools.analytics_protocol_models.protocol_model`, `… .protocol_model_4b F5`, `… .protocol_model_tz`, `… .protocol_model_tz3`([tools/analytics_protocol_models/README.md](../tools/analytics_protocol_models/README.md)) |
 | 기록일 뒤 | GD-1~GD-3 | [골든 데이터셋](activity-analytics-golden.md) 「비교 도구」 |
 | 5단계 | PF-1, PF-2 | 5단계 사전 등록에서 정함 |
 | 7단계 이후 구현 테스트 | SC-7·SC-8, DF-5, MR-7, MU-3, SM-5, TX-1~TX-13, FI-1~FI-16, API-1~API-13, RT-1~RT-3, E2E-1 | 제품 코드와 함께 하위 Issue에서 작성 |

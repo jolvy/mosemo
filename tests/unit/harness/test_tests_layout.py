@@ -11,7 +11,7 @@ TEST_MODULES = ("tests.unit", "tests.integration", "tests.e2e")
 TOP_LEVEL_FILES = {"__init__.py", "conftest.py", "AGENTS.md", "CLAUDE.md"}
 TOP_LEVEL_FOLDERS = {"support", "unit", "integration", "e2e"}
 CATEGORY_FOLDERS = ("unit", "integration")
-NON_PACKAGE_FOLDERS = {"harness", "scripts", "migrations", "support"}
+NON_PACKAGE_FOLDERS = {"harness", "scripts", "migrations", "support", "tools"}
 
 
 def ignored(name: str) -> bool:
@@ -79,7 +79,7 @@ def category_folder_errors(root: Path) -> list[str]:
         )
         errors.extend(
             f"{path.relative_to(root)}: tests/{category}/의 첫 폴더는 "
-            "src/mosemo 최상위 패키지 또는 harness·scripts·migrations·support다"
+            "src/mosemo 최상위 패키지 또는 harness·scripts·migrations·support·tools다"
             for path in folders
             if path.name not in allowed
         )
@@ -212,14 +212,14 @@ def test_allowed_top_level_entries_and_stale_cache_folders_pass(
             "tests/unit/accounts/test_a.py",
             (
                 "tests/unit/의 첫 폴더는 src/mosemo 최상위 패키지 또는 "
-                "harness·scripts·migrations·support다"
+                "harness·scripts·migrations·support·tools다"
             ),
         ),
         (
             "tests/integration/missing/sub/test_a.py",
             (
                 "tests/integration/의 첫 폴더는 src/mosemo 최상위 패키지 또는 "
-                "harness·scripts·migrations·support다"
+                "harness·scripts·migrations·support·tools다"
             ),
         ),
     ],
@@ -244,6 +244,7 @@ def test_category_folders_of_packages_and_stale_cache_folders_pass(
         "tests/unit/harness/test_b.py",
         "tests/unit/scripts/test_c.py",
         "tests/unit/support/test_d.py",
+        "tests/unit/tools/test_k.py",
         "tests/integration/conftest.py",
         "tests/integration/migrations/test_e.py",
         "tests/integration/labels/sub/test_f.py",
