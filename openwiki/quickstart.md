@@ -5,7 +5,7 @@ description: 처음 보는 사람을 위한 Mosemo 서버 온보딩과 위키 �
 tags: [onboarding, quickstart, setup, wiki]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-12T08:09:21.750Z
+    at: 2026-11-15T02:51:25.465Z
 sources:
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
@@ -15,7 +15,7 @@ sources:
     resource: repo://pyproject.toml
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
-generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
+generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 ---
 
 # Mosemo 서버 빠른 시작
@@ -93,10 +93,13 @@ git diff --cached --check
 | 지금 유효한 ADR과 대체 관계 | [유효한 결정](decisions/active-decisions.md) |
 | 기능 범위·API·도메인 용어 | [제품 기능과 도메인 용어](domain/product-overview.md) |
 | 테스트 분류·마커·검증·CI | [테스트와 검증](development/testing-and-verification.md) |
-| Skill 흐름·리뷰어·커밋 규칙 | [Engineering Harness 작업 흐름](development/engineering-harness.md) |
+| Skill 흐름·리뷰어·커밋 규칙·OpenWiki 생성물 보호 | [Engineering Harness 작업 흐름](development/engineering-harness.md) |
+| 설계 중인 활동 분석(C1~C7, 일간 통계, 제안 ADR 0016) | [활동 분석](domain/activity-analytics.md) |
+| AWS EKS 랩, Terraform·Kubernetes, 세션·측정 스크립트 | [AWS EKS 랩과 측정 세션](operations/aws-eks-lab.md) |
 
 ## 위키 갱신 절차
 
 - `openwiki/` 아래 생성물은 손으로 고치지 않는다. main 병합 후 Aico가 `openwiki/update` 브랜치의 문서 PR로 갱신한다.
 - 위키의 범위와 우선순위는 [openwiki/INSTRUCTIONS.md](INSTRUCTIONS.md)로만 바꾼다. 지시서만 바뀐 병합도 강제 갱신으로 반영된다.
 - 내용이 틀렸다면 원본 문서나 코드를 고치거나 지시서를 고친다.
+- 일반 PR이 `openwiki/INSTRUCTIONS.md` 밖의 `openwiki/` 파일을 바꾸면 CI `OpenWiki paths` 검사가 실패한다.

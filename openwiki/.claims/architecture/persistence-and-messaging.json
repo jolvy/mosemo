@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:a7f654781e0c026a7dc5d4fa015d127527c11b54137e0dc3e8cc46eea42aa48b",
+  "pageVersion": "sha256:7c5acd2cb951862aa3f8711697deeea9ceb2bf831b55e242b2d3c0304472e20d",
   "claims": [
     {
       "id": "claim_a8566894407046f1b480ac28882ee551",
@@ -14,15 +14,15 @@
     },
     {
       "id": "claim_20a63747adc44930a95eb2836d8ea612",
-      "statement": "read_snapshot은 SET TRANSACTION READ ONLY 트랜잭션을 열고 이벤트를 dispatch하지 않으며, 두 헬퍼 모두 이미 열린 트랜잭션이 있으면 TransactionAlreadyOpenError를 낸다.",
+      "statement": "read_snapshot은 SET TRANSACTION READ ONLY 트랜잭션을 열고 이벤트를 dispatch하지 않으며, 세 트랜잭션 헬퍼 모두 이미 열린 트랜잭션이 있으면 TransactionAlreadyOpenError를 낸다.",
       "evidence": [
         {
           "resource": "repo://src/mosemo/platform/database/transactions.py#L19-L24",
-          "version": "repo-lines-v1:sha256:f9fc2483e60d7352d613aee643fe2ca259d21cca8efaa4509a075494bb13cf43:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmQxNTg0ZjNmN2E5OGNkMTc2ZmEwNTllZTVjMDI3YjM5MWY5NjUxZDZjZjUxZjVhOTRjOGJmOGYyNDJmODBiNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTkwOWE1M2E2MThkMDI4ZTFkMzAwMGMwYTdhYmNlZWNiZTVmYjM3ZjRlNTExZWZlNDY2NDNmYWQ2ZTY2ODcyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTNlZWJiZmNmOWMyMjQ0ODY0YzIzMjNjNDNiYjUzMTZkYjEwYmMzNDFjNTdjYjcxYzcyMzY1YTQxYWU4OGM2OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTczNTc5YzcxYmMyMDU0MTgwNTRjMjk4ZGNlM2M5MDk1NzEwMWY2MTQwNTIxNDE4ZGY5YjhiM2ViZGNmMGFhMCJ9"
+          "version": "repo-lines-v1:sha256:125bf8d85a2563e3455d9da86b1142274e62a23e3c44eae0dfb15c0df409b5fd:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmQxNTg0ZjNmN2E5OGNkMTc2ZmEwNTllZTVjMDI3YjM5MWY5NjUxZDZjZjUxZjVhOTRjOGJmOGYyNDJmODBiNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTkwOWE1M2E2MThkMDI4ZTFkMzAwMGMwYTdhYmNlZWNiZTVmYjM3ZjRlNTExZWZlNDY2NDNmYWQ2ZTY2ODcyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTNlZWJiZmNmOWMyMjQ0ODY0YzIzMjNjNDNiYjUzMTZkYjEwYmMzNDFjNTdjYjcxYzcyMzY1YTQxYWU4OGM2OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTczNTc5YzcxYmMyMDU0MTgwNTRjMjk4ZGNlM2M5MDk1NzEwMWY2MTQwNTIxNDE4ZGY5YjhiM2ViZGNmMGFhMCJ9"
         },
         {
-          "resource": "repo://src/mosemo/platform/database/transactions.py#L79-L113",
-          "version": "repo-lines-v1:sha256:a9d1fce7966492f42df8859991c245ba581b692085d6a84b9f70ec93b2a26f14:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2MTA3YzJhNWRiMDNkYjdiNjJjYWIxZDRkZjM0NjJkYTZlOTIzYWFlOGM0OTlmNDA4MWQyNjYwODJkZWE1OWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyYzdkZmQ4YTY4Nzg3OTkyOGQ4ZjdkN2I4ZTk3NzRkOWI1MTY2ZDVlMjUyZjFmNDhhYzI3Mjc3ZmJiMjI3MTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4NTBmZGU3ZGU1N2VlYTc1ZjA3NzFiNTE5ZTE0ZTQ5MWRjOTU3NmFjOTA0MTQzZmQ0MWY3MDZjNTYxNzEyNzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmMjkwNWZlZDdlODJjN2I0OTMwZTAxN2FkM2ZhMDU5ZmFkNmNiMjE2ODU4OWExNTkwNTRiOWRhZjQyZDIxMDUifQ"
+          "resource": "repo://src/mosemo/platform/database/transactions.py#L79-L132",
+          "version": "repo-lines-v1:sha256:25e6b8e9e3791986cf34a9cef82ea16e6b6d87bc34451ad315ab8b54b587254c:eyJzZWxlY3RlZExpbmVDb3VudCI6NTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2MTA3YzJhNWRiMDNkYjdiNjJjYWIxZDRkZjM0NjJkYTZlOTIzYWFlOGM0OTlmNDA4MWQyNjYwODJkZWE1OWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyYzdkZmQ4YTY4Nzg3OTkyOGQ4ZjdkN2I4ZTk3NzRkOWI1MTY2ZDVlMjUyZjFmNDhhYzI3Mjc3ZmJiMjI3MTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4NTBmZGU3ZGU1N2VlYTc1ZjA3NzFiNTE5ZTE0ZTQ5MWRjOTU3NmFjOTA0MTQzZmQ0MWY3MDZjNTYxNzEyNzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmMjkwNWZlZDdlODJjN2I0OTMwZTAxN2FkM2ZhMDU5ZmFkNmNiMjE2ODU4OWExNTkwNTRiOWRhZjQyZDIxMDUifQ"
         }
       ]
     },
@@ -38,11 +38,11 @@
     },
     {
       "id": "claim_13455f907b5d4a50a71a140ba0a1b473",
-      "statement": "Alembic 환경은 네 BC bootstrap의 map_tables()만 호출해 ORM_METADATA를 채운다.",
+      "statement": "Alembic 환경은 다섯 BC bootstrap의 map_tables()만 호출해 ORM_METADATA를 채운다.",
       "evidence": [
         {
-          "resource": "repo://migrations/env.py#L9-L39",
-          "version": "repo-lines-v1:sha256:1c55607e723061348931462e71ef53877f749ca8209dec8b32cc33bd0f65818e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0YjJiYjg0ZGZlYzNmYTljMWYzOWM1NTIzYWYwM2Y2NzlmMWY2MjBkMmZkMjBjNDVlZWUwMzY2ZjJmMGQwNDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmOTRkZjVkNDgzZDdmNTg2NzRmZGRhNTQzYTk4ZGMzNDMyZjM1ZDQ0YTQ3NWIwZWZmMWVmNDczNmVhNmE0MzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY2MjlhZDFiNmZmMzFlNGRiMDE5NWRiMWVlZGYyNWZhZWM5ZTk3ZmEyNDYyYTY4OGI3M2Y2NGMyN2QzZWU4NTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlNGE4Nzg5YjViODQxYzBjNjk2ODczN2VkZmVkODdlNGVhYWMwY2RlNGNlZGJmMDIwNDY5NDYzNzc2OGM4MWEifQ"
+          "resource": "repo://migrations/env.py#L9-L41",
+          "version": "repo-lines-v1:sha256:ee4789602484421293196c024a7aea6e14a8a0c381d9c700733662efca84e542:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0YjJiYjg0ZGZlYzNmYTljMWYzOWM1NTIzYWYwM2Y2NzlmMWY2MjBkMmZkMjBjNDVlZWUwMzY2ZjJmMGQwNDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmOTRkZjVkNDgzZDdmNTg2NzRmZGRhNTQzYTk4ZGMzNDMyZjM1ZDQ0YTQ3NWIwZWZmMWVmNDczNmVhNmE0MzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY2MjlhZDFiNmZmMzFlNGRiMDE5NWRiMWVlZGYyNWZhZWM5ZTk3ZmEyNDYyYTY4OGI3M2Y2NGMyN2QzZWU4NTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlNGE4Nzg5YjViODQxYzBjNjk2ODczN2VkZmVkODdlNGVhYWMwY2RlNGNlZGJmMDIwNDY5NDYzNzc2OGM4MWEifQ"
         }
       ]
     },
@@ -72,11 +72,11 @@
     },
     {
       "id": "claim_4a1acaa21d1343d69fae6d8acb27ed0c",
-      "statement": "활동 Consumer는 BATCH_ENABLED가 켜져 있어야 시작하고 메시지마다 새 세션에서 observation의 배치 처리 UseCase를 호출한다.",
+      "statement": "활동 Consumer는 BATCH_ENABLED가 켜져 있어야 시작하고, 테이블 매핑과 analytics handler 등록 뒤 메시지마다 새 세션에서 observation의 배치 처리 UseCase를 호출한다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L43-L95",
-          "version": "repo-lines-v1:sha256:9fbfcb69870f1bcc03ea9ba73e13f5263078fd47e3baf9961ed7b34e76bab730:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxNThiZTA2YzMyYTYyMWYyY2I5MDlhNDM2NDRjMDk3MDViYWNhYmEzYTY3OGUyNTg3YjlkMjg3NzViMGU4YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NDc3NWU2MmIzY2E4ZDYwZGYwN2E5NWMyODIxYWExNGY1MTZkNTJmODZhMmVhNDFmZTZkMTQzNmNmOGJlYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQxYjgwOTFkNDNiMWQxYWFmYzk5YmY3YTkyNGQ3NzkzYmZiMmIwN2FmNmQxMmQyZjhlYWEzM2RkMTY1MTA5MzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L44-L98",
+          "version": "repo-lines-v1:sha256:08aab2877928295a1c16e9e788ff41c05d69e1ce4351fb099fc9cef612f2908d:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxNThiZTA2YzMyYTYyMWYyY2I5MDlhNDM2NDRjMDk3MDViYWNhYmEzYTY3OGUyNTg3YjlkMjg3NzViMGU4YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NDc3NWU2MmIzY2E4ZDYwZGYwN2E5NWMyODIxYWExNGY1MTZkNTJmODZhMmVhNDFmZTZkMTQzNmNmOGJlYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQxYjgwOTFkNDNiMWQxYWFmYzk5YmY3YTkyNGQ3NzkzYmZiMmIwN2FmNmQxMmQyZjhlYWEzM2RkMTY1MTA5MzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     },
@@ -125,14 +125,28 @@
       "statement": "배치 job은 entrypoints/batch/registry.py의 build_jobs에 등록하고 이름 중복을 거부하며, 현재 등록된 job은 labeling의 라벨 제안 job 하나다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/entrypoints/batch/registry.py#L15-L40",
-          "version": "repo-lines-v1:sha256:378452810c6e1751be38a25c240fbd5d3d23f5a1cae80873f3a0c4fb1c413812:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkMjc2MWViZWUzMmFiY2M4NTQ3NDI2MmRkNGEwNTZiNDhhNmU2YWUwYzlkMzdlM2Y3YTdkMWUyNDcxNGFmNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhYTk2MGUyNGQ4MTVlNmM5OTkyMTkwYTlhMGFmOTgwOWYwZjRkMGI3ZGM0ZWRlY2M5MTQ3YzQ0N2NlOWJlZTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4OTFiNWE1MmFiNmJjNWFkMTdiYzZiMjg1YTg5MTg4Zjk2M2MyYTg5ZWRjNDNiY2M0ZDk3MjY3MGQzYzcwNmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://src/mosemo/entrypoints/batch/registry.py#L16-L43",
+          "version": "repo-lines-v1:sha256:c113d653ce20926b2c175b350a63f3c3b3ff993f1bda76812a32996c52739aca:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkMjc2MWViZWUzMmFiY2M4NTQ3NDI2MmRkNGEwNTZiNDhhNmU2YWUwYzlkMzdlM2Y3YTdkMWUyNDcxNGFmNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhYTk2MGUyNGQ4MTVlNmM5OTkyMTkwYTlhMGFmOTgwOWYwZjRkMGI3ZGM0ZWRlY2M5MTQ3YzQ0N2NlOWJlZTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4OTFiNWE1MmFiNmJjNWFkMTdiYzZiMjg1YTg5MTg4Zjk2M2MyYTg5ZWRjNDNiY2M0ZDk3MjY3MGQzYzcwNmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fe1a2a440054466e91285686f29d5ad9",
+      "statement": "consistent_snapshot은 REPEATABLE READ READ ONLY 트랜잭션을 열어 안의 모든 문장이 같은 스냅샷을 읽게 하고 이벤트를 dispatch하지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/platform/database/transactions.py#L116-L132",
+          "version": "repo-lines-v1:sha256:75b15d7ed95cb03054c055ea5e823a2a51a863c89f0b56f7a68cc63235089666:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3Y2ZmM2YxNzg0MmRlYzZlN2U5MWMzZTNiOGZjZTBhODIyZmMzMTEyNzM4MWIwMGY0NGE5ZjEzMzMzMDNhMmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyYzdkZmQ4YTY4Nzg3OTkyOGQ4ZjdkN2I4ZTk3NzRkOWI1MTY2ZDVlMjUyZjFmNDhhYzI3Mjc3ZmJiMjI3MTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNjZjk4OTExN2UzYmM3NjY4MGI3ZGQ1OGEyYjYzMGFiM2E0ZmU5YmEwMTE1MjgyM2ViZGUwNDRjOTQ0YzQzNGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmMjkwNWZlZDdlODJjN2I0OTMwZTAxN2FkM2ZhMDU5ZmFkNmNiMjE2ODU4OWExNTkwNTRiOWRhZjQyZDIxMDUifQ"
+        },
+        {
+          "resource": "repo://tests/integration/platform/test_transactions.py#L412-L420",
+          "version": "repo-lines-v1:sha256:d9aa29624ead34671d5be5762b583f65bc3872e24ca8d4efcba1b3b9129ac9f6:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTAzNGY5ZTI3NzE1YjI1MDBmZTRjNDFkOWM1ZWM4MmExZjA3ODM1MWI2MWVmMjE5ZjY2MTI2ZDAxNjQ5MGY4MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2YwMGExOTQzZGUwZDNkNjU2NDUxMWQzOTY1ODllNzMyY2MwYmU4YWRlZTZjYzhmZjRlODkxMWMwZDI4YjA1MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWFiN2IyNzJhYjRlMjUxNzViNWZkMjRjMTNjZmU1NjM0MjUxNGMwMjc5NDZmMDNiNTMwNWRmMjAzMzc4NzlmOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDFjNDc1NzRmMTQ4MDNhNThlMWNiMjdmNjFhN2Y5NzQzYjA4ZDMxNWM5ZDVjOTc2MGE3OTgxNDE3NGIwZDc1MCJ9"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-12T08:09:21.750Z"
+    "at": "2026-11-15T02:51:25.465Z"
   }
 }

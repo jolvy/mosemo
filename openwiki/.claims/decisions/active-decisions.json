@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:4fcc8765baf740c59b2c8f3e2c53ba678cd17f5cfa28e985d83456f67fd90743",
+  "pageVersion": "sha256:d13b5656379238fed96b7d07674d986d0f56f89891b6e17c85527149a48e28df",
   "claims": [
     {
       "id": "claim_93af9bd871914769b8fa49b637ad6f5f",
@@ -75,7 +75,7 @@
       "statement": "ADR 0014는 ADR 0001을 부분 대체해 단일 ErrorCode Enum 대신 BC별 오류 코드와 CommonErrorCode가 오류를 소유하게 하고 BC별 ERROR_DOCS를 조립 루트가 합치게 한다.",
       "evidence": [
         {
-          "resource": "repo://docs/adr/0014-align-public-identifiers-and-error-codes-with-contexts.md#L161-L176",
+          "resource": "repo://docs/adr/0014-align-public-identifiers-and-error-codes-with-contexts.md#L162-L177",
           "version": "repo-lines-v1:sha256:07d4843f6fd3e09c8dfaf883f4616fb9407dd6554740c5e51e050e33c1ba7f6d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3OTgyNjc0MzI3MTI4OTAwNTM5MTBlMzEzMmU2ZGQ0ZjYwMDMzNWFiNDZhY2JlMWFlYzg1ZmYyMzA1YjFjYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZlYjY1ZGRjN2NkMWY2MzYyMTgxMDg5YTNmNTU2YTRhNDk4NzhhZTYwZDZiMzRmMTZmNTI4Yjg3YmQzMDNhMDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0NjUzN2RiZWMzNDQ5Zjc4NWVhZDQxMDg3NmMxYTU1YzBjYWM2NTBhZjI2MDczNmJhMmFiYjhlYjk4ZDdlNmMifQ"
         }
       ]
@@ -103,10 +103,30 @@
           "version": "repo-lines-v1:sha256:d9090c077f337c1eca75888a63f011761e45268079f636f6c9dd4379605293d8:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDc5ODI2NzQzMjcxMjg5MDA1MzkxMGUzMTMyZTZkZDRmNjAwMzM1YWI0NmFjYmUxYWVjODVmZjIzMDViMWNjNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmQxMzNlYzVmNWNlODMwNDgwODA0MjkxYWQyYTk4NzU4NWViZTI2NDliZDgwYzAyYTMwMWNjYjUzYzM5OWFiNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTkzOWY3ZGI3NWViNzQ5ZmIzMzMyNzJkYzQ0YjkzZDliN2JiOWNmNWJiMDM0YjIwOTEzODc4MmNjNzE3YTkxZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGU2NzY5ZDkxMTkxNjI4MTM1NDcyY2YxNzIzZjE0Y2FiMDVjZjg4YjMxYTQwMjcxNTJiMTg2YTg1ZWNmYjQ2MyJ9"
         }
       ]
+    },
+    {
+      "id": "claim_948735907b07476b9964532335011f72",
+      "statement": "ADR 0016(활동 분석은 조회 때 계산하고 지난 날짜의 일간 통계만 변경 표시와 배치로 저장)은 status: proposed라서 유효한 결정 목록에 들어가지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L1-L5",
+          "version": "repo-lines-v1:sha256:fe888220907e4c5b19be5fc821cb37a9eb7c1fca9d06a88ba1050704b223cdb4:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTEyZTdkYWM1ZWM3OTE2NjczNDZlYzZlZDZmYWI5NWY5MjBkNWFkMzM2NTIxOThhM2FhYmUxYTM2MWY2YmY2YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWJmYjA3Y2E1ZmE3YWFlYjRjNjBlMGVhYmYwODQ5YzM4ZWQ5M2IxZGM5ZDU1NDY0N2NhZWI0YzA4ZjZmYjUwYiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9a4b2db09b094c56948a2458504a30c7",
+      "statement": "ADR 0014의 BC별 오류 코드 접두사 표는 analytics의 AnalyticsErrorCode에 ANALYTICS_ 접두사를 배정한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0014-align-public-identifiers-and-error-codes-with-contexts.md#L80-L90",
+          "version": "repo-lines-v1:sha256:5a9c61db0eee783aecca35dc0825ff8747e8c307250e593fb1ebf502d43e4f17:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0YWI4ZTdlZjliOGUxNDAxZjgzNjBkODA3MmVhNmJmMmY2MjhiMjk5ZDUyYTNlNjRhMjNhNWU2MTM2MjEzNmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVjZGE4YzUwZDhjOWZjNWQzNWE4OTMwMjk1NDRhMWMwYzc1MDFkYzAyMjlkMTlkNGIxZDM4MzI5NzI0YjUwN2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYzNmI4NDA5NGNlZThjMzM2NjE5ZjNmMmU2NDQ2N2U3NDYzZjYzY2RmNDI0ZTNhMmQ4NGU3YjQwOTVhMTAzMjAifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-12T08:09:21.750Z"
+    "at": "2026-11-15T02:51:25.465Z"
   }
 }

@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:2e117d902ee1ae534c9f38d6aee1f050ad7fc4a6fba727e921e4241810211de0",
+  "pageVersion": "sha256:ba2cc7019b7d4d40654eba8f1b20e7890408c086c3fa4d32affc32c4dc0a4d3f",
   "claims": [
     {
       "id": "claim_8533ee2a4a564ff5a874060d83f95871",
       "statement": "Engineering Harness는 요구사항 탐색 → 제품 명세 → 엔지니어링 계획 → 구현 → 검증 Skill 흐름을 안내하지만 각 Skill은 독립적으로 호출할 수 있고 순서는 필수가 아니다.",
       "evidence": [
         {
-          "resource": "repo://AGENTS.md#L77-L89",
+          "resource": "repo://AGENTS.md#L78-L90",
           "version": "repo-lines-v1:sha256:71b339e68da8d30c28cb4a53fcb72a740e6b53ed2a02deaacb3d0687f64427b1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiZWUzZTRiZTBlNzc1MjFkMDhlYWMwOTA1OGNlNGVjMDE3YTU1MTYxYTU4ZTJmYzhmMDFlNWRiNTk1Nzk0NTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwMzRlMmY5YzI2YzI1OTQ0NTFhMWE0YTM1YTMwYTk5ZTQ5YTQxNDk2Mzc4NTNiOTZjNjE5MTVlZTRiNGEwNzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3ODkyZDBiYzNhNmQ2NjZmZWMzZjNiOTlhZjZkNGE5ZmU0NzAxZjE5MmRkYWRmYjc5ZmU2NDkyZjFmNWFhZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImViMWJjNWJjNGEyMzdmNTc4ZTZhZjRhNDE1ZDA2NDdmOTkxMGIwM2IzNjRlMWUyN2MxZjFkYmFhNzQzZDAzYmEifQ"
         }
       ]
@@ -55,14 +55,34 @@
       "statement": "GitHub 작업은 gh CLI로 하고 토큰 환경 변수를 해제해 저장된 인증을 쓰며, 커밋은 사용자 검토나 요청 뒤 Conventional Commits 형식으로 한다.",
       "evidence": [
         {
-          "resource": "repo://AGENTS.md#L61-L75",
+          "resource": "repo://AGENTS.md#L62-L76",
           "version": "repo-lines-v1:sha256:e1710e87e784f31dae6b293068c9e64c878292714b8152d9cc653f19d5e2aee7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3NzMzMzllYzBiZTFhMDRiYTE3MGUxZDhmZGQzMDY3MjIxOTU1Yzc2MzRjYTg4MWYzZDllYzU4MDhjYmJlOTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3NzRhOWNlYzkzOWViODg0NjJhODRmNjBkY2ZiMmZhNTA1NTBmM2M0OWM3MDE3ZTQ1ZWVjYTRmZjE4M2YxMmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwNjhmMDdjMjljMTQyNjZhNzA4YzEwMjhiMmUyOTQ4Y2IyNjA3MmZhMWYyMjE0ODAwNzRmNjgyYTA4YjRkMzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRiOTIyZmRhNzBhNmYwZmZiYzBmMThjZTAxZWRmN2EzZDZjZjUyNjU5MGZhYTM0ZmE2NGI2NTMxNjY0N2I1YjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5b7768e4ec4d4767812ff5680fa5c7a8",
+      "statement": "일반 PR은 openwiki/INSTRUCTIONS.md 밖의 openwiki/ 경로를 바꿀 수 없고, 같은 저장소의 openwiki/update 브랜치 PR만 생성물을 바꿀 수 있다(대소문자 무시, rename 분해).",
+      "evidence": [
+        {
+          "resource": "repo://.codex/skills/verification/scripts/check_openwiki_paths.py#L1-L38",
+          "version": "repo-lines-v1:sha256:c1487a139077e0ca631d9c0425a1376344a11296594941a0a286e590da75267b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0NzI1ZjAxOWUwMDM3NGY0ZjE2YmJhYzJiNzNiOWU5M2IzYzFjNmQyNzhjZjUzNjg1MTRmZGEwODBkMmRmYzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZDI0NDU4MmI2ZmIwM2QyM2I4NDE1YWJlY2QzNDZiMGM5ZjQ2NmI2Zjc1MmIwNjgxODljZTdlOWEyZGMzNTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0MTU3NzZhOTlmMTQxNTY1OWRlMjZlYjRkYjI2MTg2M2ZhMTIxOTY2NjBjOTU3ODUzYTYzMTMxOWJmZDliODYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a8087aba8e044be69cb48b66ea397eb3",
+      "statement": "OpenWiki paths 검사는 pull_request_target 워크플로에서 base 브랜치의 스크립트로 실행되어 PR이 검사를 바꿀 수 없고 PR head는 checkout하지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/openwiki-paths.yml#L1-L39",
+          "version": "repo-lines-v1:sha256:6df05645668a31d584064723ea0361b5263b2fe055aa417e789c504f28ba8849:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmMzlmMzk1MDdiODkyZDAyMTQ3MDM5NDkwOTYwM2IyYTlmOGJhYTU0NTA2ZGY2MGNlMGI0ZDNjMDUzZDc4MmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3YTA5OTVmZDY2ZTY1ODczMThkM2VkNDQ4OTVkOWE5YWM2NzY1OWMzYTVkZmE4NTVmZTNkYmIxYTgzMTU0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-12T08:09:21.750Z"
+    "at": "2026-11-15T02:51:25.465Z"
   }
 }

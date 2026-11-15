@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:c7e932e37817021af3bf97604fb84f48d0d161896db3a8d8f0f2b7d40eacfde1",
+  "pageVersion": "sha256:a66d493b3af0ad9d6a31eb422bcb3e3593b46df516c81f13bd73ef257a5bb9b6",
   "claims": [
     {
       "id": "claim_3b1d76219d594211bbeb646bee3ba670",
@@ -45,7 +45,7 @@
       "statement": "커밋 전에는 AGENTS.md 「빌드와 검증」의 Ruff, complexipy, ty, lint-imports, uv build, poe coverage, git diff --check 명령을 모두 통과해야 한다.",
       "evidence": [
         {
-          "resource": "repo://AGENTS.md#L34-L48",
+          "resource": "repo://AGENTS.md#L35-L49",
           "version": "repo-lines-v1:sha256:29dd6e5261a63672344d64530e194ecb840c0b488400d60a664be0b920b6cfac:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5ZTE0NzA4NTUwNmUzYzEzYWZkYjgzNGRjZDZmZDFhNGRmYWNhMDExMzU5ZjQ4ZWZlZjRmNWIzNDExNzdjYzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3YzA2YzU2MWQ1YzMyNzM0MzY4NTI2OGE0NmIzMzkxZjM5OThlZWU4OTBkMmJlNTFmMGQyMWNjNGE1M2FlNmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg2Yzg1NDdiMDcyMmJhYTVkOGYyNjkxMTNlMTgxZWIwYTc0OWU5YjVmOTcwYTY1NWU2MzllMWM3ZWI4MmM3ZDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkNzg1YTZmNWMzNTU5OTM2NDFhOWU1MWFiY2YyODgwMzE3YzcyOTNiNmNiZjBjZjA1MWFkNjEzNmM5MGUxNGYifQ"
         }
       ]
@@ -55,14 +55,24 @@
       "statement": "배치 Consumer와 배치 job은 poe batch-consumer와 poe batch-jobs로, 마이그레이션은 poe migration-dev로 실행한다.",
       "evidence": [
         {
-          "resource": "repo://pyproject.toml#L676-L719",
+          "resource": "repo://pyproject.toml#L792-L835",
           "version": "repo-lines-v1:sha256:3524a71fd69dd17c51aed789540670d13731a65bf6d3304b9489cd027da7ef14:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlNmQ4OTNlOWRkYmQzZWNkOTFiZjNiYjMyZWRkZWE3NGY0YTFiMDkyOGYwZWMyZTIwZjZmZGFiODBhZmUwZWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5OWQyODc0YjRhMGFiYTM1ZTBhNDZiYjU2ZjBhNTBmN2U2MWUwYzYxZDBhYWM5ZjJjNzY5MDkwZmMwMzgyZWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4Mzk0OTlkZmY0MTM4MTJmOGMwYjIyZmVmODNhMWVhMDgzYmM4MjgzZWM2YzMzODZmMTkwY2NjZTU2NjM2MDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_80bb214ebfc348208136a8c739299fd4",
+      "statement": "openwiki/ 생성물은 문서 PR에서만 바뀌고 일반 PR은 openwiki/INSTRUCTIONS.md만 고칠 수 있으며 CI가 이를 검사한다.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L33-L33",
+          "version": "repo-lines-v1:sha256:9aa227a83aa375355b5658e161bdd805ca9f77c2afe699314ad901fbf746abca:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWFhMjI3YTgzYWEzNzUzNTViNTY1OGUxNjFiZGQ4MDVjYTlmNzdjMmFmZTY5OTMxNGFkOTAxZmJmNzQ2YWJjYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWFhMjI3YTgzYWEzNzUzNTViNTY1OGUxNjFiZGQ4MDVjYTlmNzdjMmFmZTY5OTMxNGFkOTAxZmJmNzQ2YWJjYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWM1YTYyZTRlNTQwZDVkMzZkM2Q5Mjc2MWI0Y2M0NmU1MDY4ZWQ2NWUzYmQxMmUyZWM4ZmQ0MzIzZGI2NjMzMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDc3M2I1NWZiYjZjOGRjOGZjYWU0OGI4YzhlZjdjNmZkYTI2NWI5OWEyMjI1MjhhODQyOWJlNzk4NDlkNTQxZCJ9"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-12T08:09:21.750Z"
+    "at": "2026-11-15T02:51:25.465Z"
   }
 }

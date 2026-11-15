@@ -1,11 +1,11 @@
 ---
 type: architecture
 title: 현재 구조
-description: Mosemo 서버의 Bounded Context(identity·labels·observation·labeling), 공용 패키지(shared·platform), 조립 루트(entrypoints)의 책임과 import 경계를 정리한다.
+description: Mosemo 서버의 Bounded Context(identity·labels·observation·labeling·analytics), 공용 패키지(shared·platform), 조립 루트(entrypoints)의 책임과 import 경계를 정리한다.
 tags: [architecture, bounded-context, layering, import-linter]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-12T08:09:21.750Z
+    at: 2026-11-15T02:51:25.465Z
 sources:
   - id: openwiki-source-362e06c30ccfdafd87339cb0
     resource: repo://ARCHITECTURE.md
@@ -15,9 +15,15 @@ sources:
     resource: repo://pyproject.toml
   - id: openwiki-source-375e44f7a4a0439d8ae64119
     resource: repo://src/mosemo/AGENTS.md
+  - id: openwiki-source-e650be5fbac67192522ee23b
+    resource: repo://src/mosemo/analytics/bootstrap.py
+  - id: openwiki-source-952434c716093a656d999b64
+    resource: repo://src/mosemo/analytics/public.py
   - id: openwiki-source-6cee5734b0ac2e4c9346952b
     resource: repo://src/mosemo/entrypoints/api/contexts.py
-generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
+  - id: openwiki-source-fe1140fea79716d25a3b3efa
+    resource: repo://tests/unit/harness/test_assembly_roots.py
+generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 ---
 
 # 현재 구조
@@ -26,7 +32,7 @@ generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
 
 ## 한눈에 보기
 
-애플리케이션 코드는 `src/mosemo/` 아래 일곱 개 최상위 패키지로 나뉜다.
+애플리케이션 코드는 `src/mosemo/` 아래 여덟 개 최상위 패키지로 나뉜다.
 
 | 패키지 | 종류 | 책임 |
 | --- | --- | --- |
@@ -34,6 +40,7 @@ generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
 | `labels` | BC | 계정의 라벨 목록, 가입 시 기본 라벨 |
 | `observation` | BC | 활동 레코드, 관찰 타임라인 투영과 조회, 집중 세션 |
 | `labeling` | BC | 라벨 확정·정정, AI 라벨 제안과 제안 job, 라벨 타임라인 |
+| `analytics` | BC | 활동 분석 결과, 일간 통계, 다시 계산 표시, 배치(현재는 골격만 있음) |
 | `shared` | 공용 커널 | 둘 이상의 BC가 쓰고 업무 의미가 없는 것(domain·application·presentation) |
 | `platform` | 실행 기반 | 로깅·시계·provider·스케줄링, `database/`(설정·엔진·매핑·트랜잭션), `messaging/`(Kafka 어댑터) |
 | `entrypoints` | 조립 루트 | 프로세스마다 하나: `api/`(FastAPI), `consumer/`(활동 배치 Consumer), `batch/`(배치 job) |
@@ -44,12 +51,18 @@ generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
 
 ```mermaid
 graph LR
-  labeling --> observation --> labels --> identity
+  analytics --> labeling --> observation --> labels --> identity
 ```
 
 - 왼쪽 BC만 오른쪽 BC를 import한다(건너뛴 import 허용). 상류 BC가 하류의 변경을 알아야 하면 import하지 않고 도메인 이벤트로 알린다([ADR 0012](../../docs/adr/0012-notify-cross-context-changes-with-in-process-domain-events.md)).
 - 다른 BC 코드는 그 BC의 `public.py`로만 쓴다. 다른 BC의 테이블은 조회·조인하지 않고, 여러 BC 데이터가 필요하면 애플리케이션에서 조립한다.
-- ADR 0011은 `analytics` BC를 추가 예정으로 두며, 추가되면 `labeling` 위에 놓인다(`pyproject.toml`의 주석).
+- `pyproject.toml`의 `bounded contexts: analytics > labeling > observation > labels > identity` `layers` 계약이 이 방향을 강제한다.
+
+## analytics BC의 현재 상태
+
+`analytics`는 가장 위 BC로 자리와 계약만 먼저 만들어 두었다. 계층 폴더 네 개에는 docstring뿐이고, `public.py`의 `__all__`은 비어 있다. [bootstrap.py](../../src/mosemo/analytics/bootstrap.py)의 `map_tables()`(아직 소유 테이블 없음)와 `register_handlers(dispatcher)`(아직 구독 없음)도 빈 함수다. 설계는 제안 상태의 [ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md)과 [활동 분석](../domain/activity-analytics.md) 페이지를 본다.
+
+그래도 세 조립 루트(API `contexts.py`, consumer `activity_batches.py`, batch `registry.py`)는 모두 `analytics_bootstrap.map_tables()`와 `analytics_bootstrap.register_handlers(...)`를 이미 호출한다. `tests/unit/harness/test_assembly_roots.py`는 세 루트 모두 analytics handler를 등록하는지 검사한다. 한 프로세스라도 빠지면 늦은 관찰이 다시 계산 표시를 조용히 잃기 때문이다.
 
 ## BC 내부 구조
 
@@ -65,17 +78,17 @@ BC 루트에는 세 파일만 둔다.
 | --- | --- |
 | router(`presentation`) | HTTP 입출력만 바꾸고 UseCase의 `execute`만 호출한다. 공개 오류는 BC 오류 코드의 `ApiException`으로 바꾼다 |
 | Mapper(`presentation`) | 요청 스키마와 엔티티·입출력 값 사이의 상태 없는 변환 |
-| UseCase(`application`) | 유스케이스 하나에 클래스 하나, 공개 메서드는 `async def execute`만. 쓰기는 `unit_of_work`, 읽기는 `read_snapshot`으로 트랜잭션을 연다 |
+| UseCase(`application`) | 유스케이스 하나에 클래스 하나, 공개 메서드는 `async def execute`만. 쓰기는 `unit_of_work`, 읽기는 `read_snapshot`, 여러 조회가 한 스냅샷을 봐야 하는 읽기는 `consistent_snapshot`으로 트랜잭션을 연다 |
 | 공개 협력자(`application`) | 다른 BC의 UseCase가 자기 트랜잭션 안에서 부르는 입구. 첫 인자로 `db_session`을 받고 트랜잭션을 열지 않는다 |
 | Repository(`infrastructure`) | aggregate root 하나를 통째로 불러오고 저장한다. 판단과 트랜잭션은 하지 않는다 |
 | Query(`infrastructure`) | 읽기 모델을 읽고 데이터를 바꾸지 않는다 |
 | 엔티티(`domain`) | dataclass aggregate와 값 객체. SQLAlchemy·FastAPI·Pydantic을 import하지 않는다 |
 
-자세한 규칙은 [src/mosemo/AGENTS.md](../../src/mosemo/AGENTS.md) 「역할 규칙」을 본다. 영속화 방식은 [영속성·메시징·배치 실행](persistence-and-messaging.md)에서 다룬다.
+자세한 규칙은 [src/mosemo/AGENTS.md](../../src/mosemo/AGENTS.md) 「역할 규칙」을 본다. 영속화와 트랜잭션 헬퍼는 [영속성·메시징·배치 실행](persistence-and-messaging.md)에서 다룬다.
 
 ## 조립 루트와 설정
 
-`entrypoints/{api,consumer,batch}`는 BC의 `bootstrap.py`·`public.py`만 import해서 객체 그래프를 만든다. 예를 들어 API 프로세스는 [src/mosemo/entrypoints/api/contexts.py](../../src/mosemo/entrypoints/api/contexts.py)에서 네 BC의 테이블을 매핑하고 `Identity` → `Labels` → `Observation` → `Labeling` 순서로 하류 BC의 공개 객체(`account_directory`, `label_catalog`, `observation_timeline` 등)를 상류 BC 생성자에 넘긴다. 라우터는 [src/mosemo/entrypoints/api/routes.py](../../src/mosemo/entrypoints/api/routes.py)에서 `/api/v1` 아래에 묶인다.
+`entrypoints/{api,consumer,batch}`는 BC의 `bootstrap.py`·`public.py`만 import해서 객체 그래프를 만든다. 예를 들어 API 프로세스는 [src/mosemo/entrypoints/api/contexts.py](../../src/mosemo/entrypoints/api/contexts.py)에서 다섯 BC의 테이블을 매핑하고 labels·analytics의 이벤트 handler를 등록한 뒤, `Identity` → `Labels` → `Observation` → `Labeling` 순서로 하류 BC의 공개 객체(`account_directory`, `label_catalog`, `observation_timeline` 등)를 상류 BC 생성자에 넘긴다. analytics는 아직 객체 그래프를 만들지 않는다. 라우터는 [src/mosemo/entrypoints/api/routes.py](../../src/mosemo/entrypoints/api/routes.py)에서 `/api/v1` 아래에 묶인다.
 
 설정은 ADR 0015 「설정 소유 규칙」을 따른다. 각 진입점의 `config.py`가 자기 프로세스의 환경 변수만 읽고, BC는 설정 모듈(`platform.database.config`, `platform.messaging.config`)을 import하지 않는다. 필요한 값은 BC `bootstrap.py`가 정의한 순수 타입(예: identity의 `IdentityConfig`)으로 조립 루트가 넘긴다.
 
@@ -83,7 +96,7 @@ BC 루트에는 세 파일만 둔다.
 
 규칙은 문서만이 아니라 도구로 강제된다.
 
-- `poe lint-imports`: `pyproject.toml`의 `[tool.importlinter]` 계약. BC 사이 `layers` 계약, BC마다 계층·외부 import 제한 계약, `shared`·`platform`이 BC와 진입점을 import하지 않는 계약, BC → `mosemo.entrypoints` 금지 계약, `apscheduler`는 `platform.scheduling`만·`faststream`·`aiokafka`는 `platform`만 import하는 계약이 있다.
+- `poe lint-imports`: `pyproject.toml`의 `[tool.importlinter]` 계약. BC 사이 `layers` 계약, BC마다 계층·외부 import 제한 계약(analytics 포함), `shared`·`platform`이 BC와 진입점을 import하지 않는 계약, 다섯 BC 모두에 대한 `bounded contexts do not import entrypoints`·`bounded contexts do not import settings modules` 계약, `apscheduler`는 `platform.scheduling`만·`faststream`·`aiokafka`는 `platform`만 import하는 계약이 있다.
 - `.codex/skills/verification/scripts/validate_architecture.py`, `validate_conventions.py`와 `tests/unit/harness/`가 나머지 구조 규칙을 검사한다.
 - Ruff `TID251`이 `DeclarativeBase`·`mapped_column` 재도입을 막는다.
 
@@ -93,3 +106,4 @@ BC 루트에는 세 파일만 둔다.
 
 - [영속성·메시징·배치 실행](persistence-and-messaging.md)
 - [유효한 결정](../decisions/active-decisions.md)
+- [활동 분석](../domain/activity-analytics.md)

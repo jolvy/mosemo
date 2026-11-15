@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b08ee1c83773198ad00814824238c701ed396fcf7ee72e0efe7be715338ab4ae",
+  "pageVersion": "sha256:54943bf4fe491902884cf69629576e03975a56f5b80593039d6d69f2364ab732",
   "claims": [
     {
       "id": "claim_914662bc78194b91873e79f37f592051",
@@ -17,7 +17,7 @@
       "statement": "통합 테스트는 testcontainers로 PostgreSQL과 Kafka 컨테이너를 띄우므로 Docker가 필요하다.",
       "evidence": [
         {
-          "resource": "repo://AGENTS.md#L58-L58",
+          "resource": "repo://AGENTS.md#L59-L59",
           "version": "repo-lines-v1:sha256:0ebfbeb29b085760e2bf433f1dbae28c77024a1d3d37c8236826d0a3305a455a:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGViZmJlYjI5YjA4NTc2MGUyYmY0MzNmMWRiYWUyOGM3NzAyNGExZDNkMzdjODIzNjgyNmQwYTMzMDVhNDU1YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGViZmJlYjI5YjA4NTc2MGUyYmY0MzNmMWRiYWUyOGM3NzAyNGExZDNkMzdjODIzNjgyNmQwYTMzMDVhNDU1YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzNlMGFmN2RlNGNmMmFlYzRkZmNhY2JkMmY3NWVlNDUwODQ0YWU0ZTM2MWI3ZjM5NjFiNmY0ODQyMjFkZDYwMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2E1NDk2YTY3YTIzZjk5NDI4NTFkNjljMjIzNGJmNjM2ZTMxNWJkNGFlNDFlZjMyMjVmNjk0MTBhMWRlMDI4NyJ9"
         },
         {
@@ -31,7 +31,7 @@
       "statement": "커버리지 기준은 라인 95%, 브랜치 90%이며 scripts/check_coverage.py에만 정의된다.",
       "evidence": [
         {
-          "resource": "repo://AGENTS.md#L50-L51",
+          "resource": "repo://AGENTS.md#L51-L52",
           "version": "repo-lines-v1:sha256:d387ba0fbfee55de516517dcc621f4c4d204a16126d346d7cd7c18e1ebecc4dd:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDY2MDJlNDIyOGE2ZmU3YTcwODU4NzM5NzJkZTRjMWY1NWFkMWNmMWE5YzVlNGExZmNiM2I0MGM3ZDM1YTdkOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTg1MjRiMGYzMzk3MDM2ZjM0ZmJjM2NlYjYwMWFmNmUwZTY2MzNlOTcyM2MzMWNjMWYwZjJlZGIyNjM3ZTkxMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTFmZTUxOWNlOTliODUyYmYwYzdlMDEyMGVhYTRhYTRjMzZhZDZkYjg1ZDBhMDc4ZGUwOWJlNTQ0NTg0MWNjZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTE4ZTZlMzkzZDM3YWVjMDkwMWM3MTQ2MTgyMjRjNWIyMjExZTFhNzhkZDI5Mzc5Y2ZkMmY4Njg2MGQ0ODk1ZiJ9"
         },
         {
@@ -69,14 +69,28 @@
       "statement": "poe test와 poe coverage는 .env.example을 먼저 읽고 .env, .env.test를 선택적으로 덮어쓴다.",
       "evidence": [
         {
-          "resource": "repo://pyproject.toml#L686-L695",
+          "resource": "repo://pyproject.toml#L802-L811",
           "version": "repo-lines-v1:sha256:f827a6a5a8f069c7f388bbb0b824ff8edb2781bd83332ef4207ec5eaa0b6aee3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlMDAwMmVkYTM3NTRmYTg3NTZiZDdjNjJhNjhjMjc0OGQ0NDRjMmI1ODljNmY5NjkwODJlMTFhZGI5NTE5M2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxMDM2MjM2YjkzZDFjYTk4MTg0ZDc1NDU2ZmVjYTE5YzQ1ZTY5OTI0NWY3YzUyOTM0MDQ3M2E3NWYyMjMxNTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYWVkZGJmOWY3MDQyMjNmNzUxOGZmY2U3YTBiMjhjNzZkMjk4MTdjZjM4OWY0MjdlYWY1ZTFjYmY1M2RmYmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkZTZkNDliMTlmM2RkZGY0NGZiOTRiZGMzNDU3ZDE5NTNkMDIzNGQzZmJjZTQyNzBhNmI3NjhkNzcwNzY2MWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_189922c27e2846b58d3586e29f81016d",
+      "statement": "tests/unit과 tests/integration의 첫 폴더는 src/mosemo 최상위 패키지(analytics 포함)이거나 harness·scripts·migrations·support·tools여야 하며 test_tests_layout.py가 이를 강제한다.",
+      "evidence": [
+        {
+          "resource": "repo://tests/AGENTS.md#L16-L16",
+          "version": "repo-lines-v1:sha256:01caeb628ad10c78369f587fad34e7383b8117a5d3bc5616e3286a02c7d82318:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFjYWViNjI4YWQxMGM3ODM2OWY1ODdmYWQzNGU3MzgzYjgxMTdhNWQzYmM1NjE2ZTMyODZhMDJjN2Q4MjMxOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFjYWViNjI4YWQxMGM3ODM2OWY1ODdmYWQzNGU3MzgzYjgxMTdhNWQzYmM1NjE2ZTMyODZhMDJjN2Q4MjMxOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmM1MzFkYTExYjViMzAyMjdiZmQ5YWQ0NTYzNWFhMjdhYWUyMDRmZDhkODA0NzdjOWU5NDA5NjQyZWNkZDUzZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGZkZjJjMzk5NmQ4YmU2ZTRmMTdiODkzOWNmMTE1YjNiYmQ0ZjZhNDFlYWRkNmNmNzdkZmZkYjZjNThhODNiZSJ9"
+        },
+        {
+          "resource": "repo://tests/unit/harness/test_tests_layout.py#L11-L15",
+          "version": "repo-lines-v1:sha256:fcc4ecef3784c952766b1e4e1c82721ad04514d01e22333e4b765279c6d0d3eb:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzE3OTFlODk5YTQxZjZhMDhjOWUzNGI1NWE3YzIyZjBkNjQ3OTgxM2ZiMzY4YWExYjAyNTlhNmM4OWVhODA3OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDJlYjgyYjA5ODJhNGNkOTA5YWVhMGNmMjUyZmFlYTlkOWI3MWI0Y2E5NTM1Y2NiYWExNzI3MGI5ZWM5NDU3YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODE5N2JhNjQ2MTU3MDBhNjAwNmM5YzBmNDY1MzFmOWFlMjllMmI1NWRmZjUyZjIxNGVmNGQxZThlN2MwYzNkNCJ9"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-12T08:09:21.750Z"
+    "at": "2026-11-15T02:51:25.465Z"
   }
 }

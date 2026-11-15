@@ -1,11 +1,11 @@
 ---
 type: decision-index
 title: 유효한 결정
-description: docs/adr의 ADR 중 앞부분 status가 accepted인 유효한 결정 목록과, 전체 대체(0002 → 0004)·부분 대체 관계를 원본 ADR 링크와 함께 정리한다.
+description: docs/adr의 ADR 중 앞부분 status가 accepted인 유효한 결정 목록과, 전체 대체(0002 → 0004)·부분 대체 관계, 아직 유효하지 않은 제안 ADR(0016)을 원본 ADR 링크와 함께 정리한다.
 tags: [adr, decisions, supersession]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-12T08:09:21.750Z
+    at: 2026-11-15T02:51:25.465Z
 sources:
   - id: openwiki-source-ddac3c633b69628f629b47e0
     resource: repo://docs/adr/0001-public-api-error-boundary.md
@@ -35,7 +35,9 @@ sources:
     resource: repo://docs/adr/0014-align-public-identifiers-and-error-codes-with-contexts.md
   - id: openwiki-source-9e0b4f09690c4e5751a0f6ce
     resource: repo://docs/adr/0015-group-entrypoints-and-platform-packages.md
-generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
+  - id: openwiki-source-254df237bb9ef98aebc51d56
+    resource: repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md
+generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 ---
 
 # 유효한 결정
@@ -58,8 +60,18 @@ generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
 | [0011](../../docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md) | Bounded Context를 논리 분리하고 BC마다 계층 패키지를 둔다. BC 사이 의존 방향과 `public.py` 규칙 | 0010을 부분 대체. 일부를 0015가 부분 대체 |
 | [0012](../../docs/adr/0012-notify-cross-context-changes-with-in-process-domain-events.md) | BC 간 변경은 프로세스 내 도메인 이벤트로 알리고 커밋 직전 같은 트랜잭션에서 처리한다 | 없음 |
 | [0013](../../docs/adr/0013-persist-dataclass-aggregates-with-imperative-mapping.md) | dataclass aggregate와 imperative mapping으로 영속화하고, 쓰기는 UseCase·Repository, 읽기는 Query로 나눈다 | 없음 |
-| [0014](../../docs/adr/0014-align-public-identifiers-and-error-codes-with-contexts.md) | 오류 코드는 BC가 소유하고 공개 식별자·오류 코드 이름을 BC 경계에 맞춘다 | 0001을 부분 대체 |
+| [0014](../../docs/adr/0014-align-public-identifiers-and-error-codes-with-contexts.md) | 오류 코드는 BC가 소유하고 공개 식별자·오류 코드 이름을 BC 경계에 맞춘다. BC별 허용 접두사 표에 analytics의 `AnalyticsErrorCode`(`ANALYTICS_`)도 있다 | 0001을 부분 대체 |
 | [0015](../../docs/adr/0015-group-entrypoints-and-platform-packages.md) | 진입점을 `entrypoints`로 묶고 기술 기반을 `platform`으로 재구성하며 설정 소유 규칙을 정한다 | 0011을 부분 대체 |
+
+## 제안 중인 결정
+
+`status: proposed`인 ADR은 아직 유효한 결정이 아니므로 위 목록에 넣지 않는다. 받아들여지면 `accepted`로 바뀐다.
+
+| ADR | 제안 요지 |
+| --- | --- |
+| [0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md) | 활동 분석은 조회 때 계산하고, 지난 날짜의 일간 통계만 변경 표시와 배치로 저장한다. 앞선 15분 칸 저장 초안을 하루 활성 사용자 1천 명 목표로 다시 검토한 결과다 |
+
+`analytics` BC 골격과 `consistent_snapshot` 헬퍼는 이 제안을 바탕으로 먼저 들어왔다. 내용은 [활동 분석](../domain/activity-analytics.md)을 본다.
 
 ## 대체된 결정
 
@@ -93,3 +105,4 @@ graph RL
 
 - [현재 구조](../architecture/current-structure.md): ADR 0011·0015가 정한 패키지 구조
 - [영속성·메시징·배치 실행](../architecture/persistence-and-messaging.md): ADR 0004·0006·0007·0008·0010·0012·0013의 현재 구현
+- [활동 분석](../domain/activity-analytics.md): 제안 ADR 0016의 설계와 근거 문서

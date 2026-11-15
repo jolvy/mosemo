@@ -5,7 +5,7 @@ description: dataclass aggregate와 imperative mapping, 트랜잭션 헬퍼와 �
 tags: [persistence, sqlalchemy, domain-events, kafka, batch-jobs, alembic]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-12T08:09:21.750Z
+    at: 2026-11-15T02:51:25.465Z
 sources:
   - id: openwiki-source-d1449bb9b8fd8b54431d973d
     resource: repo://docs/adr/0004-project-observation-timeline-on-write.md
@@ -31,7 +31,9 @@ sources:
     resource: repo://src/mosemo/platform/scheduling.py
   - id: openwiki-source-974f1266b8a564e95f09538b
     resource: repo://src/mosemo/shared/application/events.py
-generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
+  - id: openwiki-source-bf64c7f959111123b762b90b
+    resource: repo://tests/integration/platform/test_transactions.py
+generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 ---
 
 # 영속성·메시징·배치 실행
@@ -57,15 +59,16 @@ generated: { by: "claude-code", at: "2026-11-12T08:09:21.750Z" }
 | --- | --- |
 | `unit_of_work(db_session, dispatcher)` | 쓰기 트랜잭션을 연다. 본문이 끝나면 flush하고, 추적 중인 aggregate의 이벤트와 `record_event`로 기록한 이벤트를 남은 것이 없을 때까지 dispatch한 뒤 커밋한다 |
 | `read_snapshot(db_session)` | `SET TRANSACTION READ ONLY` 트랜잭션을 열고 이벤트를 dispatch하지 않는다 |
+| `consistent_snapshot(db_session)` | `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY` 트랜잭션을 연다. 안의 모든 문장이 같은 스냅샷을 읽으므로 여러 조회를 합치는 읽기가 그 사이 커밋된 행을 보지 않는다. 이벤트를 dispatch하지 않는다([ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md) 제안의 분석 읽기용) |
 | `reset_session(db_session)` | 한 세션에서 여러 트랜잭션을 돌 때 로드된 객체와 추적 root를 비운다 |
 
-- 두 헬퍼 모두 이미 열린 트랜잭션이 있으면 `TransactionAlreadyOpenError`를 낸다.
+- 세 트랜잭션 헬퍼 모두 이미 열린 트랜잭션이 있으면 `TransactionAlreadyOpenError`를 낸다.
 - `EventDispatcher`는 현재 `BEFORE_COMMIT` 단계만 지원한다. handler는 같은 세션·트랜잭션에서 실행되므로 handler가 실패하면 원래 변경도 롤백된다.
-- 상류 BC가 하류 BC의 변경을 알아야 할 때 import 대신 이 이벤트를 쓴다. 예를 들어 API 조립 루트는 `labels_bootstrap.register_handlers(get_event_dispatcher())`로 labels의 handler를 등록한다.
+- 상류 BC가 하류 BC의 변경을 알아야 할 때 import 대신 이 이벤트를 쓴다. 예를 들어 API 조립 루트는 `labels_bootstrap.register_handlers(get_event_dispatcher())`로 labels의 handler를 등록한다. 세 조립 루트(API·consumer·batch)는 모두 `analytics_bootstrap.register_handlers(get_event_dispatcher())`도 호출한다. analytics는 아직 구독이 없지만, 다시 계산 표시 handler가 들어오면 어느 프로세스에서 일어난 변경이든 같은 트랜잭션에서 처리되도록 미리 묶어 둔 것이다(`tests/unit/harness/test_assembly_roots.py`가 검사).
 
 ## 마이그레이션
 
-- Alembic 환경 [migrations/env.py](../../migrations/env.py)는 네 BC의 `map_tables()`만 호출해 `ORM_METADATA`를 채운다. 테이블 정의를 따로 import하지 않는다.
+- Alembic 환경 [migrations/env.py](../../migrations/env.py)는 다섯 BC(identity·labels·observation·labeling·analytics)의 `map_tables()`만 호출해 `ORM_METADATA`를 채운다. 테이블 정의를 따로 import하지 않는다.
 - 리비전은 `migrations/versions/`에 날짜 접두어 파일로 쌓인다. 이미 적용된 마이그레이션은 다시 쓰지 않고, 스키마 변경에는 새 마이그레이션을 추가한다([AGENTS.md](../../AGENTS.md) 「변경 원칙」).
 - 로컬 적용은 `poe migration-dev`(`alembic upgrade head`)다.
 
@@ -91,7 +94,7 @@ sequenceDiagram
 - API의 `POST /api/v1/activities/batches`는 인증·입력·Device 귀속 확인 뒤 배치를 Kafka에 발행하고, 발행 ACK를 받으면 `202`를 돌려준다. DB 처리나 Consumer offset commit을 기다리지 않는다. 발행할 수 없거나 ACK가 늦으면 `503`과 `Retry-After: 1`을 돌려주고, 클라이언트는 같은 `batchId`·내용으로 재시도한다.
 - Publisher는 `acks="all"`, `enable_idempotence=True`로 만든 `KafkaBroker`를 쓴다([src/mosemo/platform/messaging/runtime.py](../../src/mosemo/platform/messaging/runtime.py)). 메시지 key는 계정 ID라서 같은 계정은 같은 partition으로 모인다.
 - 기본 토픽은 `activities.registration-requested`, Consumer group은 `mosemo.activity-batches`다([src/mosemo/platform/messaging/config.py](../../src/mosemo/platform/messaging/config.py)).
-- Consumer 진입점(`poe batch-consumer`, [src/mosemo/entrypoints/consumer/activity_batches.py](../../src/mosemo/entrypoints/consumer/activity_batches.py))은 `BATCH_ENABLED=true`가 아니면 시작하지 않는다. 메시지마다 새 세션을 열어 observation의 배치 처리 UseCase를 부른다.
+- Consumer 진입점(`poe batch-consumer`, [src/mosemo/entrypoints/consumer/activity_batches.py](../../src/mosemo/entrypoints/consumer/activity_batches.py))은 `BATCH_ENABLED=true`가 아니면 시작하지 않는다. 시작할 때 identity·labels·observation·analytics의 테이블을 매핑하고 analytics handler를 등록한 뒤, 메시지마다 새 세션을 열어 observation의 배치 처리 UseCase를 부른다.
 - 배치 처리는 receipt claim, 원본별 채택·거절, 원본 저장, 관찰 타임라인 갱신, 처리 결과 저장을 하나의 DB 트랜잭션에서 수행한다. receipt의 식별 범위는 `(accountId, deviceId, batchId)`다(ADR 0007).
 - 원본 순서는 같은 Device 안에서는 `sequence`, 여러 Device 사이에서는 `(observedAt, deviceId, sequence, eventId)` 오름차순으로 병합한다(ADR 0008).
 
@@ -109,7 +112,7 @@ sequenceDiagram
 근거: [ADR 0010](../../docs/adr/0010-run-batch-jobs-in-apscheduler-process.md)(실행 경로는 [ADR 0011](../../docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md)이 부분 대체), [src/mosemo/platform/scheduling.py](../../src/mosemo/platform/scheduling.py), [src/mosemo/entrypoints/batch/registry.py](../../src/mosemo/entrypoints/batch/registry.py)
 
 - 활동 배치(Kafka)와 구분하려고 이 구조는 "batch job"으로 부른다.
-- 모든 job은 `entrypoints/batch/registry.py`의 `build_jobs`에 등록하고 이름이 유일해야 한다. 현재 등록된 job은 labeling의 라벨 제안 job 하나다.
+- 모든 job은 `entrypoints/batch/registry.py`의 `build_jobs`에 등록하고 이름이 유일해야 한다. 현재 등록된 job은 labeling의 라벨 제안 job 하나다. `build_jobs`는 job을 만들기 전에 다섯 BC의 테이블을 매핑하고 analytics handler를 등록한다.
 - 실행 방식은 두 가지다: `poe batch-jobs serve`(스케줄 있는 job을 주기 실행하는 상시 프로세스)와 `poe batch-jobs run JOB_NAME`(한 번 실행하고 결과를 exit 코드로 알림).
 - 스케줄러는 UTC `AsyncIOScheduler`이며 모든 job에 `max_instances=1`, `coalesce=True`, `misfire_grace_time=None`을 적용한다. 종료할 때는 실행 중 job을 취소하고 최대 10초 기다린다.
 - 상시 프로세스는 단일 인스턴스를 가정하며 분산 잠금이 없다.
@@ -118,3 +121,4 @@ sequenceDiagram
 
 - [현재 구조](current-structure.md)
 - [유효한 결정](../decisions/active-decisions.md)
+- [AWS EKS 랩과 측정 세션](../operations/aws-eks-lab.md)
