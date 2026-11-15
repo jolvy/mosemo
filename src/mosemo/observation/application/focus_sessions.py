@@ -20,6 +20,9 @@ from mosemo.observation.infrastructure.activity_records import (
     ActivityRecordRepository,
 )
 from mosemo.observation.infrastructure.focus_sessions import FocusSessionRepository
+from mosemo.observation.infrastructure.timeline_segments import (
+    TimelineSegmentRepository,
+)
 from mosemo.platform.database.transactions import read_snapshot, unit_of_work
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
@@ -110,6 +113,7 @@ class CompleteFocusSession(UseCase):
     ) -> None:
         self._focus_sessions = focus_sessions
         self._activity_records = activity_records
+        self._segments = TimelineSegmentRepository()
         self._labels = labels
         self._dispatcher = dispatcher
 
@@ -126,9 +130,15 @@ class CompleteFocusSession(UseCase):
         Raises `FocusSessionNotFoundError`, `FocusSessionLabelNotAvailableError`,
         and the session's `FocusSessionConflictError`/`FocusSessionInvalidTimeError`.
         The first completion logs the work gap and the dropped zero-length pauses.
+        Raises `ActivityTimelineBusyError` when the account timeline lock is not
+        acquired in time.
         """
         first_completion = False
         async with unit_of_work(db_session, self._dispatcher):
+            # The analytics marking of the completion takes this lock anyway; take
+            # it before the session row lock, in the order activity recording
+            # uses, so the two cannot deadlock.
+            await self._segments.lock_timeline(db_session, account_id)
             stored = await self._focus_sessions.find_owned(
                 db_session, account_id=account_id, focus_session_id=focus_session_id
             )

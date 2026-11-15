@@ -22,6 +22,7 @@ LABEL_KEY_REVISION = "e1f2a3b4c5d6"
 OBSERVATION_KEY_REVISION = "f2a3b4c5d6e7"
 LABELING_KEY_REVISION = "a3b4c5d6e7f8"
 FOCUS_PAUSE_REVISION = "b4c5d6e7f8a9"
+ANALYTICS_REVISION = "c5d6e7f8a9b0"
 # Drift that already existed at c9d0e1f2a3b4; any other difference fails.
 ALLOWED_METADATA_DRIFT = [
     ("modify_type", "activity_records", "timezone_id"),
@@ -252,7 +253,7 @@ def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == [FOCUS_PAUSE_REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == [ANALYTICS_REVISION]
     # The assertions below describe the schema up to the batch receipts revision.
     command.downgrade(config, RECEIPT_REVISION)
     account_id = uuid4()
@@ -541,9 +542,11 @@ def test_identity_primary_key_migration_renames_columns_and_keeps_foreign_keys(
     command.downgrade(config, RECEIPT_REVISION)
     try:
         before = asyncio.run(identity_key_columns(integration_database_url))
+        # Later revisions add foreign keys of their own new tables.
+        command.upgrade(config, IDENTITY_KEY_REVISION)
+        after = asyncio.run(identity_key_columns(integration_database_url))
     finally:
         command.upgrade(config, "head")
-    after = asyncio.run(identity_key_columns(integration_database_url))
 
     assert before["account_pk"] == ["account_id"]
     assert before["device_pk"] == ["device_id"]
@@ -823,6 +826,83 @@ async def _no_pause_schema(database_url: str) -> dict[str, Any]:
         await engine.dispose()
 
 
+ANALYTICS_TABLES = {
+    "analytics_definitions",
+    "analytics_daily_markers",
+    "analytics_daily_stats",
+}
+
+
+async def analytics_schema(database_url: str) -> dict[str, Any]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            tables = await connection.run_sync(
+                lambda sync: set(inspect(sync).get_table_names())
+            )
+            sequence = await connection.scalar(
+                text(
+                    "SELECT data_type FROM information_schema.sequences"
+                    " WHERE sequence_name = 'analytics_daily_marker_version_seq'"
+                )
+            )
+            if "analytics_definitions" not in tables:
+                return {"tables": tables & ANALYTICS_TABLES, "sequence": sequence}
+            definition = (
+                await connection.execute(
+                    text("SELECT id, version FROM analytics_definitions")
+                )
+            ).all()
+            index = await connection.scalar(
+                text(
+                    "SELECT indexdef FROM pg_indexes"
+                    " WHERE indexname = 'analytics_daily_markers_claim_idx'"
+                )
+            )
+            fks = await connection.run_sync(
+                lambda sync: {
+                    table: [
+                        (fk["referred_table"], fk["options"].get("ondelete"))
+                        for fk in inspect(sync).get_foreign_keys(table)
+                    ]
+                    for table in ("analytics_daily_markers", "analytics_daily_stats")
+                }
+            )
+            return {
+                "tables": tables & ANALYTICS_TABLES,
+                "sequence": sequence,
+                "definition": [tuple(row) for row in definition],
+                "index": index,
+                "fks": fks,
+            }
+    finally:
+        await engine.dispose()
+
+
+def test_analytics_migration_creates_tables_and_definition_row(
+    integration_database_url: str,
+) -> None:
+    config = alembic_config(integration_database_url)
+    try:
+        command.downgrade(config, FOCUS_PAUSE_REVISION)
+        downgraded = asyncio.run(analytics_schema(integration_database_url))
+        command.upgrade(config, ANALYTICS_REVISION)
+        upgraded = asyncio.run(analytics_schema(integration_database_url))
+    finally:
+        command.upgrade(config, "head")
+
+    assert downgraded == {"tables": set(), "sequence": None}
+    assert upgraded["tables"] == ANALYTICS_TABLES
+    assert upgraded["sequence"] == "bigint"
+    assert upgraded["definition"] == [(1, 1)]
+    assert "(((kind)::text = 'definition'::text)), version" in upgraded["index"]
+    assert "WHERE (attempts < 6)" in upgraded["index"]
+    assert upgraded["fks"] == {
+        "analytics_daily_markers": [("accounts", "CASCADE")],
+        "analytics_daily_stats": [("accounts", "CASCADE")],
+    }
+
+
 async def delete_accounts_by_id(database_url: str, account_id: UUID) -> None:
     engine = create_async_engine(database_url)
     try:
@@ -843,6 +923,8 @@ def _drift_key(operation: tuple[Any, ...]) -> tuple[str, ...]:
 
 async def metadata_drift(database_url: str) -> list[tuple[str, ...]]:
     # Same mapping functions as migrations/env.py.
+    from mosemo.analytics import bootstrap as analytics_bootstrap
+    from mosemo.analytics.infrastructure import tables as analytics_tables
     from mosemo.identity import bootstrap as identity_bootstrap
     from mosemo.identity.infrastructure import tables as identity_tables
     from mosemo.labeling import bootstrap as labeling_bootstrap
@@ -857,6 +939,7 @@ async def metadata_drift(database_url: str) -> list[tuple[str, ...]]:
     labels_bootstrap.map_tables()
     observation_bootstrap.map_tables()
     labeling_bootstrap.map_tables()
+    analytics_bootstrap.map_tables()
     assert {
         identity_tables.accounts,
         observation_tables.activity_records,
@@ -866,6 +949,9 @@ async def metadata_drift(database_url: str) -> list[tuple[str, ...]]:
         identity_tables.native_auth_codes,
         identity_tables.devices,
         observation_tables.focus_sessions,
+        analytics_tables.analytics_definitions,
+        analytics_tables.analytics_daily_markers,
+        analytics_tables.analytics_daily_stats,
     } <= set(ORM_METADATA.tables.values())
 
     engine = create_async_engine(database_url)

@@ -8,6 +8,19 @@ from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.observation import bootstrap as observation_bootstrap
 from mosemo.platform.clock import utc_now
 from mosemo.platform.providers import get_event_dispatcher
+from mosemo.shared.application.events import EventDispatcher
+
+
+def register_analytics_handlers(dispatcher: EventDispatcher) -> None:
+    """Subscribe analytics with collaborators built for this process."""
+    analytics_bootstrap.register_handlers(
+        dispatcher,
+        timeline=observation_bootstrap.create_observation_timeline(),
+        accounts=identity_bootstrap.create_account_directory(),
+        focus_sessions=observation_bootstrap.create_focus_session_log(),
+        clock=utc_now,
+    )
+
 
 identity_bootstrap.map_tables()
 labels_bootstrap.map_tables()
@@ -15,7 +28,7 @@ observation_bootstrap.map_tables()
 labeling_bootstrap.map_tables()
 analytics_bootstrap.map_tables()
 labels_bootstrap.register_handlers(get_event_dispatcher())
-analytics_bootstrap.register_handlers(get_event_dispatcher())
+register_analytics_handlers(get_event_dispatcher())
 
 IDENTITY = identity_bootstrap.Identity(
     dispatcher=get_event_dispatcher(),

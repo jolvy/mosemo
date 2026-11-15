@@ -9,8 +9,10 @@ from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.labeling import bootstrap as labeling_bootstrap
 from mosemo.labels import bootstrap as labels_bootstrap
 from mosemo.observation import bootstrap as observation_bootstrap
+from mosemo.platform.clock import utc_now
 from mosemo.platform.providers import get_event_dispatcher
 from mosemo.platform.scheduling import BatchJob
+from mosemo.shared.application.events import EventDispatcher
 
 
 def ensure_unique_names(jobs: Sequence[BatchJob]) -> None:
@@ -18,6 +20,17 @@ def ensure_unique_names(jobs: Sequence[BatchJob]) -> None:
     duplicates = sorted({name for name in names if names.count(name) > 1})
     if duplicates:
         raise ValueError(f"Duplicate batch job names: {', '.join(duplicates)}")
+
+
+def register_analytics_handlers(dispatcher: EventDispatcher) -> None:
+    """Subscribe analytics with collaborators built for this process."""
+    analytics_bootstrap.register_handlers(
+        dispatcher,
+        timeline=observation_bootstrap.create_observation_timeline(),
+        accounts=identity_bootstrap.create_account_directory(),
+        focus_sessions=observation_bootstrap.create_focus_session_log(),
+        clock=utc_now,
+    )
 
 
 def build_jobs(
@@ -29,7 +42,7 @@ def build_jobs(
     observation_bootstrap.map_tables()
     labeling_bootstrap.map_tables()
     analytics_bootstrap.map_tables()
-    analytics_bootstrap.register_handlers(get_event_dispatcher())
+    register_analytics_handlers(get_event_dispatcher())
     jobs = [
         labeling_bootstrap.create_label_proposal_job(
             session_factory,
