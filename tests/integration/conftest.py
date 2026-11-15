@@ -1,28 +1,18 @@
 from collections.abc import AsyncIterator
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from alembic import command
-from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from testcontainers.community.kafka import KafkaContainer
-from testcontainers.community.postgres import PostgresContainer
 
 from mosemo.platform.messaging.config import BatchDeliveryConfig
-from tests.support.kafka import KAFKA_IMAGE, KafkaResources, KafkaTestAdmin
+from tests.support.containers import kafka_broker, migrated_database
+from tests.support.kafka import KafkaResources, KafkaTestAdmin
 
 
 @pytest.fixture(scope="session")
 def integration_kafka_broker():
-    script = Path(__file__).resolve().parents[2] / "scripts/init-kafka-topic.sh"
-    with (
-        KafkaContainer(KAFKA_IMAGE)
-        .with_kraft()
-        .with_env("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
-        .with_volume_mapping(str(script), "/init-kafka-topic.sh", mode="ro") as broker
-    ):
+    with kafka_broker() as broker:
         yield broker
 
 
@@ -48,16 +38,7 @@ async def integration_kafka(integration_kafka_broker) -> AsyncIterator[KafkaReso
 
 @pytest.fixture(scope="session")
 def integration_database_url():
-    with PostgresContainer("postgres:18", driver="asyncpg") as postgres:
-        database_url = postgres.get_connection_url()
-
-        config = Config("alembic.ini")
-        config.set_main_option(
-            "sqlalchemy.url",
-            database_url,
-        )
-        command.upgrade(config, "head")
-
+    with migrated_database() as database_url:
         yield database_url
 
 
