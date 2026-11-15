@@ -91,6 +91,18 @@ class RecomputeMarkerRepository:
             .execution_options(populate_existing=True)
         )
 
+    async def list_dates(
+        self, db_session: AsyncSession, account_id: UUID
+    ) -> list[date]:
+        """Every marked date of the account, in order."""
+        return list(
+            await db_session.scalars(
+                select(markers.c.local_date)
+                .where(markers.c.account_id == account_id)
+                .order_by(markers.c.local_date)
+            )
+        )
+
     async def upsert_source(
         self,
         db_session: AsyncSession,

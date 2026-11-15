@@ -29,12 +29,10 @@ from mosemo.observation.domain.activities import ActivityRecord as StoredActivit
 from mosemo.observation.domain.timeline import ActivityTimelineBusyError
 from mosemo.observation.infrastructure.activity_records import ActivityRecordRepository
 from mosemo.observation.infrastructure.tables import activity_records
-from mosemo.observation.infrastructure.timeline_segments import (
-    activity_timeline_lock_key,
-)
 from mosemo.observation.presentation.activities.mappers import ActivityRecordMapper
 from mosemo.observation.presentation.activities.schemas import ActivityRecord
 from mosemo.platform.clock import utc_now
+from mosemo.platform.database.persistence import account_lock_key
 from mosemo.shared.domain.timezones import Timezone
 from tests.support.clock import FakeClock
 from tests.support.identity import delete_accounts
@@ -395,7 +393,7 @@ async def test_account_lock_timeout_rolls_back_without_blocking_other_account(
         async with session_factory() as holder, holder.begin():
             await holder.execute(
                 text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": activity_timeline_lock_key(locked_account.id)},
+                {"key": account_lock_key(locked_account.id)},
             )
             assert (await ingest(other_account.id, other_record)).status == "accepted"
             with pytest.raises(ActivityTimelineBusyError):

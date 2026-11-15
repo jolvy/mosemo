@@ -19,11 +19,9 @@ from mosemo.identity.domain.devices import Device
 from mosemo.labels.domain.labels import Label
 from mosemo.observation.domain.focus_sessions import FocusSession
 from mosemo.observation.infrastructure.tables import focus_sessions
-from mosemo.observation.infrastructure.timeline_segments import (
-    activity_timeline_lock_key,
-)
 from mosemo.platform.clock import utc_now
 from mosemo.platform.database.engine import get_session
+from mosemo.platform.database.persistence import account_lock_key
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.support.batches import batch_client
 from tests.support.identity import (
@@ -86,7 +84,7 @@ async def test_completion_is_busy_while_another_connection_holds_the_lock(
             async with factory() as holder, holder.begin():
                 await holder.execute(
                     text("SELECT pg_advisory_xact_lock(:key)"),
-                    {"key": activity_timeline_lock_key(account.id)},
+                    {"key": account_lock_key(account.id)},
                 )
                 waiting = asyncio.create_task(
                     client.put(url, headers=headers, json=body)

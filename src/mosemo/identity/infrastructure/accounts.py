@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.identity.domain.accounts import Account
 from mosemo.identity.infrastructure.tables import accounts
+from mosemo.platform.database.persistence import lock_account
 
 
 class AccountRepository:
@@ -38,4 +39,9 @@ class AccountRepository:
         return existing, False
 
     async def find(self, db_session: AsyncSession, account_id: UUID) -> Account | None:
-        return await db_session.get(Account, account_id)
+        return await db_session.get(Account, account_id, populate_existing=True)
+
+    async def lock_account(self, db_session: AsyncSession, account_id: UUID) -> None:
+        """Hold the account advisory lock (the one every source write of the
+        account takes) until the transaction ends."""
+        await lock_account(db_session, account_id)

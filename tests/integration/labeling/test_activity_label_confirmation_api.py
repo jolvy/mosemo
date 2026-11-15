@@ -46,11 +46,9 @@ from mosemo.labels.domain.labels import Label, default_labels
 from mosemo.labels.infrastructure.labels import LabelRepository
 from mosemo.labels.infrastructure.tables import labels as label_table
 from mosemo.observation.bootstrap import create_observation_timeline
-from mosemo.observation.infrastructure.timeline_segments import (
-    activity_timeline_lock_key,
-)
 from mosemo.platform.clock import utc_now
 from mosemo.platform.database.engine import get_session
+from mosemo.platform.database.persistence import account_lock_key
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
@@ -1369,7 +1367,7 @@ async def test_batch_lock_contention_returns_retry_after(
         async with session_factory() as holder, holder.begin():
             await holder.execute(
                 text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": activity_timeline_lock_key(account_id)},
+                {"key": account_lock_key(account_id)},
             )
             duplicate_item = {
                 "segmentId": str(uuid4()),

@@ -1,5 +1,10 @@
-from sqlalchemy import MetaData
+from hashlib import blake2b
+from uuid import UUID
+
+from sqlalchemy import MetaData, text
 from sqlalchemy.engine import Dialect
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import registry
 from sqlalchemy.types import String, TypeDecorator, TypeEngine
 
@@ -46,3 +51,37 @@ class TimezoneStorage(TypeDecorator[Timezone]):
         self, value: str | None, dialect: Dialect
     ) -> Timezone | None:
         return None if value is None else Timezone(value)
+
+
+def account_lock_key(account_id: UUID) -> int:
+    """The advisory lock key of one account's source writes (ADR 0016).
+
+    The key bytes must never change: every writer of the account serializes on
+    this lock, across deploys too.
+    """
+    digest = blake2b(
+        f"activity_timeline:{account_id}".encode(),
+        digest_size=8,
+    ).digest()
+    return int.from_bytes(digest, signed=True)
+
+
+class AccountLockTimeoutError(Exception):
+    """The account advisory lock was not acquired within the lock timeout."""
+
+
+async def lock_account(db_session: AsyncSession, account_id: UUID) -> None:
+    """Hold the account advisory lock until the transaction ends (re-entrant).
+
+    Raises `AccountLockTimeoutError` when it is not acquired within 3 seconds.
+    """
+    try:
+        await db_session.execute(text("SET LOCAL lock_timeout = '3s'"))
+        await db_session.execute(
+            text("SELECT pg_advisory_xact_lock(:key)"),
+            {"key": account_lock_key(account_id)},
+        )
+    except DBAPIError as exc:
+        if getattr(exc.orig, "sqlstate", None) == "55P03":
+            raise AccountLockTimeoutError from exc
+        raise
