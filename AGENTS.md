@@ -57,6 +57,7 @@ git diff --cached --check
 - Ruff 오류는 `uv run --locked ruff check --fix <path>`로 제한된 범위에서 수정한다.
 - 포맷이 필요하면 `uv run --locked ruff format <path>`를 실행한다.
 - `requires_db`·`requires_kafka` 마커가 붙은 테스트만 Docker 컨테이너를 실행하므로 Docker가 동작 중이어야 한다. 마커는 컨테이너 fixture 사용 여부에 따라 자동으로 붙는다. 새 컨테이너 fixture를 추가하면 `tests/conftest.py`의 마커 매핑도 함께 추가한다. Docker 없이 실행하려면 `-m "not requires_db and not requires_kafka"`를 쓴다.
+- `poe test`에 `-m`을 붙이면 장애 주입·E2E 기본 제외 식이 덮이므로 전체 식을 쓴다([tests/AGENTS.md](tests/AGENTS.md) 「기본 실행에서 빠지는 테스트」).
 - 실행하지 못한 검증이나 실패한 검증은 완료된 것으로 표현하지 않고 이유를 보고한다.
 
 ## GitHub 사용

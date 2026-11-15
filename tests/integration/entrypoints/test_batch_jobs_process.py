@@ -150,7 +150,10 @@ def test_run_lists_available_jobs_for_an_unknown_name():
     )
 
     assert result.returncode == 2
-    assert result.stderr == "Unknown batch job; available jobs: label-proposals\n"
+    assert result.stderr == (
+        "Unknown batch job; available jobs: label-proposals,"
+        " analytics-daily-stats, analytics-definition-mark\n"
+    )
     assert_no_leak(result)
 
 

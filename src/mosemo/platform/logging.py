@@ -29,6 +29,22 @@ OPTIONAL_FIELDS: Final = (
     "snapshot_build_ms",
     "compute_ms",
     "segment_count",
+    # Daily stats batch and definition reprocessing run counters.
+    "saved",
+    "superseded",
+    "stale",
+    "failed",
+    "failed_compute",
+    "failed_lock_timeout",
+    "failed_statement_timeout",
+    "failed_serialization",
+    "quarantined_new",
+    "definition_mismatch",
+    "aborted",
+    "max_source_read_ms",
+    "max_compute_ms",
+    "accounts",
+    "markers",
 )
 REDACTIONS: Final = (
     (

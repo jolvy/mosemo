@@ -38,6 +38,11 @@ BROAD_EXCEPT_ALLOWED = {
     ): 1,
     # 후보 하나의 제안 생성 실패는 시도 실패로 기록하고 스캐너를 멈추지 않음
     ("src/mosemo/labeling/application/proposals.py", "ProposeLabel.execute"): 1,
+    # 한 날짜의 계산 예외는 실패 분류로 기록하고 다음 날짜로 넘어감(ADR 0016 「실패·재처리」)
+    (
+        "src/mosemo/analytics/application/daily_stats_batch.py",
+        "RefreshDailyStats._refresh",
+    ): 1,
     # job 하나의 실패가 스케줄러를 멈추지 않고, 예외 메시지를 로그에 남기지 않음
     ("src/mosemo/platform/scheduling.py", "execute_job"): 1,
 }

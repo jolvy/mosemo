@@ -29,7 +29,7 @@ async def stubborn() -> None:
             continue
 
 
-def build_jobs(session_factory, *, label_model) -> list[BatchJob]:
+def build_jobs(session_factory, *, label_model, analytics) -> list[BatchJob]:
     return [
         BatchJob("noop", noop),
         BatchJob("stubborn", stubborn, every(timedelta(minutes=5), run_on_start=True)),

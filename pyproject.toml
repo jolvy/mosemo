@@ -58,6 +58,7 @@ addopts = ["--import-mode=importlib", "--strict-markers"]
 markers = [
     "requires_db: needs a real PostgreSQL",
     "requires_kafka: needs a real Kafka",
+    "fault_injection: process kill and DB restart fault injection; excluded from the default local run, runs in a separate CI job",
 ]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
@@ -801,12 +802,12 @@ envfile = [".env", ".env.local"]
 help = "Run the separate activity batch Consumer"
 
 [tool.poe.tasks.test]
-cmd = "pytest -v"
+cmd = "pytest -v -m \"not fault_injection and not e2e\""
 envfile = { expected = ".env.example", optional = [".env", ".env.test"] }
 
 [tool.poe.tasks.coverage]
 sequence = [
-    { cmd = "pytest -v --cov" },
+    { cmd = "pytest -v --cov -m \"not fault_injection and not e2e\"" },
     { cmd = "python scripts/check_coverage.py" },
 ]
 envfile = { expected = ".env.example", optional = [".env", ".env.test"] }
