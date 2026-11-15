@@ -26,7 +26,7 @@ SITE = UsageTarget(kind=UsageTargetKind.SITE, key="xn--vv4b11d.xn--3e0b707e")
 def daily_stats() -> DailyStats:
     return DailyStats(
         usage=UsageTime(
-            apps=(AppUsage(app="com.example.editor", us=9),),
+            apps=(AppUsage(app="com.example.editor", name="Editor", us=9),),
             targets=(
                 TargetUsage(target=EDITOR, us=6),
                 TargetUsage(target=SITE, us=3),

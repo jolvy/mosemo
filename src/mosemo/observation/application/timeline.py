@@ -168,6 +168,20 @@ class ObservationTimeline:
         )
         return [_observed(segment, now=now) for segment in segments]
 
+    async def find_following(
+        self,
+        db_session: AsyncSession,
+        account_id: UUID,
+        *,
+        segment: ObservedSegment,
+        now: datetime,
+    ) -> ObservedSegment | None:
+        """The segment right after `segment` by `started_at` then ID, if any."""
+        following = await self._segments.find_following_segment(
+            db_session, account_id, started_at=segment.started_at, segment_id=segment.id
+        )
+        return None if following is None else _observed(following, now=now)
+
     async def find_observed_through(
         self, db_session: AsyncSession, account_id: UUID
     ) -> datetime | None:

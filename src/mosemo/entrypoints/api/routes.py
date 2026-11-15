@@ -1,7 +1,13 @@
 from fastapi import APIRouter
 
 from mosemo.entrypoints.api.activity_batches import get_batch_publisher
-from mosemo.entrypoints.api.contexts import IDENTITY, LABELING, LABELS, OBSERVATION
+from mosemo.entrypoints.api.contexts import (
+    ANALYTICS,
+    IDENTITY,
+    LABELING,
+    LABELS,
+    OBSERVATION,
+)
 from mosemo.shared.errors import CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 
@@ -26,4 +32,7 @@ v1_api_router.include_router(IDENTITY.devices_router(), tags=["devices"])
 
 v1_api_router.include_router(
     OBSERVATION.focus_sessions_router(), tags=["focus-sessions"]
+)
+v1_api_router.include_router(
+    ANALYTICS.router(), prefix="/analytics", tags=["analytics"]
 )

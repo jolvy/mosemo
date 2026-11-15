@@ -79,9 +79,9 @@ def stats_row(stored: StoredDailyStats) -> Json:
         "observed_us": usage.observed_us,
         "unknown_app_us": usage.unknown_app_us,
         "opaque_us": usage.opaque_us,
-        # An app shows its bundleId as its name (`UsageTarget.display_name`).
+        # `name` is the latest observed app name on the date (FR-1).
         "app_usage": [
-            {"bundleId": row.app, "name": row.app, "us": row.us} for row in usage.apps
+            {"bundleId": row.app, "name": row.name, "us": row.us} for row in usage.apps
         ],
         "target_usage": [
             {**_target(row.target), "us": row.us} for row in usage.targets
@@ -138,7 +138,7 @@ def stored_stats(row: Mapping[str, Any]) -> StoredDailyStats:
     stats = DailyStats(
         usage=UsageTime(
             apps=tuple(
-                AppUsage(app=item["bundleId"], us=item["us"])
+                AppUsage(app=item["bundleId"], name=item["name"], us=item["us"])
                 for item in row["app_usage"]
             ),
             targets=tuple(

@@ -2,7 +2,7 @@
 
 import ipaddress
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import ClassVar
@@ -157,6 +157,16 @@ class UsageTargetResolver:
             return None
         return value
 
+    def app_name(self, segment: SourceSegment) -> str | None:
+        """The captured app display name of a detailed activity with a bundleId."""
+        if self.app(segment) is None:
+            return None
+        name = section(section(segment.context, "app"), "name")
+        value = name.get("value")
+        if name.get("status") != "captured" or not isinstance(value, str):
+            return None
+        return value
+
     def target(self, segment: SourceSegment) -> UsageTarget | None:
         app = self.app(segment)
         if app is None:
@@ -186,6 +196,18 @@ class UsageTargetResolver:
         if url.get("status") != "captured" or not isinstance(value, str):
             return None
         return web_host(value)
+
+
+def latest_app_names(
+    segments: Iterable[SourceSegment], resolver: UsageTargetResolver
+) -> dict[str, str]:
+    """FR-1: each bundleId's name in the last of `segments` (start order) naming it."""
+    names: dict[str, str] = {}
+    for segment in segments:
+        app, name = resolver.app(segment), resolver.app_name(segment)
+        if app is not None and name is not None:
+            names[app] = name
+    return names
 
 
 def is_browser(segment: SourceSegment) -> bool:

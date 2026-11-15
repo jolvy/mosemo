@@ -10,10 +10,16 @@ responsible only for selecting the approved fields and serializing them.
 Every event includes `timestamp`, `service`, `environment`, `logger`, `level`,
 and `event`. The optional fields are `error_code`, `duration_ms`, `request_id`,
 `operation`, `outcome`, `attempt`, `retryable`, `status_code`, `method`, `route`,
-`request_url`, `work_seconds_gap`, and `dropped_zero_pauses`. The first
+`request_url`, `work_seconds_gap`, `dropped_zero_pauses`, `source`,
+`source_read_ms`, `snapshot_build_ms`, `compute_ms`, and `segment_count`. The first
 completion of a focus session logs `work_seconds_gap` (whole seconds of the
 session minus its pauses, minus the reported work; negative when the work is
-larger) and `dropped_zero_pauses` (zero-length pauses dropped from the request). Do not put user activity URLs, window or activity
+larger) and `dropped_zero_pauses` (zero-length pauses dropped from the request).
+Each analytics read (daily stats or focus session analysis) logs one line with
+`source` (`stored`, `computed` or `future`), `source_read_ms` (source reads),
+`snapshot_build_ms` (building the source snapshot), `compute_ms` (the
+calculation) and `segment_count` (segments the calculation read); a stored or
+future result logs 0 for the three times and the count. Do not put user activity URLs, window or activity
 titles, account or device identifiers, tokens, cookies, authorization data, or
 request and response bodies in log messages or fields. Uvicorn access logging is
 disabled because its raw request target can contain authentication values in URL

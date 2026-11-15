@@ -225,6 +225,31 @@ class TimelineSegmentRepository:
         )
         return list(result.all())
 
+    async def find_following_segment(
+        self,
+        db_session: AsyncSession,
+        account_id: UUID,
+        *,
+        started_at: datetime,
+        segment_id: UUID,
+    ) -> ActivityTimelineSegment | None:
+        """The first segment after `(started_at, segment_id)` in start order."""
+        return await db_session.scalar(
+            select(ActivityTimelineSegment)
+            .where(
+                segments.c.account_id == account_id,
+                or_(
+                    segments.c.started_at > started_at,
+                    and_(
+                        segments.c.started_at == started_at,
+                        segments.c.id > segment_id,
+                    ),
+                ),
+            )
+            .order_by(segments.c.started_at, segments.c.id)
+            .limit(1)
+        )
+
     async def find_last_observed_at(
         self, db_session: AsyncSession, account_id: UUID
     ) -> datetime | None:

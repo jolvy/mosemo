@@ -50,3 +50,10 @@ LABELING = labeling_bootstrap.Labeling(
     dispatcher=get_event_dispatcher(),
     clock=utc_now,
 )
+ANALYTICS = analytics_bootstrap.Analytics(
+    accounts=IDENTITY.account_directory,
+    timeline=OBSERVATION.observation_timeline,
+    focus_sessions=observation_bootstrap.create_focus_session_log(),
+    confirmations=labeling_bootstrap.create_label_confirmation_directory(),
+    clock=utc_now,
+)

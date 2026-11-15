@@ -224,6 +224,8 @@ def test_success_responses_document_content_and_important_headers(
             "Pragma",
         },
         "authExchangeToken": {"Cache-Control", "Pragma"},
+        "analyticsDailyStatsGet": {"Cache-Control"},
+        "analyticsFocusSessionGet": {"Cache-Control"},
     }
     for operation_id, header_names in expected_headers.items():
         success_responses = {

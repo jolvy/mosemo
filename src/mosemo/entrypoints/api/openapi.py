@@ -4,6 +4,8 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
+from mosemo.analytics import bootstrap as analytics_bootstrap
+from mosemo.analytics.public import AnalyticsErrorCode
 from mosemo.identity import bootstrap as identity_bootstrap
 from mosemo.identity.public import IdentityErrorCode
 from mosemo.labeling import bootstrap as labeling_bootstrap
@@ -23,6 +25,7 @@ REGISTERED_ERROR_DOCS: Mapping[type[ApiErrorCode], Mapping[ApiErrorCode, ErrorDo
     LabelErrorCode: labels_bootstrap.ERROR_DOCS,
     ObservationErrorCode: observation_bootstrap.ERROR_DOCS,
     LabelingErrorCode: labeling_bootstrap.ERROR_DOCS,
+    AnalyticsErrorCode: analytics_bootstrap.ERROR_DOCS,
 }
 
 _ERROR_RESPONSE_REF = "#/components/schemas/ErrorResponse"
