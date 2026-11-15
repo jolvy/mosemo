@@ -13,18 +13,25 @@ from mosemo.analytics.domain.usage_targets import (
     UsageTarget,
     UsageTargetKind,
     UsageTargetResolver,
+    site_key,
     web_host,
 )
+from tests.support import analytics_product, analytics_reference
 from tests.support.analytics_product import segment_of
 from tests.support.analytics_strategies import PSL
 from tests.support.analytics_timelines import (
+    DAY,
     OPAQUE,
+    SESSION,
     activity,
     app,
     browser,
+    focus,
     gap,
+    timeline,
     unknown_app,
 )
+from tests.support.analytics_timelines import PSL as TIMELINE_PSL
 
 # 정의 version마다 묶은 PSL 스냅샷의 sha256. PSL 파일을 바꾸면 사이트 키가 바뀌므로
 # 새 version과 그 sha256을 여기에 더하고 `CURRENT_DEFINITION`을 올린다.
@@ -162,7 +169,35 @@ def test_display_name_shows_sites_in_unicode() -> None:
     assert bundle("com.google.Chrome").display_name() == "com.google.Chrome"
 
 
-def test_targets_compare_by_kind_and_key() -> None:
+def test_targets_compare_by_key_only() -> None:
     assert site("a.com") == site("a.com")
-    assert site("a.com") != bundle("a.com")
+    assert site("a.com") == bundle("a.com")
+    assert hash(site("a.com")) == hash(bundle("a.com"))
+    assert site("a.com") != site("b.com")
     assert UNKNOWN_APP.key == "앱 미확인"
+
+
+def test_app_and_site_with_the_same_key_are_one_target() -> None:
+    data = timeline(
+        activity("s1", 0, 10, app("notion.id")),
+        activity("s2", 10, 20, browser("https://notion.id/x")),
+        activity("s3", 20, 30, app("notion.id")),
+        sessions=[focus(start=0, end=30)],
+    )
+
+    assert analytics_product.daily(data, DAY, TIMELINE_PSL) == (
+        analytics_reference.daily(data, DAY, TIMELINE_PSL)
+    )
+    assert analytics_product.session(data, SESSION, TIMELINE_PSL) == (
+        analytics_reference.session(data, SESSION, TIMELINE_PSL)
+    )
+
+
+def test_long_hosts_resolve_without_scanning_every_tail() -> None:
+    labels = 50_000
+    many_labels = ".".join(["a"] * labels) + ".b.co.kr"
+
+    assert site_key("github.com" + "." * 20_000) == "github.com"
+    assert PublicSuffixRules(bootstrap.public_suffix_rules()).site(many_labels) == (
+        "b.co.kr"
+    )
