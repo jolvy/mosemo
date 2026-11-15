@@ -256,15 +256,17 @@ def test_openwiki_paths_workflow_runs_base_check_on_pull_request_target() -> Non
     }
 
 
-def test_quality_job_no_longer_runs_openwiki_check() -> None:
-    steps = load_workflow(CI)["jobs"]["quality"]["steps"]
+def test_ci_jobs_no_longer_run_openwiki_check() -> None:
+    jobs = load_workflow(CI)["jobs"]
 
-    assert "Protect generated OpenWiki pages" not in [
-        step.get("name") for step in steps
-    ]
-    checkout = next(
-        step
-        for step in steps
-        if str(step.get("uses", "")).startswith("actions/checkout@")
-    )
-    assert "fetch-depth" not in checkout.get("with", {})
+    for job in jobs.values():
+        assert "Protect generated OpenWiki pages" not in [
+            step.get("name") for step in job["steps"]
+        ]
+    for job_id in ("static", "tests"):
+        checkout = next(
+            step
+            for step in jobs[job_id]["steps"]
+            if str(step.get("uses", "")).startswith("actions/checkout@")
+        )
+        assert "fetch-depth" not in checkout.get("with", {})
