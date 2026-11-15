@@ -13,6 +13,7 @@ from mosemo.observation.application.batches import (
     ProcessActivityBatch,
     ProcessLegacyActivityBatch,
 )
+from mosemo.observation.application.focus_session_log import FocusSessionLog
 from mosemo.observation.application.focus_sessions import (
     CompleteFocusSession,
     ListCompletedFocusSessions,
@@ -54,6 +55,7 @@ __all__ = [
     "ActivityRegistrationRequested",
     "Observation",
     "ProcessActivityBatch",
+    "create_focus_session_log",
     "create_observation_timeline",
     "create_process_activity_batch",
     "map_tables",
@@ -62,6 +64,10 @@ __all__ = [
 
 def create_observation_timeline() -> ObservationTimeline:
     return ObservationTimeline(segments=TimelineSegmentRepository())
+
+
+def create_focus_session_log() -> FocusSessionLog:
+    return FocusSessionLog(focus_sessions=FocusSessionRepository())
 
 
 def create_process_activity_batch(

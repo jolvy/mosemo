@@ -75,6 +75,7 @@ def make_service(monkeypatch: pytest.MonkeyPatch):
         segments = create_autospec(TimelineSegmentRepository, instance=True)
         segments.find_replay_start.return_value = datetime(2026, 9, 14, tzinfo=UTC)
         segments.list_account_segments.return_value = []
+        segments.replace_account_segments.return_value = None
         repository.list_account_records.return_value = []
         device_repository = create_autospec(DeviceDirectory, instance=True)
         use_case = RecordActivity(

@@ -39,7 +39,11 @@ from mosemo.observation.infrastructure.focus_sessions import FocusSessionReposit
 from mosemo.observation.infrastructure.timeline_segments import (
     TimelineSegmentRepository,
 )
-from mosemo.platform.database.transactions import read_snapshot, unit_of_work
+from mosemo.platform.database.transactions import (
+    read_snapshot,
+    record_event,
+    unit_of_work,
+)
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.application.use_case import UseCase
@@ -264,7 +268,7 @@ class ActivityBatchProcessor:
         existing = await self._segments.list_segment_range(
             db_session, scope.account_id, start=start
         )
-        await self._segments.replace_account_segments(
+        changed = await self._segments.replace_account_segments(
             db_session,
             account_id=scope.account_id,
             projected=projection.finish(scope.now),
@@ -272,6 +276,8 @@ class ActivityBatchProcessor:
             # Keep replacement from converging before every legacy tie is rebuilt.
             event_observed_at=latest.observed_at,
         )
+        if changed is not None:
+            record_event(db_session, changed)
 
     async def _project(
         self,
@@ -304,13 +310,15 @@ class ActivityBatchProcessor:
         projection = TimelineProjection(segment_seed(last_segment))
         for record in ordered:
             projection.feed(record)
-        await self._segments.replace_account_segments(
+        changed = await self._segments.replace_account_segments(
             db_session,
             account_id=scope.account_id,
             projected=projection.finish(scope.now),
             existing=[last_segment],
             event_observed_at=ordered[-1].observed_at,
         )
+        if changed is not None:
+            record_event(db_session, changed)
 
     async def _replay(
         self,
@@ -354,13 +362,15 @@ class ActivityBatchProcessor:
         projected = (
             projection.segments[:-1] if convergence else projection.finish(scope.now)
         )
-        await self._segments.replace_account_segments(
+        changed = await self._segments.replace_account_segments(
             db_session,
             account_id=scope.account_id,
             projected=projected,
             existing=existing,
             event_observed_at=observed_at,
         )
+        if changed is not None:
+            record_event(db_session, changed)
 
     async def _converged_segment(
         self,

@@ -43,3 +43,13 @@ class AccountDirectory:
         if timezone is None:
             raise AccountNotFoundError
         return timezone
+
+    async def read_timezone_for_share(
+        self, db_session: AsyncSession, account_id: UUID
+    ) -> Timezone:
+        """The account timezone, holding a FOR SHARE row lock until the caller's
+        transaction ends so the timezone cannot change under it."""
+        timezone = await self._accounts.find_timezone_for_share(db_session, account_id)
+        if timezone is None:
+            raise AccountNotFoundError
+        return timezone

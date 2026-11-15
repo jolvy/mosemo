@@ -23,7 +23,11 @@ from mosemo.observation.infrastructure.focus_sessions import FocusSessionReposit
 from mosemo.observation.infrastructure.timeline_segments import (
     TimelineSegmentRepository,
 )
-from mosemo.platform.database.transactions import read_snapshot, unit_of_work
+from mosemo.platform.database.transactions import (
+    read_snapshot,
+    record_event,
+    unit_of_work,
+)
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.application.use_case import UseCase
@@ -95,7 +99,7 @@ class RecordActivity(UseCase):
             await self._devices.list_device_ids(db_session, account_id),
             from_observed_at=replay_start,
         )
-        await self._segments.replace_account_segments(
+        changed = await self._segments.replace_account_segments(
             db_session,
             account_id=account_id,
             projected=project_events(
@@ -112,6 +116,8 @@ class RecordActivity(UseCase):
             existing=existing_segments,
             event_observed_at=stored.observed_at,
         )
+        if changed is not None:
+            record_event(db_session, changed)
 
 
 class GetObservationTimeline(UseCase):

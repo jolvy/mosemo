@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -19,11 +20,12 @@ from mosemo.labeling.domain.confirmations import (
     ActivityLabelSegmentNotLabelableError,
     ActivityLabelUnavailableError,
 )
+from mosemo.labeling.domain.events import LabelConfirmed
 from mosemo.labeling.infrastructure.confirmations import ConfirmationRepository
 from mosemo.labeling.infrastructure.proposals import ProposalRepository
 from mosemo.labels.public import LabelCatalog
 from mosemo.observation.public import ObservationTimeline, ObservedSegment
-from mosemo.platform.database.transactions import unit_of_work
+from mosemo.platform.database.transactions import record_event, unit_of_work
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.application.use_case import UseCase
@@ -61,6 +63,45 @@ class _ConfirmationTarget:
     segment: ObservedSegment
     version: str
     label_id: UUID | None
+
+
+@dataclass(frozen=True, slots=True)
+class LabelConfirmationView:
+    """The choice stored for a segment version; `label_id` `None` is unclassified."""
+
+    first_event_id: UUID
+    segment_version: str
+    label_id: UUID | None
+
+
+class LabelConfirmationDirectory:
+    """Confirmation reads for other contexts.
+
+    Runs inside the caller's transaction and never opens one itself.
+    """
+
+    def __init__(self, *, confirmations: ConfirmationRepository) -> None:
+        self._confirmations = confirmations
+
+    async def find_by_first_events(
+        self,
+        db_session: AsyncSession,
+        account_id: UUID,
+        *,
+        first_event_ids: Collection[UUID],
+    ) -> list[LabelConfirmationView]:
+        """The account's confirmations of these segments; missing ones are left out."""
+        confirmations = await self._confirmations.list_by_first_events(
+            db_session, account_id=account_id, first_event_ids=first_event_ids
+        )
+        return [
+            LabelConfirmationView(
+                first_event_id=confirmation.first_event_id,
+                segment_version=confirmation.segment_version,
+                label_id=confirmation.label_id,
+            )
+            for confirmation in confirmations
+        ]
 
 
 class SegmentConfirmations:
@@ -104,12 +145,15 @@ class SegmentConfirmations:
                 updated_at=now,
             )
             self._confirmations.add(db_session, confirmation)
+            changed = True
         else:
-            confirmation.apply_selection(
+            changed = confirmation.apply_selection(
                 segment_version=target.version,
                 label_id=target.label_id,
                 now=now,
             )
+        if changed:
+            record_event(db_session, _label_confirmed(account_id, segment))
         await db_session.flush()
         proposal = await self._proposals.find(
             db_session,
@@ -123,6 +167,16 @@ class SegmentConfirmations:
             confirmation=confirmation,
             proposal=proposal_state(proposal, now=now),
         )
+
+
+def _label_confirmed(account_id: UUID, segment: ObservedSegment) -> LabelConfirmed:
+    ended_at = segment.ended_at or segment.last_observed_at
+    assert ended_at is not None
+    return LabelConfirmed(
+        account_id=account_id,
+        segment_started_at=segment.started_at,
+        segment_ended_at=ended_at,
+    )
 
 
 class ConfirmSegmentLabel(UseCase):

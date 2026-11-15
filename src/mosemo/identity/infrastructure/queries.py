@@ -20,6 +20,15 @@ class AccountQuery:
             select(accounts.c.timezone).where(accounts.c.id == account_id)
         )
 
+    async def find_timezone_for_share(
+        self, db_session: AsyncSession, account_id: UUID
+    ) -> Timezone | None:
+        return await db_session.scalar(
+            select(accounts.c.timezone)
+            .where(accounts.c.id == account_id)
+            .with_for_update(read=True)
+        )
+
 
 class DeviceQuery:
     async def find_owned_id(
