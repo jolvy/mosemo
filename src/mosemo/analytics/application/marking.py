@@ -7,8 +7,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.analytics.domain.markers import MarkScope
+from mosemo.analytics.infrastructure.daily_stats import DailyStatsRepository
 from mosemo.analytics.infrastructure.markers import RecomputeMarkerRepository
-from mosemo.identity.public import AccountDirectory
+from mosemo.identity.public import AccountDirectory, AccountTimezoneChanged
 from mosemo.labeling.public import LabelConfirmed
 from mosemo.observation.public import (
     ActivityTimelineKind,
@@ -136,5 +137,44 @@ class DailyStatsMarking:
                 account_id=account_id,
                 local_date=local_date,
                 eligible_at=MarkScope.eligible_at(local_date, timezone),
+                now=now,
+            )
+
+
+class TimezoneChangeMarking:
+    """The BEFORE_COMMIT handler that marks past dates again when the account
+    timezone changes (ADR 0016 「변경 표시」·「표시와 배치」 시간대 변경)."""
+
+    def __init__(
+        self,
+        *,
+        markers: RecomputeMarkerRepository,
+        stored_stats: DailyStatsRepository,
+        clock: Clock,
+    ) -> None:
+        self._markers = markers
+        self._stored_stats = stored_stats
+        self._clock = clock
+
+    async def on_account_timezone_changed(
+        self, event: AccountTimezoneChanged, db_session: AsyncSession
+    ) -> None:
+        """The stored and marked dates of the account and their neighbours,
+        marked with the new timezone in date order.
+
+        The change already holds the account lock (re-entrant) and wrote the
+        UPDATE in this transaction, so the dates read here include every mark a
+        source write committed before it, and later writes see the new timezone.
+        """
+        account_id = event.account_id
+        known = set(await self._stored_stats.list_dates(db_session, account_id))
+        known |= set(await self._markers.list_dates(db_session, account_id))
+        now = self._clock()
+        for local_date in sorted(MarkScope.dates_for_timezone_change(known)):
+            await self._markers.upsert_source(
+                db_session,
+                account_id=account_id,
+                local_date=local_date,
+                eligible_at=MarkScope.eligible_at(local_date, event.current),
                 now=now,
             )

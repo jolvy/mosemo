@@ -4,10 +4,14 @@ from uuid import uuid4
 
 import pytest
 
-from mosemo.analytics.application.marking import DailyStatsMarking
+from mosemo.analytics.application.marking import (
+    DailyStatsMarking,
+    TimezoneChangeMarking,
+)
 from mosemo.analytics.domain.markers import MarkScope
+from mosemo.analytics.infrastructure.daily_stats import DailyStatsRepository
 from mosemo.analytics.infrastructure.markers import RecomputeMarkerRepository
-from mosemo.identity.public import AccountDirectory
+from mosemo.identity.public import AccountDirectory, AccountTimezoneChanged
 from mosemo.labeling.public import LabelConfirmed
 from mosemo.observation.public import (
     ActivityTimelineKind,
@@ -219,3 +223,32 @@ async def test_session_completion_marks_only_the_start_date() -> None:
         "upsert_source",
     ]
     assert fakes.marked_dates() == [date(2026, 11, 1)]
+
+
+@pytest.mark.asyncio
+async def test_timezone_change_marks_stored_and_marked_dates_and_neighbours() -> None:
+    markers = create_autospec(RecomputeMarkerRepository, instance=True)
+    markers.list_dates = AsyncMock(return_value=[date(2026, 11, 5)])
+    markers.upsert_source = AsyncMock()
+    stored_stats = create_autospec(DailyStatsRepository, instance=True)
+    stored_stats.list_dates = AsyncMock(return_value=[date(2026, 11, 1)])
+    marking = TimezoneChangeMarking(
+        markers=markers, stored_stats=stored_stats, clock=FakeClock(NOW)
+    )
+
+    await marking.on_account_timezone_changed(
+        AccountTimezoneChanged(
+            account_id=ACCOUNT, previous=SEOUL, current=Timezone.AMERICA_NEW_YORK
+        ),
+        sentinel.session,
+    )
+
+    expected = [date(2026, 10, 31), *(date(2026, 11, d) for d in (1, 2, 4, 5, 6))]
+    calls = markers.upsert_source.await_args_list
+    assert [call.kwargs["local_date"] for call in calls] == expected
+    assert [call.kwargs["eligible_at"] for call in calls] == [
+        MarkScope.eligible_at(day, Timezone.AMERICA_NEW_YORK) for day in expected
+    ]
+    assert {call.kwargs["now"] for call in calls} == {NOW}
+    stored_stats.list_dates.assert_awaited_once_with(sentinel.session, ACCOUNT)
+    markers.list_dates.assert_awaited_once_with(sentinel.session, ACCOUNT)

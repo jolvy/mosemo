@@ -20,6 +20,7 @@ from mosemo.identity.bootstrap import (
 )
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.identity.domain.devices import Device
+from mosemo.identity.public import AccountTimezoneChanged
 from mosemo.labeling.application.confirmations import LabelSelection
 from mosemo.labeling.bootstrap import Labeling
 from mosemo.labeling.public import LabelConfirmed
@@ -148,13 +149,16 @@ def assert_fresh_source_marks(markers: dict[date, dict]) -> None:
 
 
 @pytest.mark.parametrize("root", sorted(ROOTS))
-def test_each_root_registration_subscribes_the_three_source_events(root) -> None:
+def test_each_root_registration_subscribes_the_source_and_timezone_events(
+    root,
+) -> None:
     dispatcher = dispatcher_of(root)
 
     assert {
         TimelineChanged,
         LabelConfirmed,
         FocusSessionCompleted,
+        AccountTimezoneChanged,
     } <= dispatcher._handlers.keys()
 
 

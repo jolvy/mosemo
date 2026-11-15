@@ -221,6 +221,18 @@ class DailyStatsRepository:
         )
         return None if row is None else stored_stats(dict(row))
 
+    async def list_dates(
+        self, db_session: AsyncSession, account_id: UUID
+    ) -> list[date]:
+        """Every stored date of the account, in order."""
+        return list(
+            await db_session.scalars(
+                select(stats_table.c.local_date)
+                .where(stats_table.c.account_id == account_id)
+                .order_by(stats_table.c.local_date)
+            )
+        )
+
     async def save_if_newer(
         self, db_session: AsyncSession, stored: StoredDailyStats
     ) -> bool:

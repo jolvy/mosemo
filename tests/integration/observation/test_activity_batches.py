@@ -666,9 +666,7 @@ async def test_legacy_serializes_until_commit_or_rollback(
     real_batch_app, monkeypatch, fail_first
 ):
     from mosemo.observation.application.batches import ActivityBatchProcessor
-    from mosemo.observation.infrastructure.timeline_segments import (
-        activity_timeline_lock_key,
-    )
+    from mosemo.platform.database.persistence import account_lock_key
 
     _, client, factory, accounts, devices, headers, _ = real_batch_app
     entered, release = asyncio.Event(), asyncio.Event()
@@ -698,7 +696,7 @@ async def test_legacy_serializes_until_commit_or_rollback(
                 path, headers=headers[0], json=batch(devices[0], [record(1, 10)])
             )
         )
-        key = activity_timeline_lock_key(accounts[0])
+        key = account_lock_key(accounts[0])
         # Wait for PostgreSQL itself to confirm the second request is blocked.
         async with asyncio.timeout(2), factory() as observer:
             while not await observer.scalar(

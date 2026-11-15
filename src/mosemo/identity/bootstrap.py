@@ -8,7 +8,11 @@ from typing import Annotated
 import httpx2
 from fastapi import APIRouter, Depends
 
-from mosemo.identity.application.accounts import AccountDirectory, GetAccount
+from mosemo.identity.application.accounts import (
+    AccountDirectory,
+    ChangeAccountTimezone,
+    GetAccount,
+)
 from mosemo.identity.application.devices import DeviceDirectory, RegisterDevice
 from mosemo.identity.application.ports import OAuthClient
 from mosemo.identity.application.sign_in import (
@@ -154,6 +158,10 @@ class Identity:
         self.account_directory = create_account_directory()
         self.device_directory = create_device_directory()
         self.get_account = GetAccount(accounts=accounts)
+        # No router yet; a timezone API attaches one to this use case.
+        self.change_account_timezone = ChangeAccountTimezone(
+            accounts=accounts, dispatcher=dispatcher
+        )
         self.register_device = RegisterDevice(
             devices=DeviceRepository(), dispatcher=dispatcher
         )

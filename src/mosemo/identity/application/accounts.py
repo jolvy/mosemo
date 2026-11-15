@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mosemo.identity.domain.accounts import Account
 from mosemo.identity.infrastructure.accounts import AccountRepository
 from mosemo.identity.infrastructure.queries import AccountQuery
-from mosemo.platform.database.transactions import read_snapshot
+from mosemo.platform.database.transactions import read_snapshot, unit_of_work
+from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.application.use_case import UseCase
 from mosemo.shared.domain.timezones import Timezone
 
@@ -24,6 +25,28 @@ class GetAccount(UseCase):
         if account is None:
             raise AccountNotFoundError
         return account
+
+
+class ChangeAccountTimezone(UseCase):
+    """Change the account timezone in one transaction: the account lock, the
+    UPDATE, then the BEFORE_COMMIT handlers (analytics marks its past dates
+    with the new timezone) before the commit (ADR 0016 「변경 표시」)."""
+
+    def __init__(
+        self, *, accounts: AccountRepository, dispatcher: EventDispatcher
+    ) -> None:
+        self._accounts = accounts
+        self._dispatcher = dispatcher
+
+    async def execute(
+        self, db_session: AsyncSession, *, account_id: UUID, timezone: Timezone
+    ) -> None:
+        async with unit_of_work(db_session, self._dispatcher):
+            await self._accounts.lock_account(db_session, account_id)
+            account = await self._accounts.find(db_session, account_id)
+            if account is None:
+                raise AccountNotFoundError
+            account.change_timezone(timezone)
 
 
 class AccountDirectory:

@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid7
 
-from mosemo.identity.domain.events import AccountCreated
+from mosemo.identity.domain.events import AccountCreated, AccountTimezoneChanged
 from mosemo.shared.domain.aggregates import AggregateRoot
 from mosemo.shared.domain.timezones import Timezone
 
@@ -27,3 +27,15 @@ class Account(AggregateRoot):
 
     def authenticate(self, *, now: datetime) -> None:
         self.last_authenticated_at = now
+
+    def change_timezone(self, timezone: Timezone) -> None:
+        """Switch to `timezone`; the same timezone changes nothing."""
+        if timezone is self.timezone:
+            return
+        previous = self.timezone
+        self.timezone = timezone
+        self.events.append(
+            AccountTimezoneChanged(
+                account_id=self.id, previous=previous, current=timezone
+            )
+        )

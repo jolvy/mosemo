@@ -1,6 +1,5 @@
 from collections.abc import Collection
 from datetime import datetime
-from hashlib import blake2b
 from uuid import UUID
 
 from sqlalchemy import (
@@ -10,10 +9,8 @@ from sqlalchemy import (
     literal_column,
     or_,
     select,
-    text,
     tuple_,
 )
-from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.observation.domain.activities import MAX_OBSERVATION_GAP
@@ -29,6 +26,10 @@ from mosemo.observation.infrastructure.tables import (
     activity_records,
     activity_timeline_segments,
 )
+from mosemo.platform.database.persistence import (
+    AccountLockTimeoutError,
+    lock_account,
+)
 
 segments = activity_timeline_segments
 records = activity_records
@@ -37,27 +38,13 @@ _INFINITY = literal_column("'infinity'::timestamptz")
 _MINUS_INFINITY = literal_column("'-infinity'::timestamptz")
 
 
-def activity_timeline_lock_key(account_id: UUID) -> int:
-    digest = blake2b(
-        f"activity_timeline:{account_id}".encode(),
-        digest_size=8,
-    ).digest()
-    return int.from_bytes(digest, signed=True)
-
-
 class TimelineSegmentRepository:
     async def lock_timeline(self, db_session: AsyncSession, account_id: UUID) -> None:
         """Hold the account timeline advisory lock until the transaction ends."""
         try:
-            await db_session.execute(text("SET LOCAL lock_timeout = '3s'"))
-            await db_session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": activity_timeline_lock_key(account_id)},
-            )
-        except DBAPIError as exc:
-            if getattr(exc.orig, "sqlstate", None) == "55P03":
-                raise ActivityTimelineBusyError from exc
-            raise
+            await lock_account(db_session, account_id)
+        except AccountLockTimeoutError as exc:
+            raise ActivityTimelineBusyError from exc
 
     async def find_replay_start(
         self, db_session: AsyncSession, account_id: UUID, *, observed_at: datetime

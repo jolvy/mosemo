@@ -20,7 +20,10 @@ from mosemo.analytics.application.definition_marking import (
     DefinitionMarkWriter,
     MarkOutdatedDefinition,
 )
-from mosemo.analytics.application.marking import DailyStatsMarking
+from mosemo.analytics.application.marking import (
+    DailyStatsMarking,
+    TimezoneChangeMarking,
+)
 from mosemo.analytics.application.reads import (
     GetDailyStats,
     GetFocusSessionAnalysis,
@@ -40,7 +43,7 @@ from mosemo.analytics.infrastructure.markers import RecomputeMarkerRepository
 from mosemo.analytics.infrastructure.tables import map_tables
 from mosemo.analytics.presentation.error_docs import ERROR_DOCS
 from mosemo.analytics.presentation.router import create_router
-from mosemo.identity.public import AccountDirectory
+from mosemo.identity.public import AccountDirectory, AccountTimezoneChanged
 from mosemo.labeling.public import LabelConfirmationDirectory, LabelConfirmed
 from mosemo.observation.public import (
     FocusSessionCompleted,
@@ -100,7 +103,8 @@ def register_handlers(
     focus_sessions: FocusSessionLog,
     clock: Clock,
 ) -> None:
-    """Subscribe the recompute marking to the source change events.
+    """Subscribe the recompute marking to the source change events and the
+    account timezone change.
 
     The collaborators come from the assembly root because analytics bootstrap
     may not import other contexts' bootstraps.
@@ -112,9 +116,17 @@ def register_handlers(
         markers=RecomputeMarkerRepository(),
         clock=clock,
     )
+    timezone_marking = TimezoneChangeMarking(
+        markers=RecomputeMarkerRepository(),
+        stored_stats=DailyStatsRepository(),
+        clock=clock,
+    )
     dispatcher.subscribe(TimelineChanged, marking.on_timeline_changed)
     dispatcher.subscribe(LabelConfirmed, marking.on_label_confirmed)
     dispatcher.subscribe(FocusSessionCompleted, marking.on_focus_session_completed)
+    dispatcher.subscribe(
+        AccountTimezoneChanged, timezone_marking.on_account_timezone_changed
+    )
 
 
 def public_suffix_rules() -> str:
