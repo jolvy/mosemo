@@ -9,6 +9,7 @@ from mosemo.identity.public import AccountDirectory
 from mosemo.labeling.application.confirmations import (
     ConfirmSegmentLabel,
     ConfirmSegmentLabels,
+    LabelConfirmationDirectory,
     SegmentConfirmations,
 )
 from mosemo.labeling.application.ports import LabelSuggester
@@ -40,12 +41,17 @@ __all__ = [
     "LABEL_PROPOSAL_JOB_NAME",
     "LabelProposals",
     "Labeling",
+    "create_label_confirmation_directory",
     "create_label_proposal_job",
     "map_tables",
 ]
 
 LABEL_PROPOSAL_JOB_NAME = "label-proposals"
 LABEL_PROPOSAL_INTERVAL_MINUTES = 5
+
+
+def create_label_confirmation_directory() -> LabelConfirmationDirectory:
+    return LabelConfirmationDirectory(confirmations=ConfirmationRepository())
 
 
 class Labeling:

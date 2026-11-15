@@ -13,6 +13,7 @@ from mosemo.observation.domain.activities import (
     CollectionState,
     RecordType,
 )
+from mosemo.observation.domain.events import TimelineChanged
 from mosemo.shared.domain.aggregates import AggregateRoot
 
 
@@ -57,6 +58,14 @@ class ActivityTimelineSegment(AggregateRoot):
         if now - self.last_observed_at > MAX_OBSERVATION_GAP:
             return self.last_observed_at
         return None
+
+    def recorded_end(self) -> datetime:
+        """The stored end, else the last observation, else the start of an open gap."""
+        if self.ended_at is not None:
+            return self.ended_at
+        if self.last_observed_at is not None:
+            return self.last_observed_at
+        return self.started_at
 
     def overlaps_window(
         self,
@@ -137,6 +146,9 @@ class ProjectedActivity:
     def reaches(self, observed_at: datetime) -> bool:
         return _reaches(self, observed_at)
 
+    def recorded_end(self) -> datetime:
+        return self.ended_at if self.ended_at is not None else self.last_observed_at
+
     def converged_index(
         self, existing: list[ActivityTimelineSegment], *, observed_at: datetime
     ) -> int | None:
@@ -198,6 +210,9 @@ class ProjectedGap:
     def reaches(self, observed_at: datetime) -> bool:
         return _reaches(self, observed_at)
 
+    def recorded_end(self) -> datetime:
+        return self.ended_at if self.ended_at is not None else self.started_at
+
     def converged_index(
         self, existing: list[ActivityTimelineSegment], *, observed_at: datetime
     ) -> int | None:
@@ -229,6 +244,28 @@ class ProjectedGap:
 
 
 ProjectedSegment = ProjectedActivity | ProjectedGap
+
+
+def timeline_changed(
+    account_id: UUID,
+    *,
+    removed: list[ActivityTimelineSegment],
+    added: list[ProjectedSegment],
+) -> TimelineChanged | None:
+    """The change of replacing `removed` with `added`, or `None` when they match.
+
+    Both lists are in timeline order, so matching segments pair up by position.
+    """
+    if len(removed) == len(added) and all(
+        new.same_as(old) for new, old in zip(added, removed, strict=True)
+    ):
+        return None
+    segments = [*removed, *added]
+    return TimelineChanged(
+        account_id=account_id,
+        changed_from=min(segment.started_at for segment in segments),
+        changed_to=max(segment.recorded_end() for segment in segments),
+    )
 
 
 def _reaches(segment: ProjectedSegment, observed_at: datetime) -> bool:

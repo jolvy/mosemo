@@ -70,3 +70,34 @@ class FocusSessionRepository:
             .order_by(focus_sessions.c.started_at.desc(), focus_sessions.c.id.desc())
         )
         return list(result.all())
+
+    async def find_account_session(
+        self, db_session: AsyncSession, *, account_id: UUID, focus_session_id: UUID
+    ) -> FocusSession | None:
+        """The account's session without a row lock."""
+        return await db_session.scalar(
+            select(FocusSession).where(
+                focus_sessions.c.account_id == account_id,
+                focus_sessions.c.id == focus_session_id,
+            )
+        )
+
+    async def list_completed_overlapping(
+        self,
+        db_session: AsyncSession,
+        account_id: UUID,
+        *,
+        start: datetime,
+        end: datetime,
+    ) -> list[FocusSession]:
+        """Completed sessions with `started_at < end` and `ended_at >= start`."""
+        result = await db_session.scalars(
+            select(FocusSession)
+            .where(
+                focus_sessions.c.account_id == account_id,
+                focus_sessions.c.started_at < end,
+                focus_sessions.c.ended_at >= start,
+            )
+            .order_by(focus_sessions.c.started_at, focus_sessions.c.id)
+        )
+        return list(result.all())

@@ -13,3 +13,13 @@ class FocusSessionCompleted(DomainEvent):
     focus_session_id: UUID
     started_at: datetime
     ended_at: datetime
+
+
+@dataclass(frozen=True)
+class TimelineChanged(DomainEvent):
+    """The account's stored timeline segments changed within `[changed_from,
+    changed_to]`, covering both the removed and the new segments."""
+
+    account_id: UUID
+    changed_from: datetime
+    changed_to: datetime

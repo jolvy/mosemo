@@ -136,6 +136,44 @@ class ObservationTimeline:
             if segment.overlaps_window(start=start, end=end, now=now)
         ]
 
+    async def read_range(
+        self,
+        db_session: AsyncSession,
+        account_id: UUID,
+        *,
+        start: datetime,
+        end: datetime,
+        now: datetime,
+    ) -> list[ObservedSegment]:
+        """Segments with `started_at < end` whose recorded end (`ended_at`, else
+        `last_observed_at`; none for an open capture gap) is at or after `start`,
+        by `started_at` then ID (metrics D1)."""
+        segments = await self._segments.list_range_segments(
+            db_session, account_id, start=start, end=end
+        )
+        return [_observed(segment, now=now) for segment in segments]
+
+    async def list_preceding(
+        self,
+        db_session: AsyncSession,
+        account_id: UUID,
+        *,
+        before: datetime,
+        limit: int = 32,
+        now: datetime,
+    ) -> list[ObservedSegment]:
+        """Up to `limit` segments starting before `before`, latest first (metrics D2)."""
+        segments = await self._segments.list_preceding_segments(
+            db_session, account_id, before=before, limit=limit
+        )
+        return [_observed(segment, now=now) for segment in segments]
+
+    async def find_observed_through(
+        self, db_session: AsyncSession, account_id: UUID
+    ) -> datetime | None:
+        """The latest `last_observed_at` of the account's activity segments."""
+        return await self._segments.find_last_observed_at(db_session, account_id)
+
     async def list_closed_page(
         self,
         db_session: AsyncSession,

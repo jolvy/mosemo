@@ -3,16 +3,27 @@ from datetime import datetime
 from hashlib import blake2b
 from uuid import UUID
 
-from sqlalchemy import Select, and_, func, or_, select, text, tuple_
+from sqlalchemy import (
+    Select,
+    and_,
+    func,
+    literal_column,
+    or_,
+    select,
+    text,
+    tuple_,
+)
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mosemo.observation.domain.activities import MAX_OBSERVATION_GAP
+from mosemo.observation.domain.events import TimelineChanged
 from mosemo.observation.domain.timeline import (
     ActivityTimelineBusyError,
     ActivityTimelineSegment,
     ProjectedSegment,
     SegmentType,
+    timeline_changed,
 )
 from mosemo.observation.infrastructure.tables import (
     activity_records,
@@ -21,6 +32,9 @@ from mosemo.observation.infrastructure.tables import (
 
 segments = activity_timeline_segments
 records = activity_records
+
+_INFINITY = literal_column("'infinity'::timestamptz")
+_MINUS_INFINITY = literal_column("'-infinity'::timestamptz")
 
 
 def activity_timeline_lock_key(account_id: UUID) -> int:
@@ -158,6 +172,69 @@ class TimelineSegmentRepository:
         result = await db_session.scalars(statement)
         return list(result.all())
 
+    async def list_range_segments(
+        self,
+        db_session: AsyncSession,
+        account_id: UUID,
+        *,
+        start: datetime,
+        end: datetime,
+    ) -> list[ActivityTimelineSegment]:
+        """Segments with `started_at < end` and a recorded end at or after `start`.
+
+        An open capture gap has no recorded end and always matches. The lower
+        bound on `started_at` relies on one account's segments never overlapping.
+        """
+        last_start_before = (
+            select(func.max(segments.c.started_at))
+            .where(segments.c.account_id == account_id, segments.c.started_at < start)
+            .scalar_subquery()
+        )
+        result = await db_session.scalars(
+            select(ActivityTimelineSegment)
+            .where(
+                segments.c.account_id == account_id,
+                segments.c.started_at < end,
+                func.coalesce(
+                    segments.c.ended_at,
+                    segments.c.last_observed_at,
+                    _INFINITY,
+                )
+                >= start,
+                segments.c.started_at
+                >= func.coalesce(last_start_before, _MINUS_INFINITY),
+            )
+            .order_by(segments.c.started_at, segments.c.id)
+        )
+        return list(result.all())
+
+    async def list_preceding_segments(
+        self,
+        db_session: AsyncSession,
+        account_id: UUID,
+        *,
+        before: datetime,
+        limit: int,
+    ) -> list[ActivityTimelineSegment]:
+        """Up to `limit` segments starting before `before`, latest first."""
+        result = await db_session.scalars(
+            select(ActivityTimelineSegment)
+            .where(segments.c.account_id == account_id, segments.c.started_at < before)
+            .order_by(segments.c.started_at.desc(), segments.c.id.desc())
+            .limit(limit)
+        )
+        return list(result.all())
+
+    async def find_last_observed_at(
+        self, db_session: AsyncSession, account_id: UUID
+    ) -> datetime | None:
+        return await db_session.scalar(
+            select(func.max(segments.c.last_observed_at)).where(
+                segments.c.account_id == account_id,
+                segments.c.segment_type == SegmentType.ACTIVITY,
+            )
+        )
+
     async def find_account_segment(
         self, db_session: AsyncSession, *, account_id: UUID, segment_id: UUID
     ) -> ActivityTimelineSegment | None:
@@ -225,10 +302,12 @@ class TimelineSegmentRepository:
         projected: list[ProjectedSegment],
         existing: list[ActivityTimelineSegment],
         event_observed_at: datetime,
-    ) -> None:
+    ) -> TimelineChanged | None:
+        """Replace the unconverged segments; return the change, `None` if none."""
         projected, to_delete = self._trim_converged(
             projected, existing=existing, observed_at=event_observed_at
         )
+        changed = timeline_changed(account_id, removed=to_delete, added=projected)
         by_first_event = {segment.first_event_id: segment for segment in to_delete}
         for segment in to_delete:
             await db_session.delete(segment)
@@ -250,6 +329,7 @@ class TimelineSegmentRepository:
                 )
             )
         await db_session.flush()
+        return changed
 
     @staticmethod
     def _trim_converged(
