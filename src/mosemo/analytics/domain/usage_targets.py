@@ -3,7 +3,7 @@
 import ipaddress
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import ClassVar
 from urllib.parse import urlsplit
@@ -17,7 +17,7 @@ SCHEME_WITH_AUTHORITY = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
 # a host and a port).
 NON_WEB_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:(?![0-9])")
 # D12: dots the IDNA 2003 codec reads as label separators.
-TRAILING_DOTS = re.compile(r"[.。．｡]+\Z")
+LABEL_SEPARATORS = ".。．｡"
 
 
 class UsageTargetKind(StrEnum):
@@ -29,7 +29,7 @@ class UsageTargetKind(StrEnum):
 class UsageTarget:
     """A site (eTLD+1 key) or an app (bundleId). Compared and stored by key only."""
 
-    kind: UsageTargetKind
+    kind: UsageTargetKind = field(compare=False)
     key: str
 
     def display_name(self) -> str:
@@ -60,7 +60,7 @@ def site_key(host: str) -> str:
 
     A host the codec cannot convert keeps its lowercased form.
     """
-    host = TRAILING_DOTS.sub("", host)
+    host = host.rstrip(LABEL_SEPARATORS)
     try:
         ascii_host = host.encode("idna").decode("ascii")
     except UnicodeError:
@@ -108,6 +108,8 @@ class PublicSuffixRules:
                 rules.add(tuple(site_key(rule).split(".")))
         self._rules = frozenset(rules)
         self._exceptions = frozenset(exceptions)
+        # No rule matches a tail longer than this, so longer tails are not built.
+        self._depth = max(map(len, rules | exceptions), default=1)
 
     def site(self, host: str) -> str:
         """eTLD+1, or the host itself when there is none (IP, a public suffix, D7)."""
@@ -122,7 +124,8 @@ class PublicSuffixRules:
         return ".".join(labels[-(suffix + 1) :])
 
     def _public_suffix_length(self, labels: tuple[str, ...]) -> int:
-        tails = [labels[len(labels) - size :] for size in range(1, len(labels) + 1)]
+        depth = min(len(labels), self._depth)
+        tails = [labels[len(labels) - size :] for size in range(1, depth + 1)]
         exceptions = [len(tail) for tail in tails if tail in self._exceptions]
         if exceptions:
             return max(exceptions) - 1
