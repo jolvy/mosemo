@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from hypothesis import settings
 
@@ -18,17 +20,24 @@ identity_bootstrap.map_tables()
 labels_bootstrap.map_tables()
 observation_bootstrap.map_tables()
 
-# Container fixtures in tests/integration/conftest.py and the markers they imply.
+# Container fixtures in tests/integration/conftest.py and tests/e2e/conftest.py
+# and the markers they imply.
 CONTAINER_MARKERS = {
     "integration_database_url": "requires_db",
     "integration_kafka_broker": "requires_kafka",
     # FI-7 restarts a PostgreSQL container of its own.
     "restartable_database": "requires_db",
+    "e2e_database_url": "requires_db",
+    "e2e_kafka_broker": "requires_kafka",
 }
+# Every test under tests/e2e/ is an E2E test, marked by its path.
+E2E_ROOT = Path(__file__).parent / "e2e"
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     for item in items:
+        if item.path.is_relative_to(E2E_ROOT):
+            item.add_marker("e2e")
         fixtures = getattr(item, "fixturenames", ())
         for fixture, marker in CONTAINER_MARKERS.items():
             if fixture in fixtures:

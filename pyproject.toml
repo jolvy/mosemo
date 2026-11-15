@@ -59,6 +59,7 @@ markers = [
     "requires_db: needs a real PostgreSQL",
     "requires_kafka: needs a real Kafka",
     "fault_injection: process kill and DB restart fault injection; excluded from the default local run, runs in a separate CI job",
+    "e2e: E2E that starts the API, Consumer and batch processes; excluded from the default local run, runs in a separate CI job",
 ]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
