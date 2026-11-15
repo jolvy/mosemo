@@ -24,6 +24,11 @@ OPTIONAL_FIELDS: Final = (
     "request_url",
     "work_seconds_gap",
     "dropped_zero_pauses",
+    "source",
+    "source_read_ms",
+    "snapshot_build_ms",
+    "compute_ms",
+    "segment_count",
 )
 REDACTIONS: Final = (
     (

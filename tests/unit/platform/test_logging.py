@@ -61,6 +61,29 @@ def test_json_formatter_emits_focus_session_completion_counts() -> None:
     assert payload["dropped_zero_pauses"] == 0
 
 
+def test_json_formatter_emits_analytics_read_timings() -> None:
+    fields = {
+        "source": "computed",
+        "source_read_ms": 1.5,
+        "snapshot_build_ms": 0.25,
+        "compute_ms": 3.0,
+        "segment_count": 12,
+    }
+    record = logging.makeLogRecord(
+        {
+            "name": "mosemo.test",
+            "levelno": logging.INFO,
+            "levelname": "INFO",
+            "msg": "analytics read",
+            **fields,
+        }
+    )
+
+    payload = json.loads(JsonFormatter().format(record))
+
+    assert {name: payload[name] for name in fields} == fields
+
+
 def test_json_formatter_excludes_exception_message() -> None:
     formatter = JsonFormatter()
 

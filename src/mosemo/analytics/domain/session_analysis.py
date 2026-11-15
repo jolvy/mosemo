@@ -19,7 +19,11 @@ from mosemo.analytics.domain.transitions import (
     label_transitions,
     target_transitions,
 )
-from mosemo.analytics.domain.usage_targets import LapseTarget, UsageTargetResolver
+from mosemo.analytics.domain.usage_targets import (
+    LapseTarget,
+    UsageTargetResolver,
+    latest_app_names,
+)
 
 
 class Verdict(StrEnum):
@@ -165,6 +169,9 @@ class LapseEvidence:
 
 @dataclass(frozen=True, kw_only=True)
 class SessionAnalysis:
+    """`app_names` maps each bundleId to its latest observed name in the session
+    analysis time (FR-1)."""
+
     has_pause_info: bool
     analysis_us: int
     target_transitions: tuple[TargetTransition, ...]
@@ -172,6 +179,7 @@ class SessionAnalysis:
     distractions: tuple[Distraction, ...]
     lapses: tuple[LapseEvidence, ...]
     label_transitions: tuple[LabelTransition, ...]
+    app_names: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -315,6 +323,9 @@ class SessionAnalyzer:
                 transition
                 for transition in label_transitions(snapshot)
                 if inside_work(measured.intervals, transition.at)
+            ),
+            app_names=latest_app_names(
+                (piece.segment for piece in measured.pieces), self._resolver
             ),
         )
 

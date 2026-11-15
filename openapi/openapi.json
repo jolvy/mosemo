@@ -413,6 +413,33 @@
         "title": "ActivitySegmentResponse",
         "type": "object"
       },
+      "AnalysisBasisResponse": {
+        "description": "분석 결과를 계산한 기준입니다.",
+        "properties": {
+          "definitionVersion": {
+            "description": "결과를 계산한 지표 정의 버전입니다.",
+            "title": "Definitionversion",
+            "type": "integer"
+          },
+          "status": {
+            "const": "current",
+            "description": "현재 지표 정의와 계정 시간대로 계산한 결과임을 나타냅니다.",
+            "title": "Status",
+            "type": "string"
+          },
+          "timezone": {
+            "$ref": "#/components/schemas/Timezone",
+            "description": "날짜 경계에 쓴 계정 시간대입니다."
+          }
+        },
+        "required": [
+          "status",
+          "definitionVersion",
+          "timezone"
+        ],
+        "title": "AnalysisBasisResponse",
+        "type": "object"
+      },
       "AppContext": {
         "additionalProperties": false,
         "description": "Application identifiers observed independently by the client.",
@@ -469,6 +496,33 @@
           "name"
         ],
         "title": "AppContext",
+        "type": "object"
+      },
+      "AppUsageResponse": {
+        "description": "앱 하나의 관찰 활동 시간입니다.",
+        "properties": {
+          "bundleId": {
+            "description": "앱 bundleId입니다.",
+            "title": "Bundleid",
+            "type": "string"
+          },
+          "displayName": {
+            "description": "그 날짜에 관찰한 최신 앱 이름이며 없으면 bundleId입니다.",
+            "title": "Displayname",
+            "type": "string"
+          },
+          "durationUs": {
+            "description": "날짜와 겹친 관찰 활동 시간(마이크로초)입니다.",
+            "title": "Durationus",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bundleId",
+          "displayName",
+          "durationUs"
+        ],
+        "title": "AppUsageResponse",
         "type": "object"
       },
       "BatchActivityObservation": {
@@ -879,6 +933,27 @@
         "title": "CapturedWindow",
         "type": "object"
       },
+      "CollectionResponse": {
+        "description": "수집 상태 보조 값입니다.",
+        "properties": {
+          "captureGapCount": {
+            "description": "날짜와 겹친 수집 공백 수입니다.",
+            "title": "Capturegapcount",
+            "type": "integer"
+          },
+          "silenceCount": {
+            "description": "효과 끝이 날짜 안에 있는 활동 뒤 관찰 침묵 수입니다.",
+            "title": "Silencecount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "captureGapCount",
+          "silenceCount"
+        ],
+        "title": "CollectionResponse",
+        "type": "object"
+      },
       "CollectionState": {
         "enum": [
           "active",
@@ -886,6 +961,63 @@
         ],
         "title": "CollectionState",
         "type": "string"
+      },
+      "CompositionResponse": {
+        "description": "세션 분석 시간 구성(C4)입니다. 여섯 시간의 합이 `analysisUs`입니다.",
+        "properties": {
+          "analysisUs": {
+            "description": "일시중지를 뺀 세션 분석 시간(마이크로초)입니다.",
+            "title": "Analysisus",
+            "type": "integer"
+          },
+          "focusUs": {
+            "description": "세션 라벨로 확정된 시간(마이크로초)입니다.",
+            "title": "Focusus",
+            "type": "integer"
+          },
+          "lapseCount": {
+            "description": "집중 이탈 횟수입니다.",
+            "title": "Lapsecount",
+            "type": "integer"
+          },
+          "lapseUs": {
+            "description": "다른 라벨로 확정된 이탈 시간(마이크로초)입니다.",
+            "title": "Lapseus",
+            "type": "integer"
+          },
+          "opaqueUs": {
+            "description": "불투명 활동 시간(마이크로초)입니다.",
+            "title": "Opaqueus",
+            "type": "integer"
+          },
+          "pendingUs": {
+            "description": "판정 대기 시간(마이크로초)입니다.",
+            "title": "Pendingus",
+            "type": "integer"
+          },
+          "unclassifiedUs": {
+            "description": "미분류로 확정된 시간(마이크로초)입니다.",
+            "title": "Unclassifiedus",
+            "type": "integer"
+          },
+          "unobservedUs": {
+            "description": "관찰이 없는 시간(마이크로초)입니다.",
+            "title": "Unobservedus",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "analysisUs",
+          "focusUs",
+          "lapseUs",
+          "unclassifiedUs",
+          "pendingUs",
+          "opaqueUs",
+          "unobservedUs",
+          "lapseCount"
+        ],
+        "title": "CompositionResponse",
+        "type": "object"
       },
       "ConfirmedActivityLabelStateResponse": {
         "description": "사용자가 라벨 또는 미분류를 확정한 관찰 구간 상태입니다.",
@@ -986,6 +1118,67 @@
         "title": "ConfirmedActivityLabelStateResponse",
         "type": "object"
       },
+      "DailyStatsResponse": {
+        "description": "계정 시간대 날짜 하나의 일간 통계입니다.",
+        "properties": {
+          "basis": {
+            "$ref": "#/components/schemas/AnalysisBasisResponse",
+            "description": "결과의 계산 기준입니다."
+          },
+          "collection": {
+            "$ref": "#/components/schemas/CollectionResponse",
+            "description": "날짜의 수집 공백과 관찰 침묵 횟수입니다."
+          },
+          "date": {
+            "description": "계정 시간대 기준 날짜입니다.",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "labelTransitions": {
+            "$ref": "#/components/schemas/LabelTransitionsResponse",
+            "description": "날짜 안의 라벨 전환(C7)입니다."
+          },
+          "observedThrough": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "결과의 기준 시각인 마지막 관찰 시각입니다. 관찰이 없으면 null입니다.",
+            "title": "Observedthrough"
+          },
+          "sessions": {
+            "$ref": "#/components/schemas/SessionTotalsResponse",
+            "description": "자정을 넘어도 시작한 날짜에만 더한 완료 세션의 합입니다."
+          },
+          "targetTransitions": {
+            "$ref": "#/components/schemas/TargetTransitionsResponse",
+            "description": "날짜 안의 사용 대상 전환(C2)입니다."
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageResponse",
+            "description": "앱·사이트 사용 시간입니다."
+          }
+        },
+        "required": [
+          "date",
+          "observedThrough",
+          "basis",
+          "usage",
+          "targetTransitions",
+          "labelTransitions",
+          "collection",
+          "sessions"
+        ],
+        "title": "DailyStatsResponse",
+        "type": "object"
+      },
       "DetailedActivityContext": {
         "additionalProperties": false,
         "description": "A privacy-filtered activity context with observable identifiers.",
@@ -1068,6 +1261,39 @@
         "title": "DeviceCreateResponse",
         "type": "object"
       },
+      "DistractionResponse": {
+        "description": "이탈 중 들어간 사용 대상(C5)입니다.",
+        "properties": {
+          "entries": {
+            "description": "이탈 중 이 대상에 들어간 횟수입니다.",
+            "title": "Entries",
+            "type": "integer"
+          },
+          "lapseUs": {
+            "description": "이 대상에서 보낸 이탈 시간(마이크로초)입니다.",
+            "title": "Lapseus",
+            "type": "integer"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageTargetResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "사용 대상입니다. `앱 미확인` 활동이면 null입니다."
+          }
+        },
+        "required": [
+          "target",
+          "entries",
+          "lapseUs"
+        ],
+        "title": "DistractionResponse",
+        "type": "object"
+      },
       "ErrorPayload": {
         "additionalProperties": false,
         "description": "공개 오류 envelope 안의 공통 payload입니다.",
@@ -1134,6 +1360,113 @@
           "status"
         ],
         "title": "FailedLabelProposalResponse",
+        "type": "object"
+      },
+      "FocusSessionAnalysisResponse": {
+        "description": "완료한 집중 세션 하나의 분석입니다.",
+        "properties": {
+          "basis": {
+            "$ref": "#/components/schemas/AnalysisBasisResponse",
+            "description": "결과의 계산 기준입니다."
+          },
+          "composition": {
+            "$ref": "#/components/schemas/CompositionResponse",
+            "description": "세션 시간 구성(C4)입니다."
+          },
+          "distractions": {
+            "description": "이탈 시간 내림차순의 이탈 대상(C5)입니다.",
+            "items": {
+              "$ref": "#/components/schemas/DistractionResponse"
+            },
+            "title": "Distractions",
+            "type": "array"
+          },
+          "endedAt": {
+            "description": "세션 종료 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Endedat",
+            "type": "string"
+          },
+          "focusSessionId": {
+            "description": "집중 세션 식별자입니다.",
+            "format": "uuid",
+            "title": "Focussessionid",
+            "type": "string"
+          },
+          "hasPauseInfo": {
+            "description": "일시중지 정보가 있는지 나타냅니다. 없으면 시작~종료 전체를 분석합니다.",
+            "title": "Haspauseinfo",
+            "type": "boolean"
+          },
+          "labelId": {
+            "description": "세션 라벨입니다.",
+            "format": "uuid",
+            "title": "Labelid",
+            "type": "string"
+          },
+          "labelTransitions": {
+            "$ref": "#/components/schemas/LabelTransitionsResponse",
+            "description": "세션 분석 시간 안의 라벨 전환(C7)입니다."
+          },
+          "lapses": {
+            "description": "시각순 집중 이탈 근거(C6)입니다.",
+            "items": {
+              "$ref": "#/components/schemas/LapseResponse"
+            },
+            "title": "Lapses",
+            "type": "array"
+          },
+          "observedThrough": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "결과의 기준 시각인 마지막 관찰 시각입니다. 관찰이 없으면 null입니다.",
+            "title": "Observedthrough"
+          },
+          "pauses": {
+            "description": "일시중지 구간입니다.",
+            "items": {
+              "$ref": "#/components/schemas/PauseResponse"
+            },
+            "title": "Pauses",
+            "type": "array"
+          },
+          "startedAt": {
+            "description": "세션 시작 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Startedat",
+            "type": "string"
+          },
+          "targetTransitions": {
+            "$ref": "#/components/schemas/TargetTransitionsResponse",
+            "description": "세션 분석 시간 안의 사용 대상 전환(C3)입니다."
+          }
+        },
+        "required": [
+          "focusSessionId",
+          "labelId",
+          "startedAt",
+          "endedAt",
+          "hasPauseInfo",
+          "pauses",
+          "observedThrough",
+          "basis",
+          "targetTransitions",
+          "composition",
+          "distractions",
+          "lapses",
+          "labelTransitions"
+        ],
+        "title": "FocusSessionAnalysisResponse",
         "type": "object"
       },
       "FocusSessionCompleteRequest": {
@@ -1666,6 +1999,173 @@
         "title": "LabelTimelineSegmentResponse",
         "type": "object"
       },
+      "LabelTransitionResponse": {
+        "description": "맞닿은 두 구간의 유효한 확정 라벨이 바뀐 전환입니다.",
+        "properties": {
+          "at": {
+            "description": "다음 라벨 구간의 시작 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "At",
+            "type": "string"
+          },
+          "nextLabelId": {
+            "description": "전환 뒤 확정 라벨입니다.",
+            "format": "uuid",
+            "title": "Nextlabelid",
+            "type": "string"
+          },
+          "previousLabelId": {
+            "description": "전환 전 확정 라벨입니다.",
+            "format": "uuid",
+            "title": "Previouslabelid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "previousLabelId",
+          "nextLabelId"
+        ],
+        "title": "LabelTransitionResponse",
+        "type": "object"
+      },
+      "LabelTransitionsResponse": {
+        "description": "라벨 전환(C7)과 판정 대기 시간입니다.",
+        "properties": {
+          "count": {
+            "description": "라벨 전환 횟수입니다.",
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "description": "시각순 라벨 전환입니다.",
+            "items": {
+              "$ref": "#/components/schemas/LabelTransitionResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pendingUs": {
+            "description": "유효한 확정이 없는 상세 활동 시간(마이크로초)입니다. 세션 분석에서는 세션 분석 시간 안의 판정 대기 시간입니다.",
+            "title": "Pendingus",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "pendingUs",
+          "items"
+        ],
+        "title": "LabelTransitionsResponse",
+        "type": "object"
+      },
+      "LapseEntryResponse": {
+        "description": "이탈을 시작한 구간입니다.",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/DetailedActivityContext",
+            "description": "그 구간의 관찰 문맥입니다."
+          },
+          "labelId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "그 구간의 확정 라벨입니다.",
+            "title": "Labelid"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageTargetResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "사용 대상입니다. `앱 미확인` 활동이면 null입니다."
+          }
+        },
+        "required": [
+          "target",
+          "labelId",
+          "context"
+        ],
+        "title": "LapseEntryResponse",
+        "type": "object"
+      },
+      "LapseResponse": {
+        "description": "집중 이탈 하나의 근거(C6)입니다.",
+        "properties": {
+          "elapsedUs": {
+            "description": "세션 시작부터 이탈까지의 세션 분석 시간(마이크로초)입니다.",
+            "title": "Elapsedus",
+            "type": "integer"
+          },
+          "endedAt": {
+            "description": "복귀 시각이며 복귀하지 않았으면 세션 분석 시간의 끝입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Endedat",
+            "type": "string"
+          },
+          "entry": {
+            "$ref": "#/components/schemas/LapseEntryResponse",
+            "description": "이탈을 시작한 구간의 사용 대상, 확정 라벨, 관찰 문맥입니다."
+          },
+          "lapseUs": {
+            "description": "이탈 시간(마이크로초)입니다.",
+            "title": "Lapseus",
+            "type": "integer"
+          },
+          "previousFocusTarget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageTargetResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "이탈 직전 집중 구간의 사용 대상입니다. 앞 집중 구간이 없거나 `앱 미확인`이면 null입니다."
+          },
+          "returned": {
+            "description": "세션 라벨 활동으로 돌아왔는지 나타냅니다.",
+            "title": "Returned",
+            "type": "boolean"
+          },
+          "startedAt": {
+            "description": "이탈 시작 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Startedat",
+            "type": "string"
+          },
+          "transitionCount": {
+            "description": "이탈 시작부터 복귀 전까지의 사용 대상 전환 수입니다.",
+            "title": "Transitioncount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "startedAt",
+          "endedAt",
+          "entry",
+          "previousFocusTarget",
+          "elapsedUs",
+          "lapseUs",
+          "transitionCount",
+          "returned"
+        ],
+        "title": "LapseResponse",
+        "type": "object"
+      },
       "NotApplicableWebContext": {
         "additionalProperties": false,
         "description": "A non-browser application context.",
@@ -1757,6 +2257,31 @@
           "context"
         ],
         "title": "OpaqueActivityResponse",
+        "type": "object"
+      },
+      "PauseResponse": {
+        "description": "세션 분석에서 뺀 일시중지 구간 `[startedAt, endedAt)`입니다.",
+        "properties": {
+          "endedAt": {
+            "description": "일시중지 종료 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Endedat",
+            "type": "string"
+          },
+          "startedAt": {
+            "description": "일시중지 시작 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Startedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "startedAt",
+          "endedAt"
+        ],
+        "title": "PauseResponse",
         "type": "object"
       },
       "PendingActivityLabelStateResponse": {
@@ -1946,6 +2471,118 @@
         "title": "SegmentLabelConfirmationItemRequest",
         "type": "object"
       },
+      "SessionTotalsResponse": {
+        "description": "그 날짜에 시작한 완료 세션의 합입니다.",
+        "properties": {
+          "composition": {
+            "$ref": "#/components/schemas/CompositionResponse",
+            "description": "세션 시간 구성의 합입니다."
+          },
+          "count": {
+            "description": "세션 수입니다.",
+            "title": "Count",
+            "type": "integer"
+          },
+          "distractions": {
+            "description": "이탈 시간 내림차순의 이탈 대상 합입니다.",
+            "items": {
+              "$ref": "#/components/schemas/DistractionResponse"
+            },
+            "title": "Distractions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "composition",
+          "distractions"
+        ],
+        "title": "SessionTotalsResponse",
+        "type": "object"
+      },
+      "TargetTransitionResponse": {
+        "description": "맞닿은 두 구간의 사용 대상이 바뀐 전환입니다.",
+        "properties": {
+          "at": {
+            "description": "다음 사용 대상 구간의 시작 시각입니다.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "At",
+            "type": "string"
+          },
+          "next": {
+            "$ref": "#/components/schemas/UsageTargetResponse",
+            "description": "전환 뒤 사용 대상입니다."
+          },
+          "previous": {
+            "$ref": "#/components/schemas/UsageTargetResponse",
+            "description": "전환 전 사용 대상입니다."
+          },
+          "previousDwellUs": {
+            "description": "전환 전 사용 대상에 이어서 머문 시간(마이크로초)입니다.",
+            "title": "Previousdwellus",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "previous",
+          "next",
+          "previousDwellUs"
+        ],
+        "title": "TargetTransitionResponse",
+        "type": "object"
+      },
+      "TargetTransitionsResponse": {
+        "description": "사용 대상 전환 목록입니다.",
+        "properties": {
+          "count": {
+            "description": "전환 횟수입니다.",
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "description": "시각순 전환입니다.",
+            "items": {
+              "$ref": "#/components/schemas/TargetTransitionResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "shortDwellCount": {
+            "description": "앞 사용 대상에 5초 미만 머문 뒤의 전환 횟수입니다.",
+            "title": "Shortdwellcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "shortDwellCount",
+          "items"
+        ],
+        "title": "TargetTransitionsResponse",
+        "type": "object"
+      },
+      "TargetUsageResponse": {
+        "description": "사용 대상 하나의 관찰 활동 시간입니다.",
+        "properties": {
+          "durationUs": {
+            "description": "날짜와 겹친 관찰 활동 시간(마이크로초)입니다.",
+            "title": "Durationus",
+            "type": "integer"
+          },
+          "target": {
+            "$ref": "#/components/schemas/UsageTargetResponse",
+            "description": "사용 대상입니다."
+          }
+        },
+        "required": [
+          "target",
+          "durationUs"
+        ],
+        "title": "TargetUsageResponse",
+        "type": "object"
+      },
       "Timezone": {
         "description": "IANA timezones accepted by the public API.",
         "enum": [
@@ -2092,6 +2729,88 @@
           "kind"
         ],
         "title": "UnclassifiedSelectionResponse",
+        "type": "object"
+      },
+      "UsageResponse": {
+        "description": "앱·사이트 사용 시간(C1)입니다. 순위는 시간 내림차순, 같으면 키 오름차순입니다.",
+        "properties": {
+          "apps": {
+            "description": "앱 순위입니다.",
+            "items": {
+              "$ref": "#/components/schemas/AppUsageResponse"
+            },
+            "title": "Apps",
+            "type": "array"
+          },
+          "browserWithoutUrlUs": {
+            "description": "URL로 사이트를 정하지 못한 브라우저 앱 시간(마이크로초)입니다.",
+            "title": "Browserwithouturlus",
+            "type": "integer"
+          },
+          "observedUs": {
+            "description": "날짜와 겹친 전체 관찰 활동 시간(마이크로초)입니다.",
+            "title": "Observedus",
+            "type": "integer"
+          },
+          "opaqueUs": {
+            "description": "불투명 활동 시간(마이크로초)입니다.",
+            "title": "Opaqueus",
+            "type": "integer"
+          },
+          "targets": {
+            "description": "사용 대상 순위입니다.",
+            "items": {
+              "$ref": "#/components/schemas/TargetUsageResponse"
+            },
+            "title": "Targets",
+            "type": "array"
+          },
+          "unknownAppUs": {
+            "description": "bundleId를 수집하지 못한 `앱 미확인` 시간(마이크로초)입니다.",
+            "title": "Unknownappus",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "apps",
+          "targets",
+          "unknownAppUs",
+          "opaqueUs",
+          "observedUs",
+          "browserWithoutUrlUs"
+        ],
+        "title": "UsageResponse",
+        "type": "object"
+      },
+      "UsageTargetResponse": {
+        "description": "시간을 쓴 사이트 또는 앱입니다.",
+        "properties": {
+          "displayName": {
+            "description": "화면 표시 이름입니다. 사이트는 유니코드 호스트, 앱은 그 기간 최신 관찰 이름이며 이름이 없으면 bundleId입니다.",
+            "title": "Displayname",
+            "type": "string"
+          },
+          "key": {
+            "description": "비교 키입니다. 사이트는 IDNA ASCII 소문자, 앱은 bundleId입니다.",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "description": "사이트(eTLD+1)인지 앱(bundleId)인지 나타냅니다.",
+            "enum": [
+              "site",
+              "app"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "key",
+          "displayName"
+        ],
+        "title": "UsageTargetResponse",
         "type": "object"
       },
       "ValidationDetail": {
@@ -4112,6 +4831,433 @@
         "summary": "날짜별 관찰 타임라인 조회",
         "tags": [
           "activities"
+        ]
+      }
+    },
+    "/api/v1/analytics/daily-stats": {
+      "get": {
+        "description": "계정 시간대 날짜 하나의 앱·사이트 사용 시간, 전환, 라벨 전환, 수집 상태, 그날 시작한 완료 세션의 합을 반환합니다. 지난 날짜는 최신 저장 결과가 있으면 그 값을, 아니면 원천에서 계산한 값을 반환하고 미래 날짜는 모두 0입니다. 계산에 실패하면 500을 반환합니다.",
+        "operationId": "analyticsDailyStatsGet",
+        "parameters": [
+          {
+            "description": "계정 시간대 기준 날짜입니다.",
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "description": "계정 시간대 기준 날짜입니다.",
+              "format": "date",
+              "title": "Date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyStatsResponse"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "응답을 저장하지 않도록 no-store로 설정됩니다.",
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH_INVALID_ACCESS_TOKEN": {
+                    "description": "Bearer 액세스 토큰이 유효하지 않거나 누락되었습니다.",
+                    "summary": "Invalid access token",
+                    "value": {
+                      "error": {
+                        "code": 401,
+                        "details": [],
+                        "message": "Invalid or expired access token",
+                        "status": "AUTH_INVALID_ACCESS_TOKEN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "클라이언트가 사용해야 하는 인증 방식입니다.",
+                "schema": {
+                  "const": "Bearer",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_ROUTE_NOT_FOUND": {
+                    "description": "요청한 API route를 찾을 수 없습니다.",
+                    "summary": "Route not found",
+                    "value": {
+                      "error": {
+                        "code": 404,
+                        "details": [],
+                        "message": "API route not found",
+                        "status": "REQUEST_ROUTE_NOT_FOUND"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found",
+            "headers": {}
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_METHOD_NOT_ALLOWED": {
+                    "description": "요청 method가 해당 API route에서 허용되지 않습니다.",
+                    "summary": "Method not allowed",
+                    "value": {
+                      "error": {
+                        "code": 405,
+                        "details": [],
+                        "message": "Method not allowed",
+                        "status": "REQUEST_METHOD_NOT_ALLOWED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "description": "해당 route에서 허용되는 HTTP method 목록입니다.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INVALID_ARGUMENT": {
+                    "description": "요청 입력값 검증에 실패했습니다.",
+                    "summary": "Invalid argument",
+                    "value": {
+                      "error": {
+                        "code": 422,
+                        "details": [
+                          {
+                            "loc": [
+                              "body",
+                              "users",
+                              0,
+                              "email"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ],
+                        "message": "Request validation failed.",
+                        "status": "INVALID_ARGUMENT"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content",
+            "headers": {}
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_SERVER_ERROR": {
+                    "description": "예상하지 못한 서버 오류가 발생했습니다.",
+                    "summary": "Internal server error",
+                    "value": {
+                      "error": {
+                        "code": 500,
+                        "details": [],
+                        "message": "Internal server error",
+                        "status": "INTERNAL_SERVER_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "날짜별 일간 통계 조회",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/focus-sessions/{focus_session_id}": {
+      "get": {
+        "description": "완료한 세션 하나의 전환, 시간 구성, 이탈 대상, 이탈 근거, 라벨 전환을 조회할 때 계산해 반환합니다. 진행 중인 세션은 409를 반환합니다.",
+        "operationId": "analyticsFocusSessionGet",
+        "parameters": [
+          {
+            "description": "집중 세션 식별자입니다.",
+            "in": "path",
+            "name": "focus_session_id",
+            "required": true,
+            "schema": {
+              "description": "집중 세션 식별자입니다.",
+              "format": "uuid",
+              "title": "Focus Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FocusSessionAnalysisResponse"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "응답을 저장하지 않도록 no-store로 설정됩니다.",
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH_INVALID_ACCESS_TOKEN": {
+                    "description": "Bearer 액세스 토큰이 유효하지 않거나 누락되었습니다.",
+                    "summary": "Invalid access token",
+                    "value": {
+                      "error": {
+                        "code": 401,
+                        "details": [],
+                        "message": "Invalid or expired access token",
+                        "status": "AUTH_INVALID_ACCESS_TOKEN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "클라이언트가 사용해야 하는 인증 방식입니다.",
+                "schema": {
+                  "const": "Bearer",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ANALYTICS_FOCUS_SESSION_NOT_FOUND": {
+                    "description": "집중 세션을 찾을 수 없거나 인증된 계정에 속하지 않습니다.",
+                    "summary": "Focus session not found",
+                    "value": {
+                      "error": {
+                        "code": 404,
+                        "details": [],
+                        "message": "Focus session not found",
+                        "status": "ANALYTICS_FOCUS_SESSION_NOT_FOUND"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found",
+            "headers": {}
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REQUEST_METHOD_NOT_ALLOWED": {
+                    "description": "요청 method가 해당 API route에서 허용되지 않습니다.",
+                    "summary": "Method not allowed",
+                    "value": {
+                      "error": {
+                        "code": 405,
+                        "details": [],
+                        "message": "Method not allowed",
+                        "status": "REQUEST_METHOD_NOT_ALLOWED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "description": "해당 route에서 허용되는 HTTP method 목록입니다.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ANALYTICS_FOCUS_SESSION_IN_PROGRESS": {
+                    "description": "아직 완료하지 않은 집중 세션은 분석할 수 없습니다.",
+                    "summary": "Focus session in progress",
+                    "value": {
+                      "error": {
+                        "code": 409,
+                        "details": [],
+                        "message": "Focus session is still in progress",
+                        "status": "ANALYTICS_FOCUS_SESSION_IN_PROGRESS"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict",
+            "headers": {}
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INVALID_ARGUMENT": {
+                    "description": "요청 입력값 검증에 실패했습니다.",
+                    "summary": "Invalid argument",
+                    "value": {
+                      "error": {
+                        "code": 422,
+                        "details": [
+                          {
+                            "loc": [
+                              "body",
+                              "users",
+                              0,
+                              "email"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ],
+                        "message": "Request validation failed.",
+                        "status": "INVALID_ARGUMENT"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content",
+            "headers": {}
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_SERVER_ERROR": {
+                    "description": "예상하지 못한 서버 오류가 발생했습니다.",
+                    "summary": "Internal server error",
+                    "value": {
+                      "error": {
+                        "code": 500,
+                        "details": [],
+                        "message": "Internal server error",
+                        "status": "INTERNAL_SERVER_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "완료한 집중 세션 분석 조회",
+        "tags": [
+          "analytics"
         ]
       }
     },

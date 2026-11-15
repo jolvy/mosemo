@@ -12,7 +12,7 @@ from mosemo.analytics.domain.session_analysis import (
     measure,
     ranked_distractions,
 )
-from mosemo.analytics.domain.source import DayWindow, SourceSnapshot
+from mosemo.analytics.domain.source import DayWindow, SourceSegment, SourceSnapshot
 from mosemo.analytics.domain.transitions import (
     LabelTransition,
     TargetTransition,
@@ -23,6 +23,7 @@ from mosemo.analytics.domain.usage_targets import (
     LapseTarget,
     UsageTarget,
     UsageTargetResolver,
+    latest_app_names,
 )
 
 SHORT_DWELL_US = 5_000_000
@@ -30,7 +31,11 @@ SHORT_DWELL_US = 5_000_000
 
 @dataclass(frozen=True, kw_only=True)
 class AppUsage:
+    """`name` is the bundleId's latest observed name on the date (FR-1), else the
+    bundleId itself."""
+
     app: str
+    name: str
     us: int
 
 
@@ -80,6 +85,36 @@ class DailyStats:
     sessions: SessionTotals
     auxiliary: AuxiliaryValues
 
+    @classmethod
+    def empty(cls) -> DailyStats:
+        """A date without any source: every value 0 and every list empty."""
+        return cls(
+            usage=UsageTime(
+                apps=(), targets=(), unknown_app_us=0, opaque_us=0, observed_us=0
+            ),
+            target_transitions=(),
+            label_transitions=(),
+            sessions=SessionTotals(
+                count=0, analysis_us=0, composition=TimeComposition(), distractions=()
+            ),
+            auxiliary=AuxiliaryValues(
+                short_dwell_transition_count=0,
+                browser_without_url_us=0,
+                capture_gap_count=0,
+                silence_count=0,
+                pending_us=0,
+            ),
+        )
+
+    def app_names(self) -> dict[str, str]:
+        """Display names of the ranked apps by bundleId."""
+        return {row.app: row.name for row in self.usage.apps}
+
+
+def short_dwell_count(transitions: Sequence[TargetTransition]) -> int:
+    """Transitions after a run shorter than five seconds."""
+    return sum(1 for row in transitions if row.previous_dwell_us < SHORT_DWELL_US)
+
 
 class DailyStatsCalculator:
     """Calculates one date from a snapshot of the segments read for it."""
@@ -109,6 +144,7 @@ class DailyStatsCalculator:
         apps: Counter[str] = Counter()
         targets: Counter[UsageTarget] = Counter()
         unknown = opaque = observed = 0
+        counted: list[SourceSegment] = []
         for segment in snapshot.segments:
             if not segment.is_activity:
                 continue
@@ -123,8 +159,14 @@ class DailyStatsCalculator:
             else:
                 apps[app] += us
                 targets[target] += us
+                if us > 0:
+                    counted.append(segment)
+        names = latest_app_names(counted, self._resolver)
         return UsageTime(
-            apps=tuple(AppUsage(app=app, us=us) for app, us in ranked(apps, key=str)),
+            apps=tuple(
+                AppUsage(app=app, name=names.get(app, app), us=us)
+                for app, us in ranked(apps, key=str)
+            ),
             targets=tuple(
                 TargetUsage(target=target, us=us)
                 for target, us in ranked(targets, key=lambda target: target.key)
@@ -170,9 +212,7 @@ class DailyStatsCalculator:
         segments = snapshot.segments
         activities = [segment for segment in segments if segment.is_activity]
         return AuxiliaryValues(
-            short_dwell_transition_count=sum(
-                1 for row in c2 if row.previous_dwell_us < SHORT_DWELL_US
-            ),
+            short_dwell_transition_count=short_dwell_count(c2),
             browser_without_url_us=sum(
                 segment.overlap_us(window.bounds)
                 for segment in activities

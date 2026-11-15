@@ -36,7 +36,7 @@ def test_row_round_trips_and_keeps_site_keys_ascii() -> None:
         {"kind": "site", "key": "xn--vv4b11d.xn--3e0b707e", "us": 3},
     ]
     assert row["app_usage"] == [
-        {"bundleId": "com.example.editor", "name": "com.example.editor", "us": 9}
+        {"bundleId": "com.example.editor", "name": "Editor", "us": 9}
     ]
     assert row["target_transitions"][0] == {
         "at": "2026-11-01T01:00:00+00:00",

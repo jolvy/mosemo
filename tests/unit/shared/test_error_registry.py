@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 
+from mosemo.analytics.public import AnalyticsErrorCode
 from mosemo.entrypoints.api.openapi import (
     REGISTERED_ERROR_DOCS,
     fill_error_examples,
@@ -25,6 +26,7 @@ ALLOWED_NAMES: dict[type[ApiErrorCode], tuple[tuple[str, ...], frozenset[str]]] 
     LabelErrorCode: (("LABEL_",), frozenset()),
     ObservationErrorCode: (("ACTIVITY_", "FOCUS_SESSION_"), frozenset()),
     LabelingErrorCode: (("LABELING_",), frozenset()),
+    AnalyticsErrorCode: (("ANALYTICS_",), frozenset()),
 }
 
 

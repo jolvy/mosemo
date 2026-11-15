@@ -387,3 +387,59 @@ async def test_focus_session_log_reads_completed_sessions_of_the_account(
         await log.find_status(session, account_id, focus_session_id=uuid4())
         is FocusSessionStatus.MISSING
     )
+
+
+@pytest.mark.asyncio
+async def test_find_following_returns_the_next_segment_in_timeline_order(
+    integration_session: AsyncSession,
+) -> None:
+    session = integration_session
+    account_id, device_id = await account_and_device(session)
+    other_account, other_device = await account_and_device(session)
+    seeds = [
+        activity(
+            session,
+            account_id,
+            device_id,
+            started_at=utc(2026, 9, 14, 1),
+            last_observed_at=utc(2026, 9, 14, 1),
+            ended_at=utc(2026, 9, 14, 1),
+        ),
+        activity(
+            session,
+            account_id,
+            device_id,
+            started_at=utc(2026, 9, 14, 1),
+            last_observed_at=utc(2026, 9, 14, 1, 30),
+            ended_at=utc(2026, 9, 14, 2),
+        ),
+        open_gap(session, account_id, device_id, started_at=utc(2026, 9, 15, 3)),
+    ]
+    # The zero-second segment comes first among segments with the same start.
+    seeds[0].id, seeds[1].id = sorted([seeds[0].id, seeds[1].id])
+    activity(
+        session,
+        other_account,
+        other_device,
+        started_at=utc(2026, 9, 14, 2, 30),
+        last_observed_at=utc(2026, 9, 14, 2, 40),
+        ended_at=utc(2026, 9, 14, 2, 40),
+    )
+    await session.flush()
+    timeline = create_observation_timeline()
+    now = utc(2026, 9, 16)
+    observed = await timeline.read_range(
+        session, account_id, start=utc(2026, 9, 14), end=utc(2026, 9, 16), now=now
+    )
+    assert [segment.id for segment in observed] == [seed.id for seed in seeds]
+
+    following = [
+        await timeline.find_following(session, account_id, segment=segment, now=now)
+        for segment in observed
+    ]
+
+    assert [item.id if item else None for item in following] == [
+        seeds[1].id,
+        seeds[2].id,
+        None,
+    ]
