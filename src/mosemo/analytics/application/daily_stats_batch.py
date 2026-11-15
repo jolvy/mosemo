@@ -9,6 +9,7 @@ held while computing, so source writes never wait for the batch.
 
 import asyncio
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -130,6 +131,7 @@ class RefreshReport:
     stale: int = 0
     failures: Counter[str] = field(default_factory=Counter)
     quarantined_new: int = 0
+    released: int = 0
     definition_mismatch: int = 0
     aborted: str | None = None
     max_source_read_ms: float = 0.0
@@ -154,6 +156,7 @@ class RefreshReport:
                 )
             },
             "quarantined_new": self.quarantined_new,
+            "released": self.released,
             "definition_mismatch": self.definition_mismatch,
             "aborted": self.aborted,
             "max_source_read_ms": self.max_source_read_ms,
@@ -309,6 +312,20 @@ class DailyStatsStore:
         marker.fail(classification, now=now, policy=RETRY_POLICY)
         return await self._markers.record_failure(db_session, marker)
 
+    async def release(
+        self,
+        db_session: AsyncSession,
+        markers: Sequence[RecomputeMarker],
+        *,
+        now: datetime,
+    ) -> int:
+        """Give back the claims of markers the run did not reach."""
+        released = 0
+        for marker in markers:
+            marker.release(now=now)
+            released += await self._markers.release_claim(db_session, marker)
+        return released
+
 
 class DailyStatsComputation:
     """Reads one marked date's source and computes its daily stats."""
@@ -384,13 +401,30 @@ class RefreshDailyStats(UseCase):
                 1 for marker in claimed if marker.kind is MarkerKind.DEFINITION
             )
             await self._settings.wait_points.reach(AFTER_CLAIM)
-            for marker in claimed:
+            for index, marker in enumerate(claimed):
                 if perf_counter() - started >= RUN_BUDGET_SECONDS:
+                    await self._release(
+                        db_session, claimed[index:], now=now, report=report
+                    )
                     return report
                 await self._process(db_session, marker, now=now, report=report)
                 if report.aborted is not None:
                     return report
         return report
+
+    async def _release(
+        self,
+        db_session: AsyncSession,
+        markers: Sequence[RecomputeMarker],
+        *,
+        now: datetime,
+        report: RefreshReport,
+    ) -> None:
+        """The budget ran out: the claimed dates not reached keep their
+        attempts and are due for the next run instead of waiting for the lease."""
+        async with unit_of_work(db_session, self._dispatcher):
+            report.released = await self._store.release(db_session, markers, now=now)
+        reset_session(db_session)
 
     async def _claim(
         self, db_session: AsyncSession, *, now: datetime, limit: int

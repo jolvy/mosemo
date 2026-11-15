@@ -16,14 +16,15 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from mosemo.analytics.application import reads
+from mosemo.analytics.application import daily_stats_batch, reads
 from mosemo.analytics.application.daily_stats_batch import (
+    AFTER_CLAIM,
     AFTER_SOURCE_READ,
     BEFORE_SAVE_COMMIT,
 )
 from mosemo.analytics.application.source_loader import SourceSnapshotLoader
 from mosemo.analytics.bootstrap import public_suffix_rules
-from mosemo.analytics.domain.markers import MarkerKind
+from mosemo.analytics.domain.markers import RETRY_POLICY, MarkerKind
 from mosemo.analytics.domain.stored_stats import StoredDailyStats
 from mosemo.analytics.domain.usage_targets import UsageTargetResolver
 from mosemo.analytics.infrastructure.daily_stats import DailyStatsRepository
@@ -34,6 +35,7 @@ from mosemo.observation.bootstrap import (
 )
 from mosemo.observation.domain.timeline import ActivityTimelineSegment
 from tests.support.analytics_batch import (
+    DAY,
     EDITOR,
     BatchWorld,
     background,
@@ -412,3 +414,30 @@ async def test_tx12_a_torn_read_may_be_stored_but_is_never_used(
     assert await world.marker(seed.account_id) is not None
     await assert_read_is_current(world, seed)
     await assert_converged(world, seed)
+
+
+async def test_dates_left_when_the_budget_runs_out_keep_their_attempts(
+    world: BatchWorld, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The 120 s budget is checked between dates. Claimed dates the run did
+    not reach give back their attempt and are due again, so repeated budget
+    overruns never quarantine a healthy date."""
+    seed = await seeded(world)
+    await world.mark_days(seed, DAY + timedelta(days=1))
+    monkeypatch.setattr(daily_stats_batch, "RUN_BUDGET_SECONDS", 0.2)
+
+    for _ in range(RETRY_POLICY.quarantine_threshold + 1):
+        async with background(world.run(world.refresh(wait=[AFTER_CLAIM]))) as run:
+            await world.gate.reached(AFTER_CLAIM)
+            await asyncio.sleep(0.3)
+            world.gate.release(AFTER_CLAIM)
+            report = await run
+        assert (report.released, report.saved, report.failures.total()) == (2, 0, 0)
+        rows = await world.marker_rows(seed.account_id)
+        assert [row["attempts"] for row in rows] == [0, 0]
+        assert all(row["next_attempt_at"] == world.clock() for row in rows)
+        assert all(row["last_error"] is None for row in rows)
+
+    monkeypatch.setattr(daily_stats_batch, "RUN_BUDGET_SECONDS", 120.0)
+    assert (await world.run()).saved == 2
+    assert await world.marker_rows(seed.account_id) == []
