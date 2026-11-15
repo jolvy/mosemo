@@ -5450,7 +5450,7 @@
     },
     "/api/v1/focus-sessions/{focus_session_id}/completion": {
       "put": {
-        "description": "라벨은 필수이고 설명은 선택입니다. 동일한 완료 요청은 재시도할 수 있고 확정된 기록은 변경할 수 없습니다.",
+        "description": "라벨은 필수이고 설명은 선택입니다. 동일한 완료 요청은 재시도할 수 있고 확정된 기록은 변경할 수 없습니다. 계정별 관찰 쓰기 잠금을 3초 안에 얻지 못하면 503과 Retry-After: 1을 반환합니다.",
         "operationId": "focusSessionsComplete",
         "parameters": [
           {
@@ -5686,6 +5686,39 @@
             },
             "description": "Internal Server Error",
             "headers": {}
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ACTIVITY_TIMELINE_BUSY": {
+                    "description": "계정별 관찰 쓰기 잠금을 3초 안에 얻지 못했습니다.",
+                    "summary": "Activity timeline busy",
+                    "value": {
+                      "error": {
+                        "code": 503,
+                        "details": [],
+                        "message": "Activity timeline is busy",
+                        "status": "ACTIVITY_TIMELINE_BUSY"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "headers": {
+              "Retry-After": {
+                "description": "같은 완료 요청을 재시도하기 전 대기할 초입니다.",
+                "schema": {
+                  "const": "1",
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [

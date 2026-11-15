@@ -23,6 +23,7 @@ from mosemo.platform.messaging.subscriber import (
     RawMessage,
 )
 from mosemo.platform.providers import get_event_dispatcher
+from mosemo.shared.application.events import EventDispatcher
 
 
 class InvalidBatchMessageError(ValueError):
@@ -64,6 +65,17 @@ class BatchProcessingExecutor:
             )
 
 
+def register_analytics_handlers(dispatcher: EventDispatcher) -> None:
+    """Subscribe analytics with collaborators built for this process."""
+    analytics_bootstrap.register_handlers(
+        dispatcher,
+        timeline=observation_bootstrap.create_observation_timeline(),
+        accounts=identity_bootstrap.create_account_directory(),
+        focus_sessions=observation_bootstrap.create_focus_session_log(),
+        clock=utc_now,
+    )
+
+
 def activity_batch_handler(executor: BatchProcessingExecutor) -> MessageProcessor:
     async def process(message: RawMessage) -> None:
         await executor.execute(decode_batch(message.key, message.value))
@@ -83,7 +95,7 @@ async def run_consumer(
     labels_bootstrap.map_tables()
     observation_bootstrap.map_tables()
     analytics_bootstrap.map_tables()
-    analytics_bootstrap.register_handlers(get_event_dispatcher())
+    register_analytics_handlers(get_event_dispatcher())
     executor = BatchProcessingExecutor(
         sessions,
         process_batch=observation_bootstrap.create_process_activity_batch(

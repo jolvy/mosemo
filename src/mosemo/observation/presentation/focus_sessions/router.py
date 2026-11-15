@@ -20,6 +20,7 @@ from mosemo.observation.domain.focus_sessions import (
     FocusSessionInvalidTimeError,
     FocusSessionNotFoundError,
 )
+from mosemo.observation.domain.timeline import ActivityTimelineBusyError
 from mosemo.observation.presentation.dependencies import SessionDep
 from mosemo.observation.presentation.errors import ObservationErrorCode
 from mosemo.observation.presentation.focus_sessions.mappers import (
@@ -51,7 +52,27 @@ ERROR_CODES: dict[type[Exception], ApiErrorCode] = {
     FocusSessionInvalidTimeError: CommonErrorCode.INVALID_ARGUMENT,
     FocusSessionLabelNotAvailableError: LabelErrorCode.LABEL_NOT_AVAILABLE,
     AccountNotFoundError: CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+    ActivityTimelineBusyError: ObservationErrorCode.ACTIVITY_TIMELINE_BUSY,
 }
+# Completion also writes the analytics recompute marks, which take the account
+# timeline lock (ADR 0016 「표시와 배치」).
+COMPLETE_ERRORS = api_error_responses(
+    CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
+    ObservationErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
+    ObservationErrorCode.FOCUS_SESSION_NOT_FOUND,
+    ObservationErrorCode.FOCUS_SESSION_CONFLICT,
+    LabelErrorCode.LABEL_NOT_AVAILABLE,
+    ObservationErrorCode.ACTIVITY_TIMELINE_BUSY,
+    CommonErrorCode.INVALID_ARGUMENT,
+    headers={
+        503: {
+            "Retry-After": {
+                "description": "같은 완료 요청을 재시도하기 전 대기할 초입니다.",
+                "schema": {"type": "string", "const": "1"},
+            }
+        }
+    },
+)
 
 
 @contextmanager
@@ -98,8 +119,8 @@ def create_router(
         operation_id="focusSessionsComplete",
         response_model=FocusSessionResponse,
         summary="종료한 집중 세션 기록 완료",
-        description="라벨은 필수이고 설명은 선택입니다. 동일한 완료 요청은 재시도할 수 있고 확정된 기록은 변경할 수 없습니다.",
-        responses=ERRORS,
+        description="라벨은 필수이고 설명은 선택입니다. 동일한 완료 요청은 재시도할 수 있고 확정된 기록은 변경할 수 없습니다. 계정별 관찰 쓰기 잠금을 3초 안에 얻지 못하면 503과 Retry-After: 1을 반환합니다.",
+        responses=COMPLETE_ERRORS,
     )
     async def complete_focus_session_route(
         focus_session_id: Annotated[UUID, Path(description="집중 세션 식별자입니다.")],
