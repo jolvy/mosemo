@@ -1,0 +1,43 @@
+{
+ "name": "measurement-b",
+ "order": ["R1", "R2", "R3", "R1", "R2", "R3"],
+ "rounds": {
+  "R1": {"read": 1.8963361344537815, "write": 135.70366386554622},
+  "R2": {"read": 1.8963361344537815, "write": 135.70366386554622, "stats": 1.8963361344537815, "sessions": 0.13875630252100842},
+  "R3": {"read": 1.8963361344537815, "write": 135.70366386554622, "stats": 1.8963361344537815, "sessions": 0.13875630252100842, "heavy": 0.8333333333333334, "probe": 0.1}
+ },
+ "probe_accounts": {"1000": 0.05, "5000": 0.05},
+ "dense_segments": [1000, 5000, 10000],
+ "heavy_segments": 10000,
+ "stats_today_share": 0.9,
+ "seed_dates": ["2026-11-11", "2026-11-12"],
+ "marker_date": "2026-11-12",
+ "timezone": "Asia/Seoul",
+ "duration_s": 900,
+ "warm_s": 180,
+ "grace_s": 60,
+ "reset_limit_s": 600,
+ "batch_interval_s": 300,
+ "batch_job": "analytics-daily-stats",
+ "api_pods": 4,
+ "base_database": "mosemo_b_base",
+ "criteria": {
+  "read_p95_ms": 300,
+  "read_p99_ms": 500,
+  "error_rate_max": 0.001,
+  "reflect_p95_s": 10.0,
+  "backlog_slope": "OLS 기울기 95% 신뢰구간 하한 ≤ 0",
+  "dropped_iterations": 0,
+  "arrival_tolerance": 0.02,
+  "c1_scenarios": ["read", "stats", "sessions"],
+  "c6_scenarios": ["read", "write", "stats", "sessions"]
+ },
+ "heavy_share_table": [0.01, 0.05, 0.1, 0.2],
+ "assumptions": [
+  "stats 41건·sessions 3건(사용자당 하루)을 타임라인 조회 41건 = 1.896 rps 비율로 환산했다. 앱 화면 구성이 정해지지 않아 오늘 화면에 통계가 함께 보인다고 가정한다.",
+  "heavy 0.833 rps는 1천 DAU 중 5%(50명)가 하루 구간 1만이고 60초마다 새로고침한다는 가정이다(50 ÷ 60). 근거 데이터는 없다.",
+  "k6 업로드가 회차 초반에 시드 계정의 2026-11-12 표시를 다시 쓴다. 운영에서 자정 뒤 첫 업로드가 어제를 다시 표시하는 것과 같은 동작이라 막지 않는다.",
+  "평범한 계정의 오늘 데이터는 회차 중 k6 업로드로 쌓인 것뿐이라 실제 저녁보다 가볍다(segment_count로 기록).",
+  "고정 부하의 업로드는 10초 창 묶음 가정(workload-137.6rps)을 그대로 쓴다. 실제 클라이언트는 1분마다 보낸다."
+ ]
+}

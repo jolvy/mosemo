@@ -29,6 +29,12 @@
 | `account-delete-procedure.sql` | 계정 삭제 후보 프로시저(명시 순서 한 트랜잭션 / 레코드 현지 날짜별 커밋) |
 | `archive-delete-procedure.sql` | 야간 이관 DB 삭제 흉내 프로시저(레코드 2,000행씩 커밋) |
 | `delete-scale-local-check.sh` | 7B 생성기 로컬 검사: 일회용 PostgreSQL에서 행 수·연결 위반·흩어짐·문맥 모델 검증 |
+| `measurement-b.json` | 측정 B(새 분석 API·일간 통계 batch) 고정 기준: 회차·도착률·판정·가정. `run-load-measurement.sh`가 sha256을 고정값과 비교한다 |
+| `measurement-b.md` | 같은 기준의 설명(질문, 회차, 시작 상태, batch, 판정, 보고, 가정, 전제) |
+| `measurement-pod-b.yaml` | 측정 B Pod 정의: `measurement-pod.yaml`에 일간 통계 job을 돌릴 `batch` 컨테이너를 더한 것 |
+| `dense_day_accounts.py` | 측정 B: 오늘 활동 구간이 정확히 1천·5천·1만 개인 계정을 DB에 바로 넣는다 |
+| `analytics_measurement.py` | 측정 B: 새 API 토큰(`tokens-b`), batch 반복 실행(`batch-loop`), 회차 판정(`report-b`), 전체 요약(`summary-b`) |
+| `k6-analytics-mixed.js` | 측정 B 시나리오: 고정 부하(read·write)에 일간 통계·세션 분석·구간 많은 날 조회를 회차 종류별로 더한다 |
 
 ## 대응표
 
@@ -115,10 +121,24 @@ export PATH="$HOME/.local/kubectl-chunked:$PATH"
    - `final`: 일간 행 0(batch 미실행)·표시 분포 기록, consumer를 원래 수로 되돌림
 4. **Pod 삭제**: `infra/measurement/measurement-pod.sh down`. `measurement-pod.sh fetch`는 Pod 안 `/work/results` 전체를 따로 회수할 때 쓴다.
 
+**측정 B**(`measurement-b.md`): `MEASUREMENT=b`를 주면 `measurement-pod.sh`는 `measurement-pod-b.yaml`로 Pod를 만들고, `run-load-measurement.sh all`은 다음을 돈다. 랩 RDS 저장 공간이 원본·작업 DB를 함께 담을 만큼(50GB 이상) 늘어나 있어야 하고, 남은 회차가 Asia/Seoul 자정 전에 끝나야 한다(아니면 시작하지 않는다).
+
+```sh
+MEASUREMENT=b LOADGEN_NODE=<노드 이름> infra/measurement/measurement-pod.sh up
+MEASUREMENT=b DUMP=<새 덤프> ALEMBIC_FILE=<새 덤프 이름>.alembic.txt infra/measurement/measurement-pod.sh push
+MEASUREMENT=b DEADLINE_UTC=<잠금 토큰 만료 전 UTC> infra/measurement/run-load-measurement.sh all
+```
+
+- 자정 검사 → `check` → `push` → `prep`: a0·a1·a2 → `b-perm`(DB를 만들 권한·작업 DB 소유자) → `b-seed`(구간 많은 계정, 2026-11-12 표시, VACUUM) → `b-base`(원본 DB `mosemo_b_base`로 복사)
+- `mixed`: 회차마다 자정 검사 → consumer 0 → `b-reset`(작업 DB를 원본에서 다시 만듦) → `b-round-start` → consumer 4 → batch 반복(`batch` 컨테이너) + k6(`k6-analytics-mixed.js`) → 유예 → API 로그의 `analytics read` 줄 회수 → `report-b`
+- `final`: `b-final`(일간 행·표시·크기, 원본 DB 삭제) → `summary-b`(G1 결론, 구간 수별 조회 시간, 환산표). 중간에 멈추면 작업 DB가 없을 때 원본에서 다시 만들고 결과를 회수한다
+- 결과: `k6out/mixed-b-r<n>.json·.md`, `k6out/summary-b.json·.md`, `results/b-dense.txt`, `b-reset.txt`, `b-batch.txt`, `b-round-start.json`, `b-final.txt`
+
 **로컬 드라이런**: 랩 없이 같은 순서를 Mac 일회용 컨테이너(PostgreSQL 18.3 + Kafka, 로컬 API·consumer)로 끝까지 돈다. 랩 측정 전에 도구가 끝까지 도는지 확인하는 용도다.
 
 ```sh
 DUMP=<작은 변환 덤프> infra/measurement/local-dryrun.sh
+MEASUREMENT=b infra/measurement/local-dryrun.sh   # 측정 B 6회차(회차 60초, 되돌리기 상한 120초)
 ```
 
 ## 환경 변수
@@ -136,6 +156,8 @@ DUMP=<작은 변환 덤프> infra/measurement/local-dryrun.sh
 | `TARGET`, `END_DATE`, `RDS_PG` | `db-measurement-steps.sh` | `eks`(Pod 안) 또는 `local`, 조회 부하의 "오늘" `2026-11-12`, 드라이런 DB 컨테이너 |
 | `REPO`, `PORT`, `EXPECT_FROM`, `EXPECT_TO` | `convert-seed-dump.sh` | 이 저장소 루트, 55471, `a3b4c5d6e7f8`, `c5d6e7f8a9b0` |
 | `REPO`, `LOCAL_CONSUMERS` | `local-dryrun.sh` | 이 저장소 루트, 로컬 consumer 1개 |
+| `MEASUREMENT` | `run-load-measurement.sh`, `measurement-pod.sh`, `local-dryrun.sh` | `a`(기본, 측정 A) 또는 `b`(측정 B). `local-dryrun.sh`는 `delete-scale`도 받는다 |
+| `MEASUREMENT_NOW_KST`, `RESET_LIMIT_S`, `API_LOG`, `LOCAL_CONSUMER_STOP`, `LOCAL_CONSUMER_START` | `run-load-measurement.sh`(측정 B) | 자정 검사의 현재 시각(ISO 8601), 되돌리기 SQL 상한(랩은 `measurement-b.json` 600초, `LOCAL=1`만 덮음), 로컬 API 로그, 로컬 consumer 멈춤·시작 명령 |
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USER`, `DB_PASSWORD` 또는 `S5_DSN` | `db_harness.py`, `k6_inputs_and_reports.py` | DB 접속. Pod 안은 앱 configmap·Secret에서 받는다 |
 | `PGSSLMODE`, `PGSSLROOTCERT` | `db_harness.py` | `verify-full`이면 RDS CA로 검증한다 |
 | `S5_REQ_TIMEOUT`, `S5_LONG_TIMEOUT`, `S5_SQL_TIMEOUT`, `S5_CMD_TIMEOUT` | `db_harness.py` | 요청 30초, 긴 단위 120초, SQL 문장 600초(`a2`는 7200초), `inventory` 전체 1800초 |

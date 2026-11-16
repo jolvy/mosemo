@@ -17,6 +17,7 @@
 #   DUMP, ALEMBIC_FILE      덤프와 그 head 파일(기본 ~/mosemo-step5/seed.dump, ~/mosemo-step5/s1-alembic.txt)
 #   STATE                   로컬 기록 폴더(기본 ~/mosemo-step5/kube)
 #   DRY_RUN=1               클러스터에 닿지 않고 실행할 명령만 출력
+#   MEASUREMENT=b           측정 B: Pod 정의를 measurement-pod-b.yaml(batch 컨테이너 추가)로, push에 dense_day_accounts.py를 더한다
 #
 # 하지 않는 것(브리핑 "하지 말 것"): terraform·aws CLI·session·deploy 스크립트, step5-tools 외 Pod 생성,
 # mosemo-consumer 외 Deployment 변경, Kafka 접속. 이 스크립트가 부르는 kubectl은 아래 K 함수뿐이다.
@@ -35,6 +36,13 @@ DRY_RUN="${DRY_RUN:-0}"
 LOADGEN_NODE="${LOADGEN_NODE:-}"
 TOOLS=(db_harness.py
        reorder-segments-by-time.sql)
+MEASUREMENT="${MEASUREMENT:-a}"
+POD_YAML=measurement-pod.yaml
+case "$MEASUREMENT" in
+  a) ;;
+  b) POD_YAML=measurement-pod-b.yaml; TOOLS+=(dense_day_accounts.py) ;;
+  *) echo "MEASUREMENT는 a 또는 b" >&2; exit 2 ;;
+esac
 
 # STATE가 저장소 안이면 멈춘다(기록에 계정 ID가 든 ECR URI가 남아 커밋될 수 있다). 경로를 루트부터 한 단계씩 따라가며
 # 이미 있는 폴더는 물리 경로로 풀고(..·심볼릭 링크 해소, mkdir -p와 같은 순서), 아직 없는 부분은 새로 만들 폴더로 센다.
@@ -129,7 +137,7 @@ cmd_up() {
   img=$(image_ref)
   log "up: 이미지 $img"
   if [[ "$DRY_RUN" != 1 ]] && K get pod "$POD" >/dev/null 2>&1; then die "$POD가 이미 있다(down 먼저)"; fi
-  sed "s|<APP_IMAGE>|$img|" "$ART/measurement-pod.yaml" > "$STATE/pod.rendered.yaml"
+  sed "s|<APP_IMAGE>|$img|" "$ART/$POD_YAML" > "$STATE/pod.rendered.yaml"
   grep -q "<APP_IMAGE>" "$STATE/pod.rendered.yaml" && die "이미지 자리를 채우지 못했다"
   K create -f "$STATE/pod.rendered.yaml"
   K wait --for=condition=Ready "pod/$POD" --timeout=600s || die "Running/Ready 대기 시간 초과"

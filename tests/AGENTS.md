@@ -13,7 +13,7 @@
 - 분류 우선순위: 정의된 핵심 업무 시나리오 전체를 검증하면 E2E → 아니고 실제 구성요소 연동이나 컴포넌트의 공개 동작을 검증하면 Integration → 아니고 격리된 단위의 동작을 검증하면 Unit. 어디에도 명확히 해당하지 않으면 임의로 정하지 않고 SUT와 검증 목적을 확인한다.
 - 테스트 파일 하나는 한 분류에만 속한다. 여러 분류에 걸치면 주된 검증 목적과 위 우선순위로 정한다.
 - E2E는 핵심 업무 시나리오에 한정하고, Unit·Integration으로 충분히 검증할 수 있는 사례로 넓히지 않는다.
-- `{패키지}`는 SUT가 있는 `src/mosemo`의 최상위 패키지(`identity`, `labels`, `observation`, `labeling`, `analytics`, `shared`, `platform`, `entrypoints`)다. 예외: 저장소 도구 테스트 `harness`(`.codex`), `scripts`, 마이그레이션 테스트 `migrations`, 테스트 지원 코드 자체를 검증하는 `support`(`tests/support`), 저장소 도구 테스트 `tools`(`tools/`). 그 아래 깊이는 자유다.
+- `{패키지}`는 SUT가 있는 `src/mosemo`의 최상위 패키지(`identity`, `labels`, `observation`, `labeling`, `analytics`, `shared`, `platform`, `entrypoints`)다. 예외: 저장소 도구 테스트 `harness`(`.codex`), `scripts`, 마이그레이션 테스트 `migrations`, 테스트 지원 코드 자체를 검증하는 `support`(`tests/support`), 저장소 도구 테스트 `tools`(`tools/`, 측정 도구 `infra/measurement/`). 그 아래 깊이는 자유다.
 - 마커는 "어떤 조건에서 실행하나"만 나타낸다: `requires_db`(실제 PostgreSQL), `requires_kafka`(실제 Kafka). `tests/conftest.py`가 fixture를 보고 자동으로 붙이며 손으로 붙이지 않는다. 새 컨테이너 fixture를 추가하면 마커 매핑도 함께 추가한다. `e2e`도 `tests/conftest.py`가 `tests/e2e/` 아래 테스트에 경로로 자동으로 붙인다. 예외: `fault_injection`은 실행 비용 마커다(프로세스 kill·DB 재시작 장애 주입). `tests/integration/analytics/`의 `test_fault_injection*.py` 모듈에만 `pytestmark = pytest.mark.fault_injection`으로 손으로 붙이고, 그 파일에는 다른 테스트를 두지 않는다.
 - 경계 판정 기록: `entrypoints/test_providers.py`, `test_exception_handlers.py`는 provider·handler 하나만 등록한 작은 FastAPI 앱에 `TestClient`를 쓰지만 SUT가 그 함수 하나이므로 Unit이다. `platform/test_database.py`(설정 없는 새 인터프리터에서 import 확인)와 `harness/test_docs.py`(검사기 CLI)의 subprocess도 같은 이유로 Unit이다.
 

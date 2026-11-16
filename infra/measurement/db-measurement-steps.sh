@@ -11,6 +11,15 @@
 #     rec <이름>    질의별 통계·DB 통계·표시 수 기록. 이름이 before-로 시작하면 기록 뒤 pg_stat_statements 초기화        (tools)
 #     final         측정 끝 상태: 일간 행 0(batch가 돌지 않았음), 표시 수·날짜 분포, 테이블 행 수·크기                    (tools)
 #     post-dump     측정 직후 DB 덤프(pg_dump -Fc -Z 6) → $W/post-7a.dump(.sha256)                            (pg 컨테이너)
+#   측정 B(measurement-b.md, 관리용 DB postgres에 붙어 트랜잭션 밖에서 실행하는 SQL은 S5_SQL_TIMEOUT = RESET_LIMIT_S):
+#     b-perm              DB를 만들 권한(rolcreatedb·슈퍼유저·rds_superuser)과 작업 DB 소유자 확인. 아니면 멈춘다       (tools)
+#     b-seed <제외 계정>   구간 많은 계정(dense_day_accounts.py) → 2026-11-12 표시(시드 계정, 제외·구간 많은 계정 빼고)
+#                         → VACUUM (ANALYZE)                                                                          (tools)
+#     b-base              작업 DB를 원본 DB(BASE_DB)로 복사: 새 연결 막기 → 연결 끊기 → FILE_COPY → 다시 열기       (tools)
+#     b-reset <n> <남은 묶음>  작업 DB를 지우고(WITH FORCE) 원본에서 다시 만듦 → 통계 초기화 → b-reset.txt 한 줄    (tools)
+#     b-round-start <n> <제외 계정>  회차 시작 표시 수·시드 계정 수 → b-round-start.json                       (tools)
+#     b-final             일간 행·표시·크기 → b-final.txt, 원본 DB 삭제                                         (tools)
+#     b-restore           작업 DB가 없고 원본이 있으면 원본에서 다시 만든다(중간에 멈췄을 때)                       (tools)
 #   대상: TARGET=eks(측정 Pod 안, 기본) | local(Mac 드라이런: m7a-rds 컨테이너, local-dryrun.sh가 부른다)
 set -euo pipefail
 
@@ -36,6 +45,10 @@ else
   set -a; source "$ENV_FILE"; set +a   # DB_*·AUTH_JWT_*(하네스·준비 스크립트가 읽음)
 fi
 OUT="$W/results"
+WORK_DB="${DB_DATABASE:-mosemo}"
+BASE_DB="${BASE_DB:-mosemo_b_base}"
+MARKER_DATE="${MARKER_DATE:-2026-11-12}"
+RESET_LIMIT_S="${RESET_LIMIT_S:-600}"
 mkdir -p "$OUT"
 log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$OUT/a-run.log"; }
 die() { log "멈춤: $*"; exit 1; }
@@ -197,9 +210,121 @@ post_dump() {
   log "post-dump $(wc -c < "$W/post-7a.dump" | tr -d ' ') B, $(( $(date +%s) - start ))s, $(awk '{print $1}' "$W/post-7a.dump.sha256")"
 }
 
+
+# ---------------------------------------------------------------- 측정 B
+ident() { [[ "$1" =~ ^[a-z_][a-z0-9_]*$ ]] || die "DB 이름이 식별자가 아니다: $1"; }
+uuids() { [[ -z "$1" || "$1" =~ ^[0-9a-f-]{36}(,[0-9a-f-]{36})*$ ]] || die "계정 ID 목록 형식: $1"; }
+quoted() { local x out=""; for x in ${1//,/ }; do out+="${out:+,}'$x'"; done; echo "${out:-'00000000-0000-0000-0000-000000000000'}"; }
+ADM() { DB_DATABASE=postgres S5_SQL_TIMEOUT="$RESET_LIMIT_S" H sql --query "$1"; }   # 관리용 DB, 문장 하나(트랜잭션 밖)
+ADMVAL() { ADM "$1" | sed -n 2p; }
+dense_ids() { "$PY" -c 'import json,sys;print(",".join(json.load(open(sys.argv[1])).values()))' "$OUT/b-dense.json"; }
+db_exists() { [[ "$(ADMVAL "SELECT count(*) FROM pg_database WHERE datname = '$1'")" == 1 ]]; }
+
+b_perm() {
+  ident "$WORK_DB"; ident "$BASE_DB"
+  local can owner
+  can=$(VAL "SELECT r.rolcreatedb OR r.rolsuper OR EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid
+             WHERE m.member = r.oid AND g.rolname = 'rds_superuser') FROM pg_roles r WHERE r.rolname = current_user")
+  owner=$(VAL "SELECT pg_get_userbyid(datdba) = current_user FROM pg_database WHERE datname = current_database()")
+  echo "b-perm createdb=$can owner=$owner db=$WORK_DB base=$BASE_DB" | tee -a "$OUT/a-run.log"
+  [[ "$can" == True && "$owner" == True ]] || die "DB를 만들 권한이 없거나 작업 DB 소유자가 아니다(createdb=$can owner=$owner)"
+}
+
+b_seed() {
+  local excl=${1:-} dense n
+  uuids "$excl"
+  log "B 구간 많은 계정(dense_day_accounts.py)"
+  "$PY" "$ART/dense_day_accounts.py" --out-dir "$OUT" || die "구간 많은 계정 생성 실패(b-dense.txt)"
+  dense=$(dense_ids)
+  SQLQ "INSERT INTO analytics_daily_markers (account_id, local_date, version, kind, marked_at, eligible_at, attempts, next_attempt_at)
+        SELECT a.id, DATE '$MARKER_DATE', nextval('analytics_daily_marker_version_seq'), 'source', now(),
+               (DATE '$MARKER_DATE' + 1)::timestamp AT TIME ZONE 'Asia/Seoul' + interval '1 hour', 0, now()
+        FROM accounts a WHERE a.id NOT IN ($(quoted "$excl,$dense"))
+        ON CONFLICT (account_id, local_date) DO UPDATE SET version = nextval('analytics_daily_marker_version_seq'),
+          kind = 'source', marked_at = excluded.marked_at, eligible_at = excluded.eligible_at, attempts = 0,
+          next_attempt_at = excluded.next_attempt_at, last_error = NULL, last_failed_at = NULL" > "$OUT/b-seed-markers.txt"
+  n=$(VAL "SELECT count(*) FROM analytics_daily_markers WHERE local_date = DATE '$MARKER_DATE'")
+  log "B $MARKER_DATE 표시 ${n}개"
+  S5_SQL_TIMEOUT=7200 SQLQ "VACUUM (ANALYZE)" > /dev/null
+}
+
+b_base() {
+  ident "$WORK_DB"; ident "$BASE_DB"
+  local start; start=$(date +%s)
+  db_exists "$BASE_DB" && die "원본 DB $BASE_DB가 이미 있다(앞선 측정의 잔존물). 확인하고 지운 뒤 다시"
+  ADM "ALTER DATABASE $WORK_DB ALLOW_CONNECTIONS false" > /dev/null
+  ADM "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname = '$WORK_DB' AND pid <> pg_backend_pid()" > /dev/null
+  if ! ADM "CREATE DATABASE $BASE_DB TEMPLATE $WORK_DB STRATEGY FILE_COPY" > "$OUT/b-base.txt" 2>&1; then
+    ADM "ALTER DATABASE $WORK_DB ALLOW_CONNECTIONS true" > /dev/null
+    die "원본 DB 복사 실패(b-base.txt)"
+  fi
+  ADM "ALTER DATABASE $WORK_DB ALLOW_CONNECTIONS true" > /dev/null
+  ADM "ALTER DATABASE $BASE_DB ALLOW_CONNECTIONS false" > /dev/null
+  echo "base_copy_s=$(( $(date +%s) - start ))" >> "$OUT/b-base.txt"
+  log "B 원본 DB $BASE_DB 복사 $(( $(date +%s) - start ))s"
+}
+
+b_reset() {
+  local n=${1:?b-reset <n> <남은 묶음>} left=${2:-0} s0 s1 e0
+  ident "$WORK_DB"; ident "$BASE_DB"
+  s0=$(date -u +%FT%TZ); e0=$(date +%s)
+  ADM "DROP DATABASE IF EXISTS $WORK_DB WITH (FORCE)" > /dev/null || die "작업 DB 지우기 실패"
+  ADM "CREATE DATABASE $WORK_DB TEMPLATE $BASE_DB STRATEGY FILE_COPY" > /dev/null || die "작업 DB 다시 만들기 실패"
+  SQLQ "SELECT pg_stat_statements_reset()" > /dev/null
+  SQLQ "SELECT pg_stat_reset()" > /dev/null
+  s1=$(date -u +%FT%TZ)
+  echo "reset r$n $s0 $s1 $(( $(date +%s) - e0 )) leftover=$left" >> "$OUT/b-reset.txt"
+  log "B 되돌리기 r$n $(( $(date +%s) - e0 ))s(앞 회차 남은 묶음 $left)"
+}
+
+b_round_start() {
+  local n=${1:?b-round-start <n> <제외 계정>} excl=${2:-} dense markers seeds
+  uuids "$excl"
+  dense=$(dense_ids)
+  markers=$(VAL "SELECT count(*) FROM analytics_daily_markers WHERE local_date = DATE '$MARKER_DATE'")
+  seeds=$(VAL "SELECT count(*) FROM accounts WHERE id NOT IN ($(quoted "$excl,$dense"))")
+  "$PY" - "$OUT/b-round-start.json" "$n" "$markers" "$seeds" <<'EOF'
+import json, pathlib, sys
+p = pathlib.Path(sys.argv[1])
+rows = json.loads(p.read_text()) if p.exists() else []
+rows.append({"round": int(sys.argv[2]), "markers_2026_11_12": int(sys.argv[3]), "seed_accounts": int(sys.argv[4])})
+p.write_text(json.dumps(rows, indent=1) + "\n")
+EOF
+  log "B 회차 r$n 시작: $MARKER_DATE 표시 $markers, 시드 계정 $seeds"
+}
+
+b_final() {
+  {
+    echo "# b-final $(date -u +%FT%TZ)"
+    SQLQ "SELECT (SELECT count(*) FROM analytics_daily_stats) daily_stats, (SELECT count(*) FROM analytics_daily_markers) markers,
+            (SELECT count(*) FROM analytics_daily_markers WHERE local_date = DATE '$MARKER_DATE') markers_marker_date"
+    SQLQ "SELECT local_date, kind, count(*) n FROM analytics_daily_markers GROUP BY 1, 2 ORDER BY 1, 2"
+    SQLQ "SELECT pg_database_size(current_database()) AS db_bytes"
+    table_counts
+  } > "$OUT/b-final.txt"
+  ident "$BASE_DB"
+  ADM "DROP DATABASE IF EXISTS $BASE_DB" >> "$OUT/b-final.txt"
+  log "B final: b-final.txt, 원본 DB $BASE_DB 삭제"
+}
+
+b_restore() {
+  ident "$WORK_DB"; ident "$BASE_DB"
+  db_exists "$WORK_DB" && ADM "ALTER DATABASE $WORK_DB ALLOW_CONNECTIONS true" > /dev/null   # b-base 중간에 멈춘 경우
+  if ! db_exists "$WORK_DB" && db_exists "$BASE_DB"; then
+    ADM "CREATE DATABASE $WORK_DB TEMPLATE $BASE_DB STRATEGY FILE_COPY" > /dev/null && log "B 작업 DB를 원본에서 다시 만듦(중단 복구)"
+  fi
+}
+
 case "${1:-}" in
   a0|a1|a2|final) "$1" ;;
+  b-perm) b_perm ;;
+  b-seed) b_seed "${2:-}" ;;
+  b-base) b_base ;;
+  b-reset) b_reset "${2:-}" "${3:-0}" ;;
+  b-round-start) b_round_start "${2:-}" "${3:-}" ;;
+  b-final) b_final ;;
+  b-restore) b_restore ;;
   rec) rec "${2:-}" ;;
   post-dump) post_dump ;;
-  *) sed -n '2,13p' "$0"; exit 2 ;;
+  *) sed -n '2,21p' "$0"; exit 2 ;;
 esac
