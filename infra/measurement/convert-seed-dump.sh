@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 측정 A(7단계 뒤) 덤프 변환. 5단계 덤프(alembic head a3b4c5d6e7f8)를 일회용 로컬 PG(postgres:18.3, RDS와 같은 판)에
+# 측정 A(7단계 뒤) 덤프 변환. 5단계 덤프(alembic head a3b4c5d6e7f8)를 일회용 로컬 PG(PostgreSQL 18.3, RDS와 같은 판)에
 # 복원하고, 이 저장소 코드로 alembic upgrade head(c5d6e7f8a9b0)를 한 뒤 새 덤프를 만든다.
 # 원래 덤프는 읽기만 한다. 변환 전후 모든 기존 테이블의 행 수(count(*))가 같아야 하고, 새 테이블은 정의 행 1개 외에 비어 있어야 한다.
 #
@@ -15,7 +15,7 @@ REPO="${REPO:-$(cd "$ART/../.." && pwd)}"
 PORT="${PORT:-55471}"
 EXPECT_FROM="${EXPECT_FROM:-a3b4c5d6e7f8}"
 EXPECT_TO="${EXPECT_TO:-c5d6e7f8a9b0}"
-PG_IMAGE=postgres:18.3
+PG_IMAGE=postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
 NAME="m7a-conv-$TAG"
 BASE="${DST%.dump}"
 LOG="$BASE.convert.log"
@@ -43,7 +43,7 @@ counts() {  # 모든 public 기본 테이블의 정확한 행 수(이름순)
 log "원래 덤프 $SRC sha256 $(shasum -a 256 "$SRC" | awk '{print $1}')"
 log "repo $REPO commit $(git -C "$REPO" rev-parse HEAD) dirty=$(git -C "$REPO" status --porcelain | wc -l | tr -d ' ')"
 # 일회용 변환용이라 fsync·full_page_writes를 끈다(복원 속도. 덤프 내용에는 영향 없음)
-docker run -d --name "$NAME" -e POSTGRES_DB=mosemo -e POSTGRES_USER=mosemo -e POSTGRES_PASSWORD="$PW" \
+POSTGRES_PASSWORD="$PW" docker run -d --name "$NAME" -e POSTGRES_DB=mosemo -e POSTGRES_USER=mosemo -e POSTGRES_PASSWORD \
   -p 127.0.0.1:"$PORT":5432 --shm-size=512m "$PG_IMAGE" \
   -c shared_buffers=1GB -c max_wal_size=4GB -c fsync=off -c full_page_writes=off -c synchronous_commit=off >/dev/null
 until docker exec "$NAME" pg_isready -U mosemo -d mosemo >/dev/null 2>&1; do sleep 1; done; sleep 2

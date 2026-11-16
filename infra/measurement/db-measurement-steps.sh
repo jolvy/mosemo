@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 측정 A(7단계 뒤 기준 사양 재측정) DB 쪽 절차. STEP7A-PREREG.md 「데이터 준비」·「질의별 통계」를 그대로 실행한다.
 # 쿼리는 하네스(db_harness.py sql)로만 보낸다
-# (앱 이미지에 psql 없음). 복원·덤프만 pg 컨테이너(postgres:18.3)에서 pg_restore·pg_dump로 한다.
+# (앱 이미지에 psql 없음). 복원·덤프만 pg 컨테이너(PostgreSQL 18.3)에서 pg_restore·pg_dump로 한다.
 #
 #   사용: db-measurement-steps.sh <단계> [이름]
 #     a0            관문(복원 전): pg_stat_statements 사용 가능·초기화, track_io_timing 기록, DB가 빈 스키마(계정·레코드 0),
@@ -18,12 +18,12 @@ ART="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="${TARGET:-eks}"
 EXPECT_HEAD="${EXPECT_HEAD:-c5d6e7f8a9b0}"
 END_DATE="${END_DATE:-2026-11-12}"     # 시드 마지막 날 = 조회 부하의 "오늘"(5단계와 같음)
-PG_IMAGE=postgres:18.3
+PG_IMAGE=postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
 if [[ "$TARGET" == eks ]]; then
   W="${W:-/work}"
   REPO="${S5_REPO:-$W/repo}"
   PY="${PY:-python}"
-  DUMP="${DUMP:-$W/seed.dump}"                  # measurement-pod.sh push가 seed-7a.dump를 이 이름으로 넣는다
+  DUMP="${DUMP:-$W/seed.dump}"                  # measurement-pod.sh push가 DUMP를 이 이름으로 넣는다
   ALEMBIC_FILE="${ALEMBIC_FILE:-$W/s1-alembic.txt}"
 else
   W="${W:?local은 W(작업 폴더)를 준다}"
@@ -101,7 +101,7 @@ a1() {
     psql -qX -c "ANALYZE"
     echo "memory_peak_bytes=$(cat /sys/fs/cgroup/memory.peak 2>/dev/null)" >> "$OUT/a1-restore.log"
   else   # Pod의 pg 컨테이너처럼 별도 클라이언트 컨테이너(768Mi)에서
-    docker run --rm --memory=768m --network "container:$RDS_PG" -v "$(dirname "$DUMP")":/w -e PGPASSWORD="$DB_PASSWORD" \
+    PGPASSWORD="$DB_PASSWORD" docker run --rm --memory=768m --network "container:$RDS_PG" -v "$(dirname "$DUMP")":/w -e PGPASSWORD \
       "$PG_IMAGE" sh -c "pg_restore -h 127.0.0.1 -U $DB_USER -d $DB_DATABASE --clean --if-exists --no-owner --no-privileges -j 2 -v \
         /w/$(basename "$DUMP") && psql -qX -h 127.0.0.1 -U $DB_USER -d $DB_DATABASE -c ANALYZE; rc=\$?; \
         echo memory_peak_bytes=\$(cat /sys/fs/cgroup/memory.peak 2>/dev/null); exit \$rc" \

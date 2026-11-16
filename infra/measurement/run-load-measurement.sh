@@ -57,6 +57,32 @@ fi
 OUTD="$W/k6out"
 RUNSH="$S5DIR/db-measurement-steps.sh"
 
+# STATE가 저장소 안이면 멈춘다(기록에 계정 ID가 든 ECR URI가 남아 커밋될 수 있다). 경로를 루트부터 한 단계씩 따라가며
+# 이미 있는 폴더는 물리 경로로 풀고(..·심볼릭 링크 해소, mkdir -p와 같은 순서), 아직 없는 부분은 새로 만들 폴더로 센다.
+# 그렇게 얻은 가장 깊은 기존 폴더나 그 상위 폴더가 저장소 루트와 같은 폴더(inode 비교: 대소문자·firmlink 무관)이면 멈춘다.
+# log·die는 STATE에 쓰므로 아직 쓰지 않는다.
+refuse_state_in_repo() {
+  local p=$1 base=/ c depth=0 repo d parts=()
+  [[ "$p" != *$'\n'* ]] || { echo "STATE에 줄바꿈이 있다" >&2; exit 2; }   # read는 첫 줄만 판정한다
+  [[ "$p" == /* ]] || p="$PWD/$p"
+  IFS=/ read -ra parts <<< "$p"
+  for c in ${parts[@]+"${parts[@]}"}; do
+    case "$c" in
+      ''|.) ;;
+      ..) if (( depth > 0 )); then depth=$((depth - 1)); else base=${base%/*}; [[ -n "$base" ]] || base=/; fi ;;
+      *) if (( depth == 0 )) && [[ -d "$base/$c" ]] && d=$(cd "$base/$c" 2>/dev/null && /bin/pwd -P); then base=$d
+         else depth=$((depth + 1)); fi ;;
+    esac
+  done
+  repo=$(cd "$ART/../.." && /bin/pwd -P)
+  d=$base
+  while :; do
+    if [[ "$d" -ef "$repo" ]]; then echo "STATE가 저장소 안이다($1). 저장소 밖 폴더를 준다" >&2; exit 2; fi
+    [[ "$d" != / ]] || break
+    d=${d%/*}; [[ -n "$d" ]] || d=/
+  done
+}
+refuse_state_in_repo "$STATE"
 mkdir -p "$STATE"
 utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 log() { echo "[$(utc)] step7a: $*" | tee -a "$STATE/step7a.log" >&2; }

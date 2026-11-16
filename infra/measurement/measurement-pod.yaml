@@ -1,17 +1,19 @@
 # 5단계 측정용 도구 Pod(EKS 랩). 하네스·로컬에서 만든 시드 덤프를 kubectl cp로 넣고 RDS로 실행한다.
 # 컨테이너 둘이 /work(emptyDir)를 같이 쓴다.
 #   tools: 앱 이미지(.venv에 asyncpg·pyjwt·httpx2). 하네스·측정. SQL은 하네스 `sql` 모드(psql 없음).
-#   pg:    postgres:18.3(클라이언트만 씀). 로컬에서 만든 덤프를 RDS로 pg_restore, psql 확인.
+#   pg:    PostgreSQL 18.3 이미지(클라이언트만 씀). 로컬에서 만든 덤프를 RDS로 pg_restore, psql 확인.
 # 시드는 클러스터 안에서 만들지 않는다(노드 standard 크레딧). Mac 로컬에서 만든 덤프를 kubectl cp로 /work에 넣는다.
 # 자리(측정 전에 채움):
 #   <APP_IMAGE>  랩에 배포된 mosemo-server 이미지(ECR URI:태그). RDS 마이그레이션 head와 같은 커밋이어야 한다(STEP5-T0-PREREG 1절).
-# 설정·비밀은 랩 configmap(mosemo-config)·Secret(mosemo-secrets)·RDS CA(mosemo-rds-ca)를 앱과 같이 받는다.
+# 설정은 랩 configmap(mosemo-config)·RDS CA(mosemo-rds-ca)를 앱과 같이 받는다. Secret(mosemo-secrets)은 전체가 아니라
+# DB_PASSWORD·AUTH_JWT_SECRET_KEY만 받는다(tools는 둘 다, pg는 DB_PASSWORD를 PGPASSWORD로).
 # Kafka에 붙지 않는다: 하네스는 앱 코드를 import하지 않고 SQL(asyncpg)·HTTP만 쓴다. configmap의 BATCH_* 값은 읽히지만
 # 쓰이지 않는다. 랩 NetworkPolicy도 9092를 mosemo-server·consumer·batch·kafka-init·kafka 라벨에만 연다. 쓰기 부하는 SQL만이다.
 # 네임스페이스 mosemo(LimitRange 기본 100m·128Mi / 1 CPU·512Mi, 컨테이너 상한 768Mi). 아래 requests/limits는 명시값이며
 # 드라이런 실측 최대 메모리(STEP5-T0-REPORT 3.5절)로 768Mi 안임을 확인했다.
 # 자리: 측정 프로필은 앱 노드 1 + loadgen 전용 노드 1(taint dedicated=loadgen:NoSchedule, label pool=loadgen, 랩 플랜 T4).
-#   이 Pod는 loadgen 노드에만 놓이고 API Pod는 app 노드에 있다. kubeconfig는 $SESSION_DIR/measurement.kubeconfig(13시간 토큰).
+#   이 Pod는 loadgen 노드에만 놓이고 API Pod는 app 노드에 있다. kubeconfig는 measurement-pod.sh의 MEASUREMENT_KUBECONFIG
+#   (기본 ~/.mosemo/lab/measurement.kubeconfig, 13시간 토큰).
 # activeDeadlineSeconds 43200(12시간)은 Pod 시작부터 센다. 넘으면 Pod와 emptyDir 결과가 함께 사라진다.
 apiVersion: v1
 kind: Pod
@@ -50,11 +52,13 @@ spec:
           value: /work/repo
         - name: HOME
           value: /work
+        - name: DB_PASSWORD
+          valueFrom: {secretKeyRef: {name: mosemo-secrets, key: DB_PASSWORD}}
+        - name: AUTH_JWT_SECRET_KEY
+          valueFrom: {secretKeyRef: {name: mosemo-secrets, key: AUTH_JWT_SECRET_KEY}}
       envFrom:
         - configMapRef:
             name: mosemo-config
-        - secretRef:
-            name: mosemo-secrets
       resources:
         requests:
           cpu: 500m
@@ -73,7 +77,7 @@ spec:
           mountPath: /etc/rds-ca
           readOnly: true
     - name: pg
-      image: postgres:18.3
+      image: postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
       imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
       workingDir: /work
