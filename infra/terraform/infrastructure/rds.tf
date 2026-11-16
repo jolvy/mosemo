@@ -22,7 +22,7 @@ resource "aws_db_instance" "main" {
   engine                 = "postgres"
   engine_version         = "18.3"
   instance_class         = "db.m7g.large"
-  allocated_storage      = 20
+  allocated_storage      = var.db_allocated_storage
   storage_type           = "gp3"
   storage_encrypted      = true
   db_name                = "mosemo"

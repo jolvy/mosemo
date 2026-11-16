@@ -63,6 +63,11 @@ session-down.sh 절차에서만 한다. RDS의 `skip_final_snapshot`은 provider
 (재실행일 때) `enable_deletion_protection`만 바뀌는 `aws_lb.api` update 외에 없는지 확인하고 apply해
 state에 반영한 뒤, RDS·ALB 삭제 보호를 차례로 해제하고 같은 변수로 destroy한다. 세션 간 DB·Kafka 데이터는 보존하지 않는다.
 
+RDS 저장 공간은 `db_allocated_storage`(기본 20GB, gp3)다. 큰 데이터를 올리는 세션만 커밋하지 않는
+`terraform.tfvars`에서 키운다. RDS 저장 공간은 줄일 수 없으므로 같은 세션의 session-down도 같은 값으로
+실행해야 하고(빠뜨리면 plan이 축소를 제안하고 apply가 실패한다), 세션이 끝나면 tfvars에서 값을 지운다.
+처음 만들 때 크게 잡는다. 이미 만든 인스턴스를 키우면 저장소 최적화가 끝날 때까지(최소 6시간) 다시 바꿀 수 없다.
+
 `measurement` 변수(기본 false)는 tfvars 파일로 두지 않는다. session-lib.sh의 `tf()`가 세션 디렉터리의
 `profile` 기록을 읽어 모든 terraform 호출에 `TF_VAR_measurement`를 붙인다. 직접 terraform을 실행할 때도
 측정 세션이면 `TF_VAR_measurement=true`가 필요하며, 빠뜨리면 plan이 loadgen 노드 그룹 삭제를 제안한다.

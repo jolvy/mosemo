@@ -42,6 +42,17 @@ variable "measurement" {
   default     = false
 }
 
+variable "db_allocated_storage" {
+  description = "RDS gp3 storage in GB. Keep the default 20; raise it only for a session that needs more through the uncommitted terraform.tfvars. RDS storage never shrinks, so session-down must run with the same value."
+  type        = number
+  default     = 20
+
+  validation {
+    condition     = var.db_allocated_storage >= 20 && floor(var.db_allocated_storage) == var.db_allocated_storage
+    error_message = "Use a whole number of GB, at least 20 (the gp3 minimum)."
+  }
+}
+
 variable "cloudflare_zone_id" {
   description = "Cloudflare zone ID of danuh.com. Supply through an uncommitted terraform.tfvars."
   type        = string
