@@ -1,0 +1,25 @@
+{
+ "total_rps": 137.6,
+ "read_share": 0.013781512605042017,
+ "read_rps": 1.8963361344537815,
+ "write_rps": 135.70366386554622,
+ "reads_per_user_day": 41,
+ "uploads_per_user_day": 2934,
+ "records_per_batch": 1.875,
+ "active_window_s": 54000,
+ "dau_equivalent_avg": 2498,
+ "dau_equivalent_peak_hour": 999,
+ "duration_s": 900,
+ "runs": 2,
+ "warm_s": 60,
+ "grace_s": 60,
+ "criteria": {
+  "read_p95_ms": 300,
+  "read_p99_ms": 500,
+  "error_rate_max": 0.001,
+  "reflect_p95_s": 10.0,
+  "backlog_slope": "OLS 기울기 95% 신뢰구간 하한 ≤ 0",
+  "dropped_iterations": 0,
+  "arrival_tolerance": 0.02
+ }
+}
