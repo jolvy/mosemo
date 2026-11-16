@@ -115,12 +115,13 @@ touch_pg() {
 step_check() { "$LOAD" check; }
 
 step_push() {
-  local f head
+  local f head head_file
   if [[ "$LOCAL" == 1 ]]; then log "push(LOCAL): 저장소 폴더의 도구를 그대로 씀"; return 0; fi
   head=$(cd "$ART/../.." && uv run --locked alembic heads 2>/dev/null | awk 'NF {print $1; exit}')
   [[ "$DRY_RUN" == 1 || -n "$head" ]] || die "alembic heads를 읽지 못했다"
   echo "${head:-<head>}" > "$STATE/alembic-head.txt"
-  STATE="$STATE/pod" ALEMBIC_FILE="$STATE/alembic-head.txt" "$ART/measurement-pod.sh" push --no-dump
+  head_file="$STATE/alembic-head.txt"   # 한 줄의 앞 할당(STATE)이 뒤 할당에 보이므로 먼저 계산한다
+  STATE="$STATE/pod" ALEMBIC_FILE="$head_file" "$ART/measurement-pod.sh" push --no-dump
   "$LOAD" push
   for f in "${FILES[@]}"; do K cp "$ART/$f" "$NS/$POD:/work/step5/$f" -c tools; done
   { for f in "${FILES[@]}"; do echo "$(shasum -a 256 "$ART/$f" | awk '{print $1}')  $f"; done
