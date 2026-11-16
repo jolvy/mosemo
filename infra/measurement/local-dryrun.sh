@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # 측정 A 절차 로컬 드라이런(5단계 local-all 방식). 랩 대신 Mac 일회용 컨테이너로 같은 순서를 끝까지 돈다.
-#   랩 흉내: m7a-rds(postgres:18.3, pg_stat_statements 미리 올림) + 빈 스키마 마이그레이션(랩 migration Job 대역)
+#   랩 흉내: m7a-rds(PostgreSQL 18.3, pg_stat_statements 미리 올림) + 빈 스키마 마이그레이션(랩 migration Job 대역)
 #            m7a-kafka(cp-kafka 7.8.0, 토픽 파티션 8) + 로컬 API(uvicorn)·consumer 1개(이 저장소 코드, batch 프로세스 없음)
 #   측정 쪽: run-load-measurement.sh LOCAL=1 check → prep(a0 관문·a1 복원·a2 재배치·VACUUM) → consumer 시작 → mixed(짧게)
 #            → final → post-dump → fetch → fetch-dump
-# 끝나면(실패해도) m7a-rds·m7a-kafka 컨테이너·볼륨과 로컬 프로세스를 지운다. 다른 컨테이너는 건드리지 않는다.
+# 끝나면(실패해도) 이 실행이 만든 m7a-rds·m7a-kafka 컨테이너·볼륨과 로컬 프로세스를 지운다. 다른 컨테이너는 건드리지 않는다
+# (이름이 이미 있으면 아무것도 만들거나 지우지 않고 멈춘다).
 #
 #   사용: local-dryrun.sh            환경: LOCAL_CONSUMERS(1), DUMP(기본 ~/mosemo-step5/smoke-7a.dump), MIXED_SEC(60), MIXED_WARM(10), MIXED_GRACE(15)
 #   결과: ~/mosemo-step5/dryrun-7a-<UTC>/ (state/에 회수 묶음·로그, dryrun.log)
@@ -20,24 +21,32 @@ RDS_PG=m7a-rds; RDS_PORT=55474
 KAFKA=m7a-kafka; KAFKA_PORT=59092
 API_PORT=8774
 K6_BIN="$HOME/mosemo-step5/k6/v2.3.0/k6-v2.3.0-macos-arm64/k6"
-mkdir -p "$RUN/work" "$RUN/state"
 LOG="$RUN/dryrun.log"
 log() { echo "[$(date -u +%FT%TZ)] dryrun: $*" | tee -a "$LOG"; }
-API_PID=""; CON_PIDS=()
+API_PID=""; CON_PIDS=(); CREATED=()
 LOCAL_CONSUMERS="${LOCAL_CONSUMERS:-1}"   # 로컬 consumer 프로세스 수(랩은 4)
-teardown() {
+teardown() {  # 이 실행이 만든 컨테이너(CREATED)만 지운다
   local p; for p in ${CON_PIDS[@]+"${CON_PIDS[@]}"}; do pkill -P "$p" 2>/dev/null || true; kill "$p" 2>/dev/null || true; done
   [[ -n "$API_PID" ]] && { pkill -P "$API_PID" 2>/dev/null || true; kill "$API_PID" 2>/dev/null || true; }
-  docker rm -fv "$RDS_PG" "$KAFKA" >/dev/null 2>&1 || true
-  log "정리: 로컬 API·consumer 종료, ${RDS_PG}·$KAFKA 컨테이너·볼륨 삭제"
+  (( ${#CREATED[@]} )) && { docker rm -fv "${CREATED[@]}" >/dev/null 2>&1 || true; }
+  log "정리: 로컬 API·consumer 종료, 만든 컨테이너·볼륨 삭제(${CREATED[*]:-없음})"
 }
-trap teardown EXIT
+# 컨테이너는 create가 성공한 것만 CREATED에 넣고 start한다. 이름 충돌(다른 세션)은 create에서 실패해 지울 목록에 들어가지 않는다
+up() {  # up <이름> <docker create 인자...>
+  docker create --name "$1" "${@:2}" >/dev/null
+  CREATED+=("$1")
+  docker start "$1" >/dev/null
+}
 
+# 검사(멈추면 아무것도 만들거나 지우지 않는다) → 결과 폴더 → 정리 trap
 for c in "$RDS_PG" "$KAFKA"; do docker ps -a --format '{{.Names}}' | grep -qx "$c" && { echo "${c}가 이미 있다" >&2; exit 2; }; done
 [[ -f "$DUMP" && -f "$ALEMBIC_FILE" ]] || { echo "덤프·head 파일 없음: $DUMP" >&2; exit 2; }
+mkdir -p "$RUN/work" "$RUN/state"
+trap teardown EXIT
 log "repo $REPO commit $(git -C "$REPO" rev-parse HEAD), 덤프 $DUMP sha256 $(shasum -a 256 "$DUMP" | awk '{print $1}')"
 
 ENV_FILE="$RUN/m7a.env"
+(umask 077   # env 파일(비밀번호·JWT 키)을 처음부터 소유자만 읽게 쓴다. 다른 결과 파일 권한은 바꾸지 않는다
 cat > "$ENV_FILE" <<EOF
 MOSEMO_ENV=local
 DB_DATABASE=mosemo
@@ -62,14 +71,15 @@ OPENAI_API_KEY=fake
 GOOGLE_API_KEY=fake
 LABEL_MODEL=openai:fake-model
 EOF
+)
 chmod 600 "$ENV_FILE"
 set -a; source "$ENV_FILE"; set +a
 
-log "랩 대역: $RDS_PG(postgres:18.3, pg_stat_statements·track_io_timing), $KAFKA(파티션 8)"
-docker run -d --name "$RDS_PG" -e POSTGRES_DB=mosemo -e POSTGRES_USER=mosemo -e POSTGRES_PASSWORD="$DB_PASSWORD" \
-  -p 127.0.0.1:$RDS_PORT:5432 --memory=2g --cpus=2 --shm-size=256m postgres:18.3 \
-  -c shared_buffers=512MB -c max_connections=200 -c shared_preload_libraries=pg_stat_statements -c track_io_timing=on >/dev/null
-docker run -d --name "$KAFKA" --hostname "$KAFKA" -p 127.0.0.1:$KAFKA_PORT:9092 \
+log "랩 대역: $RDS_PG(PostgreSQL 18.3, pg_stat_statements·track_io_timing), $KAFKA(파티션 8)"
+POSTGRES_PASSWORD="$DB_PASSWORD" up "$RDS_PG" -e POSTGRES_DB=mosemo -e POSTGRES_USER=mosemo -e POSTGRES_PASSWORD \
+  -p 127.0.0.1:$RDS_PORT:5432 --memory=2g --cpus=2 --shm-size=256m postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db \
+  -c shared_buffers=512MB -c max_connections=200 -c shared_preload_libraries=pg_stat_statements -c track_io_timing=on
+up "$KAFKA" --hostname "$KAFKA" -p 127.0.0.1:$KAFKA_PORT:9092 \
   -e CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk -e KAFKA_NODE_ID=1 -e KAFKA_PROCESS_ROLES=broker,controller \
   -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:29093 -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
   -e KAFKA_LISTENERS=INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093 \
@@ -78,7 +88,7 @@ docker run -d --name "$KAFKA" --hostname "$KAFKA" -p 127.0.0.1:$KAFKA_PORT:9092 
   -e KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL -e KAFKA_AUTO_CREATE_TOPICS_ENABLE=false \
   -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
   -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 -e KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0 \
-  -e KAFKA_HEAP_OPTS="-Xms256m -Xmx512m" confluentinc/cp-kafka:7.8.0 >/dev/null
+  -e KAFKA_HEAP_OPTS="-Xms256m -Xmx512m" confluentinc/cp-kafka:7.8.0@sha256:adc392d28a1e99e8c9a1ec7f087e9e91041837b35b8b7cc8b8a691b82dd581b0
 until docker exec "$RDS_PG" pg_isready -U mosemo -d mosemo >/dev/null 2>&1; do sleep 1; done; sleep 2
 (cd "$REPO" && uv run --locked --env-file "$ENV_FILE" alembic upgrade head) >> "$LOG" 2>&1
 log "빈 스키마 마이그레이션(랩 migration Job 대역) → $(docker exec "$RDS_PG" psql -XAt -U mosemo -d mosemo -c 'SELECT version_num FROM alembic_version')"

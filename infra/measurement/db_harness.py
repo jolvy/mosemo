@@ -264,7 +264,8 @@ def env_dsn() -> str | None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser()
+    # 약어(--d 등)로 받은 DSN은 RSS 로그에서 가리지 못하므로 약어를 받지 않는다
+    p = argparse.ArgumentParser(allow_abbrev=False)
     p.add_argument("--dsn", default=os.environ.get("S5_DSN") or env_dsn())
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("sql")
@@ -283,6 +284,19 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def mask_dsn(argv: list[str]) -> list[str]:
+    """`--dsn <값>`·`--dsn=<값>`의 값을 가린다(DSN에 비밀번호가 들어 있을 수 있다)."""
+    out = []
+    for i, arg in enumerate(argv):
+        if i > 0 and argv[i - 1] == "--dsn":
+            out.append("***")
+        elif arg.startswith("--dsn="):
+            out.append("--dsn=***")
+        else:
+            out.append(arg)
+    return out
+
+
 def register_rss_log(rss_log: str, cmd: str) -> None:
     """측정 Pod 메모리 상한(768Mi) 판단용: 모드별 최대 RSS를 기록한다."""
     import atexit
@@ -292,7 +306,7 @@ def register_rss_log(rss_log: str, cmd: str) -> None:
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         # macOS 바이트, Linux kB
         mb = peak / 1048576 if sys.platform == "darwin" else peak / 1024
-        args = " ".join(" ".join(sys.argv[2:]).split())[:120]
+        args = " ".join(" ".join(mask_dsn(sys.argv)[2:]).split())[:120]
         with Path(rss_log).open("a") as f:
             f.write(f"{cmd}\t{mb:.1f}\t{args}\n")
 

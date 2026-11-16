@@ -44,7 +44,7 @@
 | `workload-137.6rps.md` | `3bb85dae533da6af9b03b711041c93fd44d317eac8cb5a6779ecade913607065` | `infra/measurement/workload-137.6rps.md` |
 | `kubectl-chunk-shim.sh` | `893fb153bca53525b95edb02dc4a57b183e31a71c9567fb1f77428c0a7aea7f6` | `infra/measurement/kubectl-chunked-cp.sh` |
 
-`workload-137.6rps.json`, `reorder-segments-by-time.sql`, `kubectl-chunked-cp.sh`는 내용을 바꾸지 않았다(sha256 같음). 도구가 `workload-${총 rps}rps.json` 규칙으로 이름을 계산하므로 이름도 그대로다.
+`workload-137.6rps.json`, `reorder-segments-by-time.sql`, `kubectl-chunked-cp.sh`는 #305로 옮길 때는 내용을 바꾸지 않았다(그때 sha256 같음). `kubectl-chunked-cp.sh`는 그 뒤 #306에서 원격 경로를 위치 인자로 넘기도록 고쳤다. 도구가 `workload-${총 rps}rps.json` 규칙으로 이름을 계산하므로 이름도 그대로다.
 
 옮기지 않은 것: 5단계 분석 원형 측정 전용 스크립트, 측정 A로 대체된 5단계 판, k6 실행 파일, 생성 데이터·결과(부하 묶음, 토큰, 덤프, 결과 묶음), 사전 등록·보고 문서. 주석의 `STEP5-PLAN`, `STEP5-T0-PREREG`, `STEP5-T0-REPORT`, `STEP7A-PREREG` 같은 이름은 저장소 밖에 보관한 사전 등록·보고 문서를 가리킨다.
 
@@ -59,13 +59,14 @@
 | 시드 덤프 | `~/mosemo-step5/seed.dump`, head 파일 `~/mosemo-step5/s1-alembic.txt`(`DUMP`, `ALEMBIC_FILE`) | `scripts/seed_load.py`로 만든 DB를 `pg_dump -Fc`로 뜬 것. 스키마가 바뀌었으면 `convert-seed-dump.sh`로 먼저 변환한다 |
 | 측정 kubeconfig | `~/.mosemo/lab/measurement.kubeconfig`(`MEASUREMENT_KUBECONFIG`) | `infra/deployment/measurement-*.sh`가 만든다. 두 스크립트의 kubectl은 이것만 쓴다 |
 | 랩 매니페스트 | `~/.mosemo/lab/measurement/manifest.json`(`MANIFEST`) | `measurement-pod.sh up`이 `app_image.uri`·`digest`를 읽는다 |
-| 로컬 기록 폴더 | `~/mosemo-step5/kube`(`measurement-pod.sh`), `~/mosemo-step5/kube-7a`(`run-load-measurement.sh`)(`STATE`) | 로그, consumer 원래 replicas, 회수 묶음 |
+| 로컬 기록 폴더 | `~/mosemo-step5/kube`(`measurement-pod.sh`), `~/mosemo-step5/kube-7a`(`run-load-measurement.sh`)(`STATE`) | 로그, consumer 원래 replicas, 회수 묶음. 계정 ID가 든 ECR URI가 남으므로 저장소 안 경로를 주면 두 스크립트가 멈춘다 |
 | 드라이런 결과 | `~/mosemo-step5/dryrun-7a-<UTC>/` | `local-dryrun.sh`가 만든다(고정 경로) |
 | Docker | — | `convert-seed-dump.sh`, `local-dryrun.sh`가 일회용 컨테이너(`m7a-conv-<꼬리>`, `m7a-rds`, `m7a-kafka`)를 만들고 끝나면 볼륨까지 지운다 |
 
-`kubectl-chunked-cp.sh`는 macOS와 Homebrew kubectl(`/opt/homebrew/bin/kubectl`)을 전제로 한다(`stat -f`, 고정 경로). 큰 덤프를 `kubectl cp`로 넣다 끊길 때, `kubectl` 이름의 심볼릭 링크로 PATH 앞에 둔다. `cp`만 2MB 조각 전송으로 바꾸고 나머지 명령은 진짜 kubectl로 넘긴다.
+`kubectl-chunked-cp.sh`는 macOS와 Homebrew kubectl(`/opt/homebrew/bin/kubectl`)을 전제로 한다(`stat -f`, 고정 경로). 큰 덤프를 `kubectl cp`로 넣다 끊길 때, `kubectl` 이름의 심볼릭 링크로 PATH 앞에 둔다. `cp`만 2MB 조각 전송으로 바꾸고 나머지 명령은 진짜 kubectl로 넘긴다. 측정과 상관없는 `kubectl cp`까지 가로채지 않도록 PATH는 측정 셸에서만 바꾸고, 셸 시작 파일(`~/.zshrc` 등)에 넣지 않는다.
 
 ```sh
+# 측정 셸에서만 실행한다
 mkdir -p ~/.local/kubectl-chunked
 ln -sf "$PWD/infra/measurement/kubectl-chunked-cp.sh" ~/.local/kubectl-chunked/kubectl
 export PATH="$HOME/.local/kubectl-chunked:$PATH"
