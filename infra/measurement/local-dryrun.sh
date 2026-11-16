@@ -10,6 +10,9 @@
 #   사용: local-dryrun.sh            환경: LOCAL_CONSUMERS(1), DUMP(기본 ~/mosemo-step5/smoke-7a.dump), MIXED_SEC(60), MIXED_WARM(10), MIXED_GRACE(15)
 #   MEASUREMENT=delete-scale: 덤프 대신 7B 계정 삭제 측정(run-delete-scale-measurement.sh all, LOCAL=1)을 끝까지 돈다.
 #         consumer를 먼저 띄우고 USERS(20)·DAYS(3)·MEASURE_DATE(오늘)를 넘긴다. 덤프·head 파일 검사와 prep·post-dump는 하지 않는다.
+#   MEASUREMENT=b: 측정 B(measurement-b.md)를 run-load-measurement.sh all(LOCAL=1)로 6회차 끝까지 돈다. 회차 시간은 위 MIXED_*,
+#         되돌리기 상한 RESET_LIMIT_S(120). consumer는 run-load-measurement.sh가 되돌리기 전후에 LOCAL_CONSUMER_STOP·START로
+#         멈추고 다시 띄운다(로컬 consumer는 DB 연결이 끊기면 종료한다). 조회 로그는 API 로그(api.log)에서 모은다.
 #   결과: ~/mosemo-step5/dryrun-7a-<UTC>/ (state/에 회수 묶음·로그, dryrun.log)
 set -euo pipefail
 
@@ -34,6 +37,7 @@ API_PID=""; CON_PIDS=(); CREATED=()
 LOCAL_CONSUMERS="${LOCAL_CONSUMERS:-1}"   # 로컬 consumer 프로세스 수(랩은 4)
 teardown() {  # 이 실행이 만든 컨테이너(CREATED)만 지운다
   local p; for p in ${CON_PIDS[@]+"${CON_PIDS[@]}"}; do pkill -P "$p" 2>/dev/null || true; kill "$p" 2>/dev/null || true; done
+  [[ -x "$RUN/consumer-stop.sh" ]] && "$RUN/consumer-stop.sh"
   [[ -n "$API_PID" ]] && { pkill -P "$API_PID" 2>/dev/null || true; kill "$API_PID" 2>/dev/null || true; }
   (( ${#CREATED[@]} )) && { docker rm -fv "${CREATED[@]}" >/dev/null 2>&1 || true; }
   log "정리: 로컬 API·consumer 종료, 만든 컨테이너·볼륨 삭제(${CREATED[*]:-없음})"
@@ -130,6 +134,31 @@ start_consumers() {
   for p in "${CON_PIDS[@]}"; do kill -0 "$p" 2>/dev/null || { log "consumer가 죽었다(consumer-*.log)"; exit 1; }; done
   log "로컬 consumer ${LOCAL_CONSUMERS}개 시작(복원·재배치 뒤 = 랩의 consumer 0 → 4 순서 대역)"
 }
+if [[ "$MEASUREMENT" == b ]]; then
+  # 측정 B: consumer는 run-load-measurement.sh가 회차마다 멈추고 띄운다. PID는 consumers.pid에 둔다
+  cat > "$RUN/consumer-start.sh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+for i in \$(seq 1 $LOCAL_CONSUMERS); do
+  (cd "$REPO" && set -a && source "$ENV_FILE" && set +a && exec "$PY" -m mosemo.entrypoints.consumer) >> "$RUN/consumer-\$i.log" 2>&1 &
+  echo \$! >> "$RUN/consumers.pid"
+done
+sleep 8
+for p in \$(cat "$RUN/consumers.pid"); do kill -0 "\$p" 2>/dev/null || { echo "consumer가 죽었다(consumer-*.log)" >&2; exit 1; }; done
+EOF
+  cat > "$RUN/consumer-stop.sh" <<EOF
+#!/usr/bin/env bash
+[[ -f "$RUN/consumers.pid" ]] || exit 0
+for p in \$(cat "$RUN/consumers.pid"); do pkill -P "\$p" 2>/dev/null; kill "\$p" 2>/dev/null; done
+for p in \$(cat "$RUN/consumers.pid"); do while kill -0 "\$p" 2>/dev/null; do sleep 1; done; done
+rm -f "$RUN/consumers.pid"
+EOF
+  chmod +x "$RUN/consumer-start.sh" "$RUN/consumer-stop.sh"
+  MEASUREMENT=b API_LOG="$RUN/api.log" RESET_LIMIT_S="${RESET_LIMIT_S:-120}" \
+    LOCAL_CONSUMER_START="$RUN/consumer-start.sh" LOCAL_CONSUMER_STOP="$RUN/consumer-stop.sh" "$S" all
+  log "드라이런 끝(측정 B). 결과 $RUN"
+  exit 0
+fi
 if [[ "$MEASUREMENT" == delete-scale ]]; then
   start_consumers
   USERS="${USERS:-20}" DAYS="${DAYS:-3}" MEASURE_DATE="${MEASURE_DATE:-$(date +%F)}" "$ART/run-delete-scale-measurement.sh" all

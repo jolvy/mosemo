@@ -1,0 +1,143 @@
+# 측정 B(measurement-b.md)용 도구 Pod. measurement-pod.yaml(측정 A, 바꾸지 않음)에 batch 컨테이너 하나를 더한 것이다.
+#   batch: 앱 이미지. 측정 도구(analytics_measurement.py batch-loop)가 회차 동안 일간 통계 job
+#          (`python -m mosemo.entrypoints.batch run analytics-daily-stats`)만 300초마다 실행한다. 라벨 제안 job은 돌리지 않는다.
+#          자원은 infra/kubernetes/batch-deployment.yaml과 같고, k6가 도는 tools와 CPU 한도를 나누지 않는다.
+#          /work를 tools·pg와 같이 쓰고(도구·결과), Secret은 DB_PASSWORD만 받는다.
+# 나머지(tools·pg, 노드 배치, 시간 상한)는 measurement-pod.yaml 머리 주석과 같다.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: step5-tools
+  namespace: mosemo
+  labels:
+    app: step5-tools
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  activeDeadlineSeconds: 43200
+  nodeSelector:
+    kubernetes.io/arch: amd64
+    pool: loadgen
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: loadgen
+      effect: NoSchedule
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: tools
+      image: <APP_IMAGE>
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      workingDir: /work
+      env:
+        - name: S5_REPO
+          value: /work/repo
+        - name: HOME
+          value: /work
+        - name: DB_PASSWORD
+          valueFrom: {secretKeyRef: {name: mosemo-secrets, key: DB_PASSWORD}}
+        - name: AUTH_JWT_SECRET_KEY
+          valueFrom: {secretKeyRef: {name: mosemo-secrets, key: AUTH_JWT_SECRET_KEY}}
+      envFrom:
+        - configMapRef:
+            name: mosemo-config
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 768Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: work
+          mountPath: /work
+        - name: rds-ca
+          mountPath: /etc/rds-ca
+          readOnly: true
+    - name: pg
+      image: postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      workingDir: /work
+      env:
+        - name: HOME
+          value: /work
+        - name: PGHOST
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: DB_HOST}}
+        - name: PGPORT
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: DB_PORT}}
+        - name: PGDATABASE
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: DB_DATABASE}}
+        - name: PGUSER
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: DB_USER}}
+        - name: PGPASSWORD
+          valueFrom: {secretKeyRef: {name: mosemo-secrets, key: DB_PASSWORD}}
+        - name: PGSSLMODE
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: PGSSLMODE}}
+        - name: PGSSLROOTCERT
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: PGSSLROOTCERT}}
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: work
+          mountPath: /work
+        - name: rds-ca
+          mountPath: /etc/rds-ca
+          readOnly: true
+    - name: batch
+      image: <APP_IMAGE>
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      workingDir: /work
+      env:
+        - name: HOME
+          value: /work
+        - name: DB_PASSWORD
+          valueFrom: {secretKeyRef: {name: mosemo-secrets, key: DB_PASSWORD}}
+      envFrom:
+        - configMapRef:
+            name: mosemo-config
+      resources:
+        requests:
+          cpu: 100m
+          memory: 160Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: work
+          mountPath: /work
+        - name: rds-ca
+          mountPath: /etc/rds-ca
+          readOnly: true
+  volumes:
+    - name: work
+      emptyDir:
+        sizeLimit: 8Gi   # 덤프(1천×2일 추정 2~4GB, 드라이런 비율로 갱신) + 결과. 노드 루트 볼륨 20GB 안이어야 한다
+    - name: rds-ca
+      configMap:
+        name: mosemo-rds-ca

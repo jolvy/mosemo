@@ -17,6 +17,11 @@
 #         EXCLUDE_ACCOUNTS(쉼표 구분 계정 ID, 장기 계정과 함께 k6 토큰·업로드 대상에서 뺀다. 기본 빈 값)
 #   LOCAL=1(드라이런): kubectl 대신 Mac에서 바로 실행. W·ENV_FILE·PY·K6_BIN·API_URL을 local-dryrun.sh가 준다.
 #         consumer 수 조절·batch Deployment 확인은 건너뛰고(로컬 프로세스) 그 사실을 로그에 남긴다.
+#         LOCAL_CONSUMER_STOP·LOCAL_CONSUMER_START(명령)가 있으면 consumer 0·N 때 그것을 부른다(측정 B 되돌리기).
+#   MEASUREMENT=b(측정 B, measurement-b.md): measurement-b.json(sha256 고정)대로 6회차 R1 R2 R3 R1 R2 R3.
+#         all = 자정 검사 → check → push → prep(a0·a1·a2·b-perm·b-seed·b-base) → mixed(회차마다 되돌리기·batch·k6·판정)
+#         → final(b-final·summary-b) → fetch. 랩 모드는 회차 시간·데우기·유예·되돌리기 상한을 measurement-b.json에서만 읽고,
+#         LOCAL=1만 MIXED_SEC·MIXED_WARM·MIXED_GRACE·RESET_LIMIT_S로 덮는다. MEASUREMENT_NOW_KST(ISO 8601)는 자정 검사의 현재 시각.
 set -euo pipefail
 
 ART="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,6 +34,7 @@ STATE="${STATE:-$HOME/mosemo-step5/kube-7a}"
 DRY_RUN="${DRY_RUN:-0}"
 EXPECT_HEAD="${EXPECT_HEAD:-c5d6e7f8a9b0}"
 MIXED_TOTAL="${MIXED_TOTAL:-137.6}"
+ENV_MIXED_SEC="${MIXED_SEC:-}"; ENV_MIXED_WARM="${MIXED_WARM:-}"; ENV_MIXED_GRACE="${MIXED_GRACE:-}"   # 측정 B LOCAL=1 덮기용
 MIXED_SEC="${MIXED_SEC:-900}"
 MIXED_RUNS="${MIXED_RUNS:-2}"
 MIXED_WARM="${MIXED_WARM:-60}"
@@ -45,6 +51,15 @@ K6_SHA256=e001bbf39ba67424a85c9c8516440ba5c73ecf7a6021be96c76194380c15f260
 FETCH_MARGIN=600
 FILES=(k6_inputs_and_reports.py k6-common.js k6-mixed-read-upload.js
        db-measurement-steps.sh)
+B_FILES=(measurement-b.json analytics_measurement.py dense_day_accounts.py k6-analytics-mixed.js)
+MEASUREMENT="${MEASUREMENT:-a}"
+PLAN=measurement-b.json
+PLAN_SHA=8ac121c0f9fcd7b84e2ec1c939fbd801656deceb6ad6c9014bcd1aa543c3bbf0   # measurement-b.json(측정 B 고정 기준). 바뀌면 측정 B를 시작하지 않는다
+case "$MEASUREMENT" in
+  a) ;;
+  b) FILES+=("${B_FILES[@]}") ;;
+  *) echo "MEASUREMENT는 a 또는 b" >&2; exit 2 ;;
+esac
 
 if [[ "$LOCAL" == 1 ]]; then
   W="${W:?LOCAL=1은 W를 준다}"; PY="${PY:?}"; K6_BIN="${K6_BIN:?}"; API_URL="${API_URL:?}"; ENV_FILE="${ENV_FILE:?}"
@@ -169,7 +184,15 @@ consumer_record() {  # 원래 replicas를 한 번만 기록
 }
 consumer_set() {
   local want=$1 n
-  if [[ "$LOCAL" == 1 ]]; then log "consumer $want(LOCAL: 로컬 프로세스 그대로)"; return 0; fi
+  if [[ "$LOCAL" == 1 ]]; then
+    if [[ "$want" == 0 && -n "${LOCAL_CONSUMER_STOP:-}" ]]; then
+      [[ "$DRY_RUN" == 1 ]] || bash -c "$LOCAL_CONSUMER_STOP"; log "consumer 0(LOCAL: 로컬 consumer 멈춤)"; return 0
+    fi
+    if [[ "$want" != 0 && -n "${LOCAL_CONSUMER_START:-}" ]]; then
+      [[ "$DRY_RUN" == 1 ]] || bash -c "$LOCAL_CONSUMER_START"; log "consumer $want(LOCAL: 로컬 consumer 시작)"; return 0
+    fi
+    log "consumer $want(LOCAL: 로컬 프로세스 그대로)"; return 0
+  fi
   [[ "$want" =~ ^[0-9]+$ && "$want" -le "$PARTITIONS" ]] || die "CONSUMERS는 0 ~ ${PARTITIONS}"
   consumer_record
   K scale "deploy/$CONSUMER" --replicas="$want"
@@ -262,7 +285,7 @@ step_post_dump() {
 step_fetch() {
   local name pod_sha local_sha
   name="step7a-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
-  XC tools "tar czf $W/$name -C $W --exclude='k6out/payloads-*.json' --exclude='k6out/payloads-*.rows.json' --exclude='k6out/*tokens.json' --exclude='k6out/devices.json' k6out results"
+  XC tools "tar czf $W/$name -C $W --exclude='k6out/payloads-*.json' --exclude='k6out/payloads-*.rows.json' --exclude='k6out/*tokens.json' --exclude='k6out/tokens-b.json' --exclude='k6out/devices.json' k6out results"
   pod_sha=$(XQ "<sha>" "cd $W && (sha256sum $name 2>/dev/null || shasum -a 256 $name) | awk '{print \$1}'")
   if [[ "$LOCAL" == 1 ]]; then [[ "$DRY_RUN" == 1 ]] || cp "$W/$name" "$STATE/$name"
   else K cp "$NS/$POD:/work/$name" "$STATE/$name" -c tools; fi
@@ -281,6 +304,174 @@ step_fetch_dump() {
   log "회수 $STATE/post-7a.dump sha256 $local_sha"
 }
 
+
+# ---------------------------------------------------------------- 측정 B(MEASUREMENT=b)
+PV() { python3 -c 'import json,sys;v=json.load(open(sys.argv[1]));[v:=v[k] for k in sys.argv[2:]];print(json.dumps(v) if isinstance(v,(list,dict)) else v)' "$ART/$PLAN" "$@"; }
+b_settings() {
+  [[ "$(sha "$ART/$PLAN")" == "$PLAN_SHA" ]] || die "$PLAN sha256이 고정값과 다르다"
+  B_ORDER=($(PV order | tr -d '[]",'))
+  if [[ "$LOCAL" == 1 ]]; then
+    B_SEC="${ENV_MIXED_SEC:-$(PV duration_s)}"; B_WARM="${ENV_MIXED_WARM:-$(PV warm_s)}"; B_GRACE="${ENV_MIXED_GRACE:-$(PV grace_s)}"
+    B_RESET="${RESET_LIMIT_S:-$(PV reset_limit_s)}"
+  else
+    B_SEC=$(PV duration_s); B_WARM=$(PV warm_s); B_GRACE=$(PV grace_s); B_RESET=$(PV reset_limit_s)
+  fi
+  B_INTERVAL=$(PV batch_interval_s); B_JOB=$(PV batch_job); B_BASE=$(PV base_database); B_TZ=$(PV timezone)
+}
+# 자정 검사: 남은 회차가 다음 자정(측정 시간대) 전에 끝나는지, 원본을 만든 날짜와 지금 날짜가 같은지
+b_guard() {  # b_guard <남은 회차 수> [base]: base면 원본 DB를 만든 날짜(b-base-date.txt)와 지금 날짜도 비교한다
+  local verdict base_file=""
+  [[ "${2:-}" == base ]] && base_file="$STATE/b-base-date.txt"
+  verdict=$(python3 - "${MEASUREMENT_NOW_KST:-}" "$1" "$((B_SEC + B_GRACE + B_RESET))" "$B_TZ" "$base_file" <<'EOF'
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+from zoneinfo import ZoneInfo
+now_arg, rounds, per_round, tz, base_file = sys.argv[1:]
+zone = ZoneInfo(tz)
+now = datetime.fromisoformat(now_arg).astimezone(zone) if now_arg else datetime.now(zone)
+end = now + timedelta(seconds=int(rounds) * int(per_round))
+midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time(), tzinfo=zone)
+base = Path(base_file).read_text().strip() if base_file and Path(base_file).exists() else ""
+if base and base != now.date().isoformat():
+    print(f"date {base} {now.date()}")
+elif end >= midnight:
+    print(f"midnight {end.isoformat()} {midnight.isoformat()}")
+else:
+    print(f"ok {now.date()}")
+EOF
+)
+  case "$verdict" in
+    ok*) log "자정 검사 통과($verdict, 남은 회차 $1)" ;;
+    date*) die "자정 넘김: 원본 DB 날짜와 지금 날짜가 다르다($verdict)" ;;
+    *) die "자정 넘김: 측정 B를 시작하지 않는다($verdict, 남은 회차 $1)" ;;
+  esac
+}
+B_EXCL=""
+b_exclusions() {  # 장기 계정 + 구간 많은 계정(토큰·업로드 대상에서 뺀다)
+  long_account
+  local dense; dense=$(XQ "" "$PY -c 'import json;print(\",\".join(json.load(open(\"$W/results/b-dense.json\")).values()))'")
+  B_EXCL="$LONG_ACC${dense:+,$dense}"
+  [[ "$DRY_RUN" == 1 || "$B_EXCL" =~ ^[0-9a-f-]{36}(,[0-9a-f-]{36})*$ ]] || die "제외 계정 목록 형식이 아니다: $B_EXCL"
+}
+step_prep_b() {
+  local rc today
+  consumer_set 0
+  log "prep(B) a0 → a1 → a2"
+  XC tools "$(R a0)" || die "a0 실패"
+  detach pg a1 "$(R a1)"; rc=$(wait_rc a1); [[ "$rc" == 0 ]] || die "a1 종료 코드 $rc($OUTD/a1.out)"
+  detach tools a2 "$(R a2)"; rc=$(wait_rc a2); [[ "$rc" == 0 ]] || die "a2 종료 코드 $rc($OUTD/a2.out)"
+  XC tools "$(R b-perm)" || die "b-perm 실패(DB 권한)"
+  long_account
+  [[ "$DRY_RUN" == 1 || "$LONG_ACC" =~ ^[0-9a-f-]{36}(,[0-9a-f-]{36})*$ ]] || die "제외 계정 목록 형식이 아니다: $LONG_ACC"
+  detach tools b-seed "$(R b-seed "$LONG_ACC")"; rc=$(wait_rc b-seed); [[ "$rc" == 0 ]] || die "b-seed 종료 코드 $rc($OUTD/b-seed.out)"
+  detach tools b-base "$(RB b-base)"; rc=$(wait_rc b-base)
+  [[ "$rc" == 0 ]] || die "b-base 종료 코드 $rc($OUTD/b-base.out)"
+  today=$(XQ "" "cat $W/results/b-dense-date.txt")   # 구간 많은 계정을 만든 날짜(측정 시간대)
+  if [[ -n "${MEASUREMENT_NOW_KST:-}" || -z "$today" ]]; then   # 검사용 현재 시각을 줬거나 DRY_RUN이면 그 시각의 날짜
+    today=$(python3 -c 'import sys,datetime as d,zoneinfo as z;t=z.ZoneInfo(sys.argv[1]);n=sys.argv[2];print((d.datetime.fromisoformat(n).astimezone(t) if n else d.datetime.now(t)).date())' "$B_TZ" "${MEASUREMENT_NOW_KST:-}")
+  fi
+  echo "$today" > "$STATE/b-base-date.txt"
+  XC tools "echo $today > $W/results/b-base-date.txt"
+  log "prep(B) 끝: 원본 DB $B_BASE($today)"
+}
+api_logs() {  # api_logs <n> <회차 시작 UTC>: 조회 로그(analytics read)만 모아 $OUTD/api-logs/r<n>-*.jsonl
+  local n=$1 since=$2 p pods
+  mkdir -p "$STATE/api-logs"
+  if [[ "$LOCAL" == 1 ]]; then
+    [[ "$DRY_RUN" == 1 ]] && return 0
+    mkdir -p "$OUTD/api-logs"
+    python3 - "${API_LOG:?LOCAL=1 측정 B는 API_LOG를 준다}" "$since" > "$OUTD/api-logs/r$n-local.jsonl" <<'EOF'
+import json, sys
+for line in open(sys.argv[1], errors="replace"):
+    try:
+        rec = json.loads(line)
+    except ValueError:
+        continue
+    if isinstance(rec, dict) and rec.get("event") == "analytics read" and rec.get("timestamp", "") >= sys.argv[2]:
+        print(line, end="")
+EOF
+    return 0
+  fi
+  pods=$(KQ "<api-pod>" get pods -l app=mosemo-server -o 'jsonpath={.items[*].metadata.name}')
+  XC tools "mkdir -p $OUTD/api-logs"
+  for p in $pods; do
+    if [[ "$DRY_RUN" == 1 ]]; then K logs "$p" --since-time="$since"; continue; fi
+    K logs "$p" --since-time="$since" | grep -F '"event":"analytics read"' > "$STATE/api-logs/r$n-$p.jsonl" || true
+    K cp "$STATE/api-logs/r$n-$p.jsonl" "$NS/$POD:$OUTD/api-logs/r$n-$p.jsonl" -c tools
+  done
+}
+B() { echo "cd $S5DIR && S5_REPO=$REPO $PY analytics_measurement.py $*"; }
+RB() { echo "cd $S5DIR && RESET_LIMIT_S=$B_RESET BASE_DB=$B_BASE S5_REPO=$REPO bash $RUNSH $*"; }   # 측정 B DB 단계(값이 스크립트까지 간다)
+step_mixed_b() {
+  local n kind st left=0 since rc wrate
+  b_exclusions
+  XC tools "mkdir -p $OUTD; if [ ! -f $OUTD/tokens.json ]; then $(P tokens --inventory "$W/results/inventory.json" --out "$OUTD/tokens.json" --exclude "$B_EXCL"); fi"
+  XC tools "$(P payloads-mixed --out-dir "$OUTD" --workload "$S5DIR/$WORKLOAD" --total "$MIXED_TOTAL" --duration "$B_SEC" --runs "${#B_ORDER[@]}" --exclude "$B_EXCL")"
+  XC tools "$(B tokens-b --plan "$S5DIR/$PLAN" --inventory "$W/results/inventory.json" --dense "$W/results/b-dense.json" --out "$OUTD/tokens-b.json" --exclude "$B_EXCL")"
+  wrate=$(XQ 135.7 "$PY -c \"import json;print(json.load(open('$OUTD/mixed-plan.json'))['write_rps'])\"")
+  for n in $(seq 1 "${#B_ORDER[@]}"); do
+    kind=${B_ORDER[$((n - 1))]}; st="mixed-r$n"
+    fits $((B_SEC + B_GRACE + B_RESET + 300)) "b-r$n" || break
+    b_guard $(( ${#B_ORDER[@]} - n + 1 )) base
+    consumer_set 0
+    detach tools "b-reset-r$n" "$(RB b-reset "$n" "$left")"; rc=$(wait_rc "b-reset-r$n")
+    [[ "$rc" == 0 ]] || die "b-reset r$n 종료 코드 $rc($OUTD/b-reset-r$n.out)"
+    XC tools "$(R b-round-start "$n" "$LONG_ACC")" || die "b-round-start r$n 실패"
+    consumer_set "$CONSUMERS"
+    XC tools "$(R rec "before-b-r$n")"
+    since=$(utc)
+    log "b-r$n($kind): ${B_SEC}s(데우기 ${B_WARM}s), batch ${B_INTERVAL}s마다, consumer ${CONSUMERS}"
+    XC tools "rm -f $OUTD/$st.stop $OUTD/b-batch-r$n.stop; date +%s > $OUTD/$st.start"
+    detach tools "watch-$st" "$(P backlog-watch "$st" --dir "$OUTD" --rate "$wrate" --start-file "$OUTD/$st.start" --stop-file "$OUTD/$st.stop" --duration "$B_SEC")"
+    detach batch "batch-r$n" "$(B batch-loop --round "$n" --job "$B_JOB" --interval "$B_INTERVAL" --stop-file "$OUTD/b-batch-r$n.stop" --out "$W/results/b-batch.txt" --log-dir "$W/results/batch-logs")"
+    detach tools "$st" "mkdir -p $OUTD && cd $S5DIR && K6_CSV_TIME_FORMAT=unix_milli $K6_BIN run --quiet --no-color --tag stage=b-r$n \
+      --summary-export $OUTD/$st.summary.json --out csv=$OUTD/$st.csv.gz -e WARM=$B_WARM -e BASE_URL=$API_URL \
+      -e TOKENS=$OUTD/tokens.json -e TOKENS_B=$OUTD/tokens-b.json -e PAYLOADS=$OUTD/payloads-$st.json -e DEVICES=$OUTD/devices.json \
+      -e CONTEXTS=$OUTD/contexts.json -e PLAN=$S5DIR/$PLAN -e ROUND=$kind -e DURATION_SEC=$B_SEC $S5DIR/k6-analytics-mixed.js"
+    rc=$(wait_rc "$st"); log "b-r$n k6 종료 코드 $rc(99 = threshold abortOnFail)"
+    XC tools "touch $OUTD/b-batch-r$n.stop"
+    rc=$(wait_rc "batch-r$n"); log "b-r$n batch 반복 종료 코드 $rc"
+    [[ "$DRY_RUN" == 1 ]] || sleep "$B_GRACE"
+    XC tools "touch $OUTD/$st.stop"
+    wait_rc "watch-$st" > /dev/null
+    XC tools "$(R rec "after-b-r$n")"
+    api_logs "$n" "$since"
+    XC tools "$(B report-b --round "$n" --plan "$S5DIR/$PLAN" --dir "$OUTD" --duration "$B_SEC" --warm "$B_WARM" --consumers "$CONSUMERS")" \
+      || log "b-r$n 판정 실패(분석 오류)"
+    left=$(XQ 0 "$PY -c \"import json;print(json.load(open('$OUTD/mixed-b-r$n.json'))['reflect_s']['unreflected_after_grace'])\"" || echo 0)
+  done
+}
+step_final_b() {
+  XC tools "$(RB b-final)" || log "b-final 실패(b-final.txt)"
+  XC tools "$(B summary-b --plan "$S5DIR/$PLAN" --dir "$OUTD" --results "$W/results")" || log "summary-b 실패"
+  consumer_restore
+}
+b_on_exit() {  # 중간에 멈췄을 때: batch 반복·감시를 멈추고, 작업 DB가 없으면 원본에서 다시 만들고, consumer를 되돌리고, 결과를 회수한다
+  XC tools "mkdir -p $OUTD; for n in \$(seq 1 ${#B_ORDER[@]}); do touch $OUTD/b-batch-r\$n.stop $OUTD/mixed-r\$n.stop; done" || true
+  XC tools "$(RB b-restore)" || log "b-restore 실패(작업 DB를 직접 확인)"
+  consumer_restore; step_fetch || log "회수 실패"
+}
+
+if [[ "$MEASUREMENT" == b ]]; then
+  b_settings
+  case "${1:-}" in
+    check) b_guard "${#B_ORDER[@]}"; step_check ;;
+    push) step_push ;;
+    prep) b_guard "${#B_ORDER[@]}"; step_check; step_push; step_prep_b ;;
+    mixed) trap 'consumer_restore' EXIT; step_check; step_mixed_b ;;
+    final) step_final_b ;;
+    fetch) step_fetch ;;
+    all)
+      b_guard "${#B_ORDER[@]}"
+      trap 'b_on_exit' EXIT
+      step_check; step_push; step_prep_b; step_mixed_b; step_final_b
+      ;;
+    *) sed -n '2,26p' "$0"; exit 2 ;;
+  esac
+  exit 0
+fi
+
 case "${1:-}" in
   check) step_check ;;
   push) step_push ;;
@@ -295,5 +486,5 @@ case "${1:-}" in
     step_check; step_push; step_prep; step_mixed; step_final
     [[ "$POST_DUMP" == 1 ]] && step_post_dump
     ;;
-  *) sed -n '2,20p' "$0"; exit 2 ;;
+  *) sed -n '2,26p' "$0"; exit 2 ;;
 esac
