@@ -13,7 +13,8 @@
 #
 #   사용: run-load-measurement.sh <check|prep|mixed|final|post-dump|fetch|fetch-dump|all>
 #   환경: MEASUREMENT_KUBECONFIG, DEADLINE_UTC, STATE(기본 ~/mosemo-step5/kube-7a), EXPECT_HEAD(c5d6e7f8a9b0),
-#         MIXED_TOTAL·MIXED_SEC·MIXED_RUNS·MIXED_WARM·MIXED_GRACE·CONSUMERS·PARTITIONS, POST_DUMP(0), K6_LOCAL, DRY_RUN=1
+#         MIXED_TOTAL·MIXED_SEC·MIXED_RUNS·MIXED_WARM·MIXED_GRACE·CONSUMERS·PARTITIONS, POST_DUMP(0), K6_LOCAL, DRY_RUN=1,
+#         EXCLUDE_ACCOUNTS(쉼표 구분 계정 ID, 장기 계정과 함께 k6 토큰·업로드 대상에서 뺀다. 기본 빈 값)
 #   LOCAL=1(드라이런): kubectl 대신 Mac에서 바로 실행. W·ENV_FILE·PY·K6_BIN·API_URL을 local-dryrun.sh가 준다.
 #         consumer 수 조절·batch Deployment 확인은 건너뛰고(로컬 프로세스) 그 사실을 로그에 남긴다.
 set -euo pipefail
@@ -35,6 +36,7 @@ MIXED_GRACE="${MIXED_GRACE:-60}"
 CONSUMERS="${CONSUMERS:-4}"
 PARTITIONS="${PARTITIONS:-8}"
 POST_DUMP="${POST_DUMP:-0}"
+EXCLUDE_ACCOUNTS="${EXCLUDE_ACCOUNTS:-}"
 WORKLOAD="workload-${MIXED_TOTAL}rps.json"
 WORKLOAD_SHA=05eb76f76af02112ae556de589c3832ef6c8b4eb5bc0e05fc9fb892444d22d29   # 5단계와 같은 파일이어야 한다
 K6_VERSION=v2.3.0
@@ -215,6 +217,8 @@ step_prep() {
 LONG_ACC=""
 long_account() {
   LONG_ACC=$(XQ "<long-account>" "$PY -c 'import json;a=json.load(open(\"$W/results/inventory.json\"))[\"accounts\"];print(max(a,key=lambda x:(len(x[\"dates\"]),x[\"account_id\"]))[\"account_id\"])'")
+  [[ -n "$EXCLUDE_ACCOUNTS" ]] && LONG_ACC="$LONG_ACC,$EXCLUDE_ACCOUNTS"
+  return 0
 }
 k6_mixed() {  # k6_mixed <단계 이름>
   local st=$1
