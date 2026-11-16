@@ -22,6 +22,13 @@
 | `workload-137.6rps.json` | 1천 DAU 피크 고정 부하 정의. `run-load-measurement.sh`가 sha256을 고정값과 비교한다 |
 | `workload-137.6rps.md` | 같은 부하의 설명과 판정 기준 |
 | `kubectl-chunked-cp.sh` | 큰 파일 `kubectl cp`를 2MB 조각 전송으로 바꾸는 대리 스크립트 |
+| `run-delete-scale-measurement.sh` | 7B 계정 삭제 운영 규모 측정 조율(Mac): 측정 A 도구로 Pod·k6를 돌리고 7B 절차를 끼운다 |
+| `delete-scale-steps.sh` | 7B 측정 Pod 안 DB 쪽 절차(pg 컨테이너, psql): 준비, 생성, 생성 뒤 확인, 삭제 실행·표본, 회차 연결, 검사, 정리 |
+| `delete-scale-generate.sql` | 7B 생성기 프로시저: 날짜 순서대로 그날 모든 사용자를 시각순으로 섞어 넣는다 |
+| `delete-scale-prepare.sql` | 7B 생성 전 준비: 인덱스 후보 6개, 4개 표 autovacuum 기준 1% |
+| `account-delete-procedure.sql` | 계정 삭제 후보 프로시저(명시 순서 한 트랜잭션 / 레코드 현지 날짜별 커밋) |
+| `archive-delete-procedure.sql` | 야간 이관 DB 삭제 흉내 프로시저(레코드 2,000행씩 커밋) |
+| `delete-scale-local-check.sh` | 7B 생성기 로컬 검사: 일회용 PostgreSQL에서 행 수·연결 위반·흩어짐·문맥 모델 검증 |
 
 ## 대응표
 
@@ -45,6 +52,19 @@
 | `kubectl-chunk-shim.sh` | `893fb153bca53525b95edb02dc4a57b183e31a71c9567fb1f77428c0a7aea7f6` | `infra/measurement/kubectl-chunked-cp.sh` |
 
 `workload-137.6rps.json`, `reorder-segments-by-time.sql`, `kubectl-chunked-cp.sh`는 #305로 옮길 때는 내용을 바꾸지 않았다(그때 sha256 같음). `kubectl-chunked-cp.sh`는 그 뒤 #306에서 원격 경로를 위치 인자로 넘기도록 고쳤다. 도구가 `workload-${총 rps}rps.json` 규칙으로 이름을 계산하므로 이름도 그대로다.
+
+7B 계정 삭제 측정 도구의 저장소 밖 원본(#308)이다. sha256은 옮기기 전 값이다. 원본 셸 스크립트 네 개는 `delete-scale-steps.sh` 한 파일의 하위 명령으로 합쳤다.
+
+| 옛 이름 | 원래 sha256 | 새 경로 |
+| --- | --- | --- |
+| `gen.sql` | `9360995a455e4483779d72f2dcf4626cead42163e70f77e9a3731c66ad8a556c` | `infra/measurement/delete-scale-generate.sql` |
+| `00_prep.sql` | `007b2a67419777a234a1aa7cde2be54ba68de5d5e53ecbe3495f2f5d46c3e103` | `infra/measurement/delete-scale-prepare.sql` |
+| `20_account_delete.sql` | `a4e06ecdfe4781255e9db23e502890144f0a7bef908ad68deda69f3d7f0fd817` | `infra/measurement/account-delete-procedure.sql` |
+| `10_archive_delete.sql` | `d9a07508f052b4187d71e4fab3087bd14293105d82f0ba89c71980695619cd0c` | `infra/measurement/archive-delete-procedure.sql` |
+| `lab/gen_lab.sh` | `cd4a8a3c72611c712ae3805b5be77ff1e403ff2d93db8bb462d5b133aba4a7b6` | `infra/measurement/delete-scale-steps.sh` |
+| `lab/lab_run.sh` | `e708047db3a943c1002bd424516b725f6072337372230c9d8a9137047f0feea4` | `infra/measurement/delete-scale-steps.sh` |
+| `lab/sampler.sh` | `8a3ac0e263908690011e323c346988c05dcae77deb3aa9dac7b815a430044986` | `infra/measurement/delete-scale-steps.sh` |
+| `lab/x7b_hooks.sh` | `7e740183d8e0ed08e2a6d76c0ceca5ba71b55f8b7c6397bd9a97707d9131224e` | `infra/measurement/delete-scale-steps.sh` |
 
 옮기지 않은 것: 5단계 분석 원형 측정 전용 스크립트, 측정 A로 대체된 5단계 판, k6 실행 파일, 생성 데이터·결과(부하 묶음, 토큰, 덤프, 결과 묶음), 사전 등록·보고 문서. 주석의 `STEP5-PLAN`, `STEP5-T0-PREREG`, `STEP5-T0-REPORT`, `STEP7A-PREREG` 같은 이름은 저장소 밖에 보관한 사전 등록·보고 문서를 가리킨다.
 
@@ -110,6 +130,7 @@ DUMP=<작은 변환 덤프> infra/measurement/local-dryrun.sh
 | `DEADLINE_UTC` | `run-load-measurement.sh` | 기본값 없음(랩). 잠금 토큰 만료 전 시각. 회차가 이 시각 전에 끝나지 않으면 건너뛴다 |
 | `MIXED_TOTAL`, `MIXED_SEC`, `MIXED_RUNS`, `MIXED_WARM`, `MIXED_GRACE` | `run-load-measurement.sh` | 137.6 rps, 900초, 2회, 웜업 60초, 유예 60초 |
 | `CONSUMERS`, `PARTITIONS`, `POST_DUMP`, `K6_LOCAL` | `run-load-measurement.sh` | consumer 4, 파티션 8, 측정 직후 덤프 0(끔), 로컬 k6 경로 |
+| `EXCLUDE_ACCOUNTS` | `run-load-measurement.sh` | 기본 빈 값. 쉼표로 이은 계정 ID를 장기 계정과 함께 k6 토큰·업로드 대상에서 뺀다 |
 | `EXPECT_HEAD` | `run-load-measurement.sh`, `db-measurement-steps.sh` | `c5d6e7f8a9b0`. 앱 이미지·DB·덤프의 alembic head가 모두 이 값이어야 진행한다 |
 | `LOCAL`, `W`, `ENV_FILE`, `PY`, `K6_BIN`, `API_URL`, `S5_REPO` | `run-load-measurement.sh`(`LOCAL=1`) | 드라이런용. `local-dryrun.sh`가 준다. `S5_REPO` 기본은 이 저장소 루트(Pod 안은 `/work/repo`) |
 | `TARGET`, `END_DATE`, `RDS_PG` | `db-measurement-steps.sh` | `eks`(Pod 안) 또는 `local`, 조회 부하의 "오늘" `2026-11-12`, 드라이런 DB 컨테이너 |
@@ -120,6 +141,31 @@ DUMP=<작은 변환 덤프> infra/measurement/local-dryrun.sh
 | `S5_REQ_TIMEOUT`, `S5_LONG_TIMEOUT`, `S5_SQL_TIMEOUT`, `S5_CMD_TIMEOUT` | `db_harness.py` | 요청 30초, 긴 단위 120초, SQL 문장 600초(`a2`는 7200초), `inventory` 전체 1800초 |
 | `S5_RSS_LOG` | `db_harness.py` | 있으면 모드별 최대 RSS를 이 파일에 덧붙인다 |
 | `AUTH_JWT_SECRET_KEY`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE` | `k6_inputs_and_reports.py` | 조회 토큰 서명. Pod 안은 앱 Secret에서 받는다. 만든 `tokens.json`은 비밀값이라 회수 묶음에서 뺀다 |
+
+## 7B 계정 삭제 운영 규모 측정
+
+7B 계정 삭제(명시 순서 + 레코드 현지 날짜별 커밋)가 운영 규모 RDS에서 몇 분 걸리고, 동시에 도는 야간 이관 삭제의 VACUUM과 다른 사용자 조회·업로드를 막는지 잰다. 시드 대신 생성기로 데이터를 만든다. 시드는 계정 단위로 행이 붙어 있어 한 사용자의 행이 운영처럼 여러 페이지에 흩어지지 않는다.
+
+- 데이터: 측정 날(KST)을 D라 할 때 `USERS`명 × `DAYS`일, 첫날은 항상 D−90이다. 랩 기본 300명 × 91일(약 157GB, 로컬 300명 × 3일 5.2GB에서 추정). 사용자 하루당 레코드 5,500, 활동 구간 410 + 공백 1, 제안 약 433, 확정 약 236, 영수증 2,934, 세션 3. 계정당 장치 1, 라벨 6.
+- 순서(`run-delete-scale-measurement.sh all`): `check` → push(`measurement-pod.sh push --no-dump`, `run-load-measurement.sh push`, 7B 파일) → `a0`(빈 DB 관문) → 시간 검사(`USERS × DAYS × SEC_PER_USER_DAY` + 1.5시간이 `DEADLINE_UTC` 안) → `prepare` → `generate` → `after-generate`(ANALYZE, 제약 유효성, 행 수, 4개 표 VACUUM 1회, 통계 초기화) + inventory(`--today D`) → L1a → hooks → `mixed`(3회차) → hooks 종료 대기 → `final` → `fetch`
+- 삭제와 회차: 삭제 대상은 사용자 3·4·5(`x7b_gu.u`)이고 `EXCLUDE_ACCOUNTS`로 k6에서 뺀다.
+  - L1a = 부하 없이 사용자 3을 `'day'`로 삭제(기준 읽기 수)
+  - r1 = L0(부하만)
+  - r2 = L1: 사용자 4를 `'day'`로 삭제 + 같은 때 야간 이관 D−90
+  - r3 = L2: 사용자 5를 `'one'`으로 삭제 + 야간 이관 D−89. "L1 끝"과 "r3 시작 + 웜업 + `HOOK_GAP`" 중 늦은 때 시작한다. r3가 이미 끝났으면 부하 없이 돌고 `load=none`을 남긴다.
+- 결과: `/work/results/x7b/<이름>/`(기존 `fetch` 묶음에 들어간다). `summary.txt`에 디스크 읽기(힙·인덱스, `pg_statio` 전후 차이)·레코드 1행당 읽기·WAL, 단계별 시간, 가장 긴 트랜잭션 나이·`age(backend_xmin)`, 1초 넘은 잠금 대기 수, VACUUM의 "dead but not yet removable" 합계가 있다. 운영 시간은 읽기 수 ÷ IOPS로 낸다. `pg_statio` 읽기는 OS 페이지 캐시 적중을 구분하지 않으므로 RDS를 재부팅하지 않는다.
+- 생성이 끊기면 `RESUME=1 run-delete-scale-measurement.sh generate`로 마지막 묶음 다음부터 잇고(`a0`·`prepare`를 건너뜀) `after`·`l1a`·`measure`·`fetch`를 차례로 부른다.
+- 검사: `delete-scale-local-check.sh`(생성기), `MEASUREMENT=delete-scale USERS=20 DAYS=3 MEASURE_DATE=<날짜> MIXED_SEC=60 local-dryrun.sh`(전체 순서).
+- 정리: 측정 뒤 RDS를 그대로 쓸 때만 pg 컨테이너에서 `delete-scale-steps.sh cleanup --yes`를 실행한다. 실험 인덱스 6개·설정·프로시저·`x7b_*` 표와 생성 데이터를 지운다. `all`에는 들어 있지 않다.
+
+| 변수 | 기본값·뜻 |
+| --- | --- |
+| `MEASURE_DATE` | 필수. 측정 날 D(KST). 생성 첫날 D−90, "오늘 화면"의 오늘 |
+| `USERS`, `DAYS` | 300, 91 |
+| `SEC_PER_USER_DAY` | 0.66. 생성 시간 검사용(로컬 300명 실측 0.33초의 2배) |
+| `MIXED_WARM`, `HOOK_GAP` | 60, 30. 회차 시작 뒤 삭제를 시작하기까지 기다리는 초 |
+| `RESUME` | 1이면 `a0`·`prepare`를 건너뛰고 생성을 잇는다 |
+| `STATE` | `~/mosemo-step5/kube-delete-scale` |
 
 ## alembic head가 바뀌면
 

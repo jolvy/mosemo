@@ -8,15 +8,22 @@
 # (이름이 이미 있으면 아무것도 만들거나 지우지 않고 멈춘다).
 #
 #   사용: local-dryrun.sh            환경: LOCAL_CONSUMERS(1), DUMP(기본 ~/mosemo-step5/smoke-7a.dump), MIXED_SEC(60), MIXED_WARM(10), MIXED_GRACE(15)
+#   MEASUREMENT=delete-scale: 덤프 대신 7B 계정 삭제 측정(run-delete-scale-measurement.sh all, LOCAL=1)을 끝까지 돈다.
+#         consumer를 먼저 띄우고 USERS(20)·DAYS(3)·MEASURE_DATE(오늘)를 넘긴다. 덤프·head 파일 검사와 prep·post-dump는 하지 않는다.
 #   결과: ~/mosemo-step5/dryrun-7a-<UTC>/ (state/에 회수 묶음·로그, dryrun.log)
 set -euo pipefail
 
 ART="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="${REPO:-$(cd "$ART/../.." && pwd)}"
 PY="$REPO/.venv/bin/python"
-DUMP="${DUMP:-$HOME/mosemo-step5/smoke-7a.dump}"
-ALEMBIC_FILE="${DUMP%.dump}.alembic.txt"
+MEASUREMENT="${MEASUREMENT:-}"
 RUN="$HOME/mosemo-step5/dryrun-7a-$(date -u +%Y%m%dT%H%M%SZ)"
+if [[ "$MEASUREMENT" == delete-scale ]]; then
+  DUMP=none; ALEMBIC_FILE="$RUN/state/alembic-head.txt"   # db-measurement-steps.sh local이 값을 요구한다(읽지 않음)
+else
+  DUMP="${DUMP:-$HOME/mosemo-step5/smoke-7a.dump}"
+  ALEMBIC_FILE="${DUMP%.dump}.alembic.txt"
+fi
 RDS_PG=m7a-rds; RDS_PORT=55474
 KAFKA=m7a-kafka; KAFKA_PORT=59092
 API_PORT=8774
@@ -40,10 +47,16 @@ up() {  # up <이름> <docker create 인자...>
 
 # 검사(멈추면 아무것도 만들거나 지우지 않는다) → 결과 폴더 → 정리 trap
 for c in "$RDS_PG" "$KAFKA"; do docker ps -a --format '{{.Names}}' | grep -qx "$c" && { echo "${c}가 이미 있다" >&2; exit 2; }; done
-[[ -f "$DUMP" && -f "$ALEMBIC_FILE" ]] || { echo "덤프·head 파일 없음: $DUMP" >&2; exit 2; }
+if [[ "$MEASUREMENT" != delete-scale ]]; then
+  [[ -f "$DUMP" && -f "$ALEMBIC_FILE" ]] || { echo "덤프·head 파일 없음: $DUMP" >&2; exit 2; }
+fi
 mkdir -p "$RUN/work" "$RUN/state"
 trap teardown EXIT
-log "repo $REPO commit $(git -C "$REPO" rev-parse HEAD), 덤프 $DUMP sha256 $(shasum -a 256 "$DUMP" | awk '{print $1}')"
+if [[ "$MEASUREMENT" == delete-scale ]]; then
+  log "repo $REPO commit $(git -C "$REPO" rev-parse HEAD), 7B 계정 삭제 측정(덤프 없음)"
+else
+  log "repo $REPO commit $(git -C "$REPO" rev-parse HEAD), 덤프 $DUMP sha256 $(shasum -a 256 "$DUMP" | awk '{print $1}')"
+fi
 
 ENV_FILE="$RUN/m7a.env"
 (umask 077   # env 파일(비밀번호·JWT 키)을 처음부터 소유자만 읽게 쓴다. 다른 결과 파일 권한은 바꾸지 않는다
@@ -107,14 +120,24 @@ export LOCAL=1 W="$RUN/work" PY ENV_FILE K6_BIN API_URL="http://127.0.0.1:$API_P
        DUMP ALEMBIC_FILE RDS_PG S5_REPO="$REPO" \
        MIXED_SEC="${MIXED_SEC:-60}" MIXED_WARM="${MIXED_WARM:-10}" MIXED_GRACE="${MIXED_GRACE:-15}"
 S="$ART/run-load-measurement.sh"
+start_consumers() {
+  local i p
+  for i in $(seq 1 "$LOCAL_CONSUMERS"); do
+    (cd "$REPO" && exec "$PY" -m mosemo.entrypoints.consumer) > "$RUN/consumer-$i.log" 2>&1 &
+    CON_PIDS+=($!)
+  done
+  sleep 8
+  for p in "${CON_PIDS[@]}"; do kill -0 "$p" 2>/dev/null || { log "consumer가 죽었다(consumer-*.log)"; exit 1; }; done
+  log "로컬 consumer ${LOCAL_CONSUMERS}개 시작(복원·재배치 뒤 = 랩의 consumer 0 → 4 순서 대역)"
+}
+if [[ "$MEASUREMENT" == delete-scale ]]; then
+  start_consumers
+  USERS="${USERS:-20}" DAYS="${DAYS:-3}" MEASURE_DATE="${MEASURE_DATE:-$(date +%F)}" "$ART/run-delete-scale-measurement.sh" all
+  log "드라이런 끝(7B 계정 삭제 측정). 결과 $RUN"
+  exit 0
+fi
 "$S" prep
-for i in $(seq 1 "$LOCAL_CONSUMERS"); do
-  (cd "$REPO" && exec "$PY" -m mosemo.entrypoints.consumer) > "$RUN/consumer-$i.log" 2>&1 &
-  CON_PIDS+=($!)
-done
-sleep 8
-for p in "${CON_PIDS[@]}"; do kill -0 "$p" 2>/dev/null || { log "consumer가 죽었다(consumer-*.log)"; exit 1; }; done
-log "로컬 consumer ${LOCAL_CONSUMERS}개 시작(복원·재배치 뒤 = 랩의 consumer 0 → 4 순서 대역)"
+start_consumers
 "$S" mixed
 "$S" final
 "$S" post-dump
