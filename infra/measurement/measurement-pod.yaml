@@ -1,0 +1,120 @@
+# 5단계 측정용 도구 Pod(EKS 랩). 하네스·로컬에서 만든 시드 덤프를 kubectl cp로 넣고 RDS로 실행한다.
+# 컨테이너 둘이 /work(emptyDir)를 같이 쓴다.
+#   tools: 앱 이미지(.venv에 asyncpg·pyjwt·httpx2). 하네스·측정. SQL은 하네스 `sql` 모드(psql 없음).
+#   pg:    postgres:18.3(클라이언트만 씀). 로컬에서 만든 덤프를 RDS로 pg_restore, psql 확인.
+# 시드는 클러스터 안에서 만들지 않는다(노드 standard 크레딧). Mac 로컬에서 만든 덤프를 kubectl cp로 /work에 넣는다.
+# 자리(측정 전에 채움):
+#   <APP_IMAGE>  랩에 배포된 mosemo-server 이미지(ECR URI:태그). RDS 마이그레이션 head와 같은 커밋이어야 한다(STEP5-T0-PREREG 1절).
+# 설정·비밀은 랩 configmap(mosemo-config)·Secret(mosemo-secrets)·RDS CA(mosemo-rds-ca)를 앱과 같이 받는다.
+# Kafka에 붙지 않는다: 하네스는 앱 코드를 import하지 않고 SQL(asyncpg)·HTTP만 쓴다. configmap의 BATCH_* 값은 읽히지만
+# 쓰이지 않는다. 랩 NetworkPolicy도 9092를 mosemo-server·consumer·batch·kafka-init·kafka 라벨에만 연다. 쓰기 부하는 SQL만이다.
+# 네임스페이스 mosemo(LimitRange 기본 100m·128Mi / 1 CPU·512Mi, 컨테이너 상한 768Mi). 아래 requests/limits는 명시값이며
+# 드라이런 실측 최대 메모리(STEP5-T0-REPORT 3.5절)로 768Mi 안임을 확인했다.
+# 자리: 측정 프로필은 앱 노드 1 + loadgen 전용 노드 1(taint dedicated=loadgen:NoSchedule, label pool=loadgen, 랩 플랜 T4).
+#   이 Pod는 loadgen 노드에만 놓이고 API Pod는 app 노드에 있다. kubeconfig는 $SESSION_DIR/measurement.kubeconfig(13시간 토큰).
+# activeDeadlineSeconds 43200(12시간)은 Pod 시작부터 센다. 넘으면 Pod와 emptyDir 결과가 함께 사라진다.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: step5-tools
+  namespace: mosemo
+  labels:
+    app: step5-tools
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  activeDeadlineSeconds: 43200
+  nodeSelector:
+    kubernetes.io/arch: amd64
+    pool: loadgen
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: loadgen
+      effect: NoSchedule
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: tools
+      image: <APP_IMAGE>
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      workingDir: /work
+      env:
+        - name: S5_REPO
+          value: /work/repo
+        - name: HOME
+          value: /work
+      envFrom:
+        - configMapRef:
+            name: mosemo-config
+        - secretRef:
+            name: mosemo-secrets
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 768Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: work
+          mountPath: /work
+        - name: rds-ca
+          mountPath: /etc/rds-ca
+          readOnly: true
+    - name: pg
+      image: postgres:18.3
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      workingDir: /work
+      env:
+        - name: HOME
+          value: /work
+        - name: PGHOST
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: DB_HOST}}
+        - name: PGPORT
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: DB_PORT}}
+        - name: PGDATABASE
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: DB_DATABASE}}
+        - name: PGUSER
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: DB_USER}}
+        - name: PGPASSWORD
+          valueFrom: {secretKeyRef: {name: mosemo-secrets, key: DB_PASSWORD}}
+        - name: PGSSLMODE
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: PGSSLMODE}}
+        - name: PGSSLROOTCERT
+          valueFrom: {configMapKeyRef: {name: mosemo-config, key: PGSSLROOTCERT}}
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: work
+          mountPath: /work
+        - name: rds-ca
+          mountPath: /etc/rds-ca
+          readOnly: true
+  volumes:
+    - name: work
+      emptyDir:
+        sizeLimit: 8Gi   # 덤프(1천×2일 추정 2~4GB, 드라이런 비율로 갱신) + 결과. 노드 루트 볼륨 20GB 안이어야 한다
+    - name: rds-ca
+      configMap:
+        name: mosemo-rds-ca
