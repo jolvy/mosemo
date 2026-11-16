@@ -170,9 +170,11 @@ run "session_stack_contract" {
       aws_db_instance.main.backup_retention_period == 1 &&
       aws_db_instance.main.deletion_protection == true &&
       aws_db_instance.main.skip_final_snapshot == false &&
-      aws_db_instance.main.final_snapshot_identifier == "mosemo-lab-final"
+      aws_db_instance.main.final_snapshot_identifier == "mosemo-lab-final" &&
+      aws_db_instance.main.allocated_storage == 20 &&
+      aws_db_instance.main.storage_type == "gp3"
     )
-    error_message = "RDS must keep production protection by default: automated backups (1 day, the Free plan maximum), deletion protection, and a final snapshot."
+    error_message = "RDS must keep production protection by default: automated backups (1 day, the Free plan maximum), deletion protection, a final snapshot, and 20 GB gp3 storage."
   }
 
   assert {
@@ -301,4 +303,27 @@ run "session_down_skips_final_snapshot_only_when_asked" {
     condition     = aws_db_instance.main.skip_final_snapshot == true && aws_db_instance.main.deletion_protection == true
     error_message = "The session-down variable may skip only the final snapshot; deletion protection stays in configuration."
   }
+}
+
+run "storage_is_raised_only_through_the_variable" {
+  command = plan
+
+  variables {
+    db_allocated_storage = 250
+  }
+
+  assert {
+    condition     = aws_db_instance.main.allocated_storage == 250 && aws_db_instance.main.storage_type == "gp3"
+    error_message = "db_allocated_storage must set the RDS gp3 allocation for a session that needs more space."
+  }
+}
+
+run "storage_rejects_less_than_the_gp3_minimum" {
+  command = plan
+
+  variables {
+    db_allocated_storage = 10
+  }
+
+  expect_failures = [var.db_allocated_storage]
 }
