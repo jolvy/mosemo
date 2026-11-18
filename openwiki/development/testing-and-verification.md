@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-18T09:36:00.190Z
+    at: 2026-11-17T16:42:07.914Z
 sources:
   - id: openwiki-source-3c6b76d80d7f929dde842165
     resource: repo://.codex/skills/verification/scripts/ci_gate.py
@@ -27,13 +27,9 @@ sources:
     resource: repo://tests/conftest.py
   - id: openwiki-source-d5a25b3d746855d816062422
     resource: repo://tests/integration/conftest.py
-  - id: openwiki-source-21c741784f6566ceb8763ab7
-    resource: repo://tests/unit/harness/test_openwiki_update_workflow.py
-  - id: openwiki-source-4d3dbef822ee42e1b53791d9
-    resource: repo://tests/unit/harness/test_sync_openwiki_update.py
   - id: openwiki-source-7963bb1002d4efe2b24fef6a
     resource: repo://tests/unit/harness/test_tests_layout.py
-generated: { by: "claude-code", at: "2026-11-18T09:36:00.190Z" }
+generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
 ---
 
 # 테스트와 검증
@@ -116,7 +112,7 @@ git diff --cached --check
 
 ## OpenWiki paths 검사
 
-[.github/workflows/openwiki-paths.yml](../../.github/workflows/openwiki-paths.yml)은 `pull_request_target`에서 `check_openwiki_paths.py`를 실행해, `openwiki/update` 브랜치가 아닌 PR이 `openwiki/INSTRUCTIONS.md` 밖의 `openwiki/` 생성물을 바꾸면 실패시킨다. 스크립트 자체는 `tests/unit/harness/test_check_openwiki_paths.py`가 검증한다. 생성·게시를 맡는 `OpenWiki update` 워크플로의 배선은 `tests/unit/harness/test_openwiki_update_workflow.py`가, 게시 전 생성 결과 검증(symlink·확장자·토큰 형태·`complete` 상태)과 반영은 `tests/unit/harness/test_sync_openwiki_update.py`가 검증한다. 규칙은 [Engineering Harness 작업 흐름](engineering-harness.md)을 본다.
+[.github/workflows/openwiki-paths.yml](../../.github/workflows/openwiki-paths.yml)은 `pull_request_target`에서 `check_openwiki_paths.py`를 실행해, `openwiki/update` 브랜치가 아닌 PR이 `openwiki/INSTRUCTIONS.md` 밖의 `openwiki/` 생성물을 바꾸면 실패시킨다. 스크립트 자체는 `tests/unit/harness/test_check_openwiki_paths.py`가 검증한다. 규칙은 [Engineering Harness 작업 흐름](engineering-harness.md)을 본다.
 
 ## 관련 페이지
 

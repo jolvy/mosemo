@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:7fc07fb727f6916a3f7fa77f8b33d13bda215fec6811e13fb0961dd1d6705590",
+  "pageVersion": "sha256:f65a457f972ff55e0399e370cd3243a6d0cb1ce4f7ae389c3f1896d0f279164d",
   "claims": [
     {
       "id": "claim_8533ee2a4a564ff5a874060d83f95871",
@@ -62,11 +62,11 @@
     },
     {
       "id": "claim_5b7768e4ec4d4767812ff5680fa5c7a8",
-      "statement": "일반 PR은 openwiki/INSTRUCTIONS.md 밖의 openwiki/ 경로를 바꿀 수 없고, 같은 저장소의 openwiki/update 브랜치 PR만 생성물(.md·.json, 지시서 제외)을 바꿀 수 있다(대소문자 무시, rename 분해).",
+      "statement": "일반 PR은 openwiki/INSTRUCTIONS.md 밖의 openwiki/ 경로를 바꿀 수 없고, 같은 저장소의 openwiki/update 브랜치 PR만 생성물을 바꿀 수 있다(대소문자 무시, rename 분해).",
       "evidence": [
         {
-          "resource": "repo://.codex/skills/verification/scripts/check_openwiki_paths.py#L14-L50",
-          "version": "repo-lines-v1:sha256:2b63bdb6f4ebd16195b7166c489a798e35e52a1a157a612cd0e1cd54027966ae:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE3ZWE3NGJiNzliYTk2ZWRjMzlhODM4MmE5N2YyMjk5M2I4MGNjNDA4OGIzZTI3MTdhOTg5MTdjNjBjMWRkNWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZDI0NDU4MmI2ZmIwM2QyM2I4NDE1YWJlY2QzNDZiMGM5ZjQ2NmI2Zjc1MmIwNjgxODljZTdlOWEyZGMzNTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg0NDgxMzE0NWFlNzI3ZDYwY2U0MWNlMmIzNDkzMTM0ODRmODBhYWNlZDFjNzJhZWFhOWY5ZmUwY2FlZmY1ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0MTU3NzZhOTlmMTQxNTY1OWRlMjZlYjRkYjI2MTg2M2ZhMTIxOTY2NjBjOTU3ODUzYTYzMTMxOWJmZDliODYifQ"
+          "resource": "repo://.codex/skills/verification/scripts/check_openwiki_paths.py#L1-L50",
+          "version": "repo-lines-v1:sha256:a9d27f030edc9ef4b379c9aa581132b17e6faf5f2bf2d891c31505f6baed7cf9:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0NzI1ZjAxOWUwMDM3NGY0ZjE2YmJhYzJiNzNiOWU5M2IzYzFjNmQyNzhjZjUzNjg1MTRmZGEwODBkMmRmYzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZDI0NDU4MmI2ZmIwM2QyM2I4NDE1YWJlY2QzNDZiMGM5ZjQ2NmI2Zjc1MmIwNjgxODljZTdlOWEyZGMzNTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0MTU3NzZhOTlmMTQxNTY1OWRlMjZlYjRkYjI2MTg2M2ZhMTIxOTY2NjBjOTU3ODUzYTYzMTMxOWJmZDliODYifQ"
         }
       ]
     },
@@ -81,22 +81,22 @@
       ]
     },
     {
-      "id": "claim_80ce9051c20a4aa0bdb570016f182748",
-      "statement": "OpenWiki update 워크플로는 생성(generate)과 게시(publish)를 다른 job으로 나누고, 게시 job은 sync_openwiki_update.py로 symlink·확장자·complete 상태·토큰 형태 문자열을 검사한 뒤에만 생성 결과를 반영해 openwiki/update PR을 auto-merge한다.",
+      "id": "claim_00ec360e47384d21abd2c0cb8890dd47",
+      "statement": "OpenWiki update 워크플로는 생성 job과 게시 job을 분리하고, 게시 job은 sync_openwiki_update.py로 symlink·확장자·미완료 상태·토큰 형태 문자열을 검증한 뒤에만 openwiki/update PR을 auto-merge로 올린다.",
       "evidence": [
         {
-          "resource": "repo://.codex/skills/verification/scripts/sync_openwiki_update.py#L20-L90",
-          "version": "repo-lines-v1:sha256:41e4fe354e007afafb01c683aa41b7b78627ff1dbae88af0197158c82344022f:eyJzZWxlY3RlZExpbmVDb3VudCI6NzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwMDJlZmJkMWZkMDg2MWI1NGRmMzU3NWUyOTIxZDJjMjU5ZDJhODM3OWM0ZDVmZmY1Zjg4NDJhMjU1MmMxNDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiNjRlOTIwMDBhMTljYTM4NTkzYTRlNmEwYmFjNzcwOTZkMWU5ODY5NDlhM2I2MjgyNmI3Y2VhNGY3M2Q5ZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5ZTBjMTQ2OGY0OGM0Njc4NjA0ZTMzMjY2ODkzMjE5MDNlOGQzYTlmNzc1ZjFkZmE0OTVmZTk1Y2YwNzA4ZGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://.codex/skills/verification/scripts/sync_openwiki_update.py#L1-L55",
+          "version": "repo-lines-v1:sha256:99e5cb6e2ddf9b9e3244ee2f27ac70e09de7caa44d153cab9badfeab143e7d9f:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1ODVjZWQ2NGM4ZjI2MGM0ZWNiZDJlZWNmMDg2ZmI0MjM3ZDZmYjU3NDU5ODE3YmJkN2I2MmM5MDJmYzY3MWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1NzU3NGNmYzVjZTgxNGExYzM4NjdmMGE2NTNmZmUzMGJiZDU1ODI1YjVkOTc4OGJhY2QxNjViODhmNjUwOTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYyODljNGRmM2E1OWM1MjBlYjM1ZjJhYTQ3NjhlZDcyNzI5ZTg4NGFjZGY4ZWY1ZTE3ZjU0MGZkMGE0MDAxMzIifQ"
         },
         {
-          "resource": "repo://.github/workflows/openwiki-update.yml#L1-L115",
-          "version": "repo-lines-v1:sha256:a6b1ce4ec09feace74d0e59ae92bbff63fe4ef3e40f626380385e0adc8bf94c5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI2MzY1NzRjZTIyMjcyOWM0ZmM1ZjQ5MzJhYzliOThkMzE4MzlhY2Q0MmQzNTZlOGI2NDNkNzMwZWJhYjRiOGQ2IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJiZDAwYzgyNzMxNjdiZmU0NjU1YzNjOWVkN2M0ODllZDYxNjE2OTE2YzU2MzliY2QzYjk4ZmNhN2I3OTE4NWEyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+          "resource": "repo://.github/workflows/openwiki-update.yml#L26-L115",
+          "version": "repo-lines-v1:sha256:0793cf95f0fa63038080fabf8ba52c7e907e4e5a7c4731dddd2f83c013cc4df3:eyJzZWxlY3RlZExpbmVDb3VudCI6OTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5ZDgwMTU0ZWQ0MmZjNWM3NzliMTMzMTU3OGI1OGI4OWM4MDFlYWNlNzRmMjRjZDQ4ZWI0YTIzNTc5NDBhOTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJkMDBjODI3MzE2N2JmZTQ2NTVjM2M5ZWQ3YzQ4OWVkNjE2MTY5MTZjNTYzOWJjZDNiOThmY2E3Yjc5MTg1YTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlYzVmYTllMGVjZDFkY2FkZjJhYWM5N2I5Mjc3ZmUwMjY1YWUwMmFhMjVkMzgwYWI2MGY4ZjA4Yzg1ZjAzYTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-18T09:36:00.190Z"
+    "at": "2026-11-18T09:37:41.442Z"
   }
 }
