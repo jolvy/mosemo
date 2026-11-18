@@ -12,6 +12,9 @@
 - 온보딩 겸 진입점: `openwiki/quickstart.md`
 - 현재 구조: BC·계층·진입점·영속성·메시징의 지금 모습
 - 유효한 결정: 현재 효력이 있는 ADR과 대체 관계
+- 유효한 기획: 현재 효력이 있는 PRD와 대체 관계
+
+유효한 결정·기획 페이지는 `openwiki/decisions/` 아래에 둔다. `AGENTS.md` 「기획·결정 확인」이 이 폴더를 진입점으로 쓴다.
 
 나머지 페이지 구성은 OpenWiki가 정한다.
 
@@ -29,13 +32,19 @@
 
 - 원본 문서가 기준이다. 위키와 원본이 다르면 원본이 맞다. 위키 페이지는 근거가 된 원본 문서·코드로 링크한다.
 - 생성물은 손으로 고치지 않는다. 범위는 이 지시서로만 바꾼다.
-- 유효한 결정은 ADR 앞부분의 `status`로 판단한다.
+- 유효한 결정과 기획은 ADR·PRD 앞부분의 `status`로 판단한다.
 
 ## ADR 링크 규칙
 
 - 유효한 결정 페이지는 `status: accepted`인 ADR마다 `docs/adr/` 아래 파일로 Markdown 링크한다(예: `[ADR 0011](../docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md)`).
 - 부분 대체(0004와 0007·0008, 0001과 0014, 0010과 0011, 0011과 0015)와 전체 대체(0002 → 0004)는 두 ADR 파일 링크를 같은 페이지에 둔다.
 - `status: superseded`인 ADR은 유효 목록에서 빼고 앞부분의 `superseded_by` ADR로 안내한다.
+
+## PRD 링크 규칙
+
+- 유효한 기획 페이지는 `status: accepted`인 PRD마다 `docs/prd/` 아래 파일로 Markdown 링크하고, 한두 문장으로 범위를 요약한다.
+- `status: draft`인 PRD는 확정되지 않은 기획으로 따로 표시한다.
+- `status: superseded`인 PRD는 유효 목록에서 빼고 앞부분의 `superseded_by` PRD로 안내한다.
 
 ## 온보딩에 담을 것
 
@@ -44,7 +53,7 @@
 - Docker가 필요한 테스트 마커(`requires_db`, `requires_kafka`)
 - `AGENTS.md` 「빌드와 검증」 명령
 - Engineering Harness Skill 흐름(요구사항 탐색 → 제품 명세 → 엔지니어링 계획 → 구현 → 검증)
-- 먼저 읽을 문서
+- 먼저 읽을 문서(유효한 기획·결정 페이지 포함)
 
 ## 위키 갱신 절차
 

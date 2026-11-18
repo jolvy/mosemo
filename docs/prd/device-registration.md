@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # Device 등록 API PRD
 
 ## 문제와 배경

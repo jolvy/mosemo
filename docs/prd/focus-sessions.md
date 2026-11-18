@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # 집중 세션 API
 
 ## 문제와 배경
