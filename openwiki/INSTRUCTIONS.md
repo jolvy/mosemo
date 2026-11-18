@@ -48,5 +48,5 @@
 
 ## 위키 갱신 절차
 
-- 생성물은 main 병합 후 Aico가 `openwiki/update` 브랜치의 문서 PR로 갱신하며 손으로 고치지 않는다.
+- 생성물은 main 병합 후 `OpenWiki update` 워크플로(`.github/workflows/openwiki-update.yml`)가 Claude Code로 갱신해 `openwiki/update` 브랜치의 문서 PR로 올리고 auto-merge하며, 손으로 고치지 않는다.
 - 지시서만 바뀐 병합도 강제 갱신으로 반영된다.

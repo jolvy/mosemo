@@ -1,0 +1,77 @@
+name: OpenWiki update
+
+# main 병합 후 Claude Code(구독 OAuth)가 OpenWiki MCP로 위키를 갱신하고,
+# 생성물만 `openwiki/update` 브랜치 PR로 올려 auto-merge한다.
+on:
+  push:
+    branches:
+      - main
+    # 위키 PR 병합이 다시 이 워크플로를 실행하지 않게 생성물 변경은 뺀다.
+    # 지시서만 바뀐 병합은 갱신해야 하므로 다시 넣는다(마지막 일치 패턴이 이긴다).
+    paths:
+      - "**"
+      - "!openwiki/**"
+      - "openwiki/INSTRUCTIONS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 실행 중인 갱신은 끊지 않고, 대기 중인 실행은 가장 최근 것 하나만 남긴다.
+concurrency:
+  group: openwiki-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: OpenWiki update
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # OpenWiki가 마지막 갱신 commit 이후 diff를 계산한다.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - name: Install Claude Code and OpenWiki
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.326 openwiki@0.9.0
+          openwiki integrations install claude
+
+      - name: Update wiki with Claude Code
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: >-
+          claude -p "/openwiki 이 저장소의 OpenWiki를 update 모드로 갱신해. openwiki/ 밖의 파일은 수정하지 마."
+          --allowedTools "mcp__openwiki__*,Read,Grep,Glob,Write,Edit,Bash(git diff:*),Bash(git log:*),Bash(git rev-parse:*),Bash(git ls-files:*),Bash(git status:*)"
+          --max-turns 400
+
+      - name: Open docs PR with auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.OPENWIKI_PR_TOKEN }}
+        run: |
+          # 변경 없는 갱신도 .last-update.json은 바꾸므로 그 파일만 바뀌었으면 PR을 만들지 않는다.
+          if [ -z "$(git status --porcelain -- openwiki ':!openwiki/.last-update.json')" ]; then
+            echo "위키 변경 없음"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C openwiki/update
+          git add -- openwiki
+          git commit -m "docs(openwiki): update generated wiki for ${GITHUB_SHA::7}"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" openwiki/update
+          if [ "$(gh pr view openwiki/update --json state --jq .state 2>/dev/null)" != "OPEN" ]; then
+            gh pr create --base main --head openwiki/update \
+              --title "docs(openwiki): update generated wiki" \
+              --body "main ${GITHUB_SHA} 기준 OpenWiki 자동 갱신 (OpenWiki update 워크플로)"
+          fi
+          gh pr merge openwiki/update --auto --squash
