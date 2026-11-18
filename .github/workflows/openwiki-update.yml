@@ -2,6 +2,7 @@ name: OpenWiki update
 
 # main 병합 후 Claude Code(구독 OAuth)가 OpenWiki MCP로 위키를 갱신하고,
 # 생성물만 `openwiki/update` 브랜치 PR로 올려 auto-merge한다.
+# 모델이 쓴 결과를 PR 토큰과 떼어 놓도록 생성과 게시를 다른 job(다른 러너)에서 한다.
 on:
   push:
     branches:
@@ -23,8 +24,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  update:
-    name: OpenWiki update
+  generate:
+    name: Generate OpenWiki
+    # 다른 브랜치에서 수동 실행하면 리뷰되지 않은 코드로 위키를 만들게 된다.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -46,13 +49,47 @@ jobs:
           npm install -g @anthropic-ai/claude-code@2.1.326 openwiki@0.9.0
           openwiki integrations install claude
 
+      # 파일 쓰기는 openwiki/ 아래로만 허용한다(Edit 규칙이 Write에도 적용된다).
       - name: Update wiki with Claude Code
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: >-
           claude -p "/openwiki 이 저장소의 OpenWiki를 update 모드로 갱신해. openwiki/ 밖의 파일은 수정하지 마."
-          --allowedTools "mcp__openwiki__*,Read,Grep,Glob,Write,Edit,Bash(git diff:*),Bash(git log:*),Bash(git rev-parse:*),Bash(git ls-files:*),Bash(git status:*)"
+          --allowedTools "mcp__openwiki__*,Read,Grep,Glob,Edit(openwiki/**),Bash(git rev-parse --show-toplevel),Bash(git diff --name-only:*),Bash(git ls-files --others --exclude-standard)"
           --max-turns 400
+
+      - name: Upload generated wiki
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: openwiki
+          path: openwiki/
+          # .last-update.json·.claims/ 등 점으로 시작하는 생성물도 올린다.
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish OpenWiki PR
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # 이벤트 commit이 아니라 최신 main 위에 올려야 앞선 위키 PR 병합과 충돌하지 않는다.
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Download generated wiki
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: openwiki
+          path: ${{ runner.temp }}/openwiki-generated
+
+      - name: Verify and apply generated wiki
+        run: python3 .codex/skills/verification/scripts/sync_openwiki_update.py --generated "$RUNNER_TEMP/openwiki-generated"
 
       - name: Open docs PR with auto-merge
         env:
@@ -63,13 +100,14 @@ jobs:
             echo "위키 변경 없음"
             exit 0
           fi
+          gh auth setup-git
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -C openwiki/update
           git add -- openwiki
           git commit -m "docs(openwiki): update generated wiki for ${GITHUB_SHA::7}"
-          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" openwiki/update
-          if [ "$(gh pr view openwiki/update --json state --jq .state 2>/dev/null)" != "OPEN" ]; then
+          git push --force origin openwiki/update
+          if [ -z "$(gh pr list --head openwiki/update --state open --json number --jq '.[].number')" ]; then
             gh pr create --base main --head openwiki/update \
               --title "docs(openwiki): update generated wiki" \
               --body "main ${GITHUB_SHA} 기준 OpenWiki 자동 갱신 (OpenWiki update 워크플로)"
