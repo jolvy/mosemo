@@ -5,7 +5,7 @@ description: 요구사항 탐색부터 검증까지의 저장소 Skill 흐름, A
 tags: [harness, skills, review, agents, workflow]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-18T09:37:41.442Z
+    at: 2026-11-18T09:42:15.104Z
 sources:
   - id: openwiki-source-a01602e6c78f10583af45ce4
     resource: repo://.codex/skills/implementation/SKILL.md
@@ -25,7 +25,7 @@ sources:
     resource: repo://AGENTS.md
   - id: openwiki-source-8a9d63bf55880a1423bc3a48
     resource: repo://tests/unit/harness/test_claude_shims.py
-generated: { by: "claude-code", at: "2026-11-18T09:37:41.442Z" }
+generated: { by: "claude-code", at: "2026-11-18T09:42:15.104Z" }
 ---
 
 # Engineering Harness 작업 흐름
@@ -56,6 +56,11 @@ graph LR
 - 순서는 전체 흐름의 안내일 뿐 필수 실행 순서가 아니다. 필요한 범위·결정·기대 결과가 요청과 대화로 확인되면 선행 Skill이나 PRD·Plan Issue 생성을 강제하지 않는다.
 - 독립 Skill: [architecture-decision](../../.codex/skills/architecture-decision/SKILL.md)(ADR 작성·대체), [ubiquitous-language](../../.codex/skills/ubiquitous-language/SKILL.md)(용어집 [docs/ubiquitous-language.md](../../docs/ubiquitous-language.md) 갱신), [pull-request](../../.codex/skills/pull-request/SKILL.md)(PR 본문 템플릿), [agent-metrics-analysis](../../.codex/skills/agent-metrics-analysis/SKILL.md)(에이전트 지표 보고서).
 - Plan Issue가 있으면 구현은 그 본문을 계획의 유일한 원본으로 삼는다.
+
+## PRD·ADR 유효 여부 확인
+
+- PRD 앞부분 `status`는 초안이면 `draft`, 사용자 승인 뒤 `accepted`다. 다른 PRD가 기획을 통째로 대신하면 옛 PRD를 `status: superseded`와 `superseded_by`로 바꾸고 본문은 지우지 않는다.
+- [AGENTS.md](../../AGENTS.md) 「기획·결정 확인」은 `docs/prd/`·`docs/adr/`를 열거하거나 검색하기 전에 먼저 [유효한 기획](../decisions/active-prds.md)·[유효한 결정](../decisions/active-decisions.md)에서 현재 유효한 문서를 확인하고 링크된 원본으로 확정하라고 한다. `superseded` 문서는 현재 기획·결정으로 인용하지 않고 `superseded_by`를 따라가며, 위키와 다르면 원본이 기준이다.
 
 ## 리뷰어 에이전트
 
@@ -95,3 +100,4 @@ graph LR
 
 - [빠른 시작](../quickstart.md)
 - [테스트와 검증](testing-and-verification.md)
+- [유효한 기획](../decisions/active-prds.md)

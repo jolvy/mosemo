@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:f65a457f972ff55e0399e370cd3243a6d0cb1ce4f7ae389c3f1896d0f279164d",
+  "pageVersion": "sha256:bf5683e1d9c1685f9902bab9a72559aaf3bc267744055524eba8ac7696a60bf0",
   "claims": [
     {
       "id": "claim_8533ee2a4a564ff5a874060d83f95871",
@@ -93,10 +93,20 @@
           "version": "repo-lines-v1:sha256:0793cf95f0fa63038080fabf8ba52c7e907e4e5a7c4731dddd2f83c013cc4df3:eyJzZWxlY3RlZExpbmVDb3VudCI6OTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5ZDgwMTU0ZWQ0MmZjNWM3NzliMTMzMTU3OGI1OGI4OWM4MDFlYWNlNzRmMjRjZDQ4ZWI0YTIzNTc5NDBhOTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJkMDBjODI3MzE2N2JmZTQ2NTVjM2M5ZWQ3YzQ4OWVkNjE2MTY5MTZjNTYzOWJjZDNiOThmY2E3Yjc5MTg1YTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlYzVmYTllMGVjZDFkY2FkZjJhYWM5N2I5Mjc3ZmUwMjY1YWUwMmFhMjVkMzgwYWI2MGY4ZjA4Yzg1ZjAzYTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
+    },
+    {
+      "id": "claim_f0bb1dae348b4271adb08befd3ba003b",
+      "statement": "specification Skill은 PRD 앞부분 status를 초안 draft, 승인 후 accepted로 두고, 통째로 대체된 PRD는 status: superseded와 superseded_by로 표시하며 본문을 지우지 않도록 정한다.",
+      "evidence": [
+        {
+          "resource": "repo://.codex/skills/specification/SKILL.md#L11-L16",
+          "version": "repo-lines-v1:sha256:948fb1654c6175c66527815fd3c02ab481ac85f8d5b8068e6275dc4820d56c49:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWZmODg3YTMyNDQ3MGE0N2I1MjA4YjZjMWVmOGVjYmYwZGRhM2Q4YTQyMjI3ZDI0ZGNkZWQ0YjczMjIyMjQyYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzc5MjIyMWVhNmZiYWZiMDA4YzU3NGVkZGQxMTk3MTQ0ODU3MTI4NGNlZmNmYzQzMjY0NDZhZDdhNGNlNWFkNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjRjZTIxNjMxYzU0ZWQxODM1NmVhNjM5NWEwNGVjMWIyMTMwMDA2YzE4ZGM5YjY0OWIxNzQ5MmI3ZDYyYzY3OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzlhZWU2ODBjNDkxOTAxZmIzODZkYmIyZmZhODY4ZDdmYzhmZjFiMTQyYjk4MDQ0NWVmODJiNTZlMDMyMTFiZiJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-18T09:37:41.442Z"
+    "at": "2026-11-18T09:42:15.104Z"
   }
 }

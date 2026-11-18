@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:9e6604586093fddfcef7c32255fd8003966588c9022ce1d7cf2138663f0dffaa",
+  "claims": [
+    {
+      "id": "claim_efe0b064e0a343819b7259e37e76b304",
+      "statement": "PRD의 유효 여부는 앞부분 status로 판단한다. 초안은 draft, 사용자 승인 후 accepted이며, 다른 PRD가 기획을 통째로 대신하면 옛 PRD는 status: superseded와 superseded_by로 표시하고 본문은 지우지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://.codex/skills/specification/SKILL.md#L11-L16",
+          "version": "repo-lines-v1:sha256:948fb1654c6175c66527815fd3c02ab481ac85f8d5b8068e6275dc4820d56c49:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWZmODg3YTMyNDQ3MGE0N2I1MjA4YjZjMWVmOGVjYmYwZGRhM2Q4YTQyMjI3ZDI0ZGNkZWQ0YjczMjIyMjQyYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzc5MjIyMWVhNmZiYWZiMDA4YzU3NGVkZGQxMTk3MTQ0ODU3MTI4NGNlZmNmYzQzMjY0NDZhZDdhNGNlNWFkNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjRjZTIxNjMxYzU0ZWQxODM1NmVhNjM5NWEwNGVjMWIyMTMwMDA2YzE4ZGM5YjY0OWIxNzQ5MmI3ZDYyYzY3OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzlhZWU2ODBjNDkxOTAxZmIzODZkYmIyZmZhODY4ZDdmYzhmZjFiMTQyYjk4MDQ0NWVmODJiNTZlMDMyMTFiZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_32c3a41f0f894ce3a494aa616379fc81",
+      "statement": "docs/prd의 PRD 7개(activity-capture, activity-batches, observation-timeline, activity-labeling, activity-label-package-structure, device-registration, focus-sessions)는 모두 status: accepted다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/prd/activity-batches.md#L1-L3",
+          "version": "repo-lines-v1:sha256:8564a90b92c5599db4df3896e3af7844ca2077f41d94790ff4b32e97911365c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjA1YzBmODUzODk0ODUyNmVkNGUxNTY4YTNkODRlMmE2OTgxYTIwYjQ2NWIyNWU1MmQyNDAxZjM0OWI2YzhiZiJ9"
+        },
+        {
+          "resource": "repo://docs/prd/activity-capture.md#L1-L3",
+          "version": "repo-lines-v1:sha256:8564a90b92c5599db4df3896e3af7844ca2077f41d94790ff4b32e97911365c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmIwYTczYTkwODY5ZTBkMzI0YzllMGUxN2U1ZjgzOTJjZTNjMmU0Y2VhNjFhODFmNGUxMzcwNjc5NzU3Yjg3NyJ9"
+        },
+        {
+          "resource": "repo://docs/prd/activity-label-package-structure.md#L1-L3",
+          "version": "repo-lines-v1:sha256:8564a90b92c5599db4df3896e3af7844ca2077f41d94790ff4b32e97911365c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjI2NmNlN2NiMmE2MGY4NDVkYjc4ZTdlNTU0NTdmZTkwNzAxY2RlZTM3MDk3YWVlNTQ5YWMzYWI1M2VjNTY2MyJ9"
+        },
+        {
+          "resource": "repo://docs/prd/activity-labeling.md#L1-L3",
+          "version": "repo-lines-v1:sha256:8564a90b92c5599db4df3896e3af7844ca2077f41d94790ff4b32e97911365c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjIwOGM0MzIwY2Y3ZTAwMjFmY2NkNzI5YTQxMDQxOTFjYmExZTUxYzYwZDk0YjUxOTY3MThhMjczZmYyYmVlMCJ9"
+        },
+        {
+          "resource": "repo://docs/prd/device-registration.md#L1-L3",
+          "version": "repo-lines-v1:sha256:8564a90b92c5599db4df3896e3af7844ca2077f41d94790ff4b32e97911365c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDIxMGM5MThlN2ExZTgwNjRmNGQxODY0ZmRiZGViMzA2YzhiZjgxY2VmNDIyM2Q4MTYyMDZhNjMyYWU3MjBiZCJ9"
+        },
+        {
+          "resource": "repo://docs/prd/focus-sessions.md#L1-L3",
+          "version": "repo-lines-v1:sha256:8564a90b92c5599db4df3896e3af7844ca2077f41d94790ff4b32e97911365c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGUyNjcxOGMyMTAzMzBlZDllZWJkNDZjMGE2OTM3MjVhZjkzOTRjMzE4YzU2OTBjMWVmZDlkNTEwNjYyNzdhYSJ9"
+        },
+        {
+          "resource": "repo://docs/prd/observation-timeline.md#L1-L3",
+          "version": "repo-lines-v1:sha256:8564a90b92c5599db4df3896e3af7844ca2077f41d94790ff4b32e97911365c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGQzMzdhM2E1ZTE3ZWZiMDQ5MGVhZWMxMmM4ZTE4MmYzOTNjMzg2NDUxYjQ0NzAxY2Y2N2MwZDVkMjZkYjUyOCJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-18T09:42:15.104Z"
+  }
+}

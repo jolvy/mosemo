@@ -5,8 +5,10 @@ description: docs/adr의 ADR 중 앞부분 status가 accepted인 유효한 결�
 tags: [adr, decisions, supersession]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-17T16:42:07.914Z
+    at: 2026-11-18T09:42:15.104Z
 sources:
+  - id: openwiki-source-8037e2358a2c4f9b2c722a11
+    resource: repo://AGENTS.md
   - id: openwiki-source-ddac3c633b69628f629b47e0
     resource: repo://docs/adr/0001-public-api-error-boundary.md
   - id: openwiki-source-73c5e061729618ef1f550195
@@ -37,7 +39,7 @@ sources:
     resource: repo://docs/adr/0015-group-entrypoints-and-platform-packages.md
   - id: openwiki-source-254df237bb9ef98aebc51d56
     resource: repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md
-generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
+generated: { by: "claude-code", at: "2026-11-18T09:42:15.104Z" }
 ---
 
 # 유효한 결정
@@ -106,3 +108,6 @@ graph RL
 - [현재 구조](../architecture/current-structure.md): ADR 0011·0015가 정한 패키지 구조
 - [영속성·메시징·배치 실행](../architecture/persistence-and-messaging.md): ADR 0004·0006·0007·0008·0010·0012·0013의 현재 구현
 - [활동 분석](../domain/activity-analytics.md): 제안 ADR 0016의 설계와 근거 문서
+- [유효한 기획](active-prds.md): 같은 방식으로 정리한 유효한 PRD 목록
+
+`docs/adr/`·`docs/prd/`를 열거하거나 검색하기 전에 이 페이지와 [유효한 기획](active-prds.md)에서 현재 유효한 문서를 먼저 확인하고 링크된 원본으로 확정한다. 이 규칙은 [AGENTS.md](../../AGENTS.md) 「기획·결정 확인」에 있다.

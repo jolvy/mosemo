@@ -5,7 +5,7 @@ description: 처음 보는 사람을 위한 Mosemo 서버 온보딩과 위키 �
 tags: [onboarding, quickstart, setup, wiki]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-17T16:42:07.914Z
+    at: 2026-11-18T09:42:15.104Z
 sources:
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
@@ -15,7 +15,7 @@ sources:
     resource: repo://pyproject.toml
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
-generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
+generated: { by: "claude-code", at: "2026-11-18T09:42:15.104Z" }
 ---
 
 # Mosemo 서버 빠른 시작
@@ -84,6 +84,7 @@ git diff --cached --check
 2. [AGENTS.md](../AGENTS.md): 저장소 작업 규칙, [src/mosemo/AGENTS.md](../src/mosemo/AGENTS.md)(코드), [tests/AGENTS.md](../tests/AGENTS.md)(테스트)
 3. [docs/index.md](../docs/index.md): 용어집, 요구사항, PRD, ADR 목록
 4. [docs/ubiquitous-language.md](../docs/ubiquitous-language.md): 도메인 용어
+5. [유효한 기획](decisions/active-prds.md)·[유효한 결정](decisions/active-decisions.md): `docs/prd/`·`docs/adr/`를 열기 전에 현재 유효한 문서를 먼저 확인한다([AGENTS.md](../AGENTS.md) 「기획·결정 확인」).
 
 ## 위키 페이지 안내
 
@@ -92,6 +93,7 @@ git diff --cached --check
 | BC·계층·진입점과 import 경계 | [현재 구조](architecture/current-structure.md) |
 | 저장·트랜잭션·이벤트·Kafka·배치 job | [영속성·메시징·배치 실행](architecture/persistence-and-messaging.md) |
 | 지금 유효한 ADR과 대체 관계 | [유효한 결정](decisions/active-decisions.md) |
+| 지금 유효한 PRD(기획)와 status 규칙 | [유효한 기획](decisions/active-prds.md) |
 | 기능 범위·API·도메인 용어 | [제품 기능과 도메인 용어](domain/product-overview.md) |
 | 테스트 분류·마커·검증·CI | [테스트와 검증](development/testing-and-verification.md) |
 | Skill 흐름·리뷰어·커밋 규칙·OpenWiki 생성물 보호 | [Engineering Harness 작업 흐름](development/engineering-harness.md) |
