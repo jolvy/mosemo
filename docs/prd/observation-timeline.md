@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # 날짜별 관찰 타임라인 API PRD
 
 ## 문제와 배경

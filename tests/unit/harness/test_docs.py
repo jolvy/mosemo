@@ -105,6 +105,7 @@ def test_new_prd_rejects_missing_sections_and_broken_link(
     (folder / "new-feature.md").write_text("# 새 기능\n[근거](missing.md)")
     errors = docs_validator.validate(document_root)
     assert any("필수 섹션" in error for error in errors)
+    assert any("status frontmatter" in error for error in errors)
     assert any("깨진 로컬 링크" in error for error in errors)
     assert any("AC-번호" in error for error in errors)
 
@@ -120,7 +121,7 @@ def test_complete_prd_passes_without_external_schema_files(
         + ("AC-1 관찰 가능한 동작" if heading == "인수 조건" else "해당 없음")
         for heading in docs_validator.required_headings(document_root, "specification")
     )
-    (folder / "new-feature.md").write_text(content)
+    (folder / "new-feature.md").write_text("---\nstatus: draft\n---\n" + content)
     assert docs_validator.validate(document_root) == []
 
 

@@ -301,7 +301,7 @@ def validate(root: Path = ROOT) -> list[str]:
                     errors.append(f"{relative}: 인수 조건 ID(AC-번호) 없음")
                 if len(identifiers) != len(set(identifiers)):
                     errors.append(f"{relative}: 인수 조건 ID 중복")
-            if folder in {"requirements", "adr"} and not re.match(
+            if folder in {"requirements", "prd", "adr"} and not re.match(
                 r"\A---\nstatus: (draft|proposed|accepted|superseded)\n", content
             ):
                 errors.append(f"{relative}: status frontmatter 오류")
