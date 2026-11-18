@@ -7,7 +7,7 @@
 - 일반 파일만 있다(symlink 금지).
 - 확장자가 `.md`·`.json`이다. 실행되거나 git이 읽는 파일이 섞이지 않게 한다.
 - `.last-update.json`의 `status`가 `complete`다. 중간에 끝난 갱신을 올리지 않는다.
-- 토큰 형태의 문자열이 없다. 공개 저장소로 비밀값이 나가지 않게 한다.
+- 토큰 형태의 문자열(접두어 뒤에 토큰 본문)이 없다. 공개 저장소로 비밀값이 나가지 않게 한다.
 
 사람이 쓰는 지시서 `INSTRUCTIONS.md`는 생성 결과에 있어도 반영하지 않는다. 반영은
 지시서를 뺀 기존 `openwiki/` 파일을 지우고 생성 결과로 채우므로 삭제된 페이지도
@@ -16,14 +16,16 @@
 
 import argparse
 import json
+import re
 import shutil
 from pathlib import Path
 
 INSTRUCTIONS = "INSTRUCTIONS.md"
 LAST_UPDATE = ".last-update.json"
 ALLOWED_SUFFIXES = (".md", ".json")
-# Claude OAuth·API 키와 GitHub 토큰의 접두어.
-SECRET_MARKERS = ("sk-ant-", "github_pat_", "ghp_", "gho_", "ghs_", "ghu_")
+# Claude OAuth·API 키와 GitHub 토큰. 위키가 이 검사를 설명하며 접두어만 적는 것은
+# 허용하도록 접두어 뒤에 토큰 본문이 이어질 때만 잡는다.
+SECRET = re.compile(r"(?:sk-ant-|github_pat_|gh[pousr]_)[A-Za-z0-9_-]{20,}")
 
 
 def generated_files(generated: Path) -> list[Path]:
@@ -41,10 +43,7 @@ def problems(generated: Path) -> list[str]:
             found.append(f"{relative}: 일반 파일이 아니다")
         elif not relative.endswith(ALLOWED_SUFFIXES):
             found.append(f"{relative}: 허용하지 않는 확장자다")
-        elif any(
-            marker in path.read_text(encoding="utf-8", errors="replace")
-            for marker in SECRET_MARKERS
-        ):
+        elif SECRET.search(path.read_text(encoding="utf-8", errors="replace")):
             found.append(f"{relative}: 토큰 형태의 문자열이 있다")
     last_update = generated / LAST_UPDATE
     if not last_update.is_file() or last_update.is_symlink():

@@ -88,8 +88,13 @@ def test_rejects_symlink(generated: Path, target: Path, link: str) -> None:
     assert f"{link}: 일반 파일이 아니다" in result.stdout.splitlines()
 
 
-@pytest.mark.parametrize("token", ["sk-ant-oat01-abc", "github_pat_abc", "ghp_abc"])
-def test_rejects_token_like_text(generated: Path, target: Path, token: str) -> None:
+# 실제 토큰처럼 보이는 문자열을 소스에 그대로 두지 않도록 본문을 만들어 붙인다.
+BODY = "a1B2" * 9
+
+
+@pytest.mark.parametrize("prefix", ["sk-ant-oat01-", "github_pat_", "ghp_", "ghs_"])
+def test_rejects_token_like_text(generated: Path, target: Path, prefix: str) -> None:
+    token = prefix + BODY
     write(generated / "leak.md", f"value {token}\n")
 
     result = run(generated, target)
@@ -113,3 +118,12 @@ def test_rejects_incomplete_run(
 
     assert result.returncode == 1
     assert expected in result.stdout.splitlines()
+
+
+def test_allows_token_prefix_mentioned_in_docs(generated: Path, target: Path) -> None:
+    # 위키가 이 검사를 설명할 때 접두어만 적는다.
+    write(
+        generated / "harness.md", "`sk-ant-`·`ghp_`·`github_pat_` 등 토큰 형태 문자열\n"
+    )
+
+    assert run(generated, target).returncode == 0
