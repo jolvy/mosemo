@@ -1,5 +1,17 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 -c 'import json, os, sys; i = json.load(sys.stdin)[\"tool_input\"]; n = os.path.basename(i.get(\"file_path\") or i.get(\"notebook_path\") or \"\"); (n == \".env\" or n.startswith(\".env.\") and n != \".env.example\") and (print(\"차단: .env 파일은 비밀값이 있을 수 있어 읽거나 수정하지 않습니다. 설정 키는 .env.example을 확인하세요.\", file=sys.stderr), sys.exit(2))'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
