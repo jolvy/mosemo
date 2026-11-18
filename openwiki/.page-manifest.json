@@ -16,18 +16,25 @@
       "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
     },
     "/openwiki/decisions/active-decisions.md": {
-      "gitHead": "98baf14e7754136ed32f8b675aeb85503a1e1397",
-      "sourceFingerprint": "sha256:36282f8bec1979a9a1a69fa0158b4e03546bfe81aff813779c3fbc59383b1834",
-      "pageVersion": "sha256:5a1ceaa532ef42959f0064343a1a20efd3c3e3de10f1b7204888cfac978ad2e7",
+      "pageVersion": "sha256:43ce29cd8cf9fdfa0b610405ee478e0a4f1bf2be1dd7596e5a674bb1484e432c",
       "completedBy": "claude-code",
-      "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
+      "completedRunId": "c74de0b7-9bdc-4c22-9532-e7dfdb0b3798",
+      "gitHead": "287e242847089d7765898b08837fb4ed71cf64cb",
+      "sourceFingerprint": "sha256:6d813a95e9abe7eb4c175f07396ec9d8e1ba59679fa62c52a964ddb330921967"
+    },
+    "/openwiki/decisions/active-prds.md": {
+      "pageVersion": "sha256:9e6604586093fddfcef7c32255fd8003966588c9022ce1d7cf2138663f0dffaa",
+      "completedBy": "claude-code",
+      "completedRunId": "c74de0b7-9bdc-4c22-9532-e7dfdb0b3798",
+      "gitHead": "287e242847089d7765898b08837fb4ed71cf64cb",
+      "sourceFingerprint": "sha256:6d813a95e9abe7eb4c175f07396ec9d8e1ba59679fa62c52a964ddb330921967"
     },
     "/openwiki/development/engineering-harness.md": {
-      "pageVersion": "sha256:f65a457f972ff55e0399e370cd3243a6d0cb1ce4f7ae389c3f1896d0f279164d",
+      "pageVersion": "sha256:bf5683e1d9c1685f9902bab9a72559aaf3bc267744055524eba8ac7696a60bf0",
       "completedBy": "claude-code",
-      "completedRunId": "2cf36176-9ef6-4697-b23b-0d3890392aa5",
-      "gitHead": "1a3384366ad3cdc38c90d3578bc65686a1f65616",
-      "sourceFingerprint": "sha256:edf5e49759c80ad44844eb59516b8411fabc6cb88e2b2a5389eb208d98d7cb46"
+      "completedRunId": "c74de0b7-9bdc-4c22-9532-e7dfdb0b3798",
+      "gitHead": "287e242847089d7765898b08837fb4ed71cf64cb",
+      "sourceFingerprint": "sha256:6d813a95e9abe7eb4c175f07396ec9d8e1ba59679fa62c52a964ddb330921967"
     },
     "/openwiki/development/testing-and-verification.md": {
       "gitHead": "98baf14e7754136ed32f8b675aeb85503a1e1397",
@@ -65,11 +72,11 @@
       "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
     },
     "/openwiki/quickstart.md": {
-      "gitHead": "98baf14e7754136ed32f8b675aeb85503a1e1397",
-      "sourceFingerprint": "sha256:36282f8bec1979a9a1a69fa0158b4e03546bfe81aff813779c3fbc59383b1834",
-      "pageVersion": "sha256:0c140c326f3fdc1f9df25d37879a6d9a90a2d73bc1bf31f27aee21b687db4c51",
+      "pageVersion": "sha256:e4972eb22e61d9f6ef7ac2e9d3a90d6283aa1e75185ccf9fbf2404a2241a9411",
       "completedBy": "claude-code",
-      "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
+      "completedRunId": "c74de0b7-9bdc-4c22-9532-e7dfdb0b3798",
+      "gitHead": "287e242847089d7765898b08837fb4ed71cf64cb",
+      "sourceFingerprint": "sha256:6d813a95e9abe7eb4c175f07396ec9d8e1ba59679fa62c52a964ddb330921967"
     }
   }
 }

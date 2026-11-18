@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:5a1ceaa532ef42959f0064343a1a20efd3c3e3de10f1b7204888cfac978ad2e7",
+  "pageVersion": "sha256:43ce29cd8cf9fdfa0b610405ee478e0a4f1bf2be1dd7596e5a674bb1484e432c",
   "claims": [
     {
       "id": "claim_93af9bd871914769b8fa49b637ad6f5f",
@@ -137,10 +137,20 @@
           "version": "repo-lines-v1:sha256:3f8eaf4f64a450d5933916b11d84d48c92657263f389f8598f92d7bfa9acfd3b:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjFkNTQ0ODE5MzcwNmE3YzFjYmZkOTMyNTQyNWQzN2FiOGJkMDYxMzRmMDFiZTllMjU4NTRmZDZkMGNiODlkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWZlZjBlODg3NDA2NmY4OWNjNDE2MjJiODY2MmJjNzBhZmE5YmZhY2ExNDAyZTYyMzg4OWVhNjJlZWU3ZDNkYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODFlZjU5YWU0MzMwZDhiOGZmMDNlYTgzODM4MmRkMmViMjBiMzg0NDhmNjFlYzc2NzhkNjA3NmZkY2Y2NDUxMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzFiYmZlZWFjOWQzMGVkOWE5N2YyNGRjZDU3YmJhMmEwNzE2MGNhMzE0NDZlMjFiOTk2Njg1MTk0NzFiZDE5ZCJ9"
         }
       ]
+    },
+    {
+      "id": "claim_ce6d0e9bcdf0421896caba791a10ae0d",
+      "statement": "AGENTS.md 「기획·결정 확인」은 docs/prd·docs/adr를 열거·검색하기 전에 openwiki/decisions/의 유효한 결정·기획 페이지에서 현재 유효한 문서를 먼저 확인하고 링크된 원본으로 확정하도록 요구한다.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L93-L100",
+          "version": "repo-lines-v1:sha256:c66961867ddae2a418fe300f2482a09c24513a8d1da78d13e00a52d1413388b1:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWQ1MmZiYzNlMThlYTgyNGUwNTM1NTNjODM3MTQyZTVkY2FhNGI3ODBmNDRjNzUxMTJhNjY1ZTcyMDQ5NGI0YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjZmNzdiYWU4MWEyYTExZTZlNTVlZjIwMTAzMTdjYWM5NTkwYjlmZWUyNTUwODc4YTRjYmYzM2QyMzRmMDY4YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjQ1MjE5NmFkMmE2YzQ5YmI3M2I3YTY3YWY0NjhmYjlmZTM3MTQ4ZDI2MDRlNzUyY2MwNzM3ZGRjOWIyN2Q1MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWIxYmM1YmM0YTIzN2Y1NzhlNmFmNGE0MTVkMDY0N2Y5OTEwYjAzYjM2NGUxZTI3YzFmMWRiYWE3NDNkMDNiYSJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-17T16:42:07.914Z"
+    "at": "2026-11-18T09:42:15.104Z"
   }
 }
