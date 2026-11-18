@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:ba2cc7019b7d4d40654eba8f1b20e7890408c086c3fa4d32affc32c4dc0a4d3f",
+  "pageVersion": "sha256:7fc07fb727f6916a3f7fa77f8b33d13bda215fec6811e13fb0961dd1d6705590",
   "claims": [
     {
       "id": "claim_8533ee2a4a564ff5a874060d83f95871",
       "statement": "Engineering Harness는 요구사항 탐색 → 제품 명세 → 엔지니어링 계획 → 구현 → 검증 Skill 흐름을 안내하지만 각 Skill은 독립적으로 호출할 수 있고 순서는 필수가 아니다.",
       "evidence": [
         {
-          "resource": "repo://AGENTS.md#L78-L90",
+          "resource": "repo://AGENTS.md#L79-L91",
           "version": "repo-lines-v1:sha256:71b339e68da8d30c28cb4a53fcb72a740e6b53ed2a02deaacb3d0687f64427b1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiZWUzZTRiZTBlNzc1MjFkMDhlYWMwOTA1OGNlNGVjMDE3YTU1MTYxYTU4ZTJmYzhmMDFlNWRiNTk1Nzk0NTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwMzRlMmY5YzI2YzI1OTQ0NTFhMWE0YTM1YTMwYTk5ZTQ5YTQxNDk2Mzc4NTNiOTZjNjE5MTVlZTRiNGEwNzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3ODkyZDBiYzNhNmQ2NjZmZWMzZjNiOTlhZjZkNGE5ZmU0NzAxZjE5MmRkYWRmYjc5ZmU2NDkyZjFmNWFhZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImViMWJjNWJjNGEyMzdmNTc4ZTZhZjRhNDE1ZDA2NDdmOTkxMGIwM2IzNjRlMWUyN2MxZjFkYmFhNzQzZDAzYmEifQ"
         }
       ]
@@ -55,18 +55,18 @@
       "statement": "GitHub 작업은 gh CLI로 하고 토큰 환경 변수를 해제해 저장된 인증을 쓰며, 커밋은 사용자 검토나 요청 뒤 Conventional Commits 형식으로 한다.",
       "evidence": [
         {
-          "resource": "repo://AGENTS.md#L62-L76",
+          "resource": "repo://AGENTS.md#L63-L77",
           "version": "repo-lines-v1:sha256:e1710e87e784f31dae6b293068c9e64c878292714b8152d9cc653f19d5e2aee7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3NzMzMzllYzBiZTFhMDRiYTE3MGUxZDhmZGQzMDY3MjIxOTU1Yzc2MzRjYTg4MWYzZDllYzU4MDhjYmJlOTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3NzRhOWNlYzkzOWViODg0NjJhODRmNjBkY2ZiMmZhNTA1NTBmM2M0OWM3MDE3ZTQ1ZWVjYTRmZjE4M2YxMmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwNjhmMDdjMjljMTQyNjZhNzA4YzEwMjhiMmUyOTQ4Y2IyNjA3MmZhMWYyMjE0ODAwNzRmNjgyYTA4YjRkMzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRiOTIyZmRhNzBhNmYwZmZiYzBmMThjZTAxZWRmN2EzZDZjZjUyNjU5MGZhYTM0ZmE2NGI2NTMxNjY0N2I1YjIifQ"
         }
       ]
     },
     {
       "id": "claim_5b7768e4ec4d4767812ff5680fa5c7a8",
-      "statement": "일반 PR은 openwiki/INSTRUCTIONS.md 밖의 openwiki/ 경로를 바꿀 수 없고, 같은 저장소의 openwiki/update 브랜치 PR만 생성물을 바꿀 수 있다(대소문자 무시, rename 분해).",
+      "statement": "일반 PR은 openwiki/INSTRUCTIONS.md 밖의 openwiki/ 경로를 바꿀 수 없고, 같은 저장소의 openwiki/update 브랜치 PR만 생성물(.md·.json, 지시서 제외)을 바꿀 수 있다(대소문자 무시, rename 분해).",
       "evidence": [
         {
-          "resource": "repo://.codex/skills/verification/scripts/check_openwiki_paths.py#L1-L38",
-          "version": "repo-lines-v1:sha256:c1487a139077e0ca631d9c0425a1376344a11296594941a0a286e590da75267b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0NzI1ZjAxOWUwMDM3NGY0ZjE2YmJhYzJiNzNiOWU5M2IzYzFjNmQyNzhjZjUzNjg1MTRmZGEwODBkMmRmYzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZDI0NDU4MmI2ZmIwM2QyM2I4NDE1YWJlY2QzNDZiMGM5ZjQ2NmI2Zjc1MmIwNjgxODljZTdlOWEyZGMzNTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0MTU3NzZhOTlmMTQxNTY1OWRlMjZlYjRkYjI2MTg2M2ZhMTIxOTY2NjBjOTU3ODUzYTYzMTMxOWJmZDliODYifQ"
+          "resource": "repo://.codex/skills/verification/scripts/check_openwiki_paths.py#L14-L50",
+          "version": "repo-lines-v1:sha256:2b63bdb6f4ebd16195b7166c489a798e35e52a1a157a612cd0e1cd54027966ae:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE3ZWE3NGJiNzliYTk2ZWRjMzlhODM4MmE5N2YyMjk5M2I4MGNjNDA4OGIzZTI3MTdhOTg5MTdjNjBjMWRkNWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZDI0NDU4MmI2ZmIwM2QyM2I4NDE1YWJlY2QzNDZiMGM5ZjQ2NmI2Zjc1MmIwNjgxODljZTdlOWEyZGMzNTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg0NDgxMzE0NWFlNzI3ZDYwY2U0MWNlMmIzNDkzMTM0ODRmODBhYWNlZDFjNzJhZWFhOWY5ZmUwY2FlZmY1ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0MTU3NzZhOTlmMTQxNTY1OWRlMjZlYjRkYjI2MTg2M2ZhMTIxOTY2NjBjOTU3ODUzYTYzMTMxOWJmZDliODYifQ"
         }
       ]
     },
@@ -79,10 +79,24 @@
           "version": "repo-lines-v1:sha256:6df05645668a31d584064723ea0361b5263b2fe055aa417e789c504f28ba8849:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmMzlmMzk1MDdiODkyZDAyMTQ3MDM5NDkwOTYwM2IyYTlmOGJhYTU0NTA2ZGY2MGNlMGI0ZDNjMDUzZDc4MmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3YTA5OTVmZDY2ZTY1ODczMThkM2VkNDQ4OTVkOWE5YWM2NzY1OWMzYTVkZmE4NTVmZTNkYmIxYTgzMTU0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
+    },
+    {
+      "id": "claim_80ce9051c20a4aa0bdb570016f182748",
+      "statement": "OpenWiki update 워크플로는 생성(generate)과 게시(publish)를 다른 job으로 나누고, 게시 job은 sync_openwiki_update.py로 symlink·확장자·complete 상태·토큰 형태 문자열을 검사한 뒤에만 생성 결과를 반영해 openwiki/update PR을 auto-merge한다.",
+      "evidence": [
+        {
+          "resource": "repo://.codex/skills/verification/scripts/sync_openwiki_update.py#L20-L90",
+          "version": "repo-lines-v1:sha256:41e4fe354e007afafb01c683aa41b7b78627ff1dbae88af0197158c82344022f:eyJzZWxlY3RlZExpbmVDb3VudCI6NzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwMDJlZmJkMWZkMDg2MWI1NGRmMzU3NWUyOTIxZDJjMjU5ZDJhODM3OWM0ZDVmZmY1Zjg4NDJhMjU1MmMxNDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiNjRlOTIwMDBhMTljYTM4NTkzYTRlNmEwYmFjNzcwOTZkMWU5ODY5NDlhM2I2MjgyNmI3Y2VhNGY3M2Q5ZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5ZTBjMTQ2OGY0OGM0Njc4NjA0ZTMzMjY2ODkzMjE5MDNlOGQzYTlmNzc1ZjFkZmE0OTVmZTk1Y2YwNzA4ZGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://.github/workflows/openwiki-update.yml#L1-L115",
+          "version": "repo-lines-v1:sha256:a6b1ce4ec09feace74d0e59ae92bbff63fe4ef3e40f626380385e0adc8bf94c5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI2MzY1NzRjZTIyMjcyOWM0ZmM1ZjQ5MzJhYzliOThkMzE4MzlhY2Q0MmQzNTZlOGI2NDNkNzMwZWJhYjRiOGQ2IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJiZDAwYzgyNzMxNjdiZmU0NjU1YzNjOWVkN2M0ODllZDYxNjE2OTE2YzU2MzliY2QzYjk4ZmNhN2I3OTE4NWEyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-15T02:51:25.465Z"
+    "at": "2026-11-18T09:36:00.190Z"
   }
 }

@@ -5,7 +5,7 @@ description: 요구사항 탐색부터 검증까지의 저장소 Skill 흐름, A
 tags: [harness, skills, review, agents, workflow]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-15T02:51:25.465Z
+    at: 2026-11-18T09:36:00.190Z
 sources:
   - id: openwiki-source-a01602e6c78f10583af45ce4
     resource: repo://.codex/skills/implementation/SKILL.md
@@ -15,13 +15,17 @@ sources:
     resource: repo://.codex/skills/specification/SKILL.md
   - id: openwiki-source-d0be9d092ade01b9dc055895
     resource: repo://.codex/skills/verification/scripts/check_openwiki_paths.py
+  - id: openwiki-source-9e13001a26410d98eff26719
+    resource: repo://.codex/skills/verification/scripts/sync_openwiki_update.py
   - id: openwiki-source-13149af8c20ff341c7c2ba3a
     resource: repo://.github/workflows/openwiki-paths.yml
+  - id: openwiki-source-6d4b4e707b8d60b6ccfa3425
+    resource: repo://.github/workflows/openwiki-update.yml
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
   - id: openwiki-source-8a9d63bf55880a1423bc3a48
     resource: repo://tests/unit/harness/test_claude_shims.py
-generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
+generated: { by: "claude-code", at: "2026-11-18T09:36:00.190Z" }
 ---
 
 # Engineering Harness 작업 흐름
@@ -75,9 +79,12 @@ graph LR
 ## OpenWiki 생성물 보호와 갱신
 
 - `openwiki/` 아래 페이지는 생성물이다. 범위와 언어·필수 페이지는 사람이 쓰는 지시서 [openwiki/INSTRUCTIONS.md](../INSTRUCTIONS.md)로만 바꾼다.
-- 생성물은 main 병합 후 Aico가 같은 저장소의 `openwiki/update` 브랜치 문서 PR로 갱신한다. 지시서만 바뀐 병합도 강제 갱신으로 반영된다.
+- 생성물은 main 병합 후 [OpenWiki update 워크플로](../../.github/workflows/openwiki-update.yml)가 갱신한다. `push`(main)와 `workflow_dispatch`로 실행되며 `openwiki/**` 변경은 트리거에서 빼서 위키 PR 병합이 다시 실행을 만들지 않는다. 지시서 `openwiki/INSTRUCTIONS.md`만 바뀐 병합은 다시 넣어 갱신에 반영한다. 동시 실행은 `openwiki-update` 그룹으로 직렬화하고 진행 중인 실행은 끊지 않는다.
+- 워크플로는 두 job으로 나뉜다. `generate` job은 main에서만 돌며 Claude Code(`/openwiki` Skill)가 `Edit(openwiki/**)` 등 허용 도구만으로 `openwiki/`를 쓰고 결과를 artifact로 올린다. 모델이 쓴 결과를 PR 토큰과 떼어 놓으려고 `publish` job은 다른 러너에서 최신 main을 checkout해 결과를 받는다.
+- `publish` job은 [sync_openwiki_update.py](../../.codex/skills/verification/scripts/sync_openwiki_update.py)로 생성 결과를 검증한 뒤 반영한다. 일반 파일만 허용(symlink 금지), 확장자는 `.md`·`.json`, `.last-update.json`의 `status`가 `complete`여야 하며, 토큰 형태(접두어 뒤에 20자 이상 본문)의 문자열이 있으면 거부한다. 반영은 `INSTRUCTIONS.md`를 뺀 기존 `openwiki/` 파일을 지우고 생성 결과로 채우므로 삭제된 페이지도 반영된다.
+- 검증을 통과하면 `.last-update.json` 외에 변경이 있을 때만 `openwiki/update` 브랜치로 force push해 PR을 만들고 auto-merge(squash)를 건다.
 - [.github/workflows/openwiki-paths.yml](../../.github/workflows/openwiki-paths.yml)의 `OpenWiki paths` job이 이를 강제한다. `pull_request_target`으로 base 브랜치의 워크플로·스크립트를 실행하므로 PR이 검사를 끄거나 약하게 만들 수 없고, PR head는 checkout하지 않고 commit 데이터로만 받는다.
-- 검사 스크립트 [check_openwiki_paths.py](../../.codex/skills/verification/scripts/check_openwiki_paths.py)는 `git diff --name-only --no-renames -z`로 변경 경로를 구한다. head 브랜치가 `openwiki/update`이고 같은 저장소이면 통과하고, 그 밖에는 대소문자를 무시해 `openwiki/`로 시작하면서 `openwiki/INSTRUCTIONS.md`가 아닌 경로를 위반으로 보고 실패한다. `--no-renames`는 `openwiki/` 밖으로 옮긴 파일이 빠져나가지 않게 한다.
+- 검사 스크립트 [check_openwiki_paths.py](../../.codex/skills/verification/scripts/check_openwiki_paths.py)는 `git diff --name-only --no-renames -z`로 변경 경로를 구한다. head 브랜치가 `openwiki/update`이고 같은 저장소이면 통과하고, 그 밖에는 대소문자를 무시해 `openwiki/`로 시작하면서 `openwiki/INSTRUCTIONS.md`가 아닌 경로를 위반으로 보고 실패한다. `--no-renames`는 `openwiki/` 밖으로 옮긴 파일이 빠져나가지 않게 한다. `openwiki/update` PR은 반대로 `openwiki/` 아래 생성물(`INSTRUCTIONS.md` 제외, `.md`·`.json`)만 바꿀 수 있어 코드·지시서가 자동 병합에 섞이지 않는다.
 
 ## GitHub와 커밋
 
