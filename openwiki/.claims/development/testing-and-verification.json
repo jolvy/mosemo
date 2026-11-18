@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:e6337e7a35caa3315a26754638a4e889fd1ae90ff315f630da3700c20038b2c5",
+  "pageVersion": "sha256:6ac1fe3c3bc379f0539fe1a47d89dd964d63010f9e26f75d957f05bda83d0bc0",
   "claims": [
     {
       "id": "claim_914662bc78194b91873e79f37f592051",
@@ -111,24 +111,10 @@
           "version": "repo-lines-v1:sha256:536693ec27f6b8f5d9df06f0940e747ef292a6f279eaa28d10580a6badaa9b80:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxMDQ1ODgwMjNhZmY1N2VhMTcxYmQ1Yzg4M2M5NjdkNzQ5NTg5MDAxZTRjODI1YjQxMmM2MGMyMDczNjViZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVkYjU5ODQ4MThhZGMzZTk5YzZiNWM0MzI2OWVkMjYxNzVlYmFkOGYxZTA3NjcyY2UzMjRlN2YzMjE1NjZiNTkifQ"
         }
       ]
-    },
-    {
-      "id": "claim_46ba509e4aed4248b3e969ac1fcee1dc",
-      "statement": "OpenWiki update 워크플로 배선과 게시 전 생성 결과 검증은 tests/unit/harness의 test_openwiki_update_workflow.py와 test_sync_openwiki_update.py가 단위 테스트로 검증한다.",
-      "evidence": [
-        {
-          "resource": "repo://tests/unit/harness/test_openwiki_update_workflow.py",
-          "version": "repo-file-v1:sha256:56a8bf1030918df3f04b98b7d85fc70819d9baae1e7795ae486e945d4f30e2a2"
-        },
-        {
-          "resource": "repo://tests/unit/harness/test_sync_openwiki_update.py",
-          "version": "repo-file-v1:sha256:ffd2ad0212aab0f1dc9d22910cad58e525b33af71f94199024afea0aa9d31d22"
-        }
-      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-18T09:36:00.190Z"
+    "at": "2026-11-17T16:42:07.914Z"
   }
 }

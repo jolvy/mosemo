@@ -23,18 +23,18 @@
       "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
     },
     "/openwiki/development/engineering-harness.md": {
-      "pageVersion": "sha256:7fc07fb727f6916a3f7fa77f8b33d13bda215fec6811e13fb0961dd1d6705590",
+      "pageVersion": "sha256:f65a457f972ff55e0399e370cd3243a6d0cb1ce4f7ae389c3f1896d0f279164d",
       "completedBy": "claude-code",
-      "completedRunId": "419c69f6-7488-4417-8fed-5ce1eb3eef63",
-      "gitHead": "78a6d5e877f49a5204b9f6a02172f3920dab4678",
-      "sourceFingerprint": "sha256:c8692dbbb062a71efd79450425c1186d265a7dd7ae85e201f357c88321aa0463"
+      "completedRunId": "2cf36176-9ef6-4697-b23b-0d3890392aa5",
+      "gitHead": "1a3384366ad3cdc38c90d3578bc65686a1f65616",
+      "sourceFingerprint": "sha256:edf5e49759c80ad44844eb59516b8411fabc6cb88e2b2a5389eb208d98d7cb46"
     },
     "/openwiki/development/testing-and-verification.md": {
-      "pageVersion": "sha256:e6337e7a35caa3315a26754638a4e889fd1ae90ff315f630da3700c20038b2c5",
+      "gitHead": "98baf14e7754136ed32f8b675aeb85503a1e1397",
+      "sourceFingerprint": "sha256:36282f8bec1979a9a1a69fa0158b4e03546bfe81aff813779c3fbc59383b1834",
+      "pageVersion": "sha256:6ac1fe3c3bc379f0539fe1a47d89dd964d63010f9e26f75d957f05bda83d0bc0",
       "completedBy": "claude-code",
-      "completedRunId": "419c69f6-7488-4417-8fed-5ce1eb3eef63",
-      "gitHead": "78a6d5e877f49a5204b9f6a02172f3920dab4678",
-      "sourceFingerprint": "sha256:c8692dbbb062a71efd79450425c1186d265a7dd7ae85e201f357c88321aa0463"
+      "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
     },
     "/openwiki/domain/activity-analytics.md": {
       "gitHead": "98baf14e7754136ed32f8b675aeb85503a1e1397",
