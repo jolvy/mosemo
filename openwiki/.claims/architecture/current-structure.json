@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:15ca1fe54f44c1ac01082741a6db6dec5319206cadc6ccee4da18ee7666dd0c2",
+  "pageVersion": "sha256:36ff7c0d6bd4c2215bde0954503bbec583d2ecc51a1474da82c529de47bafc7e",
   "claims": [
     {
       "id": "claim_b48355b6436343bf8eac85c414c21763",
@@ -21,7 +21,7 @@
           "version": "repo-lines-v1:sha256:e3f5ce14ab25ade2864c8298216097011045fae8fa7ac2ab904463b53d0fe357:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTNmNWNlMTRhYjI1YWRlMjg2NGM4Mjk4MjE2MDk3MDExMDQ1ZmFlOGZhN2FjMmFiOTA0NDYzYjUzZDBmZTM1NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTNmNWNlMTRhYjI1YWRlMjg2NGM4Mjk4MjE2MDk3MDExMDQ1ZmFlOGZhN2FjMmFiOTA0NDYzYjUzZDBmZTM1NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWI2Yjg3MzQ1M2FlZWNlODBkZGE1YjVmMzAwMDAxYWYyMjMyMDNlY2UzYjVjMTBhOWZlNzNiMGI0ODYwZTZhYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTU1MTgwODNjYmRjMzRjYmE0MTJiNjBhMWIzYjk4ZDNlMmE4YWFiYzRiNGNlMzcxNTY1NjBmOGJhZjY2ZDFiYyJ9"
         },
         {
-          "resource": "repo://pyproject.toml#L175-L185",
+          "resource": "repo://pyproject.toml#L178-L188",
           "version": "repo-lines-v1:sha256:7a187cf8b59cd81049701e9d63a42e4578251175cf9669ba36347da7e8f0f47c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmNzM1ZWQ4OTkxNWFkNTg2ZjU2MTcxZmNmMjBmM2VkZWYzZWVhNmQxMDZjNWE0ZGIwOWJlN2VlNWFlM2MxZWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5NDE2ZTA5Zjc4YmEzMTZjMDMyNTY4MjEzYjg1NWVlNzU2ZTQxNTY1ZDkxOGYwOTUxOWM4MWZkNjIwZjQwNjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUzZDRhNzI0NDdiNDlmNjJkYzhmMjAyYjE5ZGYzN2UxODJiZDJiM2JmNmFkNzBjYzkxNmVlMTY3YjhlZTA2ZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhiNmRhZGUyZmJkNDYzMzY0YTNhN2UzMGVkZTM4ZWQ3MDFlMTE0MTYxMmZjMGVmODM0ZjQwNmU5MjliZDZiYWIifQ"
         }
       ]
@@ -52,11 +52,11 @@
     },
     {
       "id": "claim_73906dfe263b425caac77248c4c71da6",
-      "statement": "API 조립 루트는 다섯 BC의 테이블을 매핑하고 labels·analytics handler를 등록한 뒤 Identity, Labels, Observation, Labeling 순서로 하류 BC의 공개 객체를 상류 BC 생성자에 넘겨 객체 그래프를 만든다.",
+      "statement": "API 조립 루트는 다섯 BC의 테이블을 매핑하고 labels·analytics handler를 등록한 뒤 Identity, Labels, Observation, Labeling, Analytics 순서로 하류 BC의 공개 객체를 상류 BC 생성자에 넘겨 객체 그래프를 만든다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/entrypoints/api/contexts.py#L12-L39",
-          "version": "repo-lines-v1:sha256:57c22302864cfbd8780ae4e37af268cbfb2dfb1f5a956a3ad8d9a66676365794:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjN2U5MjczNGRkOGM3YTE2ZDQ1MDVhY2E4ZTUxMGYwNWQ1NjZmNTFlMDg2ZThmMGVlZDM0YThmMGNlMzQxM2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhZmJhMDUyN2MzOTUzYzRiNmUwZTViNTczOWJhODM2MTJmODA1M2JjZGM5NDY2NzMwMTkzY2QxZDU5MGI0MDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4ZTU2OTk4MzVjZmRmOTcyODMwODFkMTMwNDllZWZlNjNlYTVhZmJmODA5MmYwMzdlMDY1ZjRmNGZlZWEwNTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://src/mosemo/entrypoints/api/contexts.py#L14-L58",
+          "version": "repo-lines-v1:sha256:2f73c9059a9b4eae219ae5aec1d670676a485b5c3c4a682c0aa57bd313e708a9:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2N2E2YTRjMWJjN2NhM2M2YWFlMzZjNDhhMWRjNjZjMmJlMjdjMmQ0YzYzNTczNDQ1MzM5NzRjZDIxNWM4ZTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2NjgzYTc1NWU0Nzk1OTM1YjVhNjlmYjBhZTU1MGMyYjJjYmY4YjRiZDE2NzgwYjQ4NjdiMDEzOWZkZDA2NDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ1MGUyZDVhMDA2NGRhNDNmYTUyOGYxMTFlMGEyMmJjNmM5NmE1NmZjZjMwMWEyODUzZDM0NzUxMGNmZjkxOGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZhZmJhMDUyN2MzOTUzYzRiNmUwZTViNTczOWJhODM2MTJmODA1M2JjZGM5NDY2NzMwMTkzY2QxZDU5MGI0MDgifQ"
         }
       ]
     },
@@ -69,7 +69,7 @@
           "version": "repo-lines-v1:sha256:118aaa2e2a59b4639b7cbe9881c50b1e7126fec4539ab2cf4f514710b313c268:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjI2MDAzN2U0MTU4YTMyMmEwYWExYTJlMDNlODFlMWQ4MWVhZjNmMTk4NDM1NmVlYjg0MTkxMmRiY2YyMDE3NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTQyNDVmZjRiZTJjNjQ2NjBiNGZlZDY0YmYyNGQxNGUwMzFkZTkxNGIzMTcyNWFjNTNmZmEwMGU4NGUxNzAzYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTI4NzFjYjc1MjU5MzU1MjYyOGFlM2FiOTMxMDZkODg5NzllMWE0YzE5MzM0ODhkZmNmZjRmZGVkOTVhZDk1MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWMyNmE5NmEyM2ZjM2RmZTliYTI2Zjc0NjFjNDU2Nzk1M2E4YjMwNjlmY2NhMDY1ZmFiY2EwN2UwYzU4YTdjYiJ9"
         },
         {
-          "resource": "repo://pyproject.toml#L157-L173",
+          "resource": "repo://pyproject.toml#L160-L176",
           "version": "repo-lines-v1:sha256:988eff2e328b8f166f976060bdef3541952288bb48799acb89bc36939f22f831:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1OGFkMzEzMTM4YjNmNTMyNjVhY2JmZGNlNzhkZjNmZmIyNzg1ODdhZDAyMGEwODA2ZWU2MWU5NTk3YzVmZjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0ZTI5NTliODBiODYzOTY1YWU2NzM5YmU1MzAzNDgwNTlkZWUzNzI3M2M3NjFjYjAxNWQ0YWU2OTFiZjhjMGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4MGQ2MjYyOGYwNDE2MTc4N2JiYTk1OTlkNzZmNmU2MTVhYjQ4NzE5YTNkYjVhNzc0OTYzY2QzZjMxM2RjMmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU4ZjFlNjRhYTExOTNlZjVmN2I5NDM0YTcyNmVlMWI3ZmJlOTc5OWE4OGYzOWI1ODU2MWUyM2FlMjg4MjJhODYifQ"
         }
       ]
@@ -79,7 +79,7 @@
       "statement": "import-linter 계약은 BC가 mosemo.entrypoints를 import하지 못하게 하고, apscheduler는 platform.scheduling만, faststream·aiokafka는 platform만 import하도록 제한한다.",
       "evidence": [
         {
-          "resource": "repo://pyproject.toml#L127-L155",
+          "resource": "repo://pyproject.toml#L130-L158",
           "version": "repo-lines-v1:sha256:ddf45c3893a5fe6897b7d0c34322b37d8cb5f5457eb537cb962ce450d8200c0f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlM2JhZDcwYTYyNWZjYzdlZGM2OGI2Zjk2Nzk0NDQyYTAyNTRiMDNjOGQ2YTg1OGIwNGQ2YTY4OTg0ZGY4NzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhMDNiZGUxODcxMWM4NDg5ODQ1NzBjODdkMmUzOWNkMzRiOTIyNTJmMzgyZjEyYTQ4YTEyMThlMTlkNjcwN2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4MTE0OGU3NWNhZGQzNmVlNGE4YTAxM2JiNWRlNjk2MGRjMDA1NGYzYjE4N2YwMWFlM2E5Zjg4NWI2YjRjNjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZjODU0MmFhYmJkN2UyOGFhMTI0Y2E0Zjk0MWZhNzFlMWM2MWZlNGU2MGJlNWNkM2IzMmNiZmNiZDI4NDM5OTUifQ"
         }
       ]
@@ -95,20 +95,6 @@
       ]
     },
     {
-      "id": "claim_d496cab4fc684a28b562792135b660c1",
-      "statement": "analytics BC는 아직 테이블과 이벤트 구독이 없는 골격이며 bootstrap.py의 map_tables와 register_handlers는 빈 함수이고 public.py는 아무것도 공개하지 않는다.",
-      "evidence": [
-        {
-          "resource": "repo://src/mosemo/analytics/bootstrap.py#L1-L13",
-          "version": "repo-lines-v1:sha256:bd490db3143fecb8f5d08ed24eed7cecec21ec6bd844b79aaedfb31c18a6de46:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwMDYyOTdkNTlhMWQ2NTExOWZkYWI2MWQxNGRiOTljMzlkY2U5ZWU4NjdhNjM1YTk1MmFlZGQzNTkyODAwMzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmY2U5ODMxNDZmYWQxMmI5MzYyMDc5ZDUzNWI1YTkzNDg3YWE1YTc4NzUxN2RkYjc5ZWQwYmYwNTM0OWIyMTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
-        },
-        {
-          "resource": "repo://src/mosemo/analytics/public.py#L1-L3",
-          "version": "repo-lines-v1:sha256:6a1f0c210abdc4601d2d2dfd5dfc9c9f6e5ab3b8c8236f4163016b1275b8e3de:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjM4MDQ2ZDM4MzkzYWJmNmI4MDk2ZjMxMmU2MGNjYjk3Njk4ZTQ2MzI1N2NlN2RiNTEyMjUxZGQyY2ZiMWQ0YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGVlYTlkZjRmNmQ3YjM4Y2EwZTM5Y2NjMjdiMDQ3MDBlM2QwOGRiZWVjODA0NmQ2MTNkMjI3MDZkMTk5ODVmYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
-        }
-      ]
-    },
-    {
       "id": "claim_90ea5d38e7c64c3d8542192e41f22f78",
       "statement": "API·consumer·batch 세 조립 루트는 모두 analytics handler를 등록해야 하며 하네스 테스트가 이를 검사한다.",
       "evidence": [
@@ -117,10 +103,44 @@
           "version": "repo-lines-v1:sha256:ef9ff3ad68a144aa8d5ad1b81a4c4ec4d7ad81e41b8fbc2981c686e564d7c247:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhMTZkMTM2OTM2ODFmODk2MjhmYzNhZTIxYWRlMmM1ZDE3ZTY3ZTk2NTdhY2FkNzU1ZjJiYTQ3ZjFjYjc4NmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxYjkwZTAwZTNjMGZmZDI1NDdlZjhiYTdkOGUwMDdiMGI3Yjk1MzA0ODMwMjlmNGFjNjliZGEyYTdlMjc3ZTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFmZDdkY2NjNTZkZTM3YWMyMmFkNjI2ZDJlYWQwM2I1N2YwOGIxNGZmMTNkYTIyYjM0NTc2ZDQ0OWY5OTQ0NzgifQ"
         }
       ]
+    },
+    {
+      "id": "claim_dc37505337274c02927be9a3d0145b0f",
+      "statement": "analytics bootstrap은 다른 BC의 bootstrap을 import하지 않으므로 register_handlers와 Analytics는 ObservationTimeline·AccountDirectory·FocusSessionLog 등 협력자를 조립 루트에서 받아 TimelineChanged·LabelConfirmed·FocusSessionCompleted·AccountTimezoneChanged에 다시 계산 표시 handler를 구독한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/analytics/bootstrap.py#L98-L129",
+          "version": "repo-lines-v1:sha256:72814153900b3b3eddc68eefe5dbd9bdb55c7acf55770355ffeaec951ac16c86:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljYzM5NjVmZmRkNDUzNzFmNTA3MzBlMTllZTZmOTMzNDYyMWRhNjIwYzJmMWUzZjdkZWE4ZjkyYjM1OWYwNDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzZGYyYWNmMDZlOGMzZjAzYzcxMzVjNmU4YWM1YTljYTU0MzJhYmUwNmE3NGFjYTBmZGQ5YTUzYTAwOGY5ODciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBiZWI2OTEyMTIyODRjNjk4YjlhNDhlYjgxNWNkYjIxYTk1ZGMxZjM4M2EzMDZkNGFiNWJiNzk5NzM2MmQ4MzcifQ"
+        },
+        {
+          "resource": "repo://src/mosemo/entrypoints/api/contexts.py#L14-L22",
+          "version": "repo-lines-v1:sha256:9dc05ce80259a3673936ff334ca79366dd7b043be290bc12d0aabbb75adab9fa:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzY3YTZhNGMxYmM3Y2EzYzZhYWUzNmM0OGExZGM2NmMyYmUyN2MyZDRjNjM1NzM0NDUzMzk3NGNkMjE1YzhlMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzBjMWYxODhmMTQyZWQ3YTgyNDY4MGIyMDcxNzJjNTUxOWJjNjE0YTQ4ZmRhN2NmMTY3ZWRiOGRkZjc5OTU2YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDUwZTJkNWEwMDY0ZGE0M2ZhNTI4ZjExMWUwYTIyYmM2Yzk2YTU2ZmNmMzAxYTI4NTNkMzQ3NTEwY2ZmOTE4YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDIyMjE1MTAxNzhlOTg2YTllMThlNTFkNjA3YjZlNDIzYWJmN2QyMDM5NTYyNTk0YWY4ZDEwYzM2NDU2MmQ1NCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_046b06143a544405b30c33c776e4676e",
+      "statement": "analytics의 public.py는 AnalyticsErrorCode만 공개한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/analytics/public.py#L1-L5",
+          "version": "repo-lines-v1:sha256:58b64bbb2f134038a77a7c517f6ee4cb1df1a8b2169ad30b17a65207eba37529:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjM4MDQ2ZDM4MzkzYWJmNmI4MDk2ZjMxMmU2MGNjYjk3Njk4ZTQ2MzI1N2NlN2RiNTEyMjUxZGQyY2ZiMWQ0YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODdjYjk0M2U0NTAzMjU2M2QyMDRhNDJjODlmOWRlMDIxODE2NmM3ZTdlN2EzN2JmNjA1ZDQ4NmExZGY0MzEzYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_92915e6b18b34fa987efb39339f2dbeb",
+      "statement": "analytics 라우터는 API 라우터에서 /api/v1/analytics 접두어 아래에 포함된다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/entrypoints/api/routes.py#L14-L38",
+          "version": "repo-lines-v1:sha256:4cd57b423fe9b43c26f49eb9700c5eaa3b38150f1038eb9254f873f3968be6e6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhNzkwODlkNDE3OTU5ZWZiMDk2MTdkNGFkNWE5MjEyODFkNDAzYjg4MDZlNjkyMmQzNjJmOTVmNWFkN2M3MzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhZmJhMDUyN2MzOTUzYzRiNmUwZTViNTczOWJhODM2MTJmODA1M2JjZGM5NDY2NzMwMTkzY2QxZDU5MGI0MDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNGI0ZDUyMmZkZDk1YjViNzE4ZjllOTQxNzZiMjFjYzVlOTQyODdmOGQ0NzBlOGZiMmIyMWM5YjM0MTNkMWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-15T02:51:25.465Z"
+    "at": "2026-11-17T16:42:07.914Z"
   }
 }

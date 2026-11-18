@@ -5,7 +5,7 @@ description: Mosemo 서버의 Bounded Context(identity·labels·observation·lab
 tags: [architecture, bounded-context, layering, import-linter]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-15T02:51:25.465Z
+    at: 2026-11-17T16:42:07.914Z
 sources:
   - id: openwiki-source-362e06c30ccfdafd87339cb0
     resource: repo://ARCHITECTURE.md
@@ -21,9 +21,11 @@ sources:
     resource: repo://src/mosemo/analytics/public.py
   - id: openwiki-source-6cee5734b0ac2e4c9346952b
     resource: repo://src/mosemo/entrypoints/api/contexts.py
+  - id: openwiki-source-4f7e1a54ac18078c53e2bab7
+    resource: repo://src/mosemo/entrypoints/api/routes.py
   - id: openwiki-source-fe1140fea79716d25a3b3efa
     resource: repo://tests/unit/harness/test_assembly_roots.py
-generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
+generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
 ---
 
 # 현재 구조
@@ -40,7 +42,7 @@ generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 | `labels` | BC | 계정의 라벨 목록, 가입 시 기본 라벨 |
 | `observation` | BC | 활동 레코드, 관찰 타임라인 투영과 조회, 집중 세션 |
 | `labeling` | BC | 라벨 확정·정정, AI 라벨 제안과 제안 job, 라벨 타임라인 |
-| `analytics` | BC | 활동 분석 결과, 일간 통계, 다시 계산 표시, 배치(현재는 골격만 있음) |
+| `analytics` | BC | 활동 분석 조회(일간 통계·세션 분석), 다시 계산 표시, 일간 통계 저장과 배치 job |
 | `shared` | 공용 커널 | 둘 이상의 BC가 쓰고 업무 의미가 없는 것(domain·application·presentation) |
 | `platform` | 실행 기반 | 로깅·시계·provider·스케줄링, `database/`(설정·엔진·매핑·트랜잭션), `messaging/`(Kafka 어댑터) |
 | `entrypoints` | 조립 루트 | 프로세스마다 하나: `api/`(FastAPI), `consumer/`(활동 배치 Consumer), `batch/`(배치 job) |
@@ -58,11 +60,22 @@ graph LR
 - 다른 BC 코드는 그 BC의 `public.py`로만 쓴다. 다른 BC의 테이블은 조회·조인하지 않고, 여러 BC 데이터가 필요하면 애플리케이션에서 조립한다.
 - `pyproject.toml`의 `bounded contexts: analytics > labeling > observation > labels > identity` `layers` 계약이 이 방향을 강제한다.
 
-## analytics BC의 현재 상태
+## analytics BC의 조립
 
-`analytics`는 가장 위 BC로 자리와 계약만 먼저 만들어 두었다. 계층 폴더 네 개에는 docstring뿐이고, `public.py`의 `__all__`은 비어 있다. [bootstrap.py](../../src/mosemo/analytics/bootstrap.py)의 `map_tables()`(아직 소유 테이블 없음)와 `register_handlers(dispatcher)`(아직 구독 없음)도 빈 함수다. 설계는 제안 상태의 [ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md)과 [활동 분석](../domain/activity-analytics.md) 페이지를 본다.
+`analytics`는 가장 위 BC다. 하류 BC(identity·observation·labeling)의 `public.py`만 읽고, 그 BC들은 analytics를 모른다. 동작은 [활동 분석](../domain/activity-analytics.md)을, 설계 근거는 제안 상태의 [ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md)을 본다.
 
-그래도 세 조립 루트(API `contexts.py`, consumer `activity_batches.py`, batch `registry.py`)는 모두 `analytics_bootstrap.map_tables()`와 `analytics_bootstrap.register_handlers(...)`를 이미 호출한다. `tests/unit/harness/test_assembly_roots.py`는 세 루트 모두 analytics handler를 등록하는지 검사한다. 한 프로세스라도 빠지면 늦은 관찰이 다시 계산 표시를 조용히 잃기 때문이다.
+[bootstrap.py](../../src/mosemo/analytics/bootstrap.py)가 조립 루트에 주는 입구는 다음과 같다.
+
+| 입구 | 하는 일 |
+| --- | --- |
+| `map_tables()` | `analytics_definitions`·`analytics_daily_markers`·`analytics_daily_stats`를 매핑한다 |
+| `register_handlers(dispatcher, *, timeline, accounts, focus_sessions, clock)` | `TimelineChanged`·`LabelConfirmed`·`FocusSessionCompleted`·`AccountTimezoneChanged`에 다시 계산 표시 handler를 구독한다 |
+| `Analytics(...)` | 조회 UseCase(`GetDailyStats`, `GetFocusSessionAnalysis`)와 `router()`, 배치용 `refresh_daily_stats()`를 만든다 |
+| `create_daily_stats_job`, `create_definition_mark_job` | batch 프로세스의 `analytics-daily-stats`·`analytics-definition-mark` job |
+
+analytics `bootstrap.py`는 다른 BC의 `bootstrap.py`를 import할 수 없으므로 `ObservationTimeline`·`AccountDirectory`·`FocusSessionLog`·`LabelConfirmationDirectory` 같은 협력자를 조립 루트가 만들어 넘긴다. `public.py`는 오류 코드 `AnalyticsErrorCode`만 공개한다.
+
+세 조립 루트(API `contexts.py`, consumer `activity_batches.py`, batch `registry.py`)는 모두 `analytics_bootstrap.map_tables()`를 부르고, 각자 `register_analytics_handlers(...)` 함수로 협력자를 만들어 `analytics_bootstrap.register_handlers(...)`를 호출한다. `tests/unit/harness/test_assembly_roots.py`는 세 루트가 이 등록 함수를 정의만 하지 않고 실제로 부르는지 검사한다. 한 프로세스라도 빠지면 그 프로세스의 원천 변경이 다시 계산 표시를 조용히 잃기 때문이다.
 
 ## BC 내부 구조
 
@@ -88,7 +101,7 @@ BC 루트에는 세 파일만 둔다.
 
 ## 조립 루트와 설정
 
-`entrypoints/{api,consumer,batch}`는 BC의 `bootstrap.py`·`public.py`만 import해서 객체 그래프를 만든다. 예를 들어 API 프로세스는 [src/mosemo/entrypoints/api/contexts.py](../../src/mosemo/entrypoints/api/contexts.py)에서 다섯 BC의 테이블을 매핑하고 labels·analytics의 이벤트 handler를 등록한 뒤, `Identity` → `Labels` → `Observation` → `Labeling` 순서로 하류 BC의 공개 객체(`account_directory`, `label_catalog`, `observation_timeline` 등)를 상류 BC 생성자에 넘긴다. analytics는 아직 객체 그래프를 만들지 않는다. 라우터는 [src/mosemo/entrypoints/api/routes.py](../../src/mosemo/entrypoints/api/routes.py)에서 `/api/v1` 아래에 묶인다.
+`entrypoints/{api,consumer,batch}`는 BC의 `bootstrap.py`·`public.py`만 import해서 객체 그래프를 만든다. 예를 들어 API 프로세스는 [src/mosemo/entrypoints/api/contexts.py](../../src/mosemo/entrypoints/api/contexts.py)에서 다섯 BC의 테이블을 매핑하고 labels·analytics의 이벤트 handler를 등록한 뒤, `Identity` → `Labels` → `Observation` → `Labeling` → `Analytics` 순서로 하류 BC의 공개 객체(`account_directory`, `label_catalog`, `observation_timeline` 등)를 상류 BC 생성자에 넘긴다. 라우터는 [src/mosemo/entrypoints/api/routes.py](../../src/mosemo/entrypoints/api/routes.py)에서 `/api/v1` 아래에 묶이며, analytics 라우터는 `/api/v1/analytics` 아래에 붙는다.
 
 설정은 ADR 0015 「설정 소유 규칙」을 따른다. 각 진입점의 `config.py`가 자기 프로세스의 환경 변수만 읽고, BC는 설정 모듈(`platform.database.config`, `platform.messaging.config`)을 import하지 않는다. 필요한 값은 BC `bootstrap.py`가 정의한 순수 타입(예: identity의 `IdentityConfig`)으로 조립 루트가 넘긴다.
 

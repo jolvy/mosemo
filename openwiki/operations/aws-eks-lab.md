@@ -5,13 +5,15 @@ description: 운영 복제 AWS 환경(Terraform root 3개, EKS·RDS·ALB, Kubern
 tags: [operations, aws, eks, terraform, kubernetes, deployment, measurement]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-15T02:51:25.465Z
+    at: 2026-11-17T16:42:07.914Z
 sources:
+  - id: openwiki-source-b4c3599391634fa467609ba0
+    resource: repo://docs/activity-analytics-operations.md
   - id: openwiki-source-7b59c8a3b46cd6f5a5872a42
     resource: repo://infra/deployment/README.md
   - id: openwiki-source-a399ef57993632bd3c3ad8b3
     resource: repo://infra/terraform/README.md
-generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
+generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
 ---
 
 # AWS EKS 랩과 측정 세션
@@ -39,7 +41,7 @@ generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 | --- | --- | --- |
 | API | `deployment.yaml` | uvicorn `mosemo.entrypoints.api.main:app`, port 8000. probe는 `/openapi.json` |
 | 활동 consumer | `consumer-deployment.yaml` | `python -m mosemo.entrypoints.consumer`. HTTP Service·probe 없음. 실패하면 종료하고 Kubernetes가 재시작, 종료 유예 45초 > drain 30초 |
-| 배치 job | `batch-deployment.yaml` | `python -m mosemo.entrypoints.batch serve`. 라벨 제안 job 하나, replicas=1·maxSurge=0으로 중복 실행 방지 |
+| 배치 job | `batch-deployment.yaml` | `python -m mosemo.entrypoints.batch serve`. 라벨 제안 job과 analytics 일간 통계 job(`analytics-daily-stats`)을 주기 실행한다. replicas=1·maxSurge=0으로 중복 실행 방지 |
 | 마이그레이션 | `migration-job.yaml` | `alembic upgrade head` |
 | 랩 Kafka | `kafka.yaml` | StatefulSet 1개, KRaft, PLAINTEXT·replication 1(격리된 실습용) |
 | 토픽 초기화 | `kafka-init-job.yaml` | 목표 파티션까지 늘리고 줄이지 않음 |
@@ -47,6 +49,8 @@ generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 - 노드는 기본 t3.small. Kafka 전용 그룹 1대(taint `dedicated=kafka:NoSchedule`, ap-southeast-2a 고정)와 나머지가 함께 쓰는 app 그룹 1~2대다.
 - PriorityClass는 `mosemo-api` > `mosemo-consumer` > `mosemo-batch` 순이라 batch가 가장 먼저 밀려난다. LimitRange가 requests/limits 기본값과 컨테이너 상한을 넣는다.
 - Kafka의 9092는 앱 Pod와 kafka-init만, 9093(KRaft controller)은 Kafka 자신만 들어오도록 NetworkPolicy가 막는다. Kafka 데이터는 암호화 gp3 PVC(StorageClass `mosemo-kafka-gp3`, Retain)에 둔다.
+- 일간 통계 배치와 정의 재처리는 batch 프로세스에서만 돌린다. API·consumer Pod에서 돌리면 조회와 CPU를 다퉈 조회 지연이 크게 늘기 때문이다. `analytics-definition-mark`는 스케줄이 없어 정의 변경 때 `run`으로 손으로 실행한다([docs/activity-analytics-operations.md](../../docs/activity-analytics-operations.md)).
+- consumer Pod 하나는 consumer 그룹 멤버 2개(`max_workers=2`)이므로 토픽 파티션 수를 consumer Pod 수 × 2 이상으로 둔다.
 - 세션 사이 데이터는 보존하지 않는다. RDS가 세션마다 새로 만들어지므로 Kafka만 옛 메시지·offset을 들고 오면 상태가 어긋나기 때문이다.
 
 ## 작업 세션 절차
@@ -88,7 +92,11 @@ bash infra/deployment/session-audit.sh # 남은 리소스 0개 확인
 - `infra/deployment/tests/`에는 kind 기반 검사(`kind-check.sh`, `observe.sh`, `run.sh`)가 있다.
 - 무중단 배포 자동화 비교와 제안은 [AUTOMATION.md](../../infra/deployment/AUTOMATION.md)에 있다. 현재 API·consumer 업데이트는 maxSurge=0, maxUnavailable=1로 짧은 중단을 허용한다.
 
+측정 Pod 안팎에서 부하를 만들고 DB를 기록하는 도구는 `infra/measurement/`에 있다. [부하 측정 도구](load-measurement.md)를 본다.
+
 ## 관련 페이지
 
+- [부하 측정 도구](load-measurement.md)
+- [활동 분석](../domain/activity-analytics.md)
 - [영속성·메시징·배치 실행](../architecture/persistence-and-messaging.md)
 - [빠른 시작](../quickstart.md)

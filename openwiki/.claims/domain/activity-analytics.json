@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:9a0b7651659d9bf1875ea9dfd9df43da1e7efcae42cfa5bbb3fe14e134fa190b",
+  "pageVersion": "sha256:fc4f0ccbf534798e24992dba608eca1edc9c32f6a01039faf1dd667117a72f00",
   "claims": [
     {
       "id": "claim_1b31fb9b8154423c92e223a89142f304",
@@ -61,10 +61,96 @@
           "version": "repo-lines-v1:sha256:012aa22d33cde84fa285d34fc063abf61f308ac46edcba199078e6cdb45c2a6c:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmMDE4OTlkN2RlODBiNzkzZjVmNTY0MjVkMmNjMDYyMGM3NjM3YWFmMTQ3ODU1OTQzZTM1YTllY2E2ODMyM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlmZmZhMGY1OGY1MjVmNDE0ZDBiNGQ5MjE0ZWM5MGUzYTkxNzEzMTM5ZjYyNGFmNDVjNDZhYmJlMjY2ZmI1NDAifQ"
         }
       ]
+    },
+    {
+      "id": "claim_fc9a5cf9eeba406995cdc575e7e113ff",
+      "statement": "GET /api/v1/analytics/daily-stats와 GET /api/v1/analytics/focus-sessions/{focus_session_id}는 Cache-Control: no-store를 붙이고, 세션 분석은 없는 세션에 ANALYTICS_FOCUS_SESSION_NOT_FOUND(404), 진행 중 세션에 ANALYTICS_FOCUS_SESSION_IN_PROGRESS(409)를 돌려준다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/analytics/presentation/errors.py#L1-L10",
+          "version": "repo-lines-v1:sha256:45e7aa158d867b86c2a96a1cac97745ed79cc2cee0fdc12b2106ced91d35ad67:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2NWQyYzY2NzAyMWE0NWZmYWZjZTUzMDdiY2IyZTA0MzAwYmFlMmVhNzEzM2MyMjgyYjMxZGY1NmM0ZDI1MDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://src/mosemo/analytics/presentation/router.py#L27-L135",
+          "version": "repo-lines-v1:sha256:b4238e1e60ab23b1be80d54423ad113051eccdc32542b9bdafccecd27456a998:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA5LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwNzdmMjM4NGZmNjFkMDE2Nzc0YzE3NDdmOTIyNmRmMWU4OTYyMGVmZmI4MTY2ODU0ZmYyNzkzZWM3ZTFlZGI1IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJjMTY0YjJlZmMwOWE3MDE0OGQ0YTFhMjY2NDlmN2IwY2JjMjMxZWQzZmJmYzE5ODlhZDVjOTYzMDcxNmIzNzRkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI2NWQ5YjUyNjc4MGVlMTJiYzNmMTljMGQ0ZTFhOGZmNWNiMWM0ZmZhYjIwYzlkNWEwOTkxOTgzYjUwMmQwMzdiIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_5638c72468db46e8849f7bcf520c5601",
+      "statement": "분석 조회 UseCase는 consistent_snapshot 한 트랜잭션에서 읽고 계산 예외를 잡지 않아 요청이 공통 500으로 실패한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/analytics/application/reads.py#L1-L5",
+          "version": "repo-lines-v1:sha256:096c08d0293d073fe613fcdc2d0f89355dabbcf451e846dfca20425b3b747f69:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2VjZjQwYzRhOWFiYTA4OWM1ZjZhMmE5MWIyOTQzMDUxZWMwZGJlYTliZTY1ZDFjMTUzNDg5NjM1MGQ2N2E1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTMwM2VjZGQ0YTRkMTBmMTljNzNmZDQyZmQxMjQzN2ZkMzM1NGE4MjY4MTYwNWRhNTI1NWE5N2EzOTA2OGRiYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWE4ZDRiMjcxYzc3ZDI3MTk3NjhhOWU2NzNmYTMwM2FlNWFiOWNmNGU0NzQ5ZWJlMzZhZjVjZGQxNjNhYTI1MSJ9"
+        },
+        {
+          "resource": "repo://src/mosemo/analytics/application/reads.py#L145-L198",
+          "version": "repo-lines-v1:sha256:5a82e03ea689cceae4ac3e695b157b5d48a7e37886e5821d06d81ad76213f15b:eyJzZWxlY3RlZExpbmVDb3VudCI6NTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExMzlmY2Y3MTA5MjE4YTc0NWUzNWY1MmRmYTAwMThhNzI1ZDdkYmY4YTY5NTI4NzRjYjVlMTI2ZDhmNTRmOWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI3MzViNzdhZDNlYzU4MTJlOGM4NmQ1NzUzMjI2MTQ0YzVkNGQxZDdhZTc0YmE2YmQxM2Y5ZTU3MTY5ZWI2NTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY5MDkzMWQwMTc2NDU2YmNkMmJlN2MyNmZiOGIxNWZlNjM3OTJhYWVhMzg4NTU2NTMxMjQ2MWI5ZDIwZjZjMDUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_75c217f928144022b581a92a506473c9",
+      "statement": "일간 통계 조회는 오늘, 표시가 남은 날짜, 저장 행이 없는 날짜, 정의 version이나 시간대가 다른 행의 날짜를 원천에서 계산하고 그 밖의 지난 날짜는 저장 행을 쓴다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/analytics/domain/stats_source.py#L1-L30",
+          "version": "repo-lines-v1:sha256:6f5799a8324ed98c31d9e40613c5b88505524f34e254247651942ec4b069be56:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjMDU4NTE5MWQ5MmM0MWY3ODg1YzcwZGQ2OGY4ODhiNjE3ZjE2NWFhYjhhMGRjMmYxYmUyZjE1MGJhMzc2OGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA0ZDhjMGMxZmYxYzBlOGE0MDA2NDI3Mjk4NjM3YjE0YWRhZjQ5MTQxZDRmZWRlZDU2NWU4ZDY0NjdlZmE2ODMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c0ef5d4aac70470492f4d103506cf57f",
+      "statement": "다시 계산 표시 handler는 TimelineChanged에 바뀐 범위의 날짜·겹치는 완료 세션 시작 날짜·직전 활동 구간 끝 날짜를, FocusSessionCompleted에 세션 시작 날짜만, AccountTimezoneChanged에 저장·표시 날짜와 그 앞뒤 날짜를 표시한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/analytics/application/marking.py#L50-L180",
+          "version": "repo-lines-v1:sha256:543980fd4df9fc06b0fd2ade4230709f3334de5aed084b43153f53728f5bec6c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkOWU5MzU0Zjg2ZTY5ODI3YTA1MjM0M2M3NTkxODYzYzNjOTkxOGFhMTZjNWM2NjY5ZTIxMWQ4ZDJjMTVmYzIzIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1NTAzMmU5NjRkMDkzMjM1MWU1ZDE4NTI2OTI4MWIxNzFhM2EwOWIwOGIyODZlNjYxZWE0NzAzMjNjODJlYjRkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI0NGM0YmViNTM5ZjVhZTc1OTZjZmY5MzkzOTVlYjU2OWY2YjMzNTVlMjc0ODc0YjExYTJlZjI0YWM1NTgwNTJkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://src/mosemo/analytics/domain/markers.py#L109-L111",
+          "version": "repo-lines-v1:sha256:c539dbbf07bd95efdaba6c4f87d6db047e880d4f7755c1596cda7110decd5e2f:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDQ5MTA2NjE2MjA1ZDM3ZGQwYmEwOWUyOWIyYmQ5MzQxZjI2ZjUxMTVmZGZjNjFhYjg1ZGM4YTQyZDc2ZTYzZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2E1YjQ3MWQ5ZDNiZTI0NWVhNjcxMTc4NjliNGQ2ZDQwYjc4Y2I2OWQ4M2YxMjI1OGMxYzMwM2EzZjAzYzk2MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDUyODdhOTU4ZWFmMmJlYzM3OGZkM2U2MDBkNWI1MDM1NGI2NmVmZmQ1ZDVhM2RhNmM3YzhkYTdmMzk4N2M3ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_3b5e38320b704141a8535c495cf497e2",
+      "statement": "일간 통계 배치는 정의 행이 코드 정의와 다르면 선점 없이 끝나고, 표시를 50개씩 선점하며, 120초 예산을 날짜 사이에서 확인해 다 쓰면 처리하지 못한 선점을 되돌린다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/analytics/application/daily_stats_batch.py#L380-L428",
+          "version": "repo-lines-v1:sha256:95bb5d86151435d08582d2a0f0fc7bc015fc82feb7cf11ce1cd18bc4c5cb8e65:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQwZDE3NTA4NmQ1NGU3OTljMWNiYzhlMDQ0YmRlZmJmY2M0NDcwMTUyY2U2MjZiODljZTAxM2ZkZmQ5ZmI3YjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNhNGVjNDc3MzgxOWU2YzkyNDNlOGJkOTMwYmU4ZjkyYzIwOGMxNGM3NWM1MjZkMWQ4ZjdkNGNkNDEwYWFjOGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ3NDliNTE2YzU5MWZmZTAyYWE0ZTJmYTk3NmM0MDhkMDEwZTI5ZmMyMzI2YzhmMmQwNjZjNjdkODhhY2RkNWMifQ"
+        },
+        {
+          "resource": "repo://src/mosemo/analytics/application/daily_stats_batch.py#L55-L56",
+          "version": "repo-lines-v1:sha256:d001edcbcd6cccacd1e0a4aa5537d98a199c94ee5144cdfcb5bfc1dbb2e110ed:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTk0N2RmMWM5MmVmZDA4YjdiYzhjYjgzYjg4ZjdhZTc4YTJlMzBiYTY1ZDA4NmVmOTY2NDY0YTRhZmVmMzc2OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWVjZmUyNGUwYjYwM2ZhYzdhOTAzZjIwYTUzZTBkZDgzMGUxZmM1NTIzYTk5NjJjYmIxZDQ2YzEyZWI4MzRjMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWJmNTY4N2RjNWE0ZGU1NjRjN2M0ZTVmNDkyZTRkOWJhZmMwMTA0Mjk3YzgzMWU3Zjk4Nzc4Y2UwYTRmYWMxMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzY3MjI5OTNiMGFjMzJkYjEwZDc1NzU2MWI4NDhjYTY0NjQwOTI1OGU0ZGFkZmJiYjE4ZTRkMzRkNjIyYWMwMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7d53746c5758491ba8783652ff977864",
+      "statement": "배치 재시도 정책은 lease 10분, 실패 후 5분·30분·2시간·12시간·24시간 간격, 시도 6회에서 격리다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/analytics/domain/markers.py#L20-L41",
+          "version": "repo-lines-v1:sha256:c1ecbbf15fce66c458070099452e6f44aa81bfa0a980e1dffe3284a68774df12:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwZjBlMDE4OWU3OTkxOWQ5NGIwYTc2YTE3YjIzMmZmYWQxYjIwMzlmZWNkNDJmMjhhMDM4NzU1MWIwMTVkMDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3ODAxZTE1M2NhN2M0YmI1OTk0MzA5YzViYTM5N2ZlNzBlMWI1MzYyNjE0OTAxZTU3MmJmMThhY2I0MmFmZDMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7b84c03fa5d04486a9cdc7467ff5b7aa",
+      "statement": "정의를 바꿀 때는 정의 상수와 analytics_definitions.version을 한 커밋에서 올리고, 배포와 옛 batch 프로세스 종료 뒤에 analytics-definition-mark를 손으로 실행해야 한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/activity-analytics-operations.md#L35-L50",
+          "version": "repo-lines-v1:sha256:fdfb077bf2037e9089d1c5b5fdac02e4cd26ee833e5391b41968911a92403387:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBiNWMwZDE0MDc1ZWQxNzg0NTA3MWRkYmYwNTU0N2I0OTM3ZDFmYTA1NmZmZDFmNmRjZjcxOWFmNGQ4ZjNhNmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImViZDZhMjI3MTk0YzJhYmZlMGViZDZkZTA0NTVlNGJlY2NlN2FhZmQ0YjU2OTZjY2IwYjM3MGFmMzQwMmNjMGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4MjI1ZjdlM2YzYWM3ZDRlNTgxNzcxODk2NWIwNWM5YTYyNWZiNjE2ZmRjMDkzNTc4YzAwYzBhNDFkMDExZjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNmZTdkMDFlOGJiNzg2MjFiYjhiOTE1YzIwZjdjZDIxYzczOTlhZTdkYmY4YjM2YzIyYzY5ZjQ4ZjkxNDI5MzUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-15T02:51:25.465Z"
+    "at": "2026-11-17T16:42:07.914Z"
   }
 }

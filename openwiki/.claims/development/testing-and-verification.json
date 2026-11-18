@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:54943bf4fe491902884cf69629576e03975a56f5b80593039d6d69f2364ab732",
+  "pageVersion": "sha256:6ac1fe3c3bc379f0539fe1a47d89dd964d63010f9e26f75d957f05bda83d0bc0",
   "claims": [
     {
       "id": "claim_914662bc78194b91873e79f37f592051",
       "statement": "requires_db와 requires_kafka 마커는 tests/conftest.py가 컨테이너 fixture 사용 여부를 보고 자동으로 붙인다.",
       "evidence": [
         {
-          "resource": "repo://tests/conftest.py#L15-L27",
-          "version": "repo-lines-v1:sha256:d9f2c52be65e4b14862719d7c63e6cbe039742fa5f2653e1c339e4806b682f48:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4ODQ5MjAzZDIyZGJjYzg2NWJkNDA5ZWI0ZmEzOTA5ZTdmYjQxMjA3MzkwODEzOTA5MWE2NmEwNjExZDM5M2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmMzlkNmY3MjBiOGI5Y2Q5ODNjZjUwOTE5ZjEzODdkNTYwYzE5OTg3OTQzOTk2ZGY1YmMxYTdlOGZkNGQwMjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc1YzEzMmNkYWE2YWRkMTliMzdlMDU3N2NlMDg2NDY4MGVlMGVkMDBkNmFiZDY5YjhiMjQ4ZjNkNWVjNzAyZDcifQ"
+          "resource": "repo://tests/conftest.py#L22-L50",
+          "version": "repo-lines-v1:sha256:d41664a433815898d43f641a2ebcb4bedb7e96e62371c7fc9583f1db1fad31a2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI2Mjc1MzY2ZWQzMDhiZDhlNjBhYWJhY2NkMDQxNDE2MjE3Mjg3MmY1NWI3NDQ2YzNhNzJiMjU2ZmMzNTIyODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5ZmY5YzIwYjY1OGI3ZWNkMmZmYWE4ZGJmYzdhNjM5ZjRlMzdhM2Q4NTgwMDc1ZTkwY2RkYzg2YWIxZGI5ZjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg1YmY2YmRkNjU1ZjczNmE4YjJkOTMxM2I3Y2JiNzBkMjc3NWVmYTkwOTk1M2ZjYjIyNGU5ODU3ODRkYWM1YzMifQ"
         }
       ]
     },
@@ -18,11 +18,11 @@
       "evidence": [
         {
           "resource": "repo://AGENTS.md#L59-L59",
-          "version": "repo-lines-v1:sha256:0ebfbeb29b085760e2bf433f1dbae28c77024a1d3d37c8236826d0a3305a455a:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGViZmJlYjI5YjA4NTc2MGUyYmY0MzNmMWRiYWUyOGM3NzAyNGExZDNkMzdjODIzNjgyNmQwYTMzMDVhNDU1YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGViZmJlYjI5YjA4NTc2MGUyYmY0MzNmMWRiYWUyOGM3NzAyNGExZDNkMzdjODIzNjgyNmQwYTMzMDVhNDU1YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzNlMGFmN2RlNGNmMmFlYzRkZmNhY2JkMmY3NWVlNDUwODQ0YWU0ZTM2MWI3ZjM5NjFiNmY0ODQyMjFkZDYwMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2E1NDk2YTY3YTIzZjk5NDI4NTFkNjljMjIzNGJmNjM2ZTMxNWJkNGFlNDFlZjMyMjVmNjk0MTBhMWRlMDI4NyJ9"
+          "version": "repo-lines-v1:sha256:0ebfbeb29b085760e2bf433f1dbae28c77024a1d3d37c8236826d0a3305a455a:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGViZmJlYjI5YjA4NTc2MGUyYmY0MzNmMWRiYWUyOGM3NzAyNGExZDNkMzdjODIzNjgyNmQwYTMzMDVhNDU1YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGViZmJlYjI5YjA4NTc2MGUyYmY0MzNmMWRiYWUyOGM3NzAyNGExZDNkMzdjODIzNjgyNmQwYTMzMDVhNDU1YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzNlMGFmN2RlNGNmMmFlYzRkZmNhY2JkMmY3NWVlNDUwODQ0YWU0ZTM2MWI3ZjM5NjFiNmY0ODQyMjFkZDYwMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjJiY2RkMGIxYWVlMTIwN2Q3ODc2ZDEwNjYzNDAxYjVlYmY3M2M4NDYwZWZmN2NjMTRlZThkYjE0YTc5ZjVkOCJ9"
         },
         {
-          "resource": "repo://tests/integration/conftest.py#L10-L51",
-          "version": "repo-lines-v1:sha256:43d982d9ab19f53b7a578c6b07cc0d63f2fad5ef4f7c20e75e6f92f280beccc7:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4YWM2YzY0ZDgyMjAxMjYyNDgxNmM0ZjhiNzI2ZTAwNDM0NjJlOWJkNTZjNTQ2ZGFlZmZlZTQ3NzZmMGZiZTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjYjI2ZWI4NTUzYTI2NThiNTkzODVhOTk3N2FkODIxNDgwNTM2MDM0NDAyZGJkMTNjMzEzZmQxMWYyNGFjM2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMxYjdlODVkM2YzMmM5ZTc2MGFlNzQwMzIwZDhiZWM2OWY1YzJkY2NhYzhlNjBiMzc4MTllZWE2YjYyZDhiZjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjNGIxYTQwZTc4MThmY2U5NjdhZjQzN2ViZWRhMmQyOTZlMWNmZGVjOGYxMjYzZTY2Mzk5OWE4MzJjMGJjMDIifQ"
+          "resource": "repo://tests/integration/conftest.py#L1-L65",
+          "version": "repo-lines-v1:sha256:1cdd3e89ff6577a83df080d18fc1792de15d14c5a1696e713990cc169389d1ec:eyJzZWxlY3RlZExpbmVDb3VudCI6NjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzODVlNGYwODc0MzcyYmJiNDU5MGU0MmVjMWVlNTU4NmE2Yjg1YTVlYTgxY2JjMzljYTgxMDdkMDQxODNkMzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI2ZWFkODkyNWU5YzZkZTdhNmI2MTk1YmU5YTlhNjIzYzBlZjA4M2M5MDQ4ZWIwYTI0Y2FjMmNmNDg5Nzc5NDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     },
@@ -56,41 +56,65 @@
     },
     {
       "id": "claim_0d364b58af404a0a963716801ff64412",
-      "statement": "CI Quality job은 pull request와 main push에서 문서·아키텍처·규칙 검사, complexipy, Ruff, ty, import 계약, OpenAPI 스냅샷, pytest --cov, 커버리지 판정을 수행한다.",
+      "statement": "CI는 changes·static·tests·Quality 집계·Fault injection·E2E job으로 나뉘며, static은 규칙 검사·complexipy·Ruff·ty·import 계약·OpenAPI 스냅샷을, tests는 FI·E2E를 뺨 pytest --cov와 커버리지 판정을 수행하고, openwiki만 바뀐 PR에서는 테스트 job을 건너뛴다.",
       "evidence": [
         {
-          "resource": "repo://.github/workflows/ci.yml#L1-L82",
-          "version": "repo-lines-v1:sha256:930d9f3d7ab72791e46581d24d69aabca613dc2434f93032c07d1dd0bfeb30d2:eyJzZWxlY3RlZExpbmVDb3VudCI6ODIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2ZTFiMzJmYTA5MDc5YWUyZjAwMDFmZmYwZWNhMjdiNDk4NTk1N2Q0ZWI0ODU3OTI5YjNjZjA1OGZhYWU1NDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1MTc1ZDlkYzRlN2JlNGQ1NjQ2YzQzZTFkNjNhZjY4Nzc1N2JlNmI3YzYyNWQ0OTBiY2YyNTgzN2FmYzY1MTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://.github/workflows/ci.yml#L1-L219",
+          "version": "repo-lines-v1:sha256:6f5ee3c5a54db750e57a72ddd0ca21836a3e78b68031660bda160c4e47026343:eyJzZWxlY3RlZExpbmVDb3VudCI6MjE5LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwNmUxYjMyZmEwOTA3OWFlMmYwMDAxZmZmMGVjYTI3YjQ5ODU5NTdkNGViNDg1NzkyOWIzY2YwNThmYWFlNTQxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIzM2E3OTNiM2I1YTcwOGFkNTRlZTJjOWUwN2RlMThjNjZhYzcwM2VjNDBkMmU5OTVmZDAxOTNjZjQzNDg2NzliIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
         }
       ]
     },
     {
       "id": "claim_d7eb6ce84d454663a3bda589c6a7d870",
-      "statement": "poe test와 poe coverage는 .env.example을 먼저 읽고 .env, .env.test를 선택적으로 덮어쓴다.",
+      "statement": "poe test와 poe coverage는 .env.example을 먼저 읽고 .env, .env.test를 선택적으로 덮어쓰며, 둘 다 -m \"not fault_injection and not e2e\"로 장애 주입·E2E 테스트를 뺀다.",
       "evidence": [
         {
-          "resource": "repo://pyproject.toml#L802-L811",
-          "version": "repo-lines-v1:sha256:f827a6a5a8f069c7f388bbb0b824ff8edb2781bd83332ef4207ec5eaa0b6aee3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlMDAwMmVkYTM3NTRmYTg3NTZiZDdjNjJhNjhjMjc0OGQ0NDRjMmI1ODljNmY5NjkwODJlMTFhZGI5NTE5M2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxMDM2MjM2YjkzZDFjYTk4MTg0ZDc1NDU2ZmVjYTE5YzQ1ZTY5OTI0NWY3YzUyOTM0MDQ3M2E3NWYyMjMxNTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYWVkZGJmOWY3MDQyMjNmNzUxOGZmY2U3YTBiMjhjNzZkMjk4MTdjZjM4OWY0MjdlYWY1ZTFjYmY1M2RmYmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkZTZkNDliMTlmM2RkZGY0NGZiOTRiZGMzNDU3ZDE5NTNkMDIzNGQzZmJjZTQyNzBhNmI3NjhkNzcwNzY2MWQifQ"
+          "resource": "repo://pyproject.toml#L805-L814",
+          "version": "repo-lines-v1:sha256:320959c17db51e4c8cb7cd578eca2c2e0ff6f234d96a46dc5a829f11fdc6829b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlMDAwMmVkYTM3NTRmYTg3NTZiZDdjNjJhNjhjMjc0OGQ0NDRjMmI1ODljNmY5NjkwODJlMTFhZGI5NTE5M2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxMDM2MjM2YjkzZDFjYTk4MTg0ZDc1NDU2ZmVjYTE5YzQ1ZTY5OTI0NWY3YzUyOTM0MDQ3M2E3NWYyMjMxNTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYWVkZGJmOWY3MDQyMjNmNzUxOGZmY2U3YTBiMjhjNzZkMjk4MTdjZjM4OWY0MjdlYWY1ZTFjYmY1M2RmYmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkZTZkNDliMTlmM2RkZGY0NGZiOTRiZGMzNDU3ZDE5NTNkMDIzNGQzZmJjZTQyNzBhNmI3NjhkNzcwNzY2MWQifQ"
         }
       ]
     },
     {
       "id": "claim_189922c27e2846b58d3586e29f81016d",
-      "statement": "tests/unit과 tests/integration의 첫 폴더는 src/mosemo 최상위 패키지(analytics 포함)이거나 harness·scripts·migrations·support·tools여야 하며 test_tests_layout.py가 이를 강제한다.",
+      "statement": "tests/unit과 tests/integration의 첫 폴더는 src/mosemo 최상위 패키지(analytics 포함)이거나 harness·scripts·migrations·support·tools여야 하며, tools는 tools/와 infra/measurement/ 측정 도구를 다루고 test_tests_layout.py가 이를 강제한다.",
       "evidence": [
         {
-          "resource": "repo://tests/AGENTS.md#L16-L16",
-          "version": "repo-lines-v1:sha256:01caeb628ad10c78369f587fad34e7383b8117a5d3bc5616e3286a02c7d82318:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFjYWViNjI4YWQxMGM3ODM2OWY1ODdmYWQzNGU3MzgzYjgxMTdhNWQzYmM1NjE2ZTMyODZhMDJjN2Q4MjMxOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFjYWViNjI4YWQxMGM3ODM2OWY1ODdmYWQzNGU3MzgzYjgxMTdhNWQzYmM1NjE2ZTMyODZhMDJjN2Q4MjMxOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmM1MzFkYTExYjViMzAyMjdiZmQ5YWQ0NTYzNWFhMjdhYWUyMDRmZDhkODA0NzdjOWU5NDA5NjQyZWNkZDUzZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGZkZjJjMzk5NmQ4YmU2ZTRmMTdiODkzOWNmMTE1YjNiYmQ0ZjZhNDFlYWRkNmNmNzdkZmZkYjZjNThhODNiZSJ9"
+          "resource": "repo://tests/AGENTS.md#L14-L18",
+          "version": "repo-lines-v1:sha256:140542e6b520f485f56b72c537391e03af8590ec8aea48d664beff8550c24dd2:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGE3MTFjMGQ2ZDRmMjZmNjM4ZTQxYzQ5ZDIwOTNjNGVkZmY5YmY2ZTFmYTRhMGZiODVkMWFmNmU5NjAzYmI4NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzM3ZDg2MGY0YmZlNWRhMTgzYjM5YTgzZjRkZGNjNWJhM2M0YzU3YjFmYzBhZTk3YzM5ZWRhNWRlYTdmNmRjMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTQ3N2U0OWYwNmI4Y2RmYjhhM2QwNjgyNWNhYThlMzFjYmNhYWNmODFlZjBmMzFiM2E2NTBkOWYxNDRjNTVlNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDJhNDRiNjc5NjYwYmI1YjVjZGY1MzBkZWI5Y2UxOGU3ZTUxYTA1NDEyMTZiZjM3N2VmMTRiZTE4MzEzYzI0NiJ9"
         },
         {
           "resource": "repo://tests/unit/harness/test_tests_layout.py#L11-L15",
           "version": "repo-lines-v1:sha256:fcc4ecef3784c952766b1e4e1c82721ad04514d01e22333e4b765279c6d0d3eb:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzE3OTFlODk5YTQxZjZhMDhjOWUzNGI1NWE3YzIyZjBkNjQ3OTgxM2ZiMzY4YWExYjAyNTlhNmM4OWVhODA3OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDJlYjgyYjA5ODJhNGNkOTA5YWVhMGNmMjUyZmFlYTlkOWI3MWI0Y2E5NTM1Y2NiYWExNzI3MGI5ZWM5NDU3YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODE5N2JhNjQ2MTU3MDBhNjAwNmM5YzBmNDY1MzFmOWFlMjllMmI1NWRmZjUyZjIxNGVmNGQxZThlN2MwYzNkNCJ9"
         }
       ]
+    },
+    {
+      "id": "claim_ae61f8e0e62a4e39a9a8a77af9e1330b",
+      "statement": "e2e 마커는 tests/conftest.py가 tests/e2e/ 아래 테스트에 경로로 자동 부착하고, fault_injection 마커는 tests/integration/analytics의 test_fault_injection*.py 모듈에만 손으로 붙인다.",
+      "evidence": [
+        {
+          "resource": "repo://tests/AGENTS.md#L14-L18",
+          "version": "repo-lines-v1:sha256:140542e6b520f485f56b72c537391e03af8590ec8aea48d664beff8550c24dd2:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGE3MTFjMGQ2ZDRmMjZmNjM4ZTQxYzQ5ZDIwOTNjNGVkZmY5YmY2ZTFmYTRhMGZiODVkMWFmNmU5NjAzYmI4NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzM3ZDg2MGY0YmZlNWRhMTgzYjM5YTgzZjRkZGNjNWJhM2M0YzU3YjFmYzBhZTk3YzM5ZWRhNWRlYTdmNmRjMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTQ3N2U0OWYwNmI4Y2RmYjhhM2QwNjgyNWNhYThlMzFjYmNhYWNmODFlZjBmMzFiM2E2NTBkOWYxNDRjNTVlNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDJhNDRiNjc5NjYwYmI1YjVjZGY1MzBkZWI5Y2UxOGU3ZTUxYTA1NDEyMTZiZjM3N2VmMTRiZTE4MzEzYzI0NiJ9"
+        },
+        {
+          "resource": "repo://tests/conftest.py#L22-L40",
+          "version": "repo-lines-v1:sha256:a8e2daafa6e5b35aa99febfe9294e667ce360fc6abd5cd72b7ccc75adecf8d91:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5ZGY5YzFmODE1OGFjZTI4NmNiZDJmMDc1M2ZhZDNkYjE0NWZiZTFjMTZhNjUxNzU2ZTdkMDkyYmFiMTM3MmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5ZmY5YzIwYjY1OGI3ZWNkMmZmYWE4ZGJmYzdhNjM5ZjRlMzdhM2Q4NTgwMDc1ZTkwY2RkYzg2YWIxZGI5ZjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdhZmVhNjY4ZmU0NTNkZWNhMDYyZWUyODE3OWI1YTE1OTVlNWUzYTZhNjlkYTFkOTkxOGIzNGQ3ZWFmOGEyZjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_04d0d7b93b154771adf9ca36bf38334f",
+      "statement": "ci_gate.py는 main 대상 pull_request에서 HEAD^1..HEAD 변경 경로가 모두 openwiki/ 아래일 때만 openwiki_only를 참으로 판정하고, verdict는 changes·static 성공과 tests 성공 또는 openwiki 전용 건너뛰기를 확인한다.",
+      "evidence": [
+        {
+          "resource": "repo://.codex/skills/verification/scripts/ci_gate.py#L1-L26",
+          "version": "repo-lines-v1:sha256:536693ec27f6b8f5d9df06f0940e747ef292a6f279eaa28d10580a6badaa9b80:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxMDQ1ODgwMjNhZmY1N2VhMTcxYmQ1Yzg4M2M5NjdkNzQ5NTg5MDAxZTRjODI1YjQxMmM2MGMyMDczNjViZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVkYjU5ODQ4MThhZGMzZTk5YzZiNWM0MzI2OWVkMjYxNzVlYmFkOGYxZTA3NjcyY2UzMjRlN2YzMjE1NjZiNTkifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-15T02:51:25.465Z"
+    "at": "2026-11-17T16:42:07.914Z"
   }
 }

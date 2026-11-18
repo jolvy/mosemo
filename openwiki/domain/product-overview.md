@@ -5,7 +5,7 @@ description: PRD·요구사항·용어집으로 본 Mosemo 서버의 기능 범�
 tags: [domain, prd, glossary, api]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-15T02:51:25.465Z
+    at: 2026-11-17T16:42:07.914Z
 sources:
   - id: openwiki-source-8e9d01622c02cac4ba03a4c8
     resource: repo://docs/adr/0005-separate-observation-and-personal-label-confirmation.md
@@ -13,7 +13,11 @@ sources:
     resource: repo://docs/ubiquitous-language.md
   - id: openwiki-source-4f7e1a54ac18078c53e2bab7
     resource: repo://src/mosemo/entrypoints/api/routes.py
-generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
+  - id: openwiki-source-49edb45749484c6263cb7a12
+    resource: repo://src/mosemo/identity/application/accounts.py
+  - id: openwiki-source-4cd5f40751206be23fa2ad3f
+    resource: repo://src/mosemo/observation/presentation/focus_sessions/schemas.py
+generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
 ---
 
 # 제품 기능과 도메인 용어
@@ -31,10 +35,13 @@ Mosemo는 계정에 등록된 앱 설치(Device)가 관찰한 활동을 받아 �
 | 활동 관찰과 개인정보 보호 | `observation` | (배치 전달로 수집) | [activity-capture.md](../../docs/prd/activity-capture.md) |
 | 활동 배치 수락과 비동기 처리 | `observation` | `POST /activities/batches`, `POST /activities/batches/legacy` | [activity-batches.md](../../docs/prd/activity-batches.md), [요구사항](../../docs/requirements/activity-batches.md) |
 | 날짜별 관찰 타임라인 | `observation` | `GET /activities/timeline` | [observation-timeline.md](../../docs/prd/observation-timeline.md) |
-| 집중 세션 | `observation` | `GET·POST /focus-sessions`, `PUT /focus-sessions/{focus_session_id}/completion` | [focus-sessions.md](../../docs/prd/focus-sessions.md) |
+| 집중 세션(완료 때 선택적 일시중지 구간 `pauses`) | `observation` | `GET·POST /focus-sessions`, `PUT /focus-sessions/{focus_session_id}/completion` | [focus-sessions.md](../../docs/prd/focus-sessions.md) |
 | 라벨 목록 | `labels` | `GET /labels` | [activity-labeling.md](../../docs/prd/activity-labeling.md) |
 | 라벨 제안·확정·라벨 타임라인 | `labeling` | `POST /activities/label-confirmations`, `PUT /activities/segments/{segment_id}/label-confirmation`, `GET /activities/segments/{segment_id}/label-state`, `GET /activities/label-timeline` | [activity-labeling.md](../../docs/prd/activity-labeling.md), [activity-label-package-structure.md](../../docs/prd/activity-label-package-structure.md) |
-| 활동 분석(사용 시간·전환·집중 이탈·라벨 전환, 설계 단계) | `analytics` | 아직 없음(엔지니어링 계획에서 정함) | [요구사항](../../docs/requirements/activity-analytics.md), [활동 분석](activity-analytics.md) |
+| 활동 분석(사용 시간·전환·집중 이탈·라벨 전환) | `analytics` | `GET /analytics/daily-stats?date=`, `GET /analytics/focus-sessions/{focus_session_id}` | [요구사항](../../docs/requirements/activity-analytics.md), [활동 분석](activity-analytics.md) |
+
+- 완료 요청의 `pauses`는 최대 1000개이며, 보내지 않으면 일시중지 정보가 없는 세션이다. 조회 응답의 `pauses`는 시작 순으로 정렬되고 정보가 없으면 `null`이다.
+- 계정 시간대 변경은 identity의 `ChangeAccountTimezone` UseCase로 구현되어 있고(지난 날짜의 분석 결과를 새 날짜 경계로 다시 계산하도록 표시), 아직 공개 API 경로는 없다.
 
 BC 사이 의존과 패키지 구조는 [현재 구조](../architecture/current-structure.md)를, 배치 전달과 타임라인 projection 구현은 [영속성·메시징·배치 실행](../architecture/persistence-and-messaging.md)을 본다.
 
@@ -66,7 +73,7 @@ BC 사이 의존과 패키지 구조는 [현재 구조](../architecture/current-
 
 ### 활동 분석
 
-설계 단계의 용어다. 계산 규칙은 [활동 분석](activity-analytics.md)과 [지표 명세](../../docs/activity-analytics-metrics.md)를 본다.
+계산 규칙은 [활동 분석](activity-analytics.md)과 [지표 명세](../../docs/activity-analytics-metrics.md)를 본다.
 
 - **앱 / 사이트 / 사용 대상**: 앱은 bundleId로 식별한다. 사이트는 브라우저 탭 URL의 eTLD+1이며 비교 키는 IDNA ASCII 소문자다. 사용 대상은 사용 시간과 전환을 세는 단위로, URL을 수집한 브라우저 구간은 사이트, URL이 없는 브라우저 구간은 그 브라우저 앱, 그 밖에는 그 앱이다. 앱 미확인 구간과 불투명 활동에는 사용 대상이 없다.
 - **사용 시간**: 한 앱·사용 대상으로 관찰된 활동 구간의 시간 합계. 열린 구간은 마지막 관찰 시각까지, 수집 공백과 관찰 침묵은 넣지 않는다.

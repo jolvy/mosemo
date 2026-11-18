@@ -5,7 +5,7 @@ description: docs/adr의 ADR 중 앞부분 status가 accepted인 유효한 결�
 tags: [adr, decisions, supersession]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-15T02:51:25.465Z
+    at: 2026-11-17T16:42:07.914Z
 sources:
   - id: openwiki-source-ddac3c633b69628f629b47e0
     resource: repo://docs/adr/0001-public-api-error-boundary.md
@@ -37,7 +37,7 @@ sources:
     resource: repo://docs/adr/0015-group-entrypoints-and-platform-packages.md
   - id: openwiki-source-254df237bb9ef98aebc51d56
     resource: repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md
-generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
+generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
 ---
 
 # 유효한 결정
@@ -71,7 +71,7 @@ generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 | --- | --- |
 | [0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md) | 활동 분석은 조회 때 계산하고, 지난 날짜의 일간 통계만 변경 표시와 배치로 저장한다. 앞선 15분 칸 저장 초안을 하루 활성 사용자 1천 명 목표로 다시 검토한 결과다 |
 
-`analytics` BC 골격과 `consistent_snapshot` 헬퍼는 이 제안을 바탕으로 먼저 들어왔다. 내용은 [활동 분석](../domain/activity-analytics.md)을 본다.
+ADR 0016은 아직 `proposed`지만 `analytics` BC 구현(조회 API, 다시 계산 표시 handler, 일간 통계 테이블과 배치 job)과 `consistent_snapshot` 헬퍼가 이 제안을 바탕으로 들어왔다. 구현 중 리뷰에서 나온 조항(예: 시간 예산이 끝나 처리하지 못한 선점 날짜는 같은 version일 때만 시도 횟수를 되돌리는 규칙)도 이 ADR에 더해진다. 내용은 [활동 분석](../domain/activity-analytics.md)을 본다.
 
 ## 대체된 결정
 

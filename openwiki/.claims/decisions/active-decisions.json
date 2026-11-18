@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:d13b5656379238fed96b7d07674d986d0f56f89891b6e17c85527149a48e28df",
+  "pageVersion": "sha256:5a1ceaa532ef42959f0064343a1a20efd3c3e3de10f1b7204888cfac978ad2e7",
   "claims": [
     {
       "id": "claim_93af9bd871914769b8fa49b637ad6f5f",
@@ -123,10 +123,24 @@
           "version": "repo-lines-v1:sha256:5a9c61db0eee783aecca35dc0825ff8747e8c307250e593fb1ebf502d43e4f17:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0YWI4ZTdlZjliOGUxNDAxZjgzNjBkODA3MmVhNmJmMmY2MjhiMjk5ZDUyYTNlNjRhMjNhNWU2MTM2MjEzNmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVjZGE4YzUwZDhjOWZjNWQzNWE4OTMwMjk1NDRhMWMwYzc1MDFkYzAyMjlkMTlkNGIxZDM4MzI5NzI0YjUwN2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYzNmI4NDA5NGNlZThjMzM2NjE5ZjNmMmU2NDQ2N2U3NDYzZjYzY2RmNDI0ZTNhMmQ4NGU3YjQwOTVhMTAzMjAifQ"
         }
       ]
+    },
+    {
+      "id": "claim_cb30e1c34e344b3cb2cb3f5e2156a7d3",
+      "statement": "ADR 0016은 status: proposed이며, 예산이 끝나 처리하지 못한 선점 날짜는 같은 version일 때만 attempts를 1 되돌리고 next_attempt_at을 실행 시작 시각으로 당기는 조항을 담는다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L1-L4",
+          "version": "repo-lines-v1:sha256:70478286e141330018fb5336e98e3a5c9592f089bcac4fa2868fe9f00d41b226:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmQ0NDkyZGU4ZTkyYTg4YzIwYTkzMjM4ZTUwYTkzNTNiYTJjMTQ4ZjIyNGQ5MTM5YzMyMTQ4OWU2MDIzZTg0MyJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L196-L199",
+          "version": "repo-lines-v1:sha256:3f8eaf4f64a450d5933916b11d84d48c92657263f389f8598f92d7bfa9acfd3b:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjFkNTQ0ODE5MzcwNmE3YzFjYmZkOTMyNTQyNWQzN2FiOGJkMDYxMzRmMDFiZTllMjU4NTRmZDZkMGNiODlkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWZlZjBlODg3NDA2NmY4OWNjNDE2MjJiODY2MmJjNzBhZmE5YmZhY2ExNDAyZTYyMzg4OWVhNjJlZWU3ZDNkYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODFlZjU5YWU0MzMwZDhiOGZmMDNlYTgzODM4MmRkMmViMjBiMzg0NDhmNjFlYzc2NzhkNjA3NmZkY2Y2NDUxMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzFiYmZlZWFjOWQzMGVkOWE5N2YyNGRjZDU3YmJhMmEwNzE2MGNhMzE0NDZlMjFiOTk2Njg1MTk0NzFiZDE5ZCJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-15T02:51:25.465Z"
+    "at": "2026-11-17T16:42:07.914Z"
   }
 }
