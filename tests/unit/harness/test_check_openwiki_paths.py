@@ -175,6 +175,38 @@ def test_allows_generated_page_edit_on_same_repo_update_branch(repo: Path) -> No
     assert check(repo, head_ref="openwiki/update").returncode == 0
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "README.md",
+        INSTRUCTIONS,
+        # 생성물 폴더 안이어도 실행되거나 git이 읽는 파일은 막는다.
+        "openwiki/conftest.py",
+        "openwiki/.gitattributes",
+        # 대소문자가 다른 폴더는 생성물 폴더가 아니다.
+        "OpenWiki/quickstart.md",
+    ],
+)
+def test_update_branch_rejects_non_generated_path(repo: Path, path: str) -> None:
+    (repo / path).parent.mkdir(parents=True, exist_ok=True)
+    (repo / path).write_text("edited\n", encoding="utf-8")
+    commit(repo)
+
+    result = check(repo, head_ref="openwiki/update")
+
+    assert result.returncode == 1
+    assert path in result.stdout.splitlines()
+
+
+def test_update_branch_allows_generated_page_deletion(repo: Path) -> None:
+    (repo / PAGE).unlink()
+    (repo / "openwiki/.claims").mkdir()
+    (repo / "openwiki/.claims/quickstart.json").write_text("{}\n", encoding="utf-8")
+    commit(repo)
+
+    assert check(repo, head_ref="openwiki/update").returncode == 0
+
+
 def test_rejects_generated_page_edit_on_fork_update_branch(repo: Path) -> None:
     (repo / PAGE).write_text("edited\n", encoding="utf-8")
     commit(repo)

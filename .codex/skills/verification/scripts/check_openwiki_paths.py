@@ -1,7 +1,9 @@
 """일반 PR이 `openwiki/` 생성물을 바꾸지 못하게 검사한다.
 
 같은 저장소의 `openwiki/update` 브랜치 PR만 `openwiki/` 아래를 바꿀 수 있다. 그 밖의
-PR은 사람이 쓰는 지시서 `openwiki/INSTRUCTIONS.md`만 바꿀 수 있다. 변경 파일은
+PR은 사람이 쓰는 지시서 `openwiki/INSTRUCTIONS.md`만 바꿀 수 있다. 자동 병합되는
+`openwiki/update` PR은 반대로 생성물(`openwiki/` 아래 지시서 밖의 `.md`·`.json`)만
+바꿀 수 있다. 변경 파일은
 `git diff --name-only --no-renames BASE HEAD`로 구한다. `--no-renames`가 없으면
 `openwiki/` 밖으로 옮긴 파일이 새 경로만 출력되어 검사를 빠져나간다. 기본값
 `HEAD^1`·`HEAD`는 pull_request 이벤트의 merge commit 기준이다. `-z`로 받아 비 ASCII
@@ -15,6 +17,7 @@ from collections.abc import Iterable
 GENERATED_PREFIX = "openwiki/"
 INSTRUCTIONS = "openwiki/INSTRUCTIONS.md"
 UPDATE_BRANCH = "openwiki/update"
+GENERATED_SUFFIXES = (".md", ".json")
 
 
 def changed_paths(base: str, head: str) -> list[str]:
@@ -27,9 +30,18 @@ def changed_paths(base: str, head: str) -> list[str]:
     return [path for path in output.split("\0") if path]
 
 
+def is_generated(path: str) -> bool:
+    return (
+        path.startswith(GENERATED_PREFIX)
+        and path != INSTRUCTIONS
+        and path.endswith(GENERATED_SUFFIXES)
+    )
+
+
 def violations(paths: Iterable[str], *, head_ref: str, same_repo: bool) -> list[str]:
     if head_ref == UPDATE_BRANCH and same_repo:
-        return []
+        # 생성 워크플로 밖의 코드·지시서·실행 파일이 자동 병합에 섞이지 않게 한다.
+        return [path for path in paths if not is_generated(path)]
     return [
         path
         for path in paths
@@ -57,10 +69,17 @@ def main(argv: list[str] | None = None) -> int:
         same_repo=args.same_repo == "true",
     )
     if found:
-        print(
-            f"{GENERATED_PREFIX} 생성물은 같은 저장소의 {UPDATE_BRANCH} 브랜치 PR에서만 "
-            f"바꿀 수 있다({INSTRUCTIONS} 제외). 위반 경로:"
-        )
+        if args.head_ref == UPDATE_BRANCH and args.same_repo == "true":
+            print(
+                f"{UPDATE_BRANCH} PR은 {GENERATED_PREFIX} 아래 생성물"
+                f"({INSTRUCTIONS} 제외, {'·'.join(GENERATED_SUFFIXES)})만 바꿀 수 있다."
+                " 위반 경로:"
+            )
+        else:
+            print(
+                f"{GENERATED_PREFIX} 생성물은 같은 저장소의 {UPDATE_BRANCH} 브랜치 PR에서만 "
+                f"바꿀 수 있다({INSTRUCTIONS} 제외). 위반 경로:"
+            )
         print("\n".join(found))
         return 1
     print("openwiki 생성물 보호 검사 통과")
