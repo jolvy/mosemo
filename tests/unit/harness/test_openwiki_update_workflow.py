@@ -1,5 +1,6 @@
 """`OpenWiki update` 워크플로가 main 병합 후 위키를 갱신해 `openwiki/update` PR로만 올린다."""
 
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -13,8 +14,8 @@ def load_workflow() -> dict[Any, Any]:
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
-def steps_by_name() -> dict[str, dict[str, Any]]:
-    [job] = load_workflow()["jobs"].values()
+def steps_by_name(job_id: str) -> dict[str, dict[str, Any]]:
+    job = load_workflow()["jobs"][job_id]
     return {step["name"]: step for step in job["steps"]}
 
 
@@ -36,29 +37,49 @@ def test_runs_after_main_push_except_generated_pages() -> None:
         "group": "openwiki-update",
         "cancel-in-progress": False,
     }
+    # 수동 실행도 main에서만 생성한다.
+    assert workflow["jobs"]["generate"]["if"] == "github.ref == 'refs/heads/main'"
+    assert workflow["jobs"]["publish"]["needs"] == "generate"
 
 
-def test_checkout_keeps_history_without_persisted_credentials() -> None:
-    checkout = steps_by_name()["Check out repository"]
+def test_generate_job_has_only_claude_token_and_writes_only_openwiki() -> None:
+    steps = steps_by_name("generate")
+    claude = steps["Update wiki with Claude Code"]
 
-    assert checkout["with"] == {"fetch-depth": 0, "persist-credentials": False}
-
-
-def test_updates_wiki_with_claude_subscription_token() -> None:
-    step = steps_by_name()["Update wiki with Claude Code"]
-
-    assert step["env"] == {
+    for step in steps.values():
+        assert "OPENWIKI_PR_TOKEN" not in str(step)
+    assert claude["env"] == {
         "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
     }
-    assert step["run"].startswith('claude -p "/openwiki ')
+    assert claude["run"].startswith('claude -p "/openwiki ')
+    args = shlex.split(claude["run"])
+    tools = args[args.index("--allowedTools") + 1].split(",")
+    assert "Edit(openwiki/**)" in tools
+    assert not {"Edit", "Write", "Bash"} & set(tools)
+    upload = steps["Upload generated wiki"]
+    assert upload["with"]["path"] == "openwiki/"
+    assert upload["with"]["include-hidden-files"] is True
+
+
+def test_publish_job_verifies_generated_wiki_on_latest_main() -> None:
+    steps = steps_by_name("publish")
+
+    assert steps["Check out main"]["with"] == {
+        "ref": "main",
+        "persist-credentials": False,
+    }
+    assert steps["Verify and apply generated wiki"]["run"].startswith(
+        "python3 .codex/skills/verification/scripts/sync_openwiki_update.py "
+    )
 
 
 def test_publishes_only_generated_pages_to_update_branch() -> None:
-    step = steps_by_name()["Open docs PR with auto-merge"]
+    step = steps_by_name("publish")["Open docs PR with auto-merge"]
     lines = [line.strip() for line in step["run"].splitlines()]
 
     # 기본 GITHUB_TOKEN으로 만든 PR은 필수 검사를 실행하지 않는다.
     assert step["env"] == {"GH_TOKEN": "${{ secrets.OPENWIKI_PR_TOKEN }}"}
     assert "git add -- openwiki" in lines
     assert "git switch -C openwiki/update" in lines
+    assert "git push --force origin openwiki/update" in lines
     assert "gh pr merge openwiki/update --auto --squash" in lines
