@@ -5,7 +5,7 @@ description: 처음 보는 사람을 위한 Mosemo 서버 온보딩과 위키 �
 tags: [onboarding, quickstart, setup, wiki]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-15T02:51:25.465Z
+    at: 2026-11-17T16:42:07.914Z
 sources:
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
@@ -15,12 +15,12 @@ sources:
     resource: repo://pyproject.toml
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
-generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
+generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
 ---
 
 # Mosemo 서버 빠른 시작
 
-Mosemo 서버는 Device가 관찰한 활동을 받아 날짜별 관찰 타임라인과 라벨별 활동 시간을 제공하는 FastAPI·SQLAlchemy·Kafka 기반 백엔드다. 이 위키는 저장소의 원본 문서와 코드에서 만든 요약이다. **위키와 원본이 다르면 원본이 맞다.** 각 페이지는 근거가 된 원본으로 링크한다.
+Mosemo 서버는 Device가 관찰한 활동을 받아 날짜별 관찰 타임라인, 라벨별 활동 시간, 활동 분석(일간 통계·집중 세션 분석)을 제공하는 FastAPI·SQLAlchemy·Kafka 기반 백엔드다. 이 위키는 저장소의 원본 문서와 코드에서 만든 요약이다. **위키와 원본이 다르면 원본이 맞다.** 각 페이지는 근거가 된 원본으로 링크한다.
 
 ## 1. 개발 환경
 
@@ -52,6 +52,7 @@ uv run --env-file .env fastapi dev         # 개발 API 서버
 - 일부 테스트: `uv run --locked poe test -q tests/unit/...`(커버리지 기준 없음)
 - `requires_db`(PostgreSQL)·`requires_kafka`(Kafka) 마커가 붙은 테스트는 testcontainers로 컨테이너를 띄우므로 **Docker가 동작 중이어야 한다.** 마커는 fixture를 보고 자동으로 붙는다.
 - Docker 없이 돌리려면 `-m "not requires_db and not requires_kafka"`를 붙인다.
+- `poe test`·`poe coverage`는 장애 주입(`fault_injection`)·E2E(`e2e`) 테스트를 기본으로 뺀다(`-m "not fault_injection and not e2e"`). pytest는 마지막 `-m`만 쓰므로 `poe test`에 `-m`을 붙이면 이 제외가 사라진다. 제외를 유지하려면 `-m "not fault_injection and not e2e and not requires_db and not requires_kafka"`처럼 전체 식을 쓴다. FI·E2E는 CI의 별도 job에서 돈다.
 
 자세한 분류와 위치는 [테스트와 검증](development/testing-and-verification.md)을 본다.
 
@@ -94,8 +95,9 @@ git diff --cached --check
 | 기능 범위·API·도메인 용어 | [제품 기능과 도메인 용어](domain/product-overview.md) |
 | 테스트 분류·마커·검증·CI | [테스트와 검증](development/testing-and-verification.md) |
 | Skill 흐름·리뷰어·커밋 규칙·OpenWiki 생성물 보호 | [Engineering Harness 작업 흐름](development/engineering-harness.md) |
-| 설계 중인 활동 분석(C1~C7, 일간 통계, 제안 ADR 0016) | [활동 분석](domain/activity-analytics.md) |
+| 활동 분석(C1~C7, 분석 API, 다시 계산 표시, 일간 통계 배치, 제안 ADR 0016) | [활동 분석](domain/activity-analytics.md) |
 | AWS EKS 랩, Terraform·Kubernetes, 세션·측정 스크립트 | [AWS EKS 랩과 측정 세션](operations/aws-eks-lab.md) |
+| 랩 부하 측정(측정 A·B, 7B 삭제 규모)과 측정 이력 | [부하 측정 도구](operations/load-measurement.md) |
 
 ## 위키 갱신 절차
 

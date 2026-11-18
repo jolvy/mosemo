@@ -5,7 +5,7 @@ description: dataclass aggregate와 imperative mapping, 트랜잭션 헬퍼와 �
 tags: [persistence, sqlalchemy, domain-events, kafka, batch-jobs, alembic]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-15T02:51:25.465Z
+    at: 2026-11-17T16:42:07.914Z
 sources:
   - id: openwiki-source-d1449bb9b8fd8b54431d973d
     resource: repo://docs/adr/0004-project-observation-timeline-on-write.md
@@ -17,12 +17,22 @@ sources:
     resource: repo://docs/adr/0008-order-observations-and-transition-existing-timelines.md
   - id: openwiki-source-a41ded727f97fd17b9db4917
     resource: repo://migrations/env.py
+  - id: openwiki-source-9f8f1a4a29c395f1cf125a86
+    resource: repo://migrations/versions/2026-11-15_0001_c5d6e7f8a9b0_create_analytics_tables.py
+  - id: openwiki-source-41b37a3a7fc5c266286c3c46
+    resource: repo://src/mosemo/analytics/application/marking.py
+  - id: openwiki-source-e650be5fbac67192522ee23b
+    resource: repo://src/mosemo/analytics/bootstrap.py
+  - id: openwiki-source-3442532cd6f9530cce2c8b79
+    resource: repo://src/mosemo/entrypoints/batch/config.py
   - id: openwiki-source-b6bd642164e0d8070a6cc270
     resource: repo://src/mosemo/entrypoints/batch/registry.py
   - id: openwiki-source-2b699ac23a30c5760b936ebd
     resource: repo://src/mosemo/entrypoints/consumer/activity_batches.py
   - id: openwiki-source-731f34422dbd773b6c36c5ab
     resource: repo://src/mosemo/observation/presentation/activities/router.py
+  - id: openwiki-source-5e193d69747cf2f2e6517922
+    resource: repo://src/mosemo/platform/database/persistence.py
   - id: openwiki-source-927994764141916779f261b9
     resource: repo://src/mosemo/platform/database/transactions.py
   - id: openwiki-source-25ac83168948cb4014255129
@@ -33,7 +43,7 @@ sources:
     resource: repo://src/mosemo/shared/application/events.py
   - id: openwiki-source-bf64c7f959111123b762b90b
     resource: repo://tests/integration/platform/test_transactions.py
-generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
+generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
 ---
 
 # 영속성·메시징·배치 실행
@@ -59,17 +69,34 @@ generated: { by: "claude-code", at: "2026-11-15T02:51:25.465Z" }
 | --- | --- |
 | `unit_of_work(db_session, dispatcher)` | 쓰기 트랜잭션을 연다. 본문이 끝나면 flush하고, 추적 중인 aggregate의 이벤트와 `record_event`로 기록한 이벤트를 남은 것이 없을 때까지 dispatch한 뒤 커밋한다 |
 | `read_snapshot(db_session)` | `SET TRANSACTION READ ONLY` 트랜잭션을 열고 이벤트를 dispatch하지 않는다 |
-| `consistent_snapshot(db_session)` | `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY` 트랜잭션을 연다. 안의 모든 문장이 같은 스냅샷을 읽으므로 여러 조회를 합치는 읽기가 그 사이 커밋된 행을 보지 않는다. 이벤트를 dispatch하지 않는다([ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md) 제안의 분석 읽기용) |
+| `consistent_snapshot(db_session)` | `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY` 트랜잭션을 연다. 안의 모든 문장이 같은 스냅샷을 읽으므로 여러 조회를 합치는 읽기가 그 사이 커밋된 행을 보지 않는다. 이벤트를 dispatch하지 않는다. analytics의 조회 UseCase(`GetDailyStats`, `GetFocusSessionAnalysis`)가 쓴다([ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md) 「분석 조회」) |
 | `reset_session(db_session)` | 한 세션에서 여러 트랜잭션을 돌 때 로드된 객체와 추적 root를 비운다 |
 
 - 세 트랜잭션 헬퍼 모두 이미 열린 트랜잭션이 있으면 `TransactionAlreadyOpenError`를 낸다.
 - `EventDispatcher`는 현재 `BEFORE_COMMIT` 단계만 지원한다. handler는 같은 세션·트랜잭션에서 실행되므로 handler가 실패하면 원래 변경도 롤백된다.
-- 상류 BC가 하류 BC의 변경을 알아야 할 때 import 대신 이 이벤트를 쓴다. 예를 들어 API 조립 루트는 `labels_bootstrap.register_handlers(get_event_dispatcher())`로 labels의 handler를 등록한다. 세 조립 루트(API·consumer·batch)는 모두 `analytics_bootstrap.register_handlers(get_event_dispatcher())`도 호출한다. analytics는 아직 구독이 없지만, 다시 계산 표시 handler가 들어오면 어느 프로세스에서 일어난 변경이든 같은 트랜잭션에서 처리되도록 미리 묶어 둔 것이다(`tests/unit/harness/test_assembly_roots.py`가 검사).
+- 상류 BC가 하류 BC의 변경을 알아야 할 때 import 대신 이 이벤트를 쓴다. 예를 들어 API 조립 루트는 `labels_bootstrap.register_handlers(get_event_dispatcher())`로 labels의 handler를 등록한다.
+- 세 조립 루트(API·consumer·batch)는 모두 analytics handler를 등록한다. analytics는 다음 이벤트를 구독해 원천 변경과 같은 트랜잭션에서 (계정, 날짜) 다시 계산 표시를 UPSERT한다. 어느 프로세스에서 일어난 변경이든 표시를 잃지 않도록 세 루트 모두에 묶는다(`tests/unit/harness/test_assembly_roots.py`가 검사).
+
+| 이벤트 | 발행 BC | 표시하는 날짜 |
+| --- | --- | --- |
+| `TimelineChanged` | observation | 바뀐 범위의 날짜, 그 범위와 겹치는 완료 세션의 시작 날짜, 바로 앞 활동 구간의 끝 날짜 |
+| `LabelConfirmed` | labeling | 확정 구간이 걸친 날짜와 겹치는 완료 세션의 시작 날짜 |
+| `FocusSessionCompleted` | observation | 세션 시작 날짜 |
+| `AccountTimezoneChanged` | identity | 저장 행·표시가 있는 날짜와 그 앞뒤 날짜(새 시간대 기준) |
+
+## 계정 advisory 잠금
+
+근거: [src/mosemo/platform/database/persistence.py](../../src/mosemo/platform/database/persistence.py)
+
+- `lock_account(db_session, account_id)`는 `pg_advisory_xact_lock`으로 계정 잠금을 트랜잭션 끝까지 잡는다(같은 트랜잭션에서 재진입 가능). `SET LOCAL lock_timeout = '3s'` 안에 못 잡으면 `AccountLockTimeoutError`를 낸다.
+- 잠금 키는 `activity_timeline:{account_id}`의 blake2b 8바이트 해시다. 계정의 모든 원천 쓰기가 이 키로 직렬화되므로 배포 사이에도 키 바이트를 바꾸면 안 된다.
+- observation 타임라인 쓰기와 identity의 계정 시간대 변경(`ChangeAccountTimezone`)이 이 잠금을 쓴다. analytics 표시 handler도 타임라인 잠금을 먼저 잡은 뒤 계정 시간대를 읽으므로, 동시에 시간대가 바뀌어도 옛 시간대 날짜에 표시가 남지 않는다.
 
 ## 마이그레이션
 
 - Alembic 환경 [migrations/env.py](../../migrations/env.py)는 다섯 BC(identity·labels·observation·labeling·analytics)의 `map_tables()`만 호출해 `ORM_METADATA`를 채운다. 테이블 정의를 따로 import하지 않는다.
 - 리비전은 `migrations/versions/`에 날짜 접두어 파일로 쌓인다. 이미 적용된 마이그레이션은 다시 쓰지 않고, 스키마 변경에는 새 마이그레이션을 추가한다([AGENTS.md](../../AGENTS.md) 「변경 원칙」).
+- 최근 리비전은 집중 세션 일시중지(`focus_session_pauses` 테이블과 `focus_sessions.pauses_reported`)와 analytics 테이블(`analytics_definitions` 정의 행 version 1, `analytics_daily_markers`, `analytics_daily_stats`, 표시 version 시퀀스)이다. analytics 테이블의 `account_id`는 `accounts.id`를 `ON DELETE CASCADE`로 참조한다.
 - 로컬 적용은 `poe migration-dev`(`alembic upgrade head`)다.
 
 ## 활동 배치 전달(Kafka)
@@ -112,8 +139,17 @@ sequenceDiagram
 근거: [ADR 0010](../../docs/adr/0010-run-batch-jobs-in-apscheduler-process.md)(실행 경로는 [ADR 0011](../../docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md)이 부분 대체), [src/mosemo/platform/scheduling.py](../../src/mosemo/platform/scheduling.py), [src/mosemo/entrypoints/batch/registry.py](../../src/mosemo/entrypoints/batch/registry.py)
 
 - 활동 배치(Kafka)와 구분하려고 이 구조는 "batch job"으로 부른다.
-- 모든 job은 `entrypoints/batch/registry.py`의 `build_jobs`에 등록하고 이름이 유일해야 한다. 현재 등록된 job은 labeling의 라벨 제안 job 하나다. `build_jobs`는 job을 만들기 전에 다섯 BC의 테이블을 매핑하고 analytics handler를 등록한다.
+- 모든 job은 `entrypoints/batch/registry.py`의 `build_jobs`에 등록하고 이름이 유일해야 한다. `build_jobs`는 job을 만들기 전에 다섯 BC의 테이블을 매핑하고 analytics handler를 등록한다. 현재 등록된 job은 세 개다.
+
+| job | 스케줄 | 하는 일 |
+| --- | --- | --- |
+| 라벨 제안 job(labeling) | 있음 | AI 라벨 제안 |
+| `analytics-daily-stats` | 5분마다, 시작 즉시 1회 | 끝난 날짜의 다시 계산 표시를 선점해 일간 통계를 저장 |
+| `analytics-definition-mark` | 없음(`run`으로 손으로 실행) | 정의 version이 바뀐 뒤 옛 정의로 저장된 날짜에 정의 재처리 표시를 씀 |
+
 - 실행 방식은 두 가지다: `poe batch-jobs serve`(스케줄 있는 job을 주기 실행하는 상시 프로세스)와 `poe batch-jobs run JOB_NAME`(한 번 실행하고 결과를 exit 코드로 알림).
+- batch 설정([src/mosemo/entrypoints/batch/config.py](../../src/mosemo/entrypoints/batch/config.py))은 `LABEL_MODEL`과 `ANALYTICS_REPROCESS_PER_RUN`(기본 600, 0이면 정의 재처리 중지, 음수 거절)을 읽는다. `ANALYTICS_TEST_WAIT_*`는 테스트 전용이다.
+- job은 `JobReport`(로그에 붙일 카운터 `fields`, 예외 없이 실패한 실행을 알리는 `failed`)를 돌려줄 수 있다. 카운터는 결과 로그 한 줄(`batch job completed`/`batch job failed`)에 더해지고, `failed=True`면 실패 로그를 남기고 실패로 판정한다.
 - 스케줄러는 UTC `AsyncIOScheduler`이며 모든 job에 `max_instances=1`, `coalesce=True`, `misfire_grace_time=None`을 적용한다. 종료할 때는 실행 중 job을 취소하고 최대 10초 기다린다.
 - 상시 프로세스는 단일 인스턴스를 가정하며 분산 잠금이 없다.
 

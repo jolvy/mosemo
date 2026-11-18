@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:7c5acd2cb951862aa3f8711697deeea9ceb2bf831b55e242b2d3c0304472e20d",
+  "pageVersion": "sha256:d0611fd100020ea9026f121b34971666afcf0fe32c39cf6dc888e820528a1c81",
   "claims": [
     {
       "id": "claim_a8566894407046f1b480ac28882ee551",
@@ -75,8 +75,8 @@
       "statement": "활동 Consumer는 BATCH_ENABLED가 켜져 있어야 시작하고, 테이블 매핑과 analytics handler 등록 뒤 메시지마다 새 세션에서 observation의 배치 처리 UseCase를 호출한다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L44-L98",
-          "version": "repo-lines-v1:sha256:08aab2877928295a1c16e9e788ff41c05d69e1ce4351fb099fc9cef612f2908d:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxNThiZTA2YzMyYTYyMWYyY2I5MDlhNDM2NDRjMDk3MDViYWNhYmEzYTY3OGUyNTg3YjlkMjg3NzViMGU4YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NDc3NWU2MmIzY2E4ZDYwZGYwN2E5NWMyODIxYWExNGY1MTZkNTJmODZhMmVhNDFmZTZkMTQzNmNmOGJlYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQxYjgwOTFkNDNiMWQxYWFmYzk5YmY3YTkyNGQ3NzkzYmZiMmIwN2FmNmQxMmQyZjhlYWEzM2RkMTY1MTA5MzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L45-L110",
+          "version": "repo-lines-v1:sha256:f4069604a053e5a4620ec23b465a792dd49666cf55413b40cae4dc8eee9617e7:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxNThiZTA2YzMyYTYyMWYyY2I5MDlhNDM2NDRjMDk3MDViYWNhYmEzYTY3OGUyNTg3YjlkMjg3NzViMGU4YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NDc3NWU2MmIzY2E4ZDYwZGYwN2E5NWMyODIxYWExNGY1MTZkNTJmODZhMmVhNDFmZTZkMTQzNmNmOGJlYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQxYjgwOTFkNDNiMWQxYWFmYzk5YmY3YTkyNGQ3NzkzYmZiMmIwN2FmNmQxMmQyZjhlYWEzM2RkMTY1MTA5MzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     },
@@ -115,18 +115,18 @@
       "statement": "배치 job 스케줄러는 UTC AsyncIOScheduler에 모든 job을 max_instances=1, coalesce=True, misfire_grace_time=None으로 등록하고, 종료 시 실행 중 job을 취소한 뒤 기본 10초 기다린다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/platform/scheduling.py#L121-L169",
+          "resource": "repo://src/mosemo/platform/scheduling.py#L139-L187",
           "version": "repo-lines-v1:sha256:f3a21621dbe421ef162a4058c724f99a8e39b70444456f58806b80234640fee1:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZTU4NzFiOTc1MDVhZTY3OGM0Yjc3YjNkYmQ2ZWQxOTE4YzEwODU4Y2MzMTRjYzY0ZjdhNDQ0YmYxNTQwMzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxMDM0ODFjNTdkMGYwZGMwZjc2Y2QyY2M4YjM2MDRjNGU4Mjk2ZGE0MTIyYWRkMTllODE3NDVkYzdlMzMxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3NGRlNjBlNmIxYzBkNjA1OTlmMWI3NTU5YzA0M2ZiODBlOTFkYTdlZGNlODdjZjM1Y2JmM2U1NzNkY2FlYzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     },
     {
       "id": "claim_edc25e19bcb24e3a82a0a098946c1481",
-      "statement": "배치 job은 entrypoints/batch/registry.py의 build_jobs에 등록하고 이름 중복을 거부하며, 현재 등록된 job은 labeling의 라벨 제안 job 하나다.",
+      "statement": "배치 job은 entrypoints/batch/registry.py의 build_jobs에 등록하고 이름 중복을 거부하며, 현재 라벨 제안 job, analytics-daily-stats, analytics-definition-mark 세 job이 등록된다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/entrypoints/batch/registry.py#L16-L43",
-          "version": "repo-lines-v1:sha256:c113d653ce20926b2c175b350a63f3c3b3ff993f1bda76812a32996c52739aca:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkMjc2MWViZWUzMmFiY2M4NTQ3NDI2MmRkNGEwNTZiNDhhNmU2YWUwYzlkMzdlM2Y3YTdkMWUyNDcxNGFmNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhYTk2MGUyNGQ4MTVlNmM5OTkyMTkwYTlhMGFmOTgwOWYwZjRkMGI3ZGM0ZWRlY2M5MTQ3YzQ0N2NlOWJlZTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4OTFiNWE1MmFiNmJjNWFkMTdiYzZiMjg1YTg5MTg4Zjk2M2MyYTg5ZWRjNDNiY2M0ZDk3MjY3MGQzYzcwNmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://src/mosemo/entrypoints/batch/registry.py#L16-L80",
+          "version": "repo-lines-v1:sha256:78ce1375bcc61173045dcefe8770e1284c80447dfc1182d3f798ae7ca34dafba:eyJzZWxlY3RlZExpbmVDb3VudCI6NjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJjNjdmYzM3MjgzMDY5NTVmMzQ4ZGQ3MWE3ZDFhMTYwZGM0YzQ2NWE0YjJjOTMzZTdiYTM5M2VmOThiMTdiMjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhYTk2MGUyNGQ4MTVlNmM5OTkyMTkwYTlhMGFmOTgwOWYwZjRkMGI3ZGM0ZWRlY2M5MTQ3YzQ0N2NlOWJlZTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIzMTVhNmM2MTFiYTc5MjI1M2U5YmYyMWZiOGI5Njk2YWNjYjI2MmRkNGUxOTg4ZWJmYTlhMmJjMGU1Nzc0YzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     },
@@ -143,10 +143,74 @@
           "version": "repo-lines-v1:sha256:d9aa29624ead34671d5be5762b583f65bc3872e24ca8d4efcba1b3b9129ac9f6:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTAzNGY5ZTI3NzE1YjI1MDBmZTRjNDFkOWM1ZWM4MmExZjA3ODM1MWI2MWVmMjE5ZjY2MTI2ZDAxNjQ5MGY4MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2YwMGExOTQzZGUwZDNkNjU2NDUxMWQzOTY1ODllNzMyY2MwYmU4YWRlZTZjYzhmZjRlODkxMWMwZDI4YjA1MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWFiN2IyNzJhYjRlMjUxNzViNWZkMjRjMTNjZmU1NjM0MjUxNGMwMjc5NDZmMDNiNTMwNWRmMjAzMzc4NzlmOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDFjNDc1NzRmMTQ4MDNhNThlMWNiMjdmNjFhN2Y5NzQzYjA4ZDMxNWM5ZDVjOTc2MGE3OTgxNDE3NGIwZDc1MCJ9"
         }
       ]
+    },
+    {
+      "id": "claim_abc56de4519b477488c8f3a1a6912ecc",
+      "statement": "analytics-daily-stats job은 5분마다 시작 즉시 1회 실행되고, analytics-definition-mark job은 스케줄 없이 손으로 실행한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/analytics/bootstrap.py#L214-L263",
+          "version": "repo-lines-v1:sha256:2908bfe2b61598ef6374d9b4c4f38da63d5f26d59bb7d7e5d48e5d6df2e31324:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0NGE3YzNhYjBkZWMxYTA3ODQ2ODM2YTdiZDRiZjE2ZjhmNmQ5NDgxM2RhMjA3NGUyYTg5Yzc4MDdkM2MxMWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkMzc1MWY4YzkyNWYwZWIwNzI3OGFhNjg2ZTFjMWFjNGUwOTY1NTc4OTE2ODU0NGNhNDM4YzkzMTNhY2Y0M2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzZGYyYWNmMDZlOGMzZjAzYzcxMzVjNmU4YWM1YTljYTU0MzJhYmUwNmE3NGFjYTBmZGQ5YTUzYTAwOGY5ODciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_092c8f0f661a40108e71b9dbdc53587b",
+      "statement": "lock_account는 lock_timeout 3초 안에서 계정별 blake2b 키로 pg_advisory_xact_lock을 잡고, 시간 초과(SQLSTATE 55P03)이면 AccountLockTimeoutError를 낸다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/platform/database/persistence.py#L50-L87",
+          "version": "repo-lines-v1:sha256:e8ca24e2292e9b71f9cb6dd95d9f6c974daec100d1bdfe0522bb74bd393f1180:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlODVhN2QxOTlmNzQ4MjJkOGZiYTdlMmNhZDFkMWM1ZTZlYjMyMjQ3ZWZjZDIzZjdkNjY3MjQ0YzBlZDljM2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzYjIyMzQzZTljNzU1OTIzM2RjNDZkY2VhNTg5OTY1OGY2Yzg2YTczMTRmYTQ2MjA5OGYyOTI4YWY2YWQzZjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUyZTI5YTUyNmZhMGJkYjIyMDMxMWUwNGI3ZGFlODk5NjE5MjdjOWI1YWZkMGY4YjI3M2RiM2Q2ZGY2MDU0ZjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2a719e04faeb43a184db54048a1d647c",
+      "statement": "analytics는 TimelineChanged, LabelConfirmed, FocusSessionCompleted, AccountTimezoneChanged 이벤트를 구독해 원천 변경 트랜잭션 안에서 영향받는 (계정, 날짜)에 다시 계산 표시를 UPSERT하며, 표시 전에 계정 타임라인 잠금을 잡고 시간대를 읽는다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/analytics/application/marking.py#L25-L180",
+          "version": "repo-lines-v1:sha256:8bf6ef0bd4f094c8a9d0a60c0874aa8b3828d608a73ad86d4a4e02c877ebde31:eyJzZWxlY3RlZExpbmVDb3VudCI6MTU2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI2YWUwYjg5NzExMjUyMmUyMzhjMjYxNTE1M2FjNDM0MDAzMDc5ZTgyNTMzOWY5YmEwZDM1YjAzODkzNmI3ZDI4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1NTAzMmU5NjRkMDkzMjM1MWU1ZDE4NTI2OTI4MWIxNzFhM2EwOWIwOGIyODZlNjYxZWE0NzAzMjNjODJlYjRkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJiOWIyMWYwYjNkYjA1ZGI4NDdkNTAwZWQxYjIyY2Y1ZGRmZGRjOGY2MzJhZjQwMDk2MmRiZGFiMDAyZTMwMDhlIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://src/mosemo/analytics/bootstrap.py#L98-L129",
+          "version": "repo-lines-v1:sha256:72814153900b3b3eddc68eefe5dbd9bdb55c7acf55770355ffeaec951ac16c86:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljYzM5NjVmZmRkNDUzNzFmNTA3MzBlMTllZTZmOTMzNDYyMWRhNjIwYzJmMWUzZjdkZWE4ZjkyYjM1OWYwNDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzZGYyYWNmMDZlOGMzZjAzYzcxMzVjNmU4YWM1YTljYTU0MzJhYmUwNmE3NGFjYTBmZGQ5YTUzYTAwOGY5ODciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBiZWI2OTEyMTIyODRjNjk4YjlhNDhlYjgxNWNkYjIxYTk1ZGMxZjM4M2EzMDZkNGFiNWJiNzk5NzM2MmQ4MzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f64891591cec41669ec55e37a8a42e9a",
+      "statement": "batch job이 돌려준 JobReport의 fields는 결과 로그에 더해지고, failed가 참이면 예외 없이도 실패 로그를 남기고 실패로 판정한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/platform/scheduling.py#L46-L98",
+          "version": "repo-lines-v1:sha256:c8a321b9c9d2efa2c34790ee334044f42ef9750b5cb3b608675487962da38b8a:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJkMThlNGY2OTY0MWRiMTc5M2YyYzk5Y2EyZWFkMjAzYWRhNDdiMWIxZDM4NGM3YTc5ZTM2NjliYjhhYmY3Y2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwZTJhNDY1MDA5NWZhOTVkMGUyYmI0MWIyZGIyOTA5NGQzNDA0ZDI4Y2UxMjMzOWVjODhiYjRiNWM1YmU4ZjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwZWJjNGViY2UxMWNkMjdlZWQzMjgyYmFkZDA5YjgzZTQ1OWEyNjM4YTNkNjFkM2NjMTQ3MTAyNjQyMjRmM2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI3ZGEzMWM5OTA3MDMyY2MzN2RhYzgzOGZjNTBhZjFkMGU2MmEzNWRjM2ZiNDRkMTc5MzU1MjRhYmJmM2U2NDkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6f9df20cd58f4b4ea823303e176da6e2",
+      "statement": "batch 프로세스 설정은 ANALYTICS_REPROCESS_PER_RUN을 기본 600, 0 이상 값으로 읽는다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/entrypoints/batch/config.py#L1-L44",
+          "version": "repo-lines-v1:sha256:ce99ecdc9e79f924b83c04d0a1e6d2a30e4c252dd4fb2ea4dea2bd559cffe6d4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0YzYyZjViNWQwMzYzYWIwYjI4OWUzNzNmMTA4OGY3ZjY4ZTIyOTNhYTVjNjM2ZjkxYzk0ZDIyMDgyYmM4OGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmNWE5ODBhMWVlOGJhOTM3NmZiZTYyOGVhMjgyYzIxOWRlMjZlMjZiN2U5YjRiOGRkNDFiYmNhNTE3NzY3NDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b37f403739f14f7aaa551af2e602ec41",
+      "statement": "analytics 마이그레이션은 analytics_definitions(정의 행 version 1), analytics_daily_markers, analytics_daily_stats를 만들고 account_id가 accounts.id를 ON DELETE CASCADE로 참조한다.",
+      "evidence": [
+        {
+          "resource": "repo://migrations/versions/2026-11-15_0001_c5d6e7f8a9b0_create_analytics_tables.py#L55-L90",
+          "version": "repo-lines-v1:sha256:9568c1d0e85d144a6f1de7aa4aa55bfd4f8cd4af4cc711a0786ed9ef48125034:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MGFlYjA5NWE0MGMwMDMxN2Q3ZmI1YzdkYjZiM2Q3NjM3ZDQ4Njg0ZWJiMGZkNmIyMmFjNTY4M2U1NjM1ODUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2NzJhNzA2ZTA2NmVkNmI0ODY0MzA2MWQzMzNkYzZjNTRjOTAwZmIwN2ZkZTU4ODYzNWYwOWNhZDBmYWQ4N2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5OGIwNjNkOWI0N2U2NTM3OTYyNTU3MmNjZTE5NzY2OWQ1NzY3ZTEyYzE4YmUwNzU2NTJiOGNkOTgxY2U4ZDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExYzIyZTEyNmFmNmZjNDg0ODI3ZWNhZWMxMzNhNWQyMzJhYzdiMDUwNGZmOTliMGQ4NjlhMzRjZDUwN2RkODEifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-15T02:51:25.465Z"
+    "at": "2026-11-17T16:42:07.914Z"
   }
 }

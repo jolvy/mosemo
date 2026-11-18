@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:d557168e15d8b7681dadedda6f15414ca417e3762974493e12457c21624859e9",
+  "pageVersion": "sha256:b3d96e2d9acff135edc222b936d46e0a608114b70f81e9fca2499c2bf725571a",
   "claims": [
     {
       "id": "claim_28b03ceb00064c7c92a5a9f450193c5f",
@@ -55,10 +55,20 @@
           "version": "repo-lines-v1:sha256:83b54f8cdf2e1459f665824c75c2d8cbbbef37d41725e573969aa3ad1427403e:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWY2YjE4ZjQ3NTA4ZTQ4YjhjN2U1OGE3ZmEzODY1NTM4NTljYThmODNhOGIwMjJiODliNTljOWI4NzZjZTUyOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWNlOTFlZTAyOGFkNmRmMDc4OGM3OGUzYzAwYjUxMGRkN2U5OWVlMWJjZDlkZGY1ZDAwNGJjYzE1MjY2ODU3ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjU5NGIwYjIxOTc4ZTg2N2MxNzVjMGRlMWQyMTc0Mjg3MjAxNjQ3MmYwNzVhY2VkMTVlYjAzMmU4YjFmZGNiOCJ9"
         }
       ]
+    },
+    {
+      "id": "claim_aa2686097c9e4c1289e931acbe77c60a",
+      "statement": "일간 통계 배치와 정의 재처리는 batch 프로세스에서만 돌리며, consumer Pod 하나가 그룹 멤버 2개이므로 토픽 파티션 수를 consumer Pod 수의 2배 이상으로 둔다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/activity-analytics-operations.md#L9-L26",
+          "version": "repo-lines-v1:sha256:f7d708698c503d34e8ad92ec30c5980dc85f86ca6ae88ef636518bdfb7ac161e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2NzY5YTkzNzA3YTFiZDc0MDIxMGNjMjgzODdmMWY2ZWFmOTllMGEwNTM2ZWY4ODdlZTQyYjU4ODFkOWQxNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJjNTE5OWI0NjgwNzViNjYxNGJkYTU5N2FhYTI4Yzg3ZmEzM2M2ZGU5Y2JkNDE0NTRjMzE1MzllZjQ3MGZlZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY3Njg1OTZiNTRmMDZiMzgyMTY3MGNlZjNhNjE2ZmJhM2YxZjMwZDY1ZGMxOTQ1YTMzZmFhNzc2YzA1ZWEwYzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlZjA4YWQyMzgzYjllOGQyOTFkMWNmNWU1NjM5MTNhMGExNDI3NTU4ODAyMGU2MWIxZmUyOGU1MjgxM2YxYzEifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-15T02:51:25.465Z"
+    "at": "2026-11-17T16:42:07.914Z"
   }
 }

@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b32b0aa483705026294cf6aa3708fb89b550a513b3a2cb5f47093a03f5f4409c",
+  "pageVersion": "sha256:8bf9ce9228aeda9c246774c3951a3cbd3fca0656325deee4a92dec2ed185596b",
   "claims": [
     {
       "id": "claim_2d34ecd86f17470eb1d762380fe5a7af",
-      "statement": "공개 API는 /api/v1 아래에서 identity가 인증·계정·Device 라우터를, observation이 활동·집중 세션 라우터를, labeling이 활동 라벨 라우터를, labels가 라벨 라우터를 제공한다.",
+      "statement": "공개 API는 /api/v1 아래에서 identity가 인증·계정·Device 라우터를, observation이 활동·집중 세션 라우터를, labeling이 활동 라벨 라우터를, labels가 라벨 라우터를, analytics가 /analytics 아래 분석 라우터를 제공한다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/entrypoints/api/routes.py#L8-L29",
-          "version": "repo-lines-v1:sha256:56595d48fab89fee45c7e084635a6bc1bf2e17e581310d8979b07bb12bde66e2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhNzkwODlkNDE3OTU5ZWZiMDk2MTdkNGFkNWE5MjEyODFkNDAzYjg4MDZlNjkyMmQzNjJmOTVmNWFkN2M3MzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhZmJhMDUyN2MzOTUzYzRiNmUwZTViNTczOWJhODM2MTJmODA1M2JjZGM5NDY2NzMwMTkzY2QxZDU5MGI0MDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNGI0ZDUyMmZkZDk1YjViNzE4ZjllOTQxNzZiMjFjYzVlOTQyODdmOGQ0NzBlOGZiMmIyMWM5YjM0MTNkMWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://src/mosemo/entrypoints/api/routes.py#L14-L38",
+          "version": "repo-lines-v1:sha256:4cd57b423fe9b43c26f49eb9700c5eaa3b38150f1038eb9254f873f3968be6e6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhNzkwODlkNDE3OTU5ZWZiMDk2MTdkNGFkNWE5MjEyODFkNDAzYjg4MDZlNjkyMmQzNjJmOTVmNWFkN2M3MzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhZmJhMDUyN2MzOTUzYzRiNmUwZTViNTczOWJhODM2MTJmODA1M2JjZGM5NDY2NzMwMTkzY2QxZDU5MGI0MDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNGI0ZDUyMmZkZDk1YjViNzE4ZjllOTQxNzZiMjFjYzVlOTQyODdmOGQ0NzBlOGZiMmIyMWM5YjM0MTNkMWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     },
@@ -95,10 +95,30 @@
           "version": "repo-lines-v1:sha256:b541644658b1e516eb5de022584030220c1e6efacf1f50a086e02ba0661344b7:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGJkYzg5YzAxZTA3MGRjOWMzNDE1NjNjZWM5ZjA5ZWZkYTQzNjJiNjcyNjViMDNjZWI4NGEzNTY1ZGM2MmM3OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDJlY2MzOWI0ZGJhMzYyODNiNzM1ZDFkNWU1MTk5ZTYzYzhjMWVjNTZiN2QxMmRhYjI0NWZlZGZjYmNmMWU3MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDYwMzUyMTc0N2I4MjM0ODQwZDBmYThmNWNlMmQxN2JjMDg1ZmNlY2Y0ZDU2ZDVjZWJiZjU2ZWNkZmJkZWMzNiJ9"
         }
       ]
+    },
+    {
+      "id": "claim_88b58210c2e44f0c979eeb18bb954de7",
+      "statement": "집중 세션 완료 요청의 pauses는 최대 1000개의 선택 필드이고, 조회 응답은 일시중지 정보가 보고되지 않은 세션에 pauses를 null로 돌려준다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/observation/presentation/focus_sessions/schemas.py#L27-L103",
+          "version": "repo-lines-v1:sha256:aaf1a72e690672855efb5ad7fca43f9e62959c30455fd011933d1be860e583d9:eyJzZWxlY3RlZExpbmVDb3VudCI6NzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkOTBmNDE0ODEzY2Y0OGQ3Yjc1MWM4ZTBmZDdmNzUyYTZlZWM0OWFiNTAxNWQ3Y2YzYzE0ZTI0M2FkYzY5N2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5MDlhNTNhNjE4ZDAyOGUxZDMwMDBjMGE3YWJjZWVjYmU1ZmIzN2Y0ZTUxMWVmZTQ2NjQzZmFkNmU2Njg3MmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhjYzRhN2QxY2M3OTZhYmEzZTQ2NzIzMzI3ZjUxN2U5ZjgxMTk4MmQyNTBmMDcwMjk4NmU0YjU3NjRhZDk1ODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_735eadfa6d654658a49dcbad533b931d",
+      "statement": "계정 시간대 변경은 identity의 ChangeAccountTimezone UseCase가 계정 잠금과 UPDATE를 한 unit_of_work에서 수행하고 커밋 직전 handler가 지난 날짜를 표시한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/identity/application/accounts.py#L28-L50",
+          "version": "repo-lines-v1:sha256:315cb4918a4a0023c30f72b6cca0ea01e39ca2c744dd6d2bb5f69398b4fc43be:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJkYzA2NjBkZGZkY2IwOTVjOWMzM2I1ZWIxODYzYjg4MzM2OGNmMjRjZmJiYjhmYTc4ZjlhOTg1YjAyYjcxMTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJiNTk5NjUzMjg3MzVjMzBhOGYxMmNlOTRhNWZmNTIyOTI0MTdkYzU5YzA1MTQ1MDY5ZTI4YjM0YjdhMzFiZGYifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-15T02:51:25.465Z"
+    "at": "2026-11-17T16:42:07.914Z"
   }
 }

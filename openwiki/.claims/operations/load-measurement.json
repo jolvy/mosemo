@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:b93a01a66488e28307105858a0d9c55a03dc4c894a8cd47ccc060dc6d82b093f",
+  "claims": [
+    {
+      "id": "claim_34da0c15bde84504ad7669648c70aa23",
+      "statement": "run-load-measurement.sh는 measurement-b.json의 sha256이 고정값과 다르면 측정 B를 시작하지 않고, EXPECT_HEAD 기본값 c5d6e7f8a9b0과 alembic head가 맞아야 진행한다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/measurement/measurement-b.md#L1-L4",
+          "version": "repo-lines-v1:sha256:43d47a47c03946e4be92a777cab2c2259fdcbea18f254d195280ce708d5f3cfa:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGE2ZmM0YWZhYTU0MDZmOGMwNThlM2Y5YTBkZWZhZmYxOThhOWE3N2I1N2YzN2IyMzAzMWIxZTRmODNjOTVlNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjgzM2NhZGE2YzAzZTE1M2Y1MzE4ODczZTgxYmM4YjE4MDllMWYxNmYzOTZkOWFlOGI0ODViMmFkYzVmOWNjMSJ9"
+        },
+        {
+          "resource": "repo://infra/measurement/run-load-measurement.sh#L15-L57",
+          "version": "repo-lines-v1:sha256:5ce575448da6bb6c1f872b5006fcc1cb740fca61755bb06fe0871a51674eb890:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjNWY2NmJkM2M0OWFmOGQ5ODRmN2NjNDI5OTJmOWViYzAxNTVlNjRiOTkxYTYwMjI4MjRkY2I2MGJmMzAzNDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjNWQyOGNiY2ZlN2E5YzczODRkMDlkODU0NzI1NGM5OTcxNjg5ZWY1NmI3NzM1ZmRlMDY2OTdmNDJhOTAxYzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNmQwMzM4Y2I1MWJhZjQwYzAxZjlhMTA3Njc4OGZlMzQ2ZjBjNGJjOTNhYzFjYjUzMTRlODM0YjViZTNjZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ4NWJlM2U3MzVlNjcwMWQ5NDhlODZjODgzOGE5YWQ2ZDA3NDAxZGVkMThmZjY4MGE4ZmE4NWM1NWI5MThiMDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0281702ac1794b8f990c892faaf0131e",
+      "statement": "측정 B는 R1 R2 R3를 두 번 돌며 회차마다 k6 900초(앞 180초 데우기 제외)이고, R3 두 회 모두 통과면 G1 결론이 no_split_now, R3 실패·R2 두 회 통과면 split_needed다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/measurement/measurement-b.md#L11-L51",
+          "version": "repo-lines-v1:sha256:1f7419d8a9b758523737a3c75cd59050b01c626aa88941d8edfe72fc1813afc4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2MGY2ZTQ0MjQyMTJhMjEyMjQ0NWNhYWM0YzBjMzM4ODc3ZjYxODQ3OWRjZjhiODYwYjM5ZTIxZGI3YTViMjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg3YzNmNGJmNzg0YmRlMGQ2NmIyNWM4ODgwNDZhZTgxNjcxNTZmNWVkNThiMTI4ZTEyZTE0NTY0ZmUyM2UxNzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc4NThlMWI4ZjQ2MGJjMzdkNjlhMDgxNGZhN2JlMjE3ODY3NmY1Yzg0NGYwMGM2NTdkOWQ3NTRjNjJjZjNiNjYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_67bafbc2fb104f5db1d8b17bd9146823",
+      "statement": "측정 B의 batch는 analytics-daily-stats만 k6 시작과 함께 한 번, 이후 300초마다 돌리고 라벨 제안 job은 돌리지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/measurement/measurement-b.md#L33-L36",
+          "version": "repo-lines-v1:sha256:f1da99c70ae7a632eb1b42dbb29965d2fe7bc4a08dbcea13841d332fe6a7548b:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTFmNGU4NmZjYmIzNjQ5NmU5NGZkMzFjOWVmYjdlNTkxMjlmOGMwYTgxMWYxOWY5MDI2OTY5N2FmNmI0ODYxZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzYzMjAzMjUzMjM2YTljNjM1M2QyNGU5ZTgxNDE0NGY3NDYxYmMyYjU5OGEzNTFhZWU5YWFkNzIxNTQwNzYzMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTEzNjMyYmEwMzQ0ZDg0OTVkYWE2YjViZDhmMWY1YWJiOGY1MGRlNzlmYzU3ZTk2OGQ4Y2RkZmRmZjVkN2Q0ZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c968e0b32814457c9dca57bb7cb0cc9a",
+      "statement": "측정 B는 랩 RDS가 50GB 이상이고 남은 회차가 Asia/Seoul 자정 전에 끝날 때만 시작하며 measurement-pod-b.yaml로 Pod를 만든다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/measurement/README.md#L124-L142",
+          "version": "repo-lines-v1:sha256:cf28d9c93b30e8a4e2ad42ca4bff3a4ce4bd181938f01003a18f1fbedc8127a2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1YjJmMTNjZTAwYmNjNjBiMWE0OWJmOWU3ZjYyY2VmYmI0M2ViYzYxYmRlYTBjZjg1ZmE3NjMxNjMwMDVhNjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3YzA2YzU2MWQ1YzMyNzM0MzY4NTI2OGE0NmIzMzkxZjM5OThlZWU4OTBkMmJlNTFmMGQyMWNjNGE1M2FlNmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJhNjQwNjk5YmM4M2Y1NDdkZGMzN2I1NWFiYWU5NTU5MjUwYzQwNDI3NTUwZWFiMzhjYTdmNmM2NGVhODhhNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkNWQ0NzRlNTQ0ZGJkNDMyZDMyNzgzZDg3ZTI4NTE1OTRkYTY2YTU5ZjkxN2IyYTg2YWY5OGVlODU4N2FkNmQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3dd8e49915354e62a6be44c19a18e3c5",
+      "statement": "측정 A(다시 계산 표시 처리 뒤)는 기준 사양에서 C1~C6을 통과했고 DB CPU는 약 30%였다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/measurement/HISTORY.md#L142-L166",
+          "version": "repo-lines-v1:sha256:a5cd926601b84e901c092f181f6330c1e1bc2b2427297e02a6503665bbc2eddf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE0NDcyMTQ5MTE1YzU0Mjg3NTI2MzNmMWMzYWM4ZTBjZGQzM2I0ODI3M2Q3MDIwMzI1YTBkMDUzNzQ1ZTdlMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxZGYwNzc1ZjU1MGViNDdmZjBhZDAxNmNlMzQ0MDhiZjM2YjY4NDVmZjEzNzRhNDc3OWQ2ZTJkYWFiYWU2NjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0OTExYjBhOGYyYWM4MDBmYmE2MTZkYzlkYjQ4YTJiNDJhYjAwYTk0NTlhYjhkNjNlNDlhOTQzZjZhZDRhODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFmNDNiYzNlZmJiNTMyYzc2Nzc3NWY5OGIyMThkYzVkN2I0OTlhMDZlN2I2MGJkMTFkOTFmZGRkNWZkYmFkMjYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2c0d0f6638864794a1d115907b9f65c2",
+      "statement": "측정 B 판정 로직(시나리오별 C1 적용, heavy·probe의 C1·C6 제외, G1 판정, 구간 수 분류)은 tests/unit/tools/test_measurement_b.py가 검증한다.",
+      "evidence": [
+        {
+          "resource": "repo://tests/unit/tools/test_measurement_b.py#L62-L160",
+          "version": "repo-lines-v1:sha256:db6df03c2175ee4a52a95b4934365aaaa1782db1fcb9892edce24422267ceeda:eyJzZWxlY3RlZExpbmVDb3VudCI6OTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkMzY5YmNiNjIzNTdlZTA4Y2FlOGZmYjhmODI4MmJhMmQxMWFlODY3ZjllNmVjNjc5ZTk3YjgwMWQzYmM3OTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5OGFmY2E0NTVkYTQ1NWE4ZjgzMTVkMmE1NGMxNWEzMjQxOWM1MzAxOTNhODkxYTM3NDIxMmRjZDYxNzFmZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZlNjEzZTRmMzFhNjgzN2JjNjhiY2YyYzEwMTg3OGMyNzBkYWUwNWUzY2M4MGY0MjU1NjRhMTE1NmY2M2QyOGEifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-17T16:42:07.914Z"
+  }
+}
