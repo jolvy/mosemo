@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:92e3e760b355e945636ec34f5c5dc0074d21d22bfd997a9bcb4dc8c43ce78920",
+  "pageVersion": "sha256:900505b970965522f03339b95926f3262b5bb7ce0d2f6bcf3e762a375fc2f62b",
   "claims": [
     {
       "id": "claim_34da0c15bde84504ad7669648c70aa23",
@@ -51,7 +51,7 @@
       "statement": "측정 A(다시 계산 표시 처리 뒤)는 기준 사양에서 C1~C6을 통과했고 DB CPU는 약 30%였다.",
       "evidence": [
         {
-          "resource": "repo://infra/measurement/HISTORY.md#L143-L167",
+          "resource": "repo://infra/measurement/HISTORY.md#L144-L168",
           "version": "repo-lines-v1:sha256:a5cd926601b84e901c092f181f6330c1e1bc2b2427297e02a6503665bbc2eddf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE0NDcyMTQ5MTE1YzU0Mjg3NTI2MzNmMWMzYWM4ZTBjZGQzM2I0ODI3M2Q3MDIwMzI1YTBkMDUzNzQ1ZTdlMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxZGYwNzc1ZjU1MGViNDdmZjBhZDAxNmNlMzQ0MDhiZjM2YjY4NDVmZjEzNzRhNDc3OWQ2ZTJkYWFiYWU2NjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0OTExYjBhOGYyYWM4MDBmYmE2MTZkYzlkYjQ4YTJiNDJhYjAwYTk0NTlhYjhkNjNlNDlhOTQzZjZhZDRhODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFmNDNiYzNlZmJiNTMyYzc2Nzc3NWY5OGIyMThkYzVkN2I0OTlhMDZlN2I2MGJkMTFkOTFmZGRkNWZkYmFkMjYifQ"
         }
       ]
@@ -71,14 +71,24 @@
       "statement": "측정 B(2026-11-17)는 G1 판단 불가였다: R3에서 C1 실패, R2 한 회 C4 실패, 일간 통계 시간의 약 80%가 DB 읽기, 일간 통계 batch 24번 중 9번이 SourceSnapshot 구간 겹침 검사 ValueError로 실패했다.",
       "evidence": [
         {
-          "resource": "repo://infra/measurement/HISTORY.md#L221-L247",
+          "resource": "repo://infra/measurement/HISTORY.md#L222-L248",
           "version": "repo-lines-v1:sha256:4d0d108e7b855f0f18463e99e5998234e2326459551d1eb25914a3fdef208855:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgyYjExZDgzYjllMDEwOGY5NGMwNzA3MDYyYjI1ZGI0NGMyNWIzODc2MjBlODlkNTk2YjVhNTY5OGQ0MDMzMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI3ZWVhMmRmZWU1YzM4YjlkNTU3NzdhODAxMTlhODFhMWFkZGJhMGIzNmZjMTQ0YmY0OTY0NGNjZDJlOGJhOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7a6d45c66e0c4ef886ad73cf92a3e2b0",
+      "statement": "2026-11-16 7B 계정 삭제 운영 규모 AWS 랩 측정은 무효로 닫혔다. 날짜별 분할 삭제의 마지막 트랜잭션이 881~1,635초 열려 VACUUM을 막았고, 기기를 참조하는 영수증·세션에 device_id 인덱스가 없어 기기 1행 삭제가 409~528초 걸렸다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/measurement/HISTORY.md#L252-L275",
+          "version": "repo-lines-v1:sha256:865f35c2dadcc52ae3bfd7114d60a2be4f749ab241c764d0225d0a4250910eb4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3YmVjMTM1MzQzY2ZkYWNhNTJkNGZlYTIwMWNhNjk1MzM1MGQzN2ZiZTU2MDFlNTAxOGZlZjQ3NzZhZWU5MGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3NzEwYjA2ZTgzMTg4ZDE0YWFkNThiZDIzNjJkMDYyMjNkODlhMzI3YmIzYmY0MGQ2MTQwNjlmZDY3MTI5ZGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUzYThjNTQ0ZDJkNzk0N2FhMDdjODRmMjIzM2FkYmNkYWU3ZjgwODI5NmE2MmI3MTk5ODM1YjA2MjY0MTkzNWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-19T07:46:46.571Z"
+    "at": "2026-11-19T07:57:51.488Z"
   }
 }
