@@ -297,6 +297,14 @@ def checkout(job: dict[str, Any]) -> dict[str, Any]:
     return step
 
 
+def test_only_pull_request_runs_cancel_previous_run() -> None:
+    # main push는 뒤따르는 OpenWiki 자동 병합 push에 취소되지 않고 끝까지 돌아야 한다.
+    assert load_workflow()["concurrency"] == {
+        "group": "ci-${{ github.workflow }}-${{ github.ref }}",
+        "cancel-in-progress": "${{ github.event_name == 'pull_request' }}",
+    }
+
+
 def test_ci_jobs_split_static_checks_and_tests() -> None:
     jobs = load_workflow()["jobs"]
     skip_tests = "needs.changes.outputs.openwiki_only != 'true'"
