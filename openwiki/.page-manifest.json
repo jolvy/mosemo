@@ -37,11 +37,11 @@
       "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0"
     },
     "/openwiki/development/testing-and-verification.md": {
-      "gitHead": "98baf14e7754136ed32f8b675aeb85503a1e1397",
-      "sourceFingerprint": "sha256:36282f8bec1979a9a1a69fa0158b4e03546bfe81aff813779c3fbc59383b1834",
-      "pageVersion": "sha256:6ac1fe3c3bc379f0539fe1a47d89dd964d63010f9e26f75d957f05bda83d0bc0",
+      "pageVersion": "sha256:5d56765e7f7bb119aa8694fdc3040dacfd359b608bfcb376d845a610712b3004",
       "completedBy": "claude-code",
-      "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
+      "completedRunId": "6e85967a-ca94-4d32-a63d-b7f0f08b888f",
+      "gitHead": "dbb4374ad37c3134601c4447c0c90329dfb119fc",
+      "sourceFingerprint": "sha256:0b64fcb22e3ed4fc7015342bf9fa03de0a2e61b14554369f1f0066ec46f077f7"
     },
     "/openwiki/domain/activity-analytics.md": {
       "gitHead": "98baf14e7754136ed32f8b675aeb85503a1e1397",
@@ -65,11 +65,11 @@
       "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0"
     },
     "/openwiki/operations/load-measurement.md": {
+      "gitHead": "f88b25617d60fa2a623248117d2db42750517350",
+      "sourceFingerprint": "sha256:645464f363775c5668e00c0ec5697080da092eeb916d91a24b6b9ee142738190",
       "pageVersion": "sha256:900505b970965522f03339b95926f3262b5bb7ce0d2f6bcf3e762a375fc2f62b",
       "completedBy": "claude-code",
-      "completedRunId": "d28851d7-481d-4af6-a2ac-ce2aea7f7d96",
-      "gitHead": "f88b25617d60fa2a623248117d2db42750517350",
-      "sourceFingerprint": "sha256:645464f363775c5668e00c0ec5697080da092eeb916d91a24b6b9ee142738190"
+      "completedRunId": "d28851d7-481d-4af6-a2ac-ce2aea7f7d96"
     },
     "/openwiki/quickstart.md": {
       "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
