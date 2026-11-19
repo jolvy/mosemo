@@ -5,7 +5,7 @@ description: docs/prd의 PRD 중 앞부분 status가 accepted인 유효한 기�
 tags: [prd, planning, supersession]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-18T09:42:15.104Z
+    at: 2026-11-19T07:46:46.571Z
 sources:
   - id: openwiki-source-fb4b9ae1c4cd229650dbdc2f
     resource: repo://.codex/skills/specification/SKILL.md

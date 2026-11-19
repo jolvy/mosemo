@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b3d96e2d9acff135edc222b936d46e0a608114b70f81e9fca2499c2bf725571a",
+  "pageVersion": "sha256:7fe2a1552176cf3b84de7404d945e2f72e7903d56755c61c88a0a7a24c2c7644",
   "claims": [
     {
       "id": "claim_28b03ceb00064c7c92a5a9f450193c5f",
@@ -65,10 +65,28 @@
           "version": "repo-lines-v1:sha256:f7d708698c503d34e8ad92ec30c5980dc85f86ca6ae88ef636518bdfb7ac161e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2NzY5YTkzNzA3YTFiZDc0MDIxMGNjMjgzODdmMWY2ZWFmOTllMGEwNTM2ZWY4ODdlZTQyYjU4ODFkOWQxNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJjNTE5OWI0NjgwNzViNjYxNGJkYTU5N2FhYTI4Yzg3ZmEzM2M2ZGU5Y2JkNDE0NTRjMzE1MzllZjQ3MGZlZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY3Njg1OTZiNTRmMDZiMzgyMTY3MGNlZjNhNjE2ZmJhM2YxZjMwZDY1ZGMxOTQ1YTMzZmFhNzc2YzA1ZWEwYzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlZjA4YWQyMzgzYjllOGQyOTFkMWNmNWU1NjM5MTNhMGExNDI3NTU4ODAyMGU2MWIxZmUyOGU1MjgxM2YxYzEifQ"
         }
       ]
+    },
+    {
+      "id": "claim_750b2d4def6e4458987f8181eccf188f",
+      "statement": "RDS allocated storage is controlled by the db_allocated_storage variable (default 20 GB gp3, whole number >= 20), raised only per session via an uncommitted terraform.tfvars; storage cannot shrink so session-down must use the same value.",
+      "evidence": [
+        {
+          "resource": "repo://infra/terraform/infrastructure/README.md#L66-L69",
+          "version": "repo-lines-v1:sha256:9f78c588434d1a02e669505063a6d2526f8e94cd4b3bbc23c591992edc921d9f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTU0NDA1ZTE1MWU0YzViYmRmMDg5NzdiYzNjMWJlOTQxYTUxNTM1Y2MyNzdmNDlhZjY1Yjg4MzBkNDUwM2Y2YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNThkNmYxOGFjM2IyMGRmZWM0Y2NhZjU5N2ZlMzRhMWM0ZTAyYTk1ZTZjODlkNTdlM2U4YzIwOWZlZWFkMjVmYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDJhODU5N2JhYjI3ZjNlMDQ3YWMxYTE2YWUxOTI2Mzk5N2E2NDJmNmRkMTA2ZmJlNTFlZTVkNWY0ZThhOThmZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzE3MzVhMzhlM2Y3NjgwNDU1ZTBkYzUwMmZhYWMwZmJkNGMwOTk4NjhkMWY2MzhmNTA4YmE5MWE1ZGM0NWNlNyJ9"
+        },
+        {
+          "resource": "repo://infra/terraform/infrastructure/rds.tf#L25-L25",
+          "version": "repo-lines-v1:sha256:a984c9764a47ebbe8bd1061457643d18f957dbbedf00e297719d9600b628f39c:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTk4NGM5NzY0YTQ3ZWJiZThiZDEwNjE0NTc2NDNkMThmOTU3ZGJiZWRmMDBlMjk3NzE5ZDk2MDBiNjI4ZjM5YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTk4NGM5NzY0YTQ3ZWJiZThiZDEwNjE0NTc2NDNkMThmOTU3ZGJiZWRmMDBlMjk3NzE5ZDk2MDBiNjI4ZjM5YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmM4MGFjYWRmZGJjYjU1MThiNWYxYmRiMzI2MzQyNmQwYWZhNGFhMzdhMWMyZGQ2ZGMzNThjYzZjNTIzNzczZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjYwNWRmZmRkOWZiMjlhZjE1ZTY2ODY5NmFmOWI4YjBkMDk4YWM2ZmM5MGViOWIwOGQyYjRmOGRkYjk1MmE4NSJ9"
+        },
+        {
+          "resource": "repo://infra/terraform/infrastructure/variables.tf#L45-L54",
+          "version": "repo-lines-v1:sha256:ce0124c03a9e8235cf0ccf73e854485a073745f3e1b08ecf1878a056b3f1728c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4YThhYWU5MDkxMmMxODJmMjQwZGI5Y2Y1MTQ5ODQ5MGViOWE0OTE5MDk5ZjMxZTQwOTVmZWQxYWFkNGJmNGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA2NjlkYTM1OWY5NjczNTAyYzk0ZDNiM2I5NTE0NDY5MzEzNjAxYjVkYTNkMTNjOTE1NGUyMTFjMjU5NTc4NGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlMTU1YWI5YjY0YWYzOWMyNThlMTI0NTNhYTA1YjVhMGMzNTlhNWViYmM5NGU5MGIyYmQxNGNiNTRlYTY0YzUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-17T16:42:07.914Z"
+    "at": "2026-11-19T07:46:46.571Z"
   }
 }

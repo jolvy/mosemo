@@ -5,8 +5,10 @@ description: 처음 보는 사람을 위한 Mosemo 서버 온보딩과 위키 �
 tags: [onboarding, quickstart, setup, wiki]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-18T09:42:15.104Z
+    at: 2026-11-19T07:46:46.571Z
 sources:
+  - id: openwiki-source-6d4b4e707b8d60b6ccfa3425
+    resource: repo://.github/workflows/openwiki-update.yml
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
   - id: openwiki-source-b79fbbd921df689b4bbdc82f
@@ -15,7 +17,7 @@ sources:
     resource: repo://pyproject.toml
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
-generated: { by: "claude-code", at: "2026-11-18T09:42:15.104Z" }
+generated: { by: "claude-code", at: "2026-11-19T07:46:46.571Z" }
 ---
 
 # Mosemo 서버 빠른 시작
@@ -103,7 +105,7 @@ git diff --cached --check
 
 ## 위키 갱신 절차
 
-- `openwiki/` 아래 생성물은 손으로 고치지 않는다. main 병합 후 Aico가 `openwiki/update` 브랜치의 문서 PR로 갱신한다.
+- `openwiki/` 아래 생성물은 손으로 고치지 않는다. main 병합 후 `OpenWiki update` 워크플로([.github/workflows/openwiki-update.yml](../.github/workflows/openwiki-update.yml))가 Claude Code로 갱신해 `openwiki/update` 브랜치의 문서 PR로 올리고 auto-merge한다.
 - 위키의 범위와 우선순위는 [openwiki/INSTRUCTIONS.md](INSTRUCTIONS.md)로만 바꾼다. 지시서만 바뀐 병합도 강제 갱신으로 반영된다.
 - 내용이 틀렸다면 원본 문서나 코드를 고치거나 지시서를 고친다.
 - 일반 PR이 `openwiki/INSTRUCTIONS.md` 밖의 `openwiki/` 파일을 바꾸면 CI `OpenWiki paths` 검사가 실패한다.

@@ -5,7 +5,7 @@ description: infra/measurement의 랩(EKS) 부하 측정 도구를 정리한다.
 tags: [operations, load-testing, k6, measurement, eks, analytics]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-19T07:15:12.819Z
+    at: 2026-11-19T07:46:46.571Z
 sources:
   - id: openwiki-source-396b24e718ed8ac9a1634261
     resource: repo://infra/measurement/HISTORY.md

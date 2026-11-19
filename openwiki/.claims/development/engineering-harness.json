@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:bf5683e1d9c1685f9902bab9a72559aaf3bc267744055524eba8ac7696a60bf0",
+  "pageVersion": "sha256:806b1325c437eb4907a967b2137a2bfee953e2634f683f1c56b7061779cc1ced",
   "claims": [
     {
       "id": "claim_8533ee2a4a564ff5a874060d83f95871",
@@ -103,10 +103,30 @@
           "version": "repo-lines-v1:sha256:948fb1654c6175c66527815fd3c02ab481ac85f8d5b8068e6275dc4820d56c49:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWZmODg3YTMyNDQ3MGE0N2I1MjA4YjZjMWVmOGVjYmYwZGRhM2Q4YTQyMjI3ZDI0ZGNkZWQ0YjczMjIyMjQyYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzc5MjIyMWVhNmZiYWZiMDA4YzU3NGVkZGQxMTk3MTQ0ODU3MTI4NGNlZmNmYzQzMjY0NDZhZDdhNGNlNWFkNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjRjZTIxNjMxYzU0ZWQxODM1NmVhNjM5NWEwNGVjMWIyMTMwMDA2YzE4ZGM5YjY0OWIxNzQ5MmI3ZDYyYzY3OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzlhZWU2ODBjNDkxOTAxZmIzODZkYmIyZmZhODY4ZDdmYzhmZjFiMTQyYjk4MDQ0NWVmODJiNTZlMDMyMTFiZiJ9"
         }
       ]
+    },
+    {
+      "id": "claim_2c20467bef2b4290ab8123b03e3caa6b",
+      "statement": "A PreToolUse hook in .claude/settings.json blocks Read/Edit/Write/MultiEdit/NotebookEdit on .env and .env.* files except .env.example (exit code 2).",
+      "evidence": [
+        {
+          "resource": "repo://.claude/settings.json#L1-L15",
+          "version": "repo-lines-v1:sha256:f4dde9045da0af1e7f08c493dcd98ba85e949a9ca12f9fcb98e2db89c7859b78:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmMTY2MmU0YjY2MWZlZGVjMGExOGIxNWFmZDM2MzA4OGYyY2Y5NzAxNjlhMjk4MzM0NDVhZjUxZTM5MTcwMDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkwYTllMTIyNmNiOWVkYjFjN2Q0YzFjYTJiNmFmYjZjMTViYmFiNTQzNzE4MTJlMmExMmUxNmIxNzMyNTk0ZDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_46a87f13d4c24985850e39324b83fcbf",
+      "statement": "validate_docs.py requires a status frontmatter (draft|proposed|accepted|superseded) for docs in requirements, prd and adr folders.",
+      "evidence": [
+        {
+          "resource": "repo://.codex/skills/verification/scripts/validate_docs.py#L304-L308",
+          "version": "repo-lines-v1:sha256:75df3ffdcfea6916dd0e1201f4816f439c2bc716a2ff7a1ad0ba8a94a67aca2c:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTc3NjZmZjU1NzVjNDBkOTE5Y2JlYmZiZDkyMWExMTExNGZhOWYwOTQ0MGM2YTgwYWMyMTk3OWU4NjFmYTQzNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzZhZjdjMmFjMjI3OTYwZmNkNWMzY2M4ODBkNWIwOGNmYjM5NzExMmRhODEwYmY3NWMzZjRlYmFhM2EzN2U1ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTc0MjE3MWNjZmZkMDAzNjYzNjMxYWNmZWM2YjY0YjA5MzBjYzM0Y2FiOGY0MGYyNGJiYjQ2MzgwNTU4MmRiYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTQ4ZDc0ODNkMDYwZjE3MjJlMjQ1MzY4ODgzMzQyNTZiNTQ5MGU4YmJlODY5ODIwNjc2Y2E5ZWFmMzUwOWNjOSJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-18T09:42:15.104Z"
+    "at": "2026-11-19T07:46:46.571Z"
   }
 }

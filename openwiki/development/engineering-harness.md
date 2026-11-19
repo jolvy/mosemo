@@ -5,8 +5,10 @@ description: 요구사항 탐색부터 검증까지의 저장소 Skill 흐름, A
 tags: [harness, skills, review, agents, workflow]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-18T09:42:15.104Z
+    at: 2026-11-19T07:46:46.571Z
 sources:
+  - id: openwiki-source-1fe463fcf07912e5cdbb5a91
+    resource: repo://.claude/settings.json
   - id: openwiki-source-a01602e6c78f10583af45ce4
     resource: repo://.codex/skills/implementation/SKILL.md
   - id: openwiki-source-2fa4aa380ad46b14f938979f
@@ -17,6 +19,8 @@ sources:
     resource: repo://.codex/skills/verification/scripts/check_openwiki_paths.py
   - id: openwiki-source-9e13001a26410d98eff26719
     resource: repo://.codex/skills/verification/scripts/sync_openwiki_update.py
+  - id: openwiki-source-04b0cb290c685d4ed48b8c0a
+    resource: repo://.codex/skills/verification/scripts/validate_docs.py
   - id: openwiki-source-13149af8c20ff341c7c2ba3a
     resource: repo://.github/workflows/openwiki-paths.yml
   - id: openwiki-source-6d4b4e707b8d60b6ccfa3425
@@ -25,7 +29,7 @@ sources:
     resource: repo://AGENTS.md
   - id: openwiki-source-8a9d63bf55880a1423bc3a48
     resource: repo://tests/unit/harness/test_claude_shims.py
-generated: { by: "claude-code", at: "2026-11-18T09:42:15.104Z" }
+generated: { by: "claude-code", at: "2026-11-19T07:46:46.571Z" }
 ---
 
 # Engineering Harness 작업 흐름
@@ -80,6 +84,8 @@ graph LR
 - 루트 [AGENTS.md](../../AGENTS.md), [src/mosemo/AGENTS.md](../../src/mosemo/AGENTS.md), [tests/AGENTS.md](../../tests/AGENTS.md)가 계층별 작업 규칙이다.
 - 같은 폴더의 `CLAUDE.md`는 내용이 `@AGENTS.md` 한 줄인 Claude Code용 shim이다. `AGENTS.md`를 추가하면 shim도 함께 추가해야 하며 `tests/unit/harness/test_claude_shims.py`가 이를 검사한다.
 - 루트 AGENTS.md 끝의 `OPENWIKI:START`~`OPENWIKI:END` 블록은 OpenWiki가 관리한다.
+- [.claude/settings.json](../../.claude/settings.json)의 `PreToolUse` hook이 Read·Edit·Write·MultiEdit·NotebookEdit 호출에서 파일명이 `.env`이거나 `.env.`로 시작하는 파일(`.env.example` 제외)을 막는다(종료 코드 2). 비밀값이 있을 수 있어 설정 키는 `.env.example`로 확인한다.
+- `validate_docs.py`는 `docs/requirements/`·`docs/adr/`에 더해 `docs/prd/` 문서도 앞부분 `status`(`draft`·`proposed`·`accepted`·`superseded`)가 있는지 검사한다.
 
 ## OpenWiki 생성물 보호와 갱신
 
