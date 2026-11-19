@@ -16,25 +16,25 @@
       "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
     },
     "/openwiki/decisions/active-decisions.md": {
+      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
+      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e",
       "pageVersion": "sha256:9694a4b35e5edf0b15d227a3485d627aa3201a0198ec303ece7b13875a806569",
       "completedBy": "claude-code",
-      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0",
-      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
-      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e"
+      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0"
     },
     "/openwiki/decisions/active-prds.md": {
+      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
+      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e",
       "pageVersion": "sha256:e02248aa8a461925e48b46635bcd697c26b940ac22aa161b3c8267cb8bbc7bcf",
       "completedBy": "claude-code",
-      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0",
-      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
-      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e"
+      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0"
     },
     "/openwiki/development/engineering-harness.md": {
+      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
+      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e",
       "pageVersion": "sha256:806b1325c437eb4907a967b2137a2bfee953e2634f683f1c56b7061779cc1ced",
       "completedBy": "claude-code",
-      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0",
-      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
-      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e"
+      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0"
     },
     "/openwiki/development/testing-and-verification.md": {
       "gitHead": "98baf14e7754136ed32f8b675aeb85503a1e1397",
@@ -58,25 +58,25 @@
       "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
     },
     "/openwiki/operations/aws-eks-lab.md": {
+      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
+      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e",
       "pageVersion": "sha256:7fe2a1552176cf3b84de7404d945e2f72e7903d56755c61c88a0a7a24c2c7644",
       "completedBy": "claude-code",
-      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0",
-      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
-      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e"
+      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0"
     },
     "/openwiki/operations/load-measurement.md": {
-      "pageVersion": "sha256:92e3e760b355e945636ec34f5c5dc0074d21d22bfd997a9bcb4dc8c43ce78920",
+      "pageVersion": "sha256:900505b970965522f03339b95926f3262b5bb7ce0d2f6bcf3e762a375fc2f62b",
       "completedBy": "claude-code",
-      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0",
-      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
-      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e"
+      "completedRunId": "d28851d7-481d-4af6-a2ac-ce2aea7f7d96",
+      "gitHead": "f88b25617d60fa2a623248117d2db42750517350",
+      "sourceFingerprint": "sha256:645464f363775c5668e00c0ec5697080da092eeb916d91a24b6b9ee142738190"
     },
     "/openwiki/quickstart.md": {
+      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
+      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e",
       "pageVersion": "sha256:a7f431e45215ba2f491a7a332314352cde0afcfd0367534638f68656a1c62f94",
       "completedBy": "claude-code",
-      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0",
-      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
-      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e"
+      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0"
     }
   }
 }
