@@ -5,15 +5,21 @@ description: 운영 복제 AWS 환경(Terraform root 3개, EKS·RDS·ALB, Kubern
 tags: [operations, aws, eks, terraform, kubernetes, deployment, measurement]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-17T16:42:07.914Z
+    at: 2026-11-19T07:46:46.571Z
 sources:
   - id: openwiki-source-b4c3599391634fa467609ba0
     resource: repo://docs/activity-analytics-operations.md
   - id: openwiki-source-7b59c8a3b46cd6f5a5872a42
     resource: repo://infra/deployment/README.md
+  - id: openwiki-source-2eb8882419ddc5236eb1b4ec
+    resource: repo://infra/terraform/infrastructure/rds.tf
+  - id: openwiki-source-8d3b5b603cb892396084b3ca
+    resource: repo://infra/terraform/infrastructure/README.md
+  - id: openwiki-source-6e469af0598439a58635b57e
+    resource: repo://infra/terraform/infrastructure/variables.tf
   - id: openwiki-source-a399ef57993632bd3c3ad8b3
     resource: repo://infra/terraform/README.md
-generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
+generated: { by: "claude-code", at: "2026-11-19T07:46:46.571Z" }
 ---
 
 # AWS EKS 랩과 측정 세션
@@ -68,6 +74,8 @@ bash infra/deployment/session-audit.sh # 남은 리소스 0개 확인
 2. **deploy.sh**: 깨끗한 작업 트리의 커밋 SHA 태그로 ECR 이미지를 찾고 없을 때만 linux/amd64로 빌드·push한다. 같은 digest로 migration Job 성공을 확인한 뒤 API·consumer·batch를 rollout하고, HTTPS `/openapi.json` 200·비인증 `/api/v1/accounts/me` 401·HTTP 301, CNAME, consumer group Stable, batch 성공 로그를 확인한다.
 3. **session-down.sh**: Kafka StatefulSet·PVC와 Retain EBS를 지우고, RDS 최종 스냅샷을 건너뛰도록 apply한 뒤 RDS·ALB 삭제 보호를 풀고 세션 스택을 destroy한다. foundation은 건드리지 않는다.
 4. **session-audit.sh**: state가 비었고 EKS·인스턴스·RDS·LB·EBS·EIP·VPC·ENI가 0개인지, 측정 창이 있으면 그 구간 CloudTrail 변경 이벤트가 0건인지 확인한다. 남은 것이 있으면 exit 1.
+
+RDS 저장 공간은 terraform 변수 `db_allocated_storage`(기본 20GB, gp3, 20 이상의 정수)다. 큰 데이터를 올리는 세션만 커밋하지 않는 `terraform.tfvars`에서 키운다. RDS 저장 공간은 줄일 수 없으므로 같은 세션의 session-down도 같은 값으로 실행해야 하고(빠뜨리면 plan이 축소를 제안하고 apply가 실패한다), 세션이 끝나면 tfvars에서 값을 지운다. 이미 만든 인스턴스를 키우면 저장소 최적화가 끝날 때까지(최소 6시간) 다시 바꿀 수 없어 처음 만들 때 크게 잡는다. 원본은 [infrastructure README](../../infra/terraform/infrastructure/README.md)다.
 
 `$MOSEMO_SESSION_DIR/measurement.lock`이 있으면 session-up·deploy·session-down·measurement-ready는 AWS·kubectl·terraform을 호출하기 전에 멈춘다.
 

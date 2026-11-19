@@ -5,7 +5,7 @@ description: docs/adr의 ADR 중 앞부분 status가 accepted인 유효한 결�
 tags: [adr, decisions, supersession]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-18T09:42:15.104Z
+    at: 2026-11-19T07:46:46.571Z
 sources:
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md

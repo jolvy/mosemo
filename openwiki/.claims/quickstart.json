@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:e4972eb22e61d9f6ef7ac2e9d3a90d6283aa1e75185ccf9fbf2404a2241a9411",
+  "pageVersion": "sha256:a7f431e45215ba2f491a7a332314352cde0afcfd0367534638f68656a1c62f94",
   "claims": [
     {
       "id": "claim_3b1d76219d594211bbeb646bee3ba670",
@@ -83,10 +83,20 @@
           "version": "repo-lines-v1:sha256:320959c17db51e4c8cb7cd578eca2c2e0ff6f234d96a46dc5a829f11fdc6829b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlMDAwMmVkYTM3NTRmYTg3NTZiZDdjNjJhNjhjMjc0OGQ0NDRjMmI1ODljNmY5NjkwODJlMTFhZGI5NTE5M2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxMDM2MjM2YjkzZDFjYTk4MTg0ZDc1NDU2ZmVjYTE5YzQ1ZTY5OTI0NWY3YzUyOTM0MDQ3M2E3NWYyMjMxNTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYWVkZGJmOWY3MDQyMjNmNzUxOGZmY2U3YTBiMjhjNzZkMjk4MTdjZjM4OWY0MjdlYWY1ZTFjYmY1M2RmYmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkZTZkNDliMTlmM2RkZGY0NGZiOTRiZGMzNDU3ZDE5NTNkMDIzNGQzZmJjZTQyNzBhNmI3NjhkNzcwNzY2MWQifQ"
         }
       ]
+    },
+    {
+      "id": "claim_0beace2f4a7748c2ace1972963336251",
+      "statement": "The wiki is regenerated after merges to main by the OpenWiki update GitHub workflow, which opens an openwiki/update docs PR with auto-merge.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/openwiki-update.yml#L1-L30",
+          "version": "repo-lines-v1:sha256:829d7bdf0117716f59f2728881da29b40f2519da2a9a8fda0ef7cee2415957f7:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzNjU3NGNlMjIyNzI5YzRmYzVmNDkzMmFjOWI5OGQzMTgzOWFjZDQyZDM1NmU4YjY0M2Q3MzBlYmFiNGI4ZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlNWU1MGU3M2U1ZTMyMDAxMjVmZGQwZGMxOWQ4NDhlNDYxZTQ2ZWM2MzUxNjliZDE2OWUxZWI4MTczMjM1ZWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkNTIxYTIwNGU0ZjMzZjE0YTg2MzA3MWFhODY0YmE3YTdlZTNhZmJkZWU1ODg3MDViNWYwNGYzYTY3OWYyYmQifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-18T09:42:15.104Z"
+    "at": "2026-11-19T07:46:46.571Z"
   }
 }
