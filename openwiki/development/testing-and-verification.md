@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-17T16:42:07.914Z
+    at: 2026-11-19T08:36:35.572Z
 sources:
   - id: openwiki-source-3c6b76d80d7f929dde842165
     resource: repo://.codex/skills/verification/scripts/ci_gate.py
@@ -29,7 +29,7 @@ sources:
     resource: repo://tests/integration/conftest.py
   - id: openwiki-source-7963bb1002d4efe2b24fef6a
     resource: repo://tests/unit/harness/test_tests_layout.py
-generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
+generated: { by: "claude-code", at: "2026-11-19T08:36:35.572Z" }
 ---
 
 # 테스트와 검증
@@ -107,6 +107,8 @@ git diff --cached --check
 | `Quality` | 필수 검사 이름을 유지하는 집계 job. `if: always()`로 돌며 `ci_gate.py verdict`가 `changes`·`static` 성공, `tests` 성공 또는 openwiki 전용 건너뜀을 확인 |
 | `Fault injection tests` | `-m fault_injection`. openwiki만 바뀌면 건너뜀 |
 | `E2E tests` | `pytest -q tests/e2e -m e2e`. openwiki만 바뀌면 건너뜀 |
+
+워크플로 `concurrency`는 같은 workflow·ref 그룹에서 이전 실행을 취소하되, `cancel-in-progress`는 `pull_request` 이벤트일 때만 참이다. main push 실행은 이후 push에 취소되지 않는다.
 
 [ci_gate.py](../../.codex/skills/verification/scripts/ci_gate.py)는 `git diff --name-only --no-renames -z HEAD^1 HEAD`(PR merge commit 기준)로 변경 경로를 구한다. 판정이 틀리면 전부 실행하는 쪽이 안전하므로 대소문자를 구분하고, pull_request가 아니거나 base가 `main`이 아니거나 변경 경로가 없으면 `openwiki_only=false`다. 러너 기본 `python3`로 돌기 때문에 표준 라이브러리만 쓴다.
 
