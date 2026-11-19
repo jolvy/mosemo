@@ -183,14 +183,35 @@ def test_allows_generated_page_edit_on_same_repo_update_branch(repo: Path) -> No
         # 생성물 폴더 안이어도 실행되거나 git이 읽는 파일은 막는다.
         "openwiki/conftest.py",
         "openwiki/.gitattributes",
-        # 대소문자가 다른 폴더는 생성물 폴더가 아니다.
-        "OpenWiki/quickstart.md",
     ],
 )
 def test_update_branch_rejects_non_generated_path(repo: Path, path: str) -> None:
     (repo / path).parent.mkdir(parents=True, exist_ok=True)
     (repo / path).write_text("edited\n", encoding="utf-8")
     commit(repo)
+
+    result = check(repo, head_ref="openwiki/update")
+
+    assert result.returncode == 1
+    assert path in result.stdout.splitlines()
+
+
+def test_update_branch_rejects_case_variant_of_generated_folder(repo: Path) -> None:
+    # 대소문자가 다른 폴더는 생성물 폴더가 아니다. 대소문자를 구분하지 않는 파일
+    # 시스템(macOS APFS)에 쓰면 기존 openwiki/ 파일을 덮어써 다른 상황이 되므로,
+    # 디스크를 거치지 않고 git 색인에 경로를 직접 넣는다.
+    path = "OpenWiki/quickstart.md"
+    blob = subprocess.run(
+        ["git", "hash-object", "-w", "--stdin"],
+        cwd=repo,
+        env=GIT_ENV,
+        input="edited\n",
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    git(repo, "update-index", "--add", "--cacheinfo", f"100644,{blob},{path}")
+    git(repo, "commit", "--quiet", "-m", "change")
 
     result = check(repo, head_ref="openwiki/update")
 
