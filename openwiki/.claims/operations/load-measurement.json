@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b93a01a66488e28307105858a0d9c55a03dc4c894a8cd47ccc060dc6d82b093f",
+  "pageVersion": "sha256:a6a6db41a9ec4d57b8ba161f6816a8d8f9680b910413398c2cfb18103858aaaa",
   "claims": [
     {
       "id": "claim_34da0c15bde84504ad7669648c70aa23",
@@ -51,7 +51,7 @@
       "statement": "측정 A(다시 계산 표시 처리 뒤)는 기준 사양에서 C1~C6을 통과했고 DB CPU는 약 30%였다.",
       "evidence": [
         {
-          "resource": "repo://infra/measurement/HISTORY.md#L142-L166",
+          "resource": "repo://infra/measurement/HISTORY.md#L143-L167",
           "version": "repo-lines-v1:sha256:a5cd926601b84e901c092f181f6330c1e1bc2b2427297e02a6503665bbc2eddf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE0NDcyMTQ5MTE1YzU0Mjg3NTI2MzNmMWMzYWM4ZTBjZGQzM2I0ODI3M2Q3MDIwMzI1YTBkMDUzNzQ1ZTdlMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxZGYwNzc1ZjU1MGViNDdmZjBhZDAxNmNlMzQ0MDhiZjM2YjY4NDVmZjEzNzRhNDc3OWQ2ZTJkYWFiYWU2NjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0OTExYjBhOGYyYWM4MDBmYmE2MTZkYzlkYjQ4YTJiNDJhYjAwYTk0NTlhYjhkNjNlNDlhOTQzZjZhZDRhODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFmNDNiYzNlZmJiNTMyYzc2Nzc3NWY5OGIyMThkYzVkN2I0OTlhMDZlN2I2MGJkMTFkOTFmZGRkNWZkYmFkMjYifQ"
         }
       ]
@@ -65,10 +65,20 @@
           "version": "repo-lines-v1:sha256:db6df03c2175ee4a52a95b4934365aaaa1782db1fcb9892edce24422267ceeda:eyJzZWxlY3RlZExpbmVDb3VudCI6OTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkMzY5YmNiNjIzNTdlZTA4Y2FlOGZmYjhmODI4MmJhMmQxMWFlODY3ZjllNmVjNjc5ZTk3YjgwMWQzYmM3OTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5OGFmY2E0NTVkYTQ1NWE4ZjgzMTVkMmE1NGMxNWEzMjQxOWM1MzAxOTNhODkxYTM3NDIxMmRjZDYxNzFmZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZlNjEzZTRmMzFhNjgzN2JjNjhiY2YyYzEwMTg3OGMyNzBkYWUwNWUzY2M4MGY0MjU1NjRhMTE1NmY2M2QyOGEifQ"
         }
       ]
+    },
+    {
+      "id": "claim_b4078ab0268549b5858488c1b8ea18ba",
+      "statement": "측정 B(2026-11-17)는 G1 판단 불가였다: R3에서 C1 실패, R2 한 회 C4 실패, 일간 통계 시간의 약 80%가 DB 읽기, 일간 통계 batch 24번 중 9번이 SourceSnapshot 구간 겹침 검사 ValueError로 실패했다.",
+      "evidence": [
+        {
+          "resource": "repo://infra/measurement/HISTORY.md#L221-L247",
+          "version": "repo-lines-v1:sha256:4d0d108e7b855f0f18463e99e5998234e2326459551d1eb25914a3fdef208855:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgyYjExZDgzYjllMDEwOGY5NGMwNzA3MDYyYjI1ZGI0NGMyNWIzODc2MjBlODlkNTk2YjVhNTY5OGQ0MDMzMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI3ZWVhMmRmZWU1YzM4YjlkNTU3NzdhODAxMTlhODFhMWFkZGJhMGIzNmZjMTQ0YmY0OTY0NGNjZDJlOGJhOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-17T16:42:07.914Z"
+    "at": "2026-11-19T07:15:12.819Z"
   }
 }
