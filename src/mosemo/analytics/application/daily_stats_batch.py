@@ -31,7 +31,7 @@ from mosemo.analytics.domain.markers import (
     MarkerKind,
     RecomputeMarker,
 )
-from mosemo.analytics.domain.source import DayWindow
+from mosemo.analytics.domain.source import DayWindow, InvalidSourceError
 from mosemo.analytics.domain.stored_stats import StoredDailyStats
 from mosemo.analytics.infrastructure.daily_stats import DailyStatsRepository
 from mosemo.analytics.infrastructure.definitions import AnalyticsDefinitionQuery
@@ -499,6 +499,8 @@ class RefreshDailyStats(UseCase):
                 return await self._computation.load(db_session, marker, now=now)
         except (DBAPIError, OSError) as error:
             raise classify_database_error(error) from error
+        except InvalidSourceError as error:
+            raise DateFailedError(COMPUTE_FAILURE, type(error).__name__) from error
         finally:
             reset_session(db_session)
 
