@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:5d56765e7f7bb119aa8694fdc3040dacfd359b608bfcb376d845a610712b3004",
+  "pageVersion": "sha256:3ab723b9b70cf28c6baf48561679fa42925cab1bd18724dc94f840fdab9fb5c8",
   "claims": [
     {
       "id": "claim_914662bc78194b91873e79f37f592051",
       "statement": "requires_db와 requires_kafka 마커는 tests/conftest.py가 컨테이너 fixture 사용 여부를 보고 자동으로 붙인다.",
       "evidence": [
         {
-          "resource": "repo://tests/conftest.py#L22-L50",
+          "resource": "repo://tests/conftest.py#L25-L53",
           "version": "repo-lines-v1:sha256:d41664a433815898d43f641a2ebcb4bedb7e96e62371c7fc9583f1db1fad31a2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI2Mjc1MzY2ZWQzMDhiZDhlNjBhYWJhY2NkMDQxNDE2MjE3Mjg3MmY1NWI3NDQ2YzNhNzJiMjU2ZmMzNTIyODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5ZmY5YzIwYjY1OGI3ZWNkMmZmYWE4ZGJmYzdhNjM5ZjRlMzdhM2Q4NTgwMDc1ZTkwY2RkYzg2YWIxZGI5ZjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg1YmY2YmRkNjU1ZjczNmE4YjJkOTMxM2I3Y2JiNzBkMjc3NWVmYTkwOTk1M2ZjYjIyNGU5ODU3ODRkYWM1YzMifQ"
         }
       ]
@@ -97,7 +97,7 @@
           "version": "repo-lines-v1:sha256:140542e6b520f485f56b72c537391e03af8590ec8aea48d664beff8550c24dd2:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGE3MTFjMGQ2ZDRmMjZmNjM4ZTQxYzQ5ZDIwOTNjNGVkZmY5YmY2ZTFmYTRhMGZiODVkMWFmNmU5NjAzYmI4NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzM3ZDg2MGY0YmZlNWRhMTgzYjM5YTgzZjRkZGNjNWJhM2M0YzU3YjFmYzBhZTk3YzM5ZWRhNWRlYTdmNmRjMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTQ3N2U0OWYwNmI4Y2RmYjhhM2QwNjgyNWNhYThlMzFjYmNhYWNmODFlZjBmMzFiM2E2NTBkOWYxNDRjNTVlNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDJhNDRiNjc5NjYwYmI1YjVjZGY1MzBkZWI5Y2UxOGU3ZTUxYTA1NDEyMTZiZjM3N2VmMTRiZTE4MzEzYzI0NiJ9"
         },
         {
-          "resource": "repo://tests/conftest.py#L22-L40",
+          "resource": "repo://tests/conftest.py#L25-L43",
           "version": "repo-lines-v1:sha256:a8e2daafa6e5b35aa99febfe9294e667ce360fc6abd5cd72b7ccc75adecf8d91:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5ZGY5YzFmODE1OGFjZTI4NmNiZDJmMDc1M2ZhZDNkYjE0NWZiZTFjMTZhNjUxNzU2ZTdkMDkyYmFiMTM3MmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5ZmY5YzIwYjY1OGI3ZWNkMmZmYWE4ZGJmYzdhNjM5ZjRlMzdhM2Q4NTgwMDc1ZTkwY2RkYzg2YWIxZGI5ZjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdhZmVhNjY4ZmU0NTNkZWNhMDYyZWUyODE3OWI1YTE1OTVlNWUzYTZhNjlkYTFkOTkxOGIzNGQ3ZWFmOGEyZjQifQ"
         }
       ]
@@ -121,10 +121,20 @@
           "version": "repo-lines-v1:sha256:4dc7b55b04aa17270b27bd891d80266a2ae9be6503152ff64c87e0c260086338:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODRhZmUyNGRhZjM0ZDFiNWNmODNmY2FhM2Y1NmFhNGMxMDdjMDU4MDM5Yzg1N2JjYjZkNTE2ZDYyMTk0N2YwNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGQ2MTk2OGM4MTAzMzExNmQ2NDllNGE4NjJhMDUwNWZiMTQ0NTA5YTk1YjkyMGFkM2UwMjBkMmVjODZkM2YwMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmYxZDcwZDcyYmFkMjMxZDQzYzU3NWFjZWY2OTQ2NTgwZTQzOWM4Nzk3OTRlZDJlYTFmNGE0MDM0MDI0NTE3MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2M0NDQ2Njg2MDBkYTBjYmFkYTM0YjYxODMxMjA2NDc1ZjZiMDk0NWVjZDc0NjRhYzUxZGE4YzgzNWNiOTg0MCJ9"
         }
       ]
+    },
+    {
+      "id": "claim_a453c815df9947fdb6e22103dba8ba87",
+      "statement": "고정된 과거 시각 원본을 보내는 테스트는 opt-in `acceptance_clock` fixture로 활동 배치 수락 시각만 설정하며, 요청하지 않은 테스트는 실제 시계를 쓴다.",
+      "evidence": [
+        {
+          "resource": "repo://tests/support/acceptance.py#L1-L44",
+          "version": "repo-lines-v1:sha256:76c8799f53fee4e564a27d2b00f5d102eb23cdfcbb25e43d14fc32cf9322390d:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiZGFiM2MxYjA1YjZjYWM3N2VkMGViMjY3MWVjMmI2NDVhODE0ODg1ZTlmN2M4MGM1Y2FiYzVjNDRjOTE3ZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-19T08:36:35.572Z"
+    "at": "2026-11-20T10:08:17.353Z"
   }
 }
