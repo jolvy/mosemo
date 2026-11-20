@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-19T08:36:35.572Z
+    at: 2026-11-20T10:08:17.353Z
 sources:
   - id: openwiki-source-3c6b76d80d7f929dde842165
     resource: repo://.codex/skills/verification/scripts/ci_gate.py
@@ -27,9 +27,11 @@ sources:
     resource: repo://tests/conftest.py
   - id: openwiki-source-d5a25b3d746855d816062422
     resource: repo://tests/integration/conftest.py
+  - id: openwiki-source-5cf11d64a14b1fda1cc4bc4c
+    resource: repo://tests/support/acceptance.py
   - id: openwiki-source-7963bb1002d4efe2b24fef6a
     resource: repo://tests/unit/harness/test_tests_layout.py
-generated: { by: "claude-code", at: "2026-11-19T08:36:35.572Z" }
+generated: { by: "claude-code", at: "2026-11-20T10:08:17.353Z" }
 ---
 
 # 테스트와 검증
@@ -45,7 +47,8 @@ generated: { by: "claude-code", at: "2026-11-19T08:36:35.572Z" }
 | E2E | `tests/e2e/`(패키지 폴더 없이 시나리오 파일을 바로 둔다) | PRD의 핵심 업무 시나리오를 테스트가 띄운 서버 프로세스에 실제 HTTP로 검증 |
 
 - `{패키지}`는 SUT가 있는 `src/mosemo`의 최상위 패키지(`identity`, `labels`, `observation`, `labeling`, `analytics`, `shared`, `platform`, `entrypoints`)다. 예외로 저장소 도구 테스트 `harness`(`.codex`), `scripts`, 마이그레이션 테스트 `migrations`, 테스트 지원 코드를 검증하는 `support`(`tests/support`), 저장소 도구 테스트 `tools`(`tools/`와 측정 도구 `infra/measurement/`)가 있다.
-- E2E의 컨테이너·프로세스 fixture는 `tests/e2e/conftest.py`(`e2e_system` 등), 프로세스 기동·종료와 설정은 `tests/support/e2e.py`에 있다. 현재 시나리오는 `tests/e2e/test_activity_analytics.py`다. 테스트가 API·Consumer 프로세스를 빈 포트에 띄우고 끝나면 SIGTERM으로 끄며, 배치는 단계마다 `python -m mosemo.entrypoints.batch run JOB_NAME`으로 한 번씩 돌린다(`serve` 금지). 외부 네트워크(Kakao, AI 모델)는 호출하지 않는다.
+- E2E의 컨테이너·프로세스 fixture는 `tests/e2e/conftest.py`(`e2e_system` 등), 프로세스 기동·종료와 설정은 `tests/support/e2e.py`에 있다. 현재 시나리오는 `tests/e2e/test_activity_analytics.py`다. 테스트가 API·Consumer 프로세스를 빈 포트에 띄우고 끝나면 SIGTERM으로 끄며, 배치는 단계마다 `python -m mosemo.entrypoints.batch run JOB_NAME`으로 한 번씩 돌린다(`serve` 금지). 외부 네트워크(Kakao, AI 모델)는 호출하지 않는다. 활동 배치 HTTP 경로가 24시간 수락 기간 밖의 원본을 거절하므로 E2E-1은 최근 하루 안에서 업로드하고, 지난 날짜의 일간 통계는 API-5에 맡긴다.
+- 고정된 과거 시각의 원본을 보내는 테스트는 `tests/support/acceptance.py`의 `acceptance_clock` fixture를 요청해 수락 시각만 바꾼다(`now` 설정). 요청하지 않은 테스트는 실제 시계를 쓰며, legacy 투영 시계는 바뀌지 않는다.
 - 공유 테스트 코드는 `tests/support/`에 둔다.
 - 구조 규칙은 `tests/unit/harness/test_tests_layout.py`가 강제한다.
 - 활동 분석의 독립 참조 구현은 `tests/support/analytics_reference/`에 있고 `tests/unit/support/analytics_reference/`가 검증한다. `tools/analytics_protocol_models/`는 `tests/unit/tools/`가 검증한다. 자세한 내용은 [활동 분석](../domain/activity-analytics.md)을 본다.

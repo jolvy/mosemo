@@ -5,7 +5,7 @@ description: docs/prd의 PRD 중 앞부분 status가 accepted인 유효한 기�
 tags: [prd, planning, supersession]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-19T07:46:46.571Z
+    at: 2026-11-20T10:08:17.353Z
 sources:
   - id: openwiki-source-fb4b9ae1c4cd229650dbdc2f
     resource: repo://.codex/skills/specification/SKILL.md
@@ -23,7 +23,7 @@ sources:
     resource: repo://docs/prd/focus-sessions.md
   - id: openwiki-source-0dbe9c015eddcfd9fd71ce78
     resource: repo://docs/prd/observation-timeline.md
-generated: { by: "claude-code", at: "2026-11-18T09:42:15.104Z" }
+generated: { by: "claude-code", at: "2026-11-20T10:08:17.353Z" }
 ---
 
 # 유효한 기획
@@ -35,12 +35,12 @@ generated: { by: "claude-code", at: "2026-11-18T09:42:15.104Z" }
 | PRD | 범위 |
 | --- | --- |
 | [활동 관찰과 개인정보 보호](../../docs/prd/activity-capture.md) | 현재 포커스한 대상의 관찰값을 활동 레코드로 만든다. 식별 정보는 서버 전송 전에 클라이언트에서 거르고, 앱·창·웹의 관찰 상태를 독립적으로 표현한다. |
-| [활동 배치 수락과 비동기 처리](../../docs/prd/activity-batches.md) | 한 Device의 활동 레코드를 배치로 수락하고 DB 처리는 따로 수행한다. 전달 수락·원본별 거절·DB 반영을 구분하고 재전송·순번 누락·역순 도착에도 중복 반영하지 않는다. |
+| [활동 배치 수락과 비동기 처리](../../docs/prd/activity-batches.md) | 한 Device의 활동 레코드를 배치로 수락하고 DB 처리는 따로 수행한다. 전달 수락·원본별 거절·DB 반영을 구분하고 재전송·순번 누락·역순 도착에도 중복 반영하지 않는다. 서버 수락 시각 기준 24시간 밖에서 관찰한 원본이 하나라도 있으면 배치 전체를 422로 거절한다. |
 | [날짜별 관찰 타임라인 API](../../docs/prd/observation-timeline.md) | 계정 시간대의 날짜를 지정해 하루 전체의 관찰 타임라인을 조회한다. 모든 Device의 원본을 하나의 관찰 순서로 해석해 활동 구간과 수집 공백을 저장형 projection으로 제공한다. |
 | [개인화 활동 라벨링](../../docs/prd/activity-labeling.md) | 관찰 사실과 별도로 사용자별 라벨 목록, AI 라벨 제안, 사용자 확정값을 관리한다. 대시보드 합계에는 사용자 확정값만 넣는다. |
 | [활동 라벨 모듈의 패키지 재배치](../../docs/prd/activity-label-package-structure.md) | 관찰·라벨 목록·확정·AI 제안 흐름을 책임별 패키지로 재배치한다. 관찰 사실은 `activities`, 라벨 기능은 `activity_labels`에 둔다. |
 | [Device 등록 API](../../docs/prd/device-registration.md) | `Device`를 계정에 귀속된 등록된 앱 설치로 정의한다. UUID `Idempotency-Key`와 함께 `POST /api/v1/devices`를 호출하면 UUIDv7 `deviceId`를 발급한다. |
-| [집중 세션 API](../../docs/prd/focus-sessions.md) | 의도한 집중 작업을 관찰 활동과 구분해 생성·완료·날짜별 조회하고, 관찰 시점에 진행 중인 세션을 활동 레코드와 연결한다. |
+| [집중 세션 API](../../docs/prd/focus-sessions.md) | 의도한 집중 작업을 관찰 활동과 구분해 생성·완료·날짜별 조회하고, 관찰 시점에 진행 중인 세션을 활동 레코드와 연결한다. 완료 후 늦게 도착한 관찰은 수락 기간(24시간) 안에서만 받는다. |
 
 ## 확정되지 않은 기획 (`status: draft`)
 

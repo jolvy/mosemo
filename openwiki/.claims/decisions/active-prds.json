@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:e02248aa8a461925e48b46635bcd697c26b940ac22aa161b3c8267cb8bbc7bcf",
+  "pageVersion": "sha256:375567c16949c6ecef826ab54de271842b8f47c3feb0b53416037ee70330a29a",
   "claims": [
     {
       "id": "claim_efe0b064e0a343819b7259e37e76b304",
@@ -45,10 +45,24 @@
           "version": "repo-lines-v1:sha256:8564a90b92c5599db4df3896e3af7844ca2077f41d94790ff4b32e97911365c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGQzMzdhM2E1ZTE3ZWZiMDQ5MGVhZWMxMmM4ZTE4MmYzOTNjMzg2NDUxYjQ0NzAxY2Y2N2MwZDVkMjZkYjUyOCJ9"
         }
       ]
+    },
+    {
+      "id": "claim_4a6ad9628ea148c1989d25d211326560",
+      "statement": "활동 배치 PRD는 서버 수락 시각 기준 24시간 밖에서 관찰한 원본이 하나라도 있으면 배치 전체를 422로 거절하도록 정하고, 집중 세션 PRD는 완료 후 도착한 관찰도 이 수락 기간 안에서만 받는다고 정한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/prd/activity-batches.md#L118-L130",
+          "version": "repo-lines-v1:sha256:b6f15d27ce21a28c0535d4958137a793ba7c9c4f484e4b8dd8ba1b58b929f790:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiYzcxM2VkZDYyZjUxN2Q0MWNlNmRiNGVjNmZhMWNjYzdhMzEzZTQyNWU0NjEyZTUzMWMyM2Y2MzQ4NWE5NTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYzNDcyNjZhMTFiOTg1MWZjNzJjOWE2NjgwZWNjOGU0YzAzOTczYzQ3MzFlMTQyODUwMGUwZDFlODQxYTcyNzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRiMjg0ZDg1OTQ0MWE5MzZhNjhhMDNkMmQzOWExMzcxYjgzZmQ3NWIyMTY3OGM4YWRmMjc1YmZhYzA4MjZlZjAifQ"
+        },
+        {
+          "resource": "repo://docs/prd/focus-sessions.md#L30-L30",
+          "version": "repo-lines-v1:sha256:b7d84dc2ca1829595e55d977addb3e44108a68eb7f399df0a2daced547949d03:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjdkODRkYzJjYTE4Mjk1OTVlNTVkOTc3YWRkYjNlNDQxMDhhNjhlYjdmMzk5ZGYwYTJkYWNlZDU0Nzk0OWQwMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjdkODRkYzJjYTE4Mjk1OTVlNTVkOTc3YWRkYjNlNDQxMDhhNjhlYjdmMzk5ZGYwYTJkYWNlZDU0Nzk0OWQwMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDA4ZTMwM2MwNDk5MGZmOWI2ODExN2YwZjk3NTVhMGE2Y2ViMTQwZTg1ZmZiZTI4YzQ5MTU2OWQ4NTkxOTRlNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDBlN2E0MDhmNDM2YWVhYmViOTJmZTE0M2YzOGYxNDhiYTFhZjQzYmQ1M2M1ZDljNzdkYTg1NDI2NjE3MjE3NSJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-19T07:46:46.571Z"
+    "at": "2026-11-20T10:08:17.353Z"
   }
 }

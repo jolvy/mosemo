@@ -9,11 +9,11 @@
       "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
     },
     "/openwiki/architecture/persistence-and-messaging.md": {
-      "gitHead": "98baf14e7754136ed32f8b675aeb85503a1e1397",
-      "sourceFingerprint": "sha256:36282f8bec1979a9a1a69fa0158b4e03546bfe81aff813779c3fbc59383b1834",
-      "pageVersion": "sha256:d0611fd100020ea9026f121b34971666afcf0fe32c39cf6dc888e820528a1c81",
+      "pageVersion": "sha256:15bb37e9acfd913b0aa907d5078ef965fb215ea3eaf4dff6dd5a7286c21db3b7",
       "completedBy": "claude-code",
-      "completedRunId": "c12c8765-d64d-4ba9-8147-efc747df78fb"
+      "completedRunId": "31b24f61-2d1f-44e4-97a6-998da52b1175",
+      "gitHead": "6358290e464c1bbddedebfc69eae25740eac45a1",
+      "sourceFingerprint": "sha256:1cd647600d1da48d51fdcf6740fa372f6da5a9ceb785d586d5ae836f0507659b"
     },
     "/openwiki/decisions/active-decisions.md": {
       "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
@@ -23,11 +23,11 @@
       "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0"
     },
     "/openwiki/decisions/active-prds.md": {
-      "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
-      "sourceFingerprint": "sha256:cc1556108f59333d3c6ebcf0299fa8d6bcad1bd74ca963c89fd409d14810f75e",
-      "pageVersion": "sha256:e02248aa8a461925e48b46635bcd697c26b940ac22aa161b3c8267cb8bbc7bcf",
+      "pageVersion": "sha256:375567c16949c6ecef826ab54de271842b8f47c3feb0b53416037ee70330a29a",
       "completedBy": "claude-code",
-      "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0"
+      "completedRunId": "31b24f61-2d1f-44e4-97a6-998da52b1175",
+      "gitHead": "6358290e464c1bbddedebfc69eae25740eac45a1",
+      "sourceFingerprint": "sha256:1cd647600d1da48d51fdcf6740fa372f6da5a9ceb785d586d5ae836f0507659b"
     },
     "/openwiki/development/engineering-harness.md": {
       "gitHead": "7c52c89cce0feff66f2f915b8e0635a2aa2140b5",
@@ -37,11 +37,11 @@
       "completedRunId": "438e4b38-65af-48cb-be0e-8d5b954dfaf0"
     },
     "/openwiki/development/testing-and-verification.md": {
-      "pageVersion": "sha256:5d56765e7f7bb119aa8694fdc3040dacfd359b608bfcb376d845a610712b3004",
+      "pageVersion": "sha256:3ab723b9b70cf28c6baf48561679fa42925cab1bd18724dc94f840fdab9fb5c8",
       "completedBy": "claude-code",
-      "completedRunId": "6e85967a-ca94-4d32-a63d-b7f0f08b888f",
-      "gitHead": "dbb4374ad37c3134601c4447c0c90329dfb119fc",
-      "sourceFingerprint": "sha256:0b64fcb22e3ed4fc7015342bf9fa03de0a2e61b14554369f1f0066ec46f077f7"
+      "completedRunId": "31b24f61-2d1f-44e4-97a6-998da52b1175",
+      "gitHead": "6358290e464c1bbddedebfc69eae25740eac45a1",
+      "sourceFingerprint": "sha256:1cd647600d1da48d51fdcf6740fa372f6da5a9ceb785d586d5ae836f0507659b"
     },
     "/openwiki/domain/activity-analytics.md": {
       "gitHead": "98baf14e7754136ed32f8b675aeb85503a1e1397",
