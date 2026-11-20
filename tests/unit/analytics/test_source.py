@@ -9,6 +9,7 @@ from mosemo.analytics.domain.source import (
     CompletedFocusSession,
     ConfirmedLabel,
     DayWindow,
+    InvalidSourceError,
     SegmentKind,
     SourceSegment,
     SourceSnapshot,
@@ -77,11 +78,21 @@ def test_snapshot_rejects_unordered_overlapping_or_inner_open_segments() -> None
     overlapping = segment_of(activity("s2", 5, 15, app("B")))
     open_gap = segment_of(gap("g1", 10, None))
 
-    with pytest.raises(ValueError, match="overlap"):
+    with pytest.raises(InvalidSourceError, match="overlap"):
         snapshot(first, overlapping)
-    with pytest.raises(ValueError, match="last one"):
+    with pytest.raises(InvalidSourceError, match="last one"):
         snapshot(open_gap, overlapping)
     assert snapshot(first, open_gap).segments == (first, open_gap)
+
+
+def test_invalid_source_error_stays_a_value_error() -> None:
+    """Callers that expect `ValueError` from a broken snapshot keep working."""
+    first = segment_of(activity("s1", 0, 10, app("A")))
+    overlapping = segment_of(activity("s2", 5, 15, app("B")))
+
+    assert issubclass(InvalidSourceError, ValueError)
+    with pytest.raises(ValueError, match="overlap"):
+        snapshot(first, overlapping)
 
 
 def test_zero_length_segments_at_one_instant_adjoin() -> None:

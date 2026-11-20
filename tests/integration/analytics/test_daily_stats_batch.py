@@ -441,3 +441,32 @@ async def test_dates_left_when_the_budget_runs_out_keep_their_attempts(
     monkeypatch.setattr(daily_stats_batch, "RUN_BUDGET_SECONDS", 120.0)
     assert (await world.run()).saved == 2
     assert await world.marker_rows(seed.account_id) == []
+
+
+async def test_an_invalid_source_fails_only_its_date_and_the_run_goes_on(
+    world: BatchWorld,
+) -> None:
+    """A date whose source breaks the D1 input contract (overlapping segments)
+    is a compute failure of that date only; the next account's date is saved."""
+    broken = await world.account()
+    async with world.seeding(broken):
+        broken.activity(540, 570, EDITOR)
+        broken.activity(560, 600, EDITOR)
+    await world.mark_days(broken)
+    healthy = await seeded(world)
+    started = world.clock()
+
+    report = await world.run()
+
+    assert report.failures["compute"] == 1
+    assert report.saved == 1
+    stored = await world.stored(healthy.account_id)
+    assert stored is not None
+    assert stored.stats == await world.computed(healthy.account_id)
+    assert await world.marker_rows(healthy.account_id) == []
+    marker = await world.marker(broken.account_id)
+    assert marker is not None
+    assert marker["attempts"] == 1
+    assert marker["last_error"] == "InvalidSourceError"
+    assert marker["next_attempt_at"] == started + RETRY_POLICY.delay_after(1)
+    assert await world.stored(broken.account_id) is None

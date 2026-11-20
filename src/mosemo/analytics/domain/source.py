@@ -18,6 +18,10 @@ def micros(delta: timedelta) -> int:
     return delta // MICROSECOND
 
 
+class InvalidSourceError(ValueError):
+    """A source snapshot that breaks the D1 input contract and cannot be computed."""
+
+
 class SegmentKind(StrEnum):
     ACTIVITY = "activity"
     CAPTURE_GAP = "capture_gap"
@@ -160,9 +164,11 @@ class SourceSnapshot:
     def __post_init__(self) -> None:
         for before, after in pairwise(self.segments):
             if before.observed_end is None or before.ended_at is None:
-                raise ValueError(f"open segment {before.id} must be the last one")
+                raise InvalidSourceError(
+                    f"open segment {before.id} must be the last one"
+                )
             if before.observed_end > after.started_at:
-                raise ValueError(f"segments {before.id} and {after.id} overlap")
+                raise InvalidSourceError(f"segments {before.id} and {after.id} overlap")
 
     def confirmation(self, segment: SourceSegment) -> ConfirmedLabel | None:
         """The valid confirmation: recorded for the segment's current version."""
