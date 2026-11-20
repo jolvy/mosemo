@@ -15,7 +15,9 @@ import time
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import httpx2
 from sqlalchemy import make_url
@@ -38,6 +40,29 @@ SETTING_PREFIXES = (
 READY_TIMEOUT = 30
 STOP_TIMEOUT = 30
 BATCH_TIMEOUT = 60
+SEOUL = ZoneInfo("Asia/Seoul")
+# E2E-1 uploads a session of 45 minutes; the last observation closes 60 seconds
+# of silence later, so 5 more minutes keep that closure in the past.
+UPLOAD_SPAN = timedelta(minutes=45)
+UPLOAD_LEAD = timedelta(hours=1)
+
+
+def upload_start(now: datetime) -> datetime:
+    """Where E2E-1's uploaded session starts for a given current time.
+
+    The server accepts records observed at most 24 hours before it accepts
+    them, so the session starts an hour back: `start + 50 minutes <= now` and
+    `start >= now - 23 hours`. Its 45 minutes stay inside one Seoul date; when
+    they would cross Seoul midnight the session starts at 22:00 Seoul of the
+    previous day instead.
+    """
+    start = (now - UPLOAD_LEAD).replace(second=0, microsecond=0)
+    if start.astimezone(SEOUL).date() == (start + UPLOAD_SPAN).astimezone(SEOUL).date():
+        return start
+    previous_day = now.astimezone(SEOUL).date() - timedelta(days=1)
+    return datetime(
+        previous_day.year, previous_day.month, previous_day.day, 22, tzinfo=SEOUL
+    ).astimezone(now.tzinfo)
 
 
 def process_environment(

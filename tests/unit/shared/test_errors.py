@@ -67,6 +67,11 @@ def test_observation_error_codes_keep_their_public_specs() -> None:
             409,
             "Activity batch ID conflicts with stored content",
         ),
+        (
+            "ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW",
+            422,
+            "Activity record is outside the acceptance window",
+        ),
         ("ACTIVITY_BATCH_TOO_LARGE", 413, "Activity batch body is too large"),
         ("ACTIVITY_DELIVERY_UNAVAILABLE", 503, "Activity delivery is unavailable"),
         ("ACTIVITY_TIMELINE_BUSY", 503, "Activity timeline is busy"),

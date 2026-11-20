@@ -1,6 +1,7 @@
 import logging
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -24,17 +25,25 @@ from mosemo.platform.clock import utc_now
 from mosemo.platform.database.engine import get_session
 from mosemo.shared.presentation.current_account import get_current_account
 from tests.support.batches import batch_client, post_activity
+from tests.support.clock import FakeClock
 from tests.support.identity import (
     current_account_provider,
     delete_accounts,
     token_service,
 )
 
+# Accepts the activities these tests observe on 2026-10-07; tests observing on
+# 2026-10-06 move the acceptance clock back a day.
+ACCEPTED_AT = datetime(2026, 10, 7, 1, tzinfo=UTC)
+
 
 @pytest_asyncio.fixture
 async def focus_client(
-    integration_database_url: str, identity_config: IdentityConfig
+    integration_database_url: str,
+    identity_config: IdentityConfig,
+    acceptance_clock: FakeClock,
 ) -> AsyncIterator:
+    acceptance_clock.now = ACCEPTED_AT
     engine = create_async_engine(integration_database_url)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     app = FastAPI()
@@ -198,6 +207,7 @@ async def test_start_observe_complete_retry_and_list(focus_client):
 @pytest.mark.asyncio
 async def test_foreign_label_invalid_durations_and_activity_link_are_rejected(
     focus_client,
+    acceptance_clock,
 ):
     client, _, headers, other_headers, device_id, label_id, other_label_id = (
         focus_client
@@ -222,6 +232,7 @@ async def test_foreign_label_invalid_durations_and_activity_link_are_rejected(
             complete_url, headers=headers, json=completion(label_id, **changes)
         )
         assert result.status_code == 422, result.text
+    acceptance_clock.now = ACCEPTED_AT - timedelta(days=1)
     activity = {
         "deviceId": str(device_id),
         "eventId": str(uuid4()),
@@ -307,13 +318,14 @@ async def test_completed_session_blocks_label_deletion_but_allows_account_cascad
 @pytest.mark.parametrize("invalid_link", ["time", "missing"])
 @pytest.mark.asyncio
 async def test_invalid_activity_focus_link_rolls_back_and_retains_original(
-    focus_client, invalid_link
+    focus_client, invalid_link, acceptance_clock
 ):
     client, factory, headers, _, device_id, _, _ = focus_client
     request = start_request(device_id)
     assert (
         await client.post("/api/v1/focus-sessions", headers=headers, json=request)
     ).status_code == 201
+    acceptance_clock.now = ACCEPTED_AT - timedelta(days=1)
     activity = {
         "deviceId": str(device_id),
         "eventId": str(uuid4()),

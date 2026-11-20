@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -7,7 +7,10 @@ import pytest
 from mosemo.observation.domain.activities import (
     MAX_OBSERVATION_GAP,
     ActivityRecord,
+    ActivityRecordOutsideAcceptanceWindowError,
     RecordType,
+    ensure_within_acceptance_window,
+    is_within_acceptance_window,
 )
 from mosemo.observation.domain.timeline import (
     ActivityTimelineKind,
@@ -194,4 +197,58 @@ def test_is_in_device_order_rejects_only_neighbor_regression(
     assert (
         activity_record().is_in_device_order(previous=previous, following=following)
         is expected
+    )
+
+
+ACCEPTED_AT = datetime(2026, 11, 20, 15, tzinfo=UTC)
+SEOUL = timezone(timedelta(hours=9))
+NEW_YORK = timezone(timedelta(hours=-5))
+
+
+@pytest.mark.parametrize(
+    ("observed_at", "within"),
+    [
+        (datetime(2026, 11, 19, 15, tzinfo=UTC), True),
+        (datetime(2026, 11, 20, 15, tzinfo=UTC), True),
+        (datetime(2026, 11, 19, 14, 59, 59, 999000, tzinfo=UTC), False),
+        (datetime(2026, 11, 20, 15, 0, 0, 1000, tzinfo=UTC), False),
+    ],
+    ids=["24_hours_before", "same_instant", "just_over_24_hours", "just_after"],
+)
+def test_acceptance_window_includes_both_ends_only(
+    observed_at: datetime, *, within: bool
+) -> None:
+    assert is_within_acceptance_window(observed_at, accepted_at=ACCEPTED_AT) is within
+    for zone in (SEOUL, NEW_YORK):
+        assert (
+            is_within_acceptance_window(
+                observed_at.astimezone(zone), accepted_at=ACCEPTED_AT
+            )
+            is within
+        )
+        assert (
+            is_within_acceptance_window(
+                observed_at, accepted_at=ACCEPTED_AT.astimezone(zone)
+            )
+            is within
+        )
+
+
+def test_acceptance_window_check_names_every_outside_record_in_order() -> None:
+    observed_at = [
+        datetime(2026, 11, 20, 15, 0, 0, 1000, tzinfo=UTC),
+        datetime(2026, 11, 20, 14, tzinfo=UTC),
+        datetime(2026, 11, 19, 14, 59, 59, 999000, tzinfo=UTC),
+    ]
+
+    with pytest.raises(ActivityRecordOutsideAcceptanceWindowError) as raised:
+        ensure_within_acceptance_window(observed_at, accepted_at=ACCEPTED_AT)
+
+    assert raised.value.indexes == (0, 2)
+
+
+def test_acceptance_window_check_passes_records_inside() -> None:
+    ensure_within_acceptance_window(
+        [datetime(2026, 11, 19, 15, tzinfo=UTC), ACCEPTED_AT.astimezone(SEOUL)],
+        accepted_at=ACCEPTED_AT,
     )
