@@ -118,7 +118,15 @@ macOS 클라이언트는 수집한 활동 레코드를 함께 전송하고, 서�
 | 본문 크기 | 비압축 JSON 전체 512 KiB 이하 |
 | 개별 원본 | eventId, sequence, recordType, observedAt, timezoneId, utcOffsetMinutes, 선택 focusSessionId, 종류별 context 또는 state/reason |
 | Device 지정 | 최상위 deviceId를 모든 원본에 적용하며 개별 원본에는 반복하지 않음 |
+| 수락 기간 | 모든 원본의 observedAt이 `수락 시각 − 24시간 ≤ observedAt ≤ 수락 시각`, 양 끝 포함 |
 | 성공 응답 | 202, batchId와 status: accepted만 반환 |
+
+수락 시각은 서버가 HTTP 요청을 수락할 때의 서버 시계(UTC)다. 비교는 시간대와
+무관한 절대 시간이며 계정 시간대와 원본의 timezoneId·utcOffsetMinutes는 쓰지 않는다.
+미래 쪽 허용 오차는 없다. 원본 하나라도 수락 기간을 벗어나면 발행하지 않고 배치
+전체를 거절한다. 판단은 HTTP 수락 시점에 한 번만 하며 Handler는 다시 검사하지 않는다.
+직접 처리 경로 `/activities/batches/legacy`도 같은 규칙으로 거절하고 receipt·원본·
+타임라인을 저장하지 않는다.
 
 입력 검증과 Device 귀속 확인이 끝난 배치 전체를 Kafka에 발행하고 브로커 ACK를
 확인한 뒤 수락 응답을 반환한다. Handler의 원본 저장·타임라인 갱신·DB commit은
@@ -130,8 +138,15 @@ macOS 클라이언트는 수집한 활동 레코드를 함께 전송하고, 서�
 | 인증 실패 | 401 |
 | Device 미등록·귀속 불일치 | 404 |
 | JSON 본문 크기 초과 | 413 |
-| 스키마·빈 배열·건수·필드 검증 실패 | 422 |
+| 스키마·빈 배열·건수·필드 검증 실패 | 422 `INVALID_ARGUMENT` |
+| 수락 기간을 벗어난 원본 포함 | 422 `ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW` |
 | 발행 실패·ACK 제한 시간 초과·미시작·종료 중·용량 부족 | 503 |
+
+검사 순서는 두 경로가 같다: 본문 검증 → 인증 → Device 귀속 → 수락 기간 → 발행
+(legacy는 타임라인 잠금과 처리). 수락 기간 오류의 `details`는 벗어난 원본마다 요청
+순서대로 하나씩 담는다. `loc`는 `["body", "records", i, "observedAt"]`(i는 0부터 센
+원본 위치), `type`은 `activity_record_outside_acceptance_window`, `msg`는 오류
+`message`(`Activity record is outside the acceptance window`)와 같다.
 
 오류는 공통 오류 형식을 따른다. 입력 검증 실패 시 일부 원본도 전달하지 않으며,
 배치 전체를 하나의 메시지로 발행한다. ACK를 확인하지 못하면 202를 반환하지
@@ -157,6 +172,7 @@ macOS 클라이언트는 수집한 활동 레코드를 함께 전송하고, 서�
 
 Device 내 순서는 sequence다. 연속된 숫자를 요구하지 않으며, 미사용 낮은
 sequence가 늦게 도착해도 관찰 시각 역행이 없다면 저장하고 재구성한다.
+늦은 도착과 과거 삽입은 수락 기간(수락 시각 기준 24시간) 안에서만 허용한다.
 여러 Device를 합친 순서와 구간 의미는 관찰 타임라인 PRD에서 정의한다.
 
 append는 마지막 상태에서 증분 계산하고, 과거 변경은 배치 단위로 묶어 영향을
@@ -190,6 +206,9 @@ Device·계정의 배치는 계속 처리한다. 개발용 재처리 경로로 �
   서버의 Retry-After를 존중한다.
 - 수락 전 명확한 413을 받으면 원본 ID·sequence·내용을 유지해 재분할하고
   새 batchId를 사용할 수 있다. 단건 원본 크기 초과에도 원본을 절삭하지 않는다.
+- 기기 시계 기준으로 수락 기간을 벗어난 원본은 전송 전에 버린다. 422
+  `ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW`를 받으면 `details`가 가리키는 원본을
+  버리고 남은 원본을 새 batchId로 보낸다. 24시간 넘게 전송하지 못한 원본은 버려진다.
 - 화면 열기·재활성화 시 즉시 조회하고, 열린 화면은 초기 5초 간격으로 polling한다.
   화면을 숨기면 중단하고 요청 겹침·오래된 응답 반영을 방지한다. 조회 실패 시
   기존 화면을 유지하고 backoff한다.
@@ -203,6 +222,7 @@ commit·consumer offset commit은 뜻하지 않는다. 보존과 장애 내성�
 | 경계 | 결과 |
 | --- | --- |
 | HTTP 스키마·필드 검증 실패 | 배치 전체 미전달 |
+| 수락 기간을 벗어난 원본 포함 | 배치 전체 미전달(legacy는 저장 없음) |
 | Handler의 원본 중복 | 기존 저장 결과 보존, 중복 반영 없음 |
 | Handler의 sequence 충돌 | 해당 원본 제외, 나머지 채택 원본 반영 |
 | 집중 세션 연결 오류·관찰 시각 역행·DB 처리 장애 | 배치 전체 변경 롤백 |
@@ -308,6 +328,14 @@ Kafka 연결 정보는 환경별로 구성하며 개발·운영 환경에 같은
   이는 Consumer 종료 대기이며 FastAPI 서버 종료 설정과 구분한다.
 - AC-6025: source 없는 초기 스키마와 Processor 입력을 사용한다. fingerprint는 유지하고
   동일 식별자의 같은 내용은 기존 결과, 다른 내용은 충돌로 판정한다. 기존 생성 migration을 수정한다.
+
+- AC-6026: 수락 시각 기준 `수락 시각 − 24시간 ≤ observedAt ≤ 수락 시각`(양 끝 포함, 시간대와
+  무관)을 벗어난 원본이 하나라도 있는 배치는 `/activities/batches`와
+  `/activities/batches/legacy` 모두 422 `ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW`로 전체
+  거절한다. details는 벗어난 원본의 위치를 요청 순서대로 가리키고, 발행하지 않으며 legacy는
+  receipt·원본·타임라인을 저장하지 않는다. Device 귀속 불일치 404가 이 오류보다 우선한다.
+- AC-6027: Handler는 수락 기간을 다시 검사하지 않는다. 수락된 배치는 처리 시각이 관찰
+  시각보다 24시간 넘게 뒤여도 저장한다.
 
 ## 미결정 사항과 가정
 

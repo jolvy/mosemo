@@ -16,6 +16,7 @@ from mosemo.observation.application.ports import (
 from mosemo.observation.domain.activities import (
     ActivityDeviceNotFoundError,
     ActivityRecord,
+    ensure_within_acceptance_window,
 )
 from mosemo.observation.domain.focus_sessions import (
     FocusSessionInvalidTimeError,
@@ -61,6 +62,16 @@ class ActivityBatch:
     device_id: UUID
     fingerprint: str
     records: tuple[ActivityRecord, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ActivityBatchSummary:
+    """What acceptance checks of a batch: its device and, in batch order, the
+    observation time of each record.
+    """
+
+    device_id: UUID
+    observed_at: tuple[datetime, ...]
 
 
 def segment_seed(segment: ActivityTimelineSegment) -> ProjectedSegment:
@@ -426,10 +437,17 @@ class ProcessLegacyActivityBatch(UseCase):
     """Direct path: holds the account timeline lock, unlike the Consumer path."""
 
     def __init__(
-        self, *, devices: DeviceDirectory, dispatcher: EventDispatcher, clock: Clock
+        self,
+        *,
+        devices: DeviceDirectory,
+        dispatcher: EventDispatcher,
+        clock: Clock,
+        acceptance_clock: Clock,
     ) -> None:
         self._processor = ActivityBatchProcessor(clock=clock, devices=devices)
+        self._devices = devices
         self._dispatcher = dispatcher
+        self._acceptance_clock = acceptance_clock
         self._segments = TimelineSegmentRepository()
 
     async def execute(
@@ -437,9 +455,21 @@ class ProcessLegacyActivityBatch(UseCase):
     ) -> list[dict[str, str]]:
         """Process the batch under the account timeline lock.
 
-        Raises `ActivityTimelineBusyError` and `TerminalBatchError`.
+        Raises `ActivityRecordOutsideAcceptanceWindowError` before taking the
+        lock, `ActivityTimelineBusyError` and `TerminalBatchError`.
         """
+        accepted_at = self._acceptance_clock()
         async with unit_of_work(db_session, self._dispatcher):
+            # A rejected batch must not wait for the timeline lock.
+            owned = await self._devices.find_owned(
+                db_session, account_id=account_id, device_id=batch.device_id
+            )
+            if owned is None:
+                raise TerminalBatchError("device_not_owned")
+            ensure_within_acceptance_window(
+                (record.observed_at for record in batch.records),
+                accepted_at=accepted_at,
+            )
             await self._segments.lock_timeline(db_session, account_id)
             return await self._processor.process(
                 db_session, account_id=account_id, batch=batch
@@ -449,27 +479,32 @@ class ProcessLegacyActivityBatch(UseCase):
 class AcceptActivityBatch(UseCase):
     """Hands a batch of an owned device to delivery without processing it."""
 
-    def __init__(self, *, devices: DeviceDirectory) -> None:
+    def __init__(self, *, devices: DeviceDirectory, acceptance_clock: Clock) -> None:
         self._devices = devices
+        self._acceptance_clock = acceptance_clock
 
     async def execute[B](
         self,
         db_session: AsyncSession,
         *,
         account_id: UUID,
-        device_id: UUID,
+        summary: ActivityBatchSummary,
         batch: B,
         publisher: ActivityBatchPublisher[B] | None,
     ) -> None:
         """Raise `ActivityDeviceNotFoundError` for a device the account does not
-        own and `ActivityDeliveryUnavailableError` when delivery is not confirmed.
+        own, `ActivityRecordOutsideAcceptanceWindowError` when any record of
+        `summary` was observed outside the acceptance window, and
+        `ActivityDeliveryUnavailableError` when delivery is not confirmed.
         """
+        accepted_at = self._acceptance_clock()
         async with read_snapshot(db_session):
             owned = await self._devices.find_owned(
-                db_session, account_id=account_id, device_id=device_id
+                db_session, account_id=account_id, device_id=summary.device_id
             )
         if owned is None:
             raise ActivityDeviceNotFoundError
+        ensure_within_acceptance_window(summary.observed_at, accepted_at=accepted_at)
         if publisher is None:
             raise ActivityDeliveryUnavailableError
         await publisher.publish(account_id, batch)

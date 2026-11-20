@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -120,6 +121,13 @@ async def publish(config, owners, devices, count):
         await producer.stop()
 
 
+def recent_record(sequence, observed_at):
+    return {
+        **record(sequence, 0),
+        "observedAt": observed_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
 async def receipt_count(sessions, owner):
     async with sessions() as session:
         return await session.scalar(
@@ -180,6 +188,34 @@ async def test_real_partitions_parallel_but_next_batch_waits_for_db_and_offset_a
         await asyncio.wait_for(task, 10)
         assert await receipt_count(sessions, owners[1]) == 1
         assert await consumer.committed(BatchPartition(config.topic, 1)) == 1
+
+
+@pytest.mark.asyncio
+async def test_consumer_stores_accepted_batch_processed_over_24_hours_after_observation(
+    integration_kafka, consumption_db
+):
+    # The acceptance window is checked once at HTTP acceptance, never here.
+    config = integration_kafka.config
+    sessions, owners, devices = consumption_db
+    observed_at = datetime(2026, 9, 14, tzinfo=UTC)  # record(0, 0)
+    executor = batch_executor(
+        sessions, clock=FakeClock(observed_at + timedelta(days=30))
+    )
+
+    await publish(config, owners[:1], devices[:1], 1)
+    async with running(config, executor) as (consumer, _, _):
+
+        async def committed():
+            return await consumer.committed(BatchPartition(config.topic, 0)) == 1
+
+        await eventually(committed)
+    assert await receipt_count(sessions, owners[0]) == 1
+    async with sessions() as session:
+        stored = await session.scalar(
+            select(ActivityRecord).where(activity_records.c.device_id == devices[0])
+        )
+    assert stored is not None
+    assert stored.observed_at == observed_at
 
 
 @pytest.mark.asyncio
@@ -378,7 +414,10 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                         owners[0], now=utc_now()
                     )
                 }
-                body = batch(devices[0], [record(0, 0)])
+                # The API runs in another process, out of reach of the
+                # acceptance_clock fixture, so these records are observed now.
+                observed_from = utc_now() - timedelta(minutes=1)
+                body = batch(devices[0], [recent_record(0, observed_from)])
                 response = await client.post(
                     "/api/v1/activities/batches", json=body, headers=headers
                 )
@@ -476,7 +515,10 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
                 assert after == before
                 response = await client.post(
                     "/api/v1/activities/batches",
-                    json=batch(devices[0], [record(1, 10)]),
+                    json=batch(
+                        devices[0],
+                        [recent_record(1, observed_from + timedelta(seconds=10))],
+                    ),
                     headers=headers,
                 )
                 assert response.status_code == 202

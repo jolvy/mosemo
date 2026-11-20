@@ -19,7 +19,9 @@ from mosemo.observation.infrastructure.tables import activity_records
 from mosemo.platform.clock import utc_now
 from mosemo.platform.database.engine import get_session
 from mosemo.shared.presentation.current_account import get_current_account
+from tests.support.acceptance import FIXED_ACCEPTED_AT
 from tests.support.batches import batch_client, post_activity, receipt_for
+from tests.support.clock import FakeClock
 from tests.support.identity import (
     current_account_provider,
     delete_accounts,
@@ -33,9 +35,11 @@ TIMELINE_URL = "/api/v1/activities/timeline?date=2026-09-14"
 async def activity_api(
     integration_database_url: str,
     identity_config: IdentityConfig,
+    acceptance_clock: FakeClock,
 ) -> AsyncIterator[
     tuple[httpx2.AsyncClient, async_sessionmaker[AsyncSession], list[UUID]]
 ]:
+    acceptance_clock.now = FIXED_ACCEPTED_AT
     engine = create_async_engine(integration_database_url)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     account_ids: list[UUID] = []

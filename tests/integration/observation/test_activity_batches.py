@@ -34,6 +34,7 @@ from mosemo.observation.presentation.activities.mappers import (
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
 from mosemo.platform.clock import utc_now
 from mosemo.shared.application.events import EventDispatcher
+from tests.support.acceptance import FIXED_ACCEPTED_AT
 from tests.support.clock import FakeClock
 from tests.support.identity import delete_accounts
 from tests.support.observation import batch, record
@@ -46,7 +47,10 @@ def fake_clock() -> FakeClock:
 
 @pytest_asyncio.fixture
 async def real_batch_app(
-    integration_database_url, monkeypatch, fake_clock: FakeClock
+    integration_database_url,
+    monkeypatch,
+    fake_clock: FakeClock,
+    acceptance_clock: FakeClock,
 ) -> AsyncIterator:
     # Exercise the direct-processing route against isolated PostgreSQL. Kafka
     # publication is tested independently; Consumer execution belongs to #65.
@@ -54,6 +58,7 @@ async def real_batch_app(
     from mosemo.entrypoints.api.main import create_app
     from mosemo.platform.database import engine as database
 
+    acceptance_clock.now = FIXED_ACCEPTED_AT
     app = create_app()
     app.state.batch_runtime.config = app.state.batch_runtime.config.model_copy(
         update={"enabled": False}
@@ -744,6 +749,79 @@ async def test_legacy_lock_timeout_keeps_http_contract_and_releases_transaction(
             "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
         )
     ).status_code == 200
+
+
+async def segment_count(factory, account_id):
+    async with factory() as session:
+        return await session.scalar(
+            select(func.count())
+            .select_from(activity_timeline_segments)
+            .where(activity_timeline_segments.c.account_id == account_id)
+        )
+
+
+@pytest.mark.asyncio
+async def test_legacy_rejects_batch_outside_acceptance_window_before_timeline_lock(
+    real_batch_app, acceptance_clock
+):
+    _, client, factory, accounts, devices, headers, _ = real_batch_app
+    # record(s, seconds) is observed `seconds` after 2026-09-14T00:00:00Z: the
+    # first is just over 24 hours old, the second exactly 24 and the last future.
+    acceptance_clock.now = datetime(2026, 9, 15, 0, 0, 30, tzinfo=UTC)
+    payload = batch(devices[0], [record(0, 0), record(1, 30), record(2, 86431)])
+    message = "Activity record is outside the acceptance window"
+    # A rejected batch does not wait for a held timeline lock.
+    async with factory() as holder, holder.begin():
+        await TimelineSegmentRepository().lock_timeline(holder, accounts[0])
+        response = await asyncio.wait_for(
+            client.post(
+                "/api/v1/activities/batches/legacy", headers=headers[0], json=payload
+            ),
+            2,
+        )
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "status": "ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW",
+            "code": 422,
+            "message": message,
+            "details": [
+                {
+                    "loc": ["body", "records", index, "observedAt"],
+                    "msg": message,
+                    "type": "activity_record_outside_acceptance_window",
+                }
+                for index in (0, 2)
+            ],
+        }
+    }
+    assert await counts(factory, devices[0]) == (0, 0)
+    assert await segment_count(factory, accounts[0]) == 0
+
+    accepted = await client.post(
+        "/api/v1/activities/batches/legacy",
+        headers=headers[0],
+        json=batch(devices[0], [record(1, 30)]),
+    )
+    assert accepted.status_code == 200
+    assert await counts(factory, devices[0]) == (1, 1)
+
+
+@pytest.mark.asyncio
+async def test_legacy_hides_unowned_device_before_acceptance_window(
+    real_batch_app, acceptance_clock
+):
+    _, client, factory, accounts, devices, headers, _ = real_batch_app
+    acceptance_clock.now = datetime(2026, 10, 14, tzinfo=UTC)
+    response = await client.post(
+        "/api/v1/activities/batches/legacy",
+        headers=headers[0],
+        json=batch(devices[1], [record(0, 0)]),
+    )
+    assert response.status_code == 404
+    assert response.json()["error"]["status"] == "ACTIVITY_DEVICE_NOT_FOUND"
+    assert await counts(factory, devices[1]) == (0, 0)
+    assert await segment_count(factory, accounts[1]) == 0
 
 
 @pytest.mark.asyncio

@@ -97,12 +97,17 @@ class Observation:
         self.get_observation_timeline = GetObservationTimeline(
             timeline=self.observation_timeline, accounts=accounts, clock=clock
         )
-        self.accept_activity_batch = AcceptActivityBatch(devices=devices)
+        self.accept_activity_batch = AcceptActivityBatch(
+            devices=devices, acceptance_clock=clock
+        )
         self.process_activity_batch = create_process_activity_batch(
             devices=devices, dispatcher=dispatcher, clock=clock
         )
         self.process_legacy_activity_batch = ProcessLegacyActivityBatch(
-            devices=devices, dispatcher=dispatcher, clock=clock
+            devices=devices,
+            dispatcher=dispatcher,
+            clock=clock,
+            acceptance_clock=clock,
         )
         self.start_focus_session = StartFocusSession(
             focus_sessions=focus_sessions, devices=devices, dispatcher=dispatcher

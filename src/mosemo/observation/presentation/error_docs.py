@@ -3,6 +3,7 @@ from collections.abc import Mapping
 from mosemo.observation.presentation.errors import ObservationErrorCode
 from mosemo.shared.errors import ApiErrorCode
 from mosemo.shared.openapi import ErrorDocs
+from mosemo.shared.presentation.schemas import ValidationDetail
 
 ERROR_DOCS: Mapping[ApiErrorCode, ErrorDocs] = {
     ObservationErrorCode.FOCUS_SESSION_NOT_FOUND: ErrorDocs(
@@ -30,6 +31,22 @@ ERROR_DOCS: Mapping[ApiErrorCode, ErrorDocs] = {
     ObservationErrorCode.ACTIVITY_BATCH_CONFLICT: ErrorDocs(
         summary="Activity batch conflict",
         description="같은 계정·Device·batchId로 처리한 배치의 내용과 다릅니다.",
+    ),
+    ObservationErrorCode.ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW: ErrorDocs(
+        summary="Activity record outside acceptance window",
+        description=(
+            "observedAt이 서버 수락 시각보다 24시간 넘게 이전이거나 수락 시각보다 "
+            "이후인 레코드가 있어 배치 전체를 거절했습니다. details는 그런 레코드마다 "
+            "요청 순서대로 하나씩 records의 0부터 센 위치를 가리킵니다. 그 레코드를 "
+            "버리고 남은 레코드를 새 batchId로 보냅니다."
+        ),
+        example_details=(
+            ValidationDetail(
+                loc=["body", "records", 0, "observedAt"],
+                msg="Activity record is outside the acceptance window",
+                type="activity_record_outside_acceptance_window",
+            ),
+        ),
     ),
     ObservationErrorCode.ACTIVITY_BATCH_TOO_LARGE: ErrorDocs(
         summary="Activity batch too large",

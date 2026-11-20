@@ -52,6 +52,7 @@ from mosemo.platform.database.persistence import account_lock_key
 from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
+from tests.support.acceptance import FIXED_ACCEPTED_AT
 from tests.support.batches import batch_client, post_activity, receipt_for
 from tests.support.clock import FakeClock
 from tests.support.identity import (
@@ -228,9 +229,11 @@ async def create_account_with_labels(
 async def label_api_client(
     integration_database_url: str,
     identity_config: IdentityConfig,
+    acceptance_clock: FakeClock,
 ) -> AsyncIterator[
     tuple[httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI]
 ]:
+    acceptance_clock.now = FIXED_ACCEPTED_AT
     engine = create_async_engine(integration_database_url)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
@@ -1903,6 +1906,7 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
     identity_config: IdentityConfig,
+    acceptance_clock: FakeClock,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -1949,6 +1953,8 @@ async def test_scanner_discovers_explicit_and_silence_closed_details_only(
             ),
         )
         assert silence_record.status_code == 200
+        # The open record is observed now, so accept it now.
+        acceptance_clock.now = clock.now
         open_record = await post_activity(
             client,
             headers=open_headers,
@@ -2886,6 +2892,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
     identity_config: IdentityConfig,
+    acceptance_clock: FakeClock,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -2976,6 +2983,8 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
         assert archived.json()["error"]["status"] == "LABEL_NOT_AVAILABLE"
 
         now = utc_now().replace(microsecond=0)
+        # The open segment is observed now, so accept it now.
+        acceptance_clock.now = utc_now()
         open_segment = await post_activity(
             client,
             headers=other_headers,
@@ -2987,6 +2996,7 @@ async def test_label_confirmation_enforces_ownership_and_eligibility(
             ),
         )
         assert open_segment.status_code == 200
+        acceptance_clock.now = FIXED_ACCEPTED_AT
         open_timeline = await client.get(
             "/api/v1/activities/timeline?date="
             f"{now.astimezone(ZoneInfo('Asia/Seoul')).date().isoformat()}",
@@ -3617,6 +3627,7 @@ async def test_label_timeline_returns_open_detailed_activity_separately(
         httpx2.AsyncClient, async_sessionmaker[AsyncSession], FastAPI
     ],
     identity_config: IdentityConfig,
+    acceptance_clock: FakeClock,
 ) -> None:
     client, session_factory, _ = label_api_client
     async with session_factory() as session:
@@ -3628,6 +3639,7 @@ async def test_label_timeline_returns_open_detailed_activity_separately(
         observed_at = (
             utc_now().isoformat(timespec="microseconds").replace("+00:00", "Z")
         )
+        acceptance_clock.now = utc_now()
         created = await post_activity(
             client,
             headers=headers,

@@ -21,6 +21,9 @@ class ObservationErrorCode(ApiErrorCode):
     ACTIVITY_BATCH_CONFLICT = ErrorSpec(
         code=409, message="Activity batch ID conflicts with stored content"
     )
+    ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW = ErrorSpec(
+        code=422, message="Activity record is outside the acceptance window"
+    )
     ACTIVITY_BATCH_TOO_LARGE = ErrorSpec(
         code=413, message="Activity batch body is too large"
     )

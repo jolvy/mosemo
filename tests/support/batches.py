@@ -29,8 +29,11 @@ from mosemo.observation.presentation.activities.router import create_router
 from mosemo.platform.clock import utc_now
 from mosemo.platform.messaging.config import BatchDeliveryConfig
 from mosemo.platform.providers import get_session
+from mosemo.shared.application.clock import Clock
 from mosemo.shared.application.events import EventDispatcher
 from mosemo.shared.presentation.current_account import get_current_account
+from tests.support.acceptance import FIXED_ACCEPTED_AT
+from tests.support.clock import FakeClock
 from tests.support.identity import current_account_provider, token_service
 
 
@@ -103,15 +106,24 @@ async def post_activity(
     return response
 
 
-def make_app(api_config: ApiConfig):
+def make_app(api_config: ApiConfig, *, acceptance_clock: Clock | None = None):
+    """An activities API on mocked devices; by default it accepts the shared
+    fixed test records (`FIXED_ACCEPTED_AT`).
+    """
+    acceptance_clock = acceptance_clock or FakeClock(FIXED_ACCEPTED_AT)
     identity_config = api_config.identity()
     api = FastAPI()
     devices = AsyncMock()
     api.include_router(
         create_router(
-            accept_activity_batch=AcceptActivityBatch(devices=devices),
+            accept_activity_batch=AcceptActivityBatch(
+                devices=devices, acceptance_clock=acceptance_clock
+            ),
             process_legacy_activity_batch=ProcessLegacyActivityBatch(
-                devices=devices, dispatcher=EventDispatcher(), clock=utc_now
+                devices=devices,
+                dispatcher=EventDispatcher(),
+                clock=utc_now,
+                acceptance_clock=acceptance_clock,
             ),
             get_observation_timeline=create_autospec(
                 GetObservationTimeline, instance=True

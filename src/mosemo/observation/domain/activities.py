@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -7,6 +8,8 @@ from mosemo.shared.domain.aggregates import AggregateRoot
 from mosemo.shared.domain.timezones import Timezone
 
 MAX_OBSERVATION_GAP = timedelta(seconds=60)
+# How far before the server's acceptance time a record may have been observed.
+ACCEPTANCE_WINDOW = timedelta(hours=24)
 
 
 class RecordType(StrEnum):
@@ -29,6 +32,38 @@ class ActivityEventIdConflictError(Exception):
 
 class ActivitySequenceConflictError(Exception):
     pass
+
+
+class ActivityRecordOutsideAcceptanceWindowError(Exception):
+    """Records observed outside the acceptance window, by position in the batch."""
+
+    def __init__(self, indexes: Iterable[int]) -> None:
+        self.indexes = tuple(indexes)
+        super().__init__(f"records outside the acceptance window: {self.indexes}")
+
+
+def is_within_acceptance_window(
+    observed_at: datetime, *, accepted_at: datetime
+) -> bool:
+    """Whether a record was observed at most 24 hours before acceptance and not
+    after it. Both ends are included; aware datetimes compare as absolute time.
+    """
+    return accepted_at - ACCEPTANCE_WINDOW <= observed_at <= accepted_at
+
+
+def ensure_within_acceptance_window(
+    observed_at: Iterable[datetime], *, accepted_at: datetime
+) -> None:
+    """Raise `ActivityRecordOutsideAcceptanceWindowError` naming every record,
+    in batch order, that was observed outside the acceptance window.
+    """
+    outside = [
+        index
+        for index, value in enumerate(observed_at)
+        if not is_within_acceptance_window(value, accepted_at=accepted_at)
+    ]
+    if outside:
+        raise ActivityRecordOutsideAcceptanceWindowError(outside)
 
 
 @dataclass(eq=False, repr=False, kw_only=True)

@@ -1,4 +1,5 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import date
 from typing import Annotated
 
@@ -8,6 +9,7 @@ from mosemo.identity.public import AccountNotFoundError
 from mosemo.observation.application.activities import GetObservationTimeline
 from mosemo.observation.application.batches import (
     AcceptActivityBatch,
+    ActivityBatchSummary,
     ProcessLegacyActivityBatch,
     TerminalBatchError,
 )
@@ -15,7 +17,10 @@ from mosemo.observation.application.ports import (
     ActivityBatchPublisher,
     ActivityDeliveryUnavailableError,
 )
-from mosemo.observation.domain.activities import ActivityDeviceNotFoundError
+from mosemo.observation.domain.activities import (
+    ActivityDeviceNotFoundError,
+    ActivityRecordOutsideAcceptanceWindowError,
+)
 from mosemo.observation.domain.timeline import ActivityTimelineBusyError
 from mosemo.observation.presentation.activities.mappers import (
     activity_batch,
@@ -33,6 +38,7 @@ from mosemo.observation.presentation.errors import ObservationErrorCode
 from mosemo.shared.errors import ApiErrorCode, ApiException, CommonErrorCode
 from mosemo.shared.openapi import api_error_responses
 from mosemo.shared.presentation.current_account import CurrentAccountDep
+from mosemo.shared.presentation.schemas import ValidationDetail
 
 type BatchPublisherProvider = Callable[
     ..., ActivityBatchPublisher[ActivityBatchRequest] | None
@@ -45,6 +51,26 @@ TERMINAL_BATCH_ERRORS: dict[str, ApiErrorCode] = {
     "FocusSessionNotFoundError": ObservationErrorCode.FOCUS_SESSION_NOT_FOUND,
     "FocusSessionInvalidTimeError": ObservationErrorCode.FOCUS_SESSION_CONFLICT,
 }
+
+
+@contextmanager
+def acceptance_window_errors() -> Iterator[None]:
+    """Report each record outside the acceptance window by its batch position."""
+    try:
+        yield
+    except ActivityRecordOutsideAcceptanceWindowError as exc:
+        error_code = ObservationErrorCode.ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW
+        raise ApiException(
+            error_code,
+            details=[
+                ValidationDetail(
+                    loc=["body", "records", index, "observedAt"],
+                    msg=error_code.message,
+                    type=error_code.status.lower(),
+                )
+                for index in exc.indexes
+            ],
+        ) from exc
 
 
 def create_router(
@@ -62,7 +88,7 @@ def create_router(
         status_code=status.HTTP_202_ACCEPTED,
         response_model=ActivityBatchResponse,
         summary="활동 배치 전달 수락",
-        description="인증 계정의 Device 원본 1~200건, 비압축 JSON 512 KiB 이하를 Kafka에 발행하고 발행 확인 후 수락합니다. 발행 확인은 최대 5초 대기하며 HTTP 전체 수락 제한은 10초입니다. 별도 Consumer의 DB 처리나 offset commit 완료를 기다리지 않습니다. 503 응답에는 Retry-After: 1을 반환합니다. 확인 timeout은 미발행을 뜻하지 않으므로 같은 batchId와 내용으로 재시도합니다.",
+        description="인증 계정의 Device 원본 1~200건, 비압축 JSON 512 KiB 이하를 Kafka에 발행하고 발행 확인 후 수락합니다. observedAt이 서버 수락 시각보다 24시간 넘게 이전이거나 수락 시각보다 이후인 레코드가 하나라도 있으면 발행하지 않고 배치 전체를 422로 거절합니다. 발행 확인은 최대 5초 대기하며 HTTP 전체 수락 제한은 10초입니다. 별도 Consumer의 DB 처리나 offset commit 완료를 기다리지 않습니다. 503 응답에는 Retry-After: 1을 반환합니다. 확인 timeout은 미발행을 뜻하지 않으므로 같은 batchId와 내용으로 재시도합니다.",
         response_description="Kafka 발행 ACK를 확인한 결과이며 원본별 처리 성공·DB commit·Consumer offset commit을 뜻하지 않습니다. DB 반영은 타임라인 조회로 확인합니다.",
         responses=api_error_responses(
             CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
@@ -70,6 +96,7 @@ def create_router(
             CommonErrorCode.REQUEST_ROUTE_NOT_FOUND,
             ObservationErrorCode.ACTIVITY_BATCH_TOO_LARGE,
             CommonErrorCode.INVALID_ARGUMENT,
+            ObservationErrorCode.ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW,
             ObservationErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
             headers={
                 503: {
@@ -92,13 +119,19 @@ def create_router(
         db_session: SessionDep,
     ) -> ActivityBatchResponse:
         try:
-            await accept_activity_batch.execute(
-                db_session,
-                account_id=current_account.account_id,
-                device_id=batch.device_id,
-                batch=batch,
-                publisher=publisher,
-            )
+            with acceptance_window_errors():
+                await accept_activity_batch.execute(
+                    db_session,
+                    account_id=current_account.account_id,
+                    summary=ActivityBatchSummary(
+                        device_id=batch.device_id,
+                        observed_at=tuple(
+                            record.observed_at for record in batch.records
+                        ),
+                    ),
+                    batch=batch,
+                    publisher=publisher,
+                )
         except ActivityDeviceNotFoundError as exc:
             raise ApiException(ObservationErrorCode.ACTIVITY_DEVICE_NOT_FOUND) from exc
         except ActivityDeliveryUnavailableError as exc:
@@ -112,7 +145,7 @@ def create_router(
         operation_id="activitiesProcessBatchLegacy",
         response_model=ActivityBatchProcessedResponse,
         summary="활동 배치 직접 처리",
-        description="이벤트를 발행하지 않고 활동 배치를 직접 처리합니다. 원본 저장과 타임라인 구간 반영이 완료된 뒤 응답합니다.",
+        description="이벤트를 발행하지 않고 활동 배치를 직접 처리합니다. 원본 저장과 타임라인 구간 반영이 완료된 뒤 응답합니다. observedAt이 서버 수락 시각보다 24시간 넘게 이전이거나 수락 시각보다 이후인 레코드가 하나라도 있으면 아무것도 저장하지 않고 배치 전체를 422로 거절합니다.",
         responses=api_error_responses(
             CommonErrorCode.AUTH_INVALID_ACCESS_TOKEN,
             ObservationErrorCode.ACTIVITY_DEVICE_NOT_FOUND,
@@ -120,6 +153,7 @@ def create_router(
             ObservationErrorCode.ACTIVITY_DELIVERY_UNAVAILABLE,
             ObservationErrorCode.ACTIVITY_BATCH_TOO_LARGE,
             CommonErrorCode.INVALID_ARGUMENT,
+            ObservationErrorCode.ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW,
             ObservationErrorCode.ACTIVITY_TIMELINE_BUSY,
             ObservationErrorCode.FOCUS_SESSION_NOT_FOUND,
             ObservationErrorCode.FOCUS_SESSION_CONFLICT,
@@ -140,11 +174,12 @@ def create_router(
         db_session: SessionDep,
     ) -> ActivityBatchProcessedResponse:
         try:
-            results = await process_legacy_activity_batch.execute(
-                db_session,
-                account_id=current_account.account_id,
-                batch=activity_batch(batch),
-            )
+            with acceptance_window_errors():
+                results = await process_legacy_activity_batch.execute(
+                    db_session,
+                    account_id=current_account.account_id,
+                    batch=activity_batch(batch),
+                )
         except ActivityTimelineBusyError as exc:
             raise ApiException(ObservationErrorCode.ACTIVITY_TIMELINE_BUSY) from exc
         except TerminalBatchError as exc:

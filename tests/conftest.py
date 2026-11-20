@@ -11,6 +11,9 @@ from mosemo.observation import bootstrap as observation_bootstrap
 from mosemo.shared.application.events import EventDispatcher
 from tests.support.identity import sign_up_dispatcher
 
+# Shared fixtures defined in tests/support.
+pytest_plugins = ["tests.support.acceptance"]
+
 # Property tests are reproducible: fixed derivation, no example database, no deadline.
 settings.register_profile("mosemo", derandomize=True, database=None, deadline=None)
 settings.load_profile("mosemo")

@@ -3027,7 +3027,7 @@
     },
     "/api/v1/activities/batches": {
       "post": {
-        "description": "인증 계정의 Device 원본 1~200건, 비압축 JSON 512 KiB 이하를 Kafka에 발행하고 발행 확인 후 수락합니다. 발행 확인은 최대 5초 대기하며 HTTP 전체 수락 제한은 10초입니다. 별도 Consumer의 DB 처리나 offset commit 완료를 기다리지 않습니다. 503 응답에는 Retry-After: 1을 반환합니다. 확인 timeout은 미발행을 뜻하지 않으므로 같은 batchId와 내용으로 재시도합니다.",
+        "description": "인증 계정의 Device 원본 1~200건, 비압축 JSON 512 KiB 이하를 Kafka에 발행하고 발행 확인 후 수락합니다. observedAt이 서버 수락 시각보다 24시간 넘게 이전이거나 수락 시각보다 이후인 레코드가 하나라도 있으면 발행하지 않고 배치 전체를 422로 거절합니다. 발행 확인은 최대 5초 대기하며 HTTP 전체 수락 제한은 10초입니다. 별도 Consumer의 DB 처리나 offset commit 완료를 기다리지 않습니다. 503 응답에는 Retry-After: 1을 반환합니다. 확인 timeout은 미발행을 뜻하지 않으므로 같은 batchId와 내용으로 재시도합니다.",
         "operationId": "activitiesAcceptBatch",
         "requestBody": {
           "content": {
@@ -3181,6 +3181,29 @@
             "content": {
               "application/json": {
                 "examples": {
+                  "ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW": {
+                    "description": "observedAt이 서버 수락 시각보다 24시간 넘게 이전이거나 수락 시각보다 이후인 레코드가 있어 배치 전체를 거절했습니다. details는 그런 레코드마다 요청 순서대로 하나씩 records의 0부터 센 위치를 가리킵니다. 그 레코드를 버리고 남은 레코드를 새 batchId로 보냅니다.",
+                    "summary": "Activity record outside acceptance window",
+                    "value": {
+                      "error": {
+                        "code": 422,
+                        "details": [
+                          {
+                            "loc": [
+                              "body",
+                              "records",
+                              0,
+                              "observedAt"
+                            ],
+                            "msg": "Activity record is outside the acceptance window",
+                            "type": "activity_record_outside_acceptance_window"
+                          }
+                        ],
+                        "message": "Activity record is outside the acceptance window",
+                        "status": "ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW"
+                      }
+                    }
+                  },
                   "INVALID_ARGUMENT": {
                     "description": "요청 입력값 검증에 실패했습니다.",
                     "summary": "Invalid argument",
@@ -3285,7 +3308,7 @@
     },
     "/api/v1/activities/batches/legacy": {
       "post": {
-        "description": "이벤트를 발행하지 않고 활동 배치를 직접 처리합니다. 원본 저장과 타임라인 구간 반영이 완료된 뒤 응답합니다.",
+        "description": "이벤트를 발행하지 않고 활동 배치를 직접 처리합니다. 원본 저장과 타임라인 구간 반영이 완료된 뒤 응답합니다. observedAt이 서버 수락 시각보다 24시간 넘게 이전이거나 수락 시각보다 이후인 레코드가 하나라도 있으면 아무것도 저장하지 않고 배치 전체를 422로 거절합니다.",
         "operationId": "activitiesProcessBatchLegacy",
         "requestBody": {
           "content": {
@@ -3476,6 +3499,29 @@
             "content": {
               "application/json": {
                 "examples": {
+                  "ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW": {
+                    "description": "observedAt이 서버 수락 시각보다 24시간 넘게 이전이거나 수락 시각보다 이후인 레코드가 있어 배치 전체를 거절했습니다. details는 그런 레코드마다 요청 순서대로 하나씩 records의 0부터 센 위치를 가리킵니다. 그 레코드를 버리고 남은 레코드를 새 batchId로 보냅니다.",
+                    "summary": "Activity record outside acceptance window",
+                    "value": {
+                      "error": {
+                        "code": 422,
+                        "details": [
+                          {
+                            "loc": [
+                              "body",
+                              "records",
+                              0,
+                              "observedAt"
+                            ],
+                            "msg": "Activity record is outside the acceptance window",
+                            "type": "activity_record_outside_acceptance_window"
+                          }
+                        ],
+                        "message": "Activity record is outside the acceptance window",
+                        "status": "ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW"
+                      }
+                    }
+                  },
                   "INVALID_ARGUMENT": {
                     "description": "요청 입력값 검증에 실패했습니다.",
                     "summary": "Invalid argument",

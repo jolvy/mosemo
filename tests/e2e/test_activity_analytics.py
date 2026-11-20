@@ -1,42 +1,35 @@
-"""E2E-1: from an activity upload to the session analysis and a past date's
-daily stats (verification plan E2E-1; AC-8008, AC-8010, AC-8015).
+"""E2E-1: from an activity upload to the session analysis (verification plan
+E2E-1; AC-8008, AC-8010).
 
-The API and the Consumer run as processes started by the fixture, the daily
-stats batch runs once per step as `run analytics-daily-stats`, and every
+The API and the Consumer run as processes started by the fixture, and every
 request goes over real HTTP. The account (timezone Asia/Seoul, labels
 `코딩`·`여가`) is created in the database and its access token is issued with
-the test JWT key instead of Kakao. The observations lie two days back, so the
-date's marks are already eligible without changing any clock.
+the test JWT key instead of Kakao. The server accepts only records observed in
+the 24 hours before acceptance, and the processes' clocks cannot be pinned, so
+the session lies within the last day (`upload_start`). A past date's daily
+stats (AC-8015) are covered by API-5 with a pinned clock.
 """
 
 import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
-from zoneinfo import ZoneInfo
 
 import httpx2
 import pytest
 import pytest_asyncio
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from mosemo.analytics.infrastructure.tables import (
-    analytics_daily_markers,
-    analytics_daily_stats,
-)
 from mosemo.identity.bootstrap import IdentityConfig
 from mosemo.identity.domain.accounts import Account, AccountProvider
 from mosemo.labels.domain.labels import Label
 from mosemo.platform.clock import utc_now
 from mosemo.shared.domain.timezones import Timezone
-from tests.support.e2e import E2eSystem
+from tests.support.e2e import SEOUL, E2eSystem, upload_start
 from tests.support.identity import token_service
 
-SEOUL = ZoneInfo("Asia/Seoul")
-DAILY_STATS_JOB = "analytics-daily-stats"
 OBSERVATION_STEP = timedelta(seconds=30)
 SESSION_END = 45
 PAUSE = (30, 35)
@@ -94,11 +87,9 @@ def minutes_us(value: float) -> int:
 
 @dataclass
 class Scenario:
-    """One account on a past date, driven over HTTP with its own token."""
+    """One account's recent session, driven over HTTP with its own token."""
 
     client: httpx2.AsyncClient
-    engine: AsyncEngine
-    account_id: UUID
     labels: dict[str, UUID]
     day: date
     start: datetime
@@ -173,30 +164,6 @@ class Scenario:
             },
         )
 
-    async def daily(self) -> dict[str, Any]:
-        return await self.ok("GET", f"/api/v1/analytics/daily-stats?date={self.day}")
-
-    async def markers(self) -> int:
-        async with AsyncSession(self.engine) as session:
-            result = await session.execute(
-                select(func.count())
-                .select_from(analytics_daily_markers)
-                .where(analytics_daily_markers.c.account_id == self.account_id)
-            )
-        return result.scalar_one()
-
-    async def has_stored_stats(self) -> bool:
-        async with AsyncSession(self.engine) as session:
-            stored = await session.scalar(
-                select(func.count())
-                .select_from(analytics_daily_stats)
-                .where(
-                    analytics_daily_stats.c.account_id == self.account_id,
-                    analytics_daily_stats.c.local_date == self.day,
-                )
-            )
-        return stored == 1
-
 
 @pytest_asyncio.fixture
 async def scenario(
@@ -218,7 +185,7 @@ async def scenario(
     # The day boundaries below are Seoul's: the account's default timezone.
     assert account.timezone == Timezone.ASIA_SEOUL
     token = token_service(identity_config).issue_access_token(account.id, now=utc_now())
-    day = utc_now().astimezone(SEOUL).date() - timedelta(days=2)
+    start = upload_start(utc_now())
     async with httpx2.AsyncClient(
         base_url=e2e_system.base_url,
         headers={"Authorization": f"Bearer {token}"},
@@ -226,25 +193,22 @@ async def scenario(
     ) as client:
         yield Scenario(
             client=client,
-            engine=engine,
-            account_id=account.id,
             labels={label.display_name: label.id for label in labels},
-            day=day,
-            start=datetime.combine(day, time(10), tzinfo=SEOUL).astimezone(UTC),
+            day=start.astimezone(SEOUL).date(),
+            start=start,
         )
     await engine.dispose()
 
 
 @pytest.mark.asyncio
-async def test_e2e1_upload_to_session_analysis_and_past_daily_stats(
-    scenario: Scenario, e2e_system: E2eSystem
-) -> None:
+async def test_e2e1_upload_to_session_analysis(scenario: Scenario) -> None:
     # 1. A registered device of an account with the labels 코딩·여가.
     device = await scenario.ok(
         "POST", "/api/v1/devices", 201, headers={"Idempotency-Key": str(uuid4())}
     )
 
-    # 2. A session two days back, its observations through Kafka and the Consumer.
+    # 2. A session within the last day, its observations through Kafka and the
+    # Consumer.
     session_id = str(uuid4())
     await scenario.ok(
         "POST",
@@ -331,27 +295,3 @@ async def test_e2e1_upload_to_session_analysis_and_past_daily_stats(
         scenario.iso(18),
         scenario.iso(22),
     ]
-
-    # 6. The past date before and after one batch run.
-    before_batch = await scenario.daily()
-    assert before_batch["sessions"]["composition"] == analysis["composition"]
-    assert await scenario.markers() > 0
-    e2e_system.run_batch_job(DAILY_STATS_JOB)
-    assert await scenario.markers() == 0
-    assert await scenario.has_stored_stats()
-    assert await scenario.daily() == before_batch
-
-    # 7. A correction the next day (AC-8015): B was 코딩 after all.
-    await scenario.confirm(segments["video"], "코딩")
-    corrected = await scenario.daily()
-    assert await scenario.markers() > 0
-    e2e_system.run_batch_job(DAILY_STATS_JOB)
-    assert await scenario.markers() == 0
-    assert await scenario.daily() == corrected
-    composition = corrected["sessions"]["composition"]
-    assert (composition["focusUs"], composition["lapseUs"]) == (
-        minutes_us(33),
-        minutes_us(4),
-    )
-    assert composition["lapseCount"] == 1
-    assert corrected != before_batch
