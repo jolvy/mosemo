@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-20T10:08:17.353Z
+    at: 2026-11-20T11:18:18.429Z
 sources:
   - id: openwiki-source-3c6b76d80d7f929dde842165
     resource: repo://.codex/skills/verification/scripts/ci_gate.py

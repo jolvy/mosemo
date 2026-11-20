@@ -5,7 +5,7 @@ description: PRD·요구사항·용어집으로 본 Mosemo 서버의 기능 범�
 tags: [domain, prd, glossary, api]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-17T16:42:07.914Z
+    at: 2026-11-20T11:18:18.429Z
 sources:
   - id: openwiki-source-8e9d01622c02cac4ba03a4c8
     resource: repo://docs/adr/0005-separate-observation-and-personal-label-confirmation.md

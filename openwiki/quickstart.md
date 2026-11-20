@@ -5,7 +5,7 @@ description: 처음 보는 사람을 위한 Mosemo 서버 온보딩과 위키 �
 tags: [onboarding, quickstart, setup, wiki]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-19T07:46:46.571Z
+    at: 2026-11-20T11:18:18.429Z
 sources:
   - id: openwiki-source-6d4b4e707b8d60b6ccfa3425
     resource: repo://.github/workflows/openwiki-update.yml
