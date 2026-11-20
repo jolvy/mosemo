@@ -5,7 +5,7 @@ description: infra/measurement의 랩(EKS) 부하 측정 도구를 정리한다.
 tags: [operations, load-testing, k6, measurement, eks, analytics]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-19T07:57:51.488Z
+    at: 2026-11-20T11:18:18.429Z
 sources:
   - id: openwiki-source-396b24e718ed8ac9a1634261
     resource: repo://infra/measurement/HISTORY.md
@@ -17,7 +17,7 @@ sources:
     resource: repo://infra/measurement/run-load-measurement.sh
   - id: openwiki-source-5b30546c1b94a01cd738da1f
     resource: repo://tests/unit/tools/test_measurement_b.py
-generated: { by: "claude-code", at: "2026-11-19T07:57:51.488Z" }
+generated: { by: "claude-code", at: "2026-11-20T11:18:18.429Z" }
 ---
 
 # 부하 측정 도구
@@ -92,7 +92,7 @@ MEASUREMENT=delete-scale USERS=20 DAYS=3 MEASURE_DATE=<날짜> MIXED_SEC=60 infr
 - 기준 사양 측정(2026-11-15): API 4·consumer 4·파티션 8로 C1~C6 합격, DB CPU 약 47%가 가장 많이 쓴 자원.
 - 측정 A(2026-11-15~16, 다시 계산 표시 처리 뒤): 합격, DB CPU 약 30%. 표시 처리 질의가 업로드 경로 DB 실행 시간의 약 16%, 버퍼의 약 10%를 썼다. 이후 비교는 측정 A를 기준으로 삼는다.
 - 7B 삭제 방식 로컬 측정: 야간 이관 삭제 127~150초, 90일 계정 삭제 10.6~17.9초, 라벨 FK 인덱스가 필요하고 주부하는 VACUUM.
-- 측정 B(2026-11-17, 측정 전용 두 번째 랩 `mosemo-labb`): G1 판단 불가. R3(1만 구간 조회 추가)에서 다른 요청 p95가 조회 약 1.2초·업로드 약 1.3초로 올라 C1 실패했고, R2 한 회는 C4 실패였다. 일간 통계 한 번의 시간은 약 80%가 DB 읽기이고 구간 수에 비례했다. 일간 통계 batch 24번 중 9번이 `SourceSnapshot` 구간 겹침 검사의 `ValueError`로 실행 전체가 실패했다(측정용 합성 데이터 탓으로 판단했으나 데이터로 확인하지 않음). 계산 분리 여부와 오류 계정 건너뛰기는 아직 결정되지 않았다.
+- 측정 B(2026-11-17, 측정 전용 두 번째 랩 `mosemo-labb`): G1 판단 불가. R3(1만 구간 조회 추가)에서 다른 요청 p95가 조회 약 1.2초·업로드 약 1.3초로 올라 C1 실패했고, R2 한 회는 C4 실패였다. 일간 통계 한 번의 시간은 약 80%가 DB 읽기이고 구간 수에 비례했다. 일간 통계 batch 24번 중 9번이 `SourceSnapshot` 구간 겹침 검사의 `ValueError`로 실행 전체가 실패했다(측정용 합성 데이터 탓으로 판단했으나 데이터로 확인하지 않음). 이후 `SourceSnapshot` 검증 실패는 `InvalidSourceError`로 구분해 그 날짜만 실패로 기록하도록 바뀌어 한 날짜의 잘못된 원천이 실행 전체를 중단하지 않는다([활동 분석](../domain/activity-analytics.md)). 계산 분리 여부는 아직 결정되지 않았다.
 - 7B 계정 삭제 운영 규모 측정(2026-11-16, AWS 랩, RDS gp3 250GB, 300명 × 91일): 무효. 생성기가 D일 기록을 미리 채워 k6 업로드가 `projection_time_regression`으로 거절되고 consumer가 같은 오류로 재시작을 반복해 부하가 약 80초 만에 중단됐다. 부하 없는 삭제 값은 남았다. 날짜별 분할의 마지막 트랜잭션(세션·영수증·라벨·기기·계정 삭제)이 881~1,635초 열려 VACUUM을 막았고, 기기를 참조하는 영수증·세션에 `device_id` 인덱스가 없어 기기 1행 삭제가 409~528초였다. 한 트랜잭션 방식은 야간 이관을 막아 기각 쪽이다. 생성기를 고쳐 다시 측정하고 삭제 방식과 P2 기준을 다시 정한다.
 
 쿠버네티스 리소스 이름(Pod `step5-tools`, ServiceAccount `step5-operator`)과 Pod 안 경로(`/work/step5`)는 옛 이름 그대로다. `infra/deployment`의 RBAC·준비 점검 스크립트가 이 이름에 묶여 있기 때문이다.

@@ -5,7 +5,7 @@ description: 요구사항 탐색부터 검증까지의 저장소 Skill 흐름, A
 tags: [harness, skills, review, agents, workflow]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-19T07:46:46.571Z
+    at: 2026-11-20T11:18:18.429Z
 sources:
   - id: openwiki-source-1fe463fcf07912e5cdbb5a91
     resource: repo://.claude/settings.json

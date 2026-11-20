@@ -5,7 +5,7 @@ description: 활동 분석 C1~C7의 범위, 제안 ADR 0016을 바탕으로 구�
 tags: [analytics, domain, daily-stats, adr-0016, batch-jobs, reference-implementation, protocol-model]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-17T16:42:07.914Z
+    at: 2026-11-20T11:18:18.429Z
 sources:
   - id: openwiki-source-b4c3599391634fa467609ba0
     resource: repo://docs/activity-analytics-operations.md
@@ -21,6 +21,8 @@ sources:
     resource: repo://src/mosemo/analytics/application/reads.py
   - id: openwiki-source-f10716a075abdd3dd59d82c4
     resource: repo://src/mosemo/analytics/domain/markers.py
+  - id: openwiki-source-5cb62f68f714af5422b0d0af
+    resource: repo://src/mosemo/analytics/domain/source.py
   - id: openwiki-source-58f7a5346eafce716f792f13
     resource: repo://src/mosemo/analytics/domain/stats_source.py
   - id: openwiki-source-7a4842338b49234c14e09e94
@@ -31,7 +33,7 @@ sources:
     resource: repo://tests/support/analytics_reference/__init__.py
   - id: openwiki-source-6d6144b7b2ba06f9c7310070
     resource: repo://tools/analytics_protocol_models/README.md
-generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
+generated: { by: "claude-code", at: "2026-11-20T11:18:18.429Z" }
 ---
 
 # 활동 분석
@@ -123,7 +125,7 @@ batch 프로세스에서만 돈다. API·consumer Pod에서 돌리지 않는 이
 
 실패와 재처리([markers.py](../../src/mosemo/analytics/domain/markers.py) `RetryPolicy`):
 
-- 계산 예외와 날짜 단위 DB 오류(`lock_timeout`, `statement_timeout`, 직렬화 실패)는 `last_error`(예외 타입 이름)와 함께 기록하고 다음 날짜로 넘어간다. 재시도 간격은 5분·30분·2시간·12시간·24시간이다.
+- 계산 예외와 날짜 단위 DB 오류(`lock_timeout`, `statement_timeout`, 직렬화 실패)는 `last_error`(예외 타입 이름)와 함께 기록하고 다음 날짜로 넘어간다. 원천 스냅샷이 입력 계약을 어겨(열린 구간이 마지막이 아니거나 구간이 겹침) `SourceSnapshot`이 `InvalidSourceError`를 내면 `RefreshDailyStats`가 이를 `DateFailedError`로 바꿔 그 날짜만 실패로 기록하므로, 한 날짜의 잘못된 원천이 실행 전체를 중단하지 않는다. 재시도 간격은 5분·30분·2시간·12시간·24시간이다.
 - 연결 오류나 저장 중 정의 변경은 그 실행을 끝낸다(`aborted`). 선점 lease는 10분이라 그 뒤 다시 처리된다.
 - 시도 6회에 이르면 그 표시는 선점에서 빠진다(격리). 표시가 남으므로 조회는 그 날짜를 원천에서 계산한다. 격리 해제는 원인을 고친 뒤 SQL로 `attempts`를 0으로 되돌린다.
 
