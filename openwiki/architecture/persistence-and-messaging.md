@@ -5,7 +5,7 @@ description: dataclass aggregate와 imperative mapping, 트랜잭션 헬퍼와 �
 tags: [persistence, sqlalchemy, domain-events, kafka, batch-jobs, alembic]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-20T11:18:18.429Z
+    at: 2026-11-21T12:49:50.697Z
 sources:
   - id: openwiki-source-d1449bb9b8fd8b54431d973d
     resource: repo://docs/adr/0004-project-observation-timeline-on-write.md
@@ -19,6 +19,8 @@ sources:
     resource: repo://migrations/env.py
   - id: openwiki-source-9f8f1a4a29c395f1cf125a86
     resource: repo://migrations/versions/2026-11-15_0001_c5d6e7f8a9b0_create_analytics_tables.py
+  - id: openwiki-source-f103628f95450c6ee2f5f01c
+    resource: repo://migrations/versions/2026-11-21_0000_d6e7f8a9b0c1_index_foreign_key_columns.py
   - id: openwiki-source-41b37a3a7fc5c266286c3c46
     resource: repo://src/mosemo/analytics/application/marking.py
   - id: openwiki-source-e650be5fbac67192522ee23b
@@ -29,10 +31,14 @@ sources:
     resource: repo://src/mosemo/entrypoints/batch/registry.py
   - id: openwiki-source-2b699ac23a30c5760b936ebd
     resource: repo://src/mosemo/entrypoints/consumer/activity_batches.py
+  - id: openwiki-source-487810e68fe6510e469b0a67
+    resource: repo://src/mosemo/labeling/infrastructure/tables.py
   - id: openwiki-source-c9cecb972e94c477c68a5801
     resource: repo://src/mosemo/observation/application/batches.py
   - id: openwiki-source-fb0ec792c4101db3f47d9358
     resource: repo://src/mosemo/observation/domain/activities.py
+  - id: openwiki-source-b4c795e80f40a7592c64b17c
+    resource: repo://src/mosemo/observation/infrastructure/tables.py
   - id: openwiki-source-731f34422dbd773b6c36c5ab
     resource: repo://src/mosemo/observation/presentation/activities/router.py
   - id: openwiki-source-5e193d69747cf2f2e6517922
@@ -47,7 +53,7 @@ sources:
     resource: repo://src/mosemo/shared/application/events.py
   - id: openwiki-source-bf64c7f959111123b762b90b
     resource: repo://tests/integration/platform/test_transactions.py
-generated: { by: "claude-code", at: "2026-11-20T10:08:17.353Z" }
+generated: { by: "claude-code", at: "2026-11-21T12:49:50.697Z" }
 ---
 
 # 영속성·메시징·배치 실행
@@ -101,6 +107,7 @@ generated: { by: "claude-code", at: "2026-11-20T10:08:17.353Z" }
 - Alembic 환경 [migrations/env.py](../../migrations/env.py)는 다섯 BC(identity·labels·observation·labeling·analytics)의 `map_tables()`만 호출해 `ORM_METADATA`를 채운다. 테이블 정의를 따로 import하지 않는다.
 - 리비전은 `migrations/versions/`에 날짜 접두어 파일로 쌓인다. 이미 적용된 마이그레이션은 다시 쓰지 않고, 스키마 변경에는 새 마이그레이션을 추가한다([AGENTS.md](../../AGENTS.md) 「변경 원칙」).
 - 최근 리비전은 집중 세션 일시중지(`focus_session_pauses` 테이블과 `focus_sessions.pauses_reported`)와 analytics 테이블(`analytics_definitions` 정의 행 version 1, `analytics_daily_markers`, `analytics_daily_stats`, 표시 version 시퀀스)이다. analytics 테이블의 `account_id`는 `accounts.id`를 `ON DELETE CASCADE`로 참조한다.
+- 가장 최근 리비전 `d6e7f8a9b0c1`(#343)은 앞에 인덱스가 없던 외래 키 열 9개(`activity_timeline_segments`의 `first_event_id`·`last_event_id`, `activity_label_confirmations`·`activity_label_proposals`의 `first_event_id`·라벨 참조 열, `focus_sessions`의 `device_id`·`label_id`, `activity_batch_receipts.device_id`)에 단일 열 B-tree 인덱스를 만든다. 부모 행을 지울 때 PostgreSQL이 자식 테이블을 외래 키 열로 조회하므로 순차 스캔을 피하려는 것이다. 운영 서버가 아직 없어 `CONCURRENTLY` 없이 만들며, 같은 인덱스가 observation·labeling `tables.py`에도 선언돼 있다.
 - 로컬 적용은 `poe migration-dev`(`alembic upgrade head`)다.
 
 ## 활동 배치 전달(Kafka)
