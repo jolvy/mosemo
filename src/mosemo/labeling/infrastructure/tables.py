@@ -49,6 +49,8 @@ activity_label_confirmations = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False),
     UniqueConstraint("account_id", "first_event_id"),
     Index("activity_label_confirmations_account_id_idx", "account_id"),
+    Index("activity_label_confirmations_first_event_id_idx", "first_event_id"),
+    Index("activity_label_confirmations_label_id_idx", "label_id"),
 )
 
 activity_label_proposals = Table(
@@ -114,6 +116,8 @@ activity_label_proposals = Table(
     UniqueConstraint("account_id", "first_event_id", "segment_version"),
     CheckConstraint("attempt_count BETWEEN 0 AND 3", name="attempt_count"),
     Index("activity_label_proposals_account_id_idx", "account_id"),
+    Index("activity_label_proposals_first_event_id_idx", "first_event_id"),
+    Index("activity_label_proposals_suggested_label_id_idx", "suggested_label_id"),
 )
 
 

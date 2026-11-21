@@ -102,6 +102,8 @@ focus_sessions = Table(
         name="work_within_target",
     ),
     Index("focus_sessions_account_id_started_at_idx", "account_id", "started_at"),
+    Index("focus_sessions_device_id_idx", "device_id"),
+    Index("focus_sessions_label_id_idx", "label_id"),
 )
 
 # Overlaps are rejected by the FocusSession aggregate, not by the database.
@@ -234,6 +236,8 @@ activity_timeline_segments = Table(
         "account_id",
         "started_at",
     ),
+    Index("activity_timeline_segments_first_event_id_idx", "first_event_id"),
+    Index("activity_timeline_segments_last_event_id_idx", "last_event_id"),
 )
 
 activity_batch_receipts = Table(
@@ -260,6 +264,7 @@ activity_batch_receipts = Table(
         nullable=False,
         server_default=func.now(),
     ),
+    Index("activity_batch_receipts_device_id_idx", "device_id"),
 )
 
 
