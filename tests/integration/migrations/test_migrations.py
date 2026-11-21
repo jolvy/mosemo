@@ -23,6 +23,8 @@ OBSERVATION_KEY_REVISION = "f2a3b4c5d6e7"
 LABELING_KEY_REVISION = "a3b4c5d6e7f8"
 FOCUS_PAUSE_REVISION = "b4c5d6e7f8a9"
 ANALYTICS_REVISION = "c5d6e7f8a9b0"
+FK_INDEX_REVISION = "d6e7f8a9b0c1"
+FK_INDEX_DOWN_REVISION = ANALYTICS_REVISION
 # Drift that already existed at c9d0e1f2a3b4; any other difference fails.
 ALLOWED_METADATA_DRIFT = [
     ("modify_type", "activity_records", "timezone_id"),
@@ -253,7 +255,7 @@ def test_schema_migration_round_trip_and_label_backfill(
     integration_database_url: str,
 ) -> None:
     config = alembic_config(integration_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == [ANALYTICS_REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == [FK_INDEX_REVISION]
     # The assertions below describe the schema up to the batch receipts revision.
     command.downgrade(config, RECEIPT_REVISION)
     account_id = uuid4()
@@ -978,3 +980,119 @@ def test_head_schema_matches_shared_metadata_except_known_drift(
     drift = asyncio.run(metadata_drift(integration_database_url))
 
     assert drift == ALLOWED_METADATA_DRIFT
+
+
+# Foreign keys whose columns are not the leading columns of any valid,
+# non-partial index (#343). Column order inside the leading columns is ignored.
+UNINDEXED_FOREIGN_KEYS_QUERY = """
+WITH fk AS (
+  SELECT c.conname, c.conrelid, c.conkey
+  FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
+  WHERE c.contype = 'f' AND n.nspname = current_schema()
+), idx AS (
+  SELECT i.indrelid, (i.indkey::int2[])[0:i.indnkeyatts - 1] AS keys
+  FROM pg_index i WHERE i.indisvalid AND i.indpred IS NULL
+)
+SELECT fk.conrelid::regclass::text AS child, fk.conname
+FROM fk
+WHERE NOT EXISTS (
+  SELECT 1 FROM idx WHERE idx.indrelid = fk.conrelid
+    AND (SELECT array_agg(k ORDER BY k) FROM unnest(idx.keys[1:cardinality(fk.conkey)]) k)
+      = (SELECT array_agg(k ORDER BY k) FROM unnest(fk.conkey) k))
+ORDER BY 1, 2
+"""
+FK_INDEXES = {
+    ("activity_timeline_segments", "first_event_id"),
+    ("activity_timeline_segments", "last_event_id"),
+    ("activity_label_confirmations", "first_event_id"),
+    ("activity_label_proposals", "first_event_id"),
+    ("activity_label_confirmations", "label_id"),
+    ("activity_label_proposals", "suggested_label_id"),
+    ("focus_sessions", "device_id"),
+    ("focus_sessions", "label_id"),
+    ("activity_batch_receipts", "device_id"),
+}
+FK_INDEX_NAMES = {f"{table}_{column}_idx" for table, column in FK_INDEXES}
+FK_INDEX_CONSTRAINTS = {
+    (table, f"{table}_{column}_fkey") for table, column in FK_INDEXES
+}
+
+
+async def foreign_key_index_state(database_url: str) -> dict[str, Any]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            unindexed = (
+                await connection.execute(text(UNINDEXED_FOREIGN_KEYS_QUERY))
+            ).all()
+            index_names = await connection.scalars(
+                text(
+                    "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()"
+                )
+            )
+            return {
+                "unindexed": [tuple(row) for row in unindexed],
+                "index_names": set(index_names),
+            }
+    finally:
+        await engine.dispose()
+
+
+async def unindexed_foreign_keys_with_probe_table(
+    database_url: str,
+) -> list[tuple[str, str]]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            transaction = await connection.begin()
+            try:
+                await connection.execute(
+                    text(
+                        "CREATE TABLE fk_index_probe ("
+                        " id uuid PRIMARY KEY,"
+                        " label_id uuid CONSTRAINT fk_index_probe_label_id_fkey"
+                        " REFERENCES labels (id))"
+                    )
+                )
+                rows = (
+                    await connection.execute(text(UNINDEXED_FOREIGN_KEYS_QUERY))
+                ).all()
+            finally:
+                await transaction.rollback()
+            return [tuple(row) for row in rows]
+    finally:
+        await engine.dispose()
+
+
+def test_every_foreign_key_has_an_index_led_by_its_columns(
+    integration_database_url: str,
+) -> None:
+    state = asyncio.run(foreign_key_index_state(integration_database_url))
+
+    assert state["unindexed"] == []
+    assert FK_INDEX_NAMES <= state["index_names"]
+
+
+def test_unindexed_foreign_key_query_reports_a_new_unindexed_foreign_key(
+    integration_database_url: str,
+) -> None:
+    unindexed = asyncio.run(
+        unindexed_foreign_keys_with_probe_table(integration_database_url)
+    )
+
+    assert unindexed == [("fk_index_probe", "fk_index_probe_label_id_fkey")]
+
+
+def test_foreign_key_index_migration_downgrade_drops_the_nine_indexes(
+    integration_database_url: str,
+) -> None:
+    config = alembic_config(integration_database_url)
+    try:
+        command.downgrade(config, FK_INDEX_DOWN_REVISION)
+        downgraded = asyncio.run(foreign_key_index_state(integration_database_url))
+    finally:
+        command.upgrade(config, "head")
+
+    assert set(downgraded["unindexed"]) == FK_INDEX_CONSTRAINTS
+    assert len(downgraded["unindexed"]) == len(FK_INDEX_CONSTRAINTS)
+    assert FK_INDEX_NAMES.isdisjoint(downgraded["index_names"])
