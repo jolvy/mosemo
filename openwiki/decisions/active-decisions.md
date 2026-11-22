@@ -5,7 +5,7 @@ description: docs/adr의 ADR 중 앞부분 status가 accepted인 유효한 결�
 tags: [adr, decisions, supersession]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T12:16:52.428Z
+    at: 2026-11-22T14:16:24.936Z
 sources:
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
@@ -39,7 +39,7 @@ sources:
     resource: repo://docs/adr/0015-group-entrypoints-and-platform-packages.md
   - id: openwiki-source-254df237bb9ef98aebc51d56
     resource: repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md
-generated: { by: "claude-code", at: "2026-11-22T11:15:40.775Z" }
+generated: { by: "claude-code", at: "2026-11-22T14:16:24.936Z" }
 ---
 
 # 유효한 결정
@@ -54,7 +54,7 @@ generated: { by: "claude-code", at: "2026-11-22T11:15:40.775Z" }
 | [0003](../../docs/adr/0003-devices-own-device-identity.md) | `Device`·`deviceId`를 공통 용어로 쓰고 Device 등록 API는 `POST /api/v1/devices`다 | 패키지 위치는 이후 0011로 identity BC에 속한다 |
 | [0004](../../docs/adr/0004-project-observation-timeline-on-write.md) | 활동 원본은 유지하고 관찰 타임라인은 쓰기 시 `activity_timeline_segments`로 projection한다 | 0002를 대체. 일부를 0007·0008이 부분 대체 |
 | [0005](../../docs/adr/0005-separate-observation-and-personal-label-confirmation.md) | 관찰 사실과 개인 라벨 확정을 분리한다. AI는 제안만 하고 사용자의 최신 확정값만 집계에 반영한다 | 없음 |
-| [0006](../../docs/adr/0006-deliver-activity-batches-through-kafka.md) | 활동 배치는 독립 Kafka 브로커로 전달하고 발행 ACK 후 `202`로 수락한다. 2026-11-22 Issue #349로 「처리 실패 정책」을 더했다: 영구 실패와 분류에 없는 예외는 로그 후 ACK하고 그 배치만 건너뛰며(원문 미보관·Device별 보류 없음), 일시 실패는 5회(1·2·4·8초) 재시도한 뒤 ACK 없이 Consumer를 끝낸다 | 없음 |
+| [0006](../../docs/adr/0006-deliver-activity-batches-through-kafka.md) | 활동 배치는 독립 Kafka 브로커로 전달하고 발행 ACK 후 `202`로 수락한다. 2026-11-22 Issue #369로 발행을 `acks=1`·producer idempotence 미사용으로 바꿨다: 지연을 줄이는 대신 복제 전 리더 장애로 수락 배치가 사라질 수 있고, 재전송 중복은 receipt가 막는다. 같은 날 Issue #349로 「처리 실패 정책」을 더했다: 영구 실패와 분류에 없는 예외는 로그 후 ACK하고 그 배치만 건너뛰며(원문 미보관·Device별 보류 없음), 일시 실패는 5회(1·2·4·8초) 재시도한 뒤 ACK 없이 Consumer를 끝낸다 | 없음 |
 | [0007](../../docs/adr/0007-store-batch-receipts-with-activity-transactions.md) | 배치 처리 receipt를 원본·타임라인과 같은 DB 트랜잭션에 저장한다 | 0004의 쓰기 경계를 부분 대체 |
 | [0008](../../docs/adr/0008-order-observations-and-transition-existing-timelines.md) | Device별 관찰 순번(`sequence`)과 결정적 병합으로 원본 순서를 정하고 기존 이력을 전환한다 | 0004의 원본 순서·이력 전환을 부분 대체 |
 | [0009](../../docs/adr/0009-define-public-json-timestamps-and-responses.md) | 공개 JSON은 camelCase, 시각은 UTC `Z` 문자열, 성공 응답은 공통 envelope 없이 도메인 데이터를 직접 반환한다 | 없음 |
