@@ -11,7 +11,8 @@ Every event includes `timestamp`, `service`, `environment`, `logger`, `level`,
 and `event`. The optional fields are `error_code`, `duration_ms`, `request_id`,
 `operation`, `outcome`, `attempt`, `retryable`, `status_code`, `method`, `route`,
 `request_url`, `work_seconds_gap`, `dropped_zero_pauses`, `source`,
-`source_read_ms`, `snapshot_build_ms`, `compute_ms`, and `segment_count`. The first
+`source_read_ms`, `snapshot_build_ms`, `compute_ms`, `segment_count`, `topic`,
+`partition`, and `offset`. The first
 completion of a focus session logs `work_seconds_gap` (whole seconds of the
 session minus its pauses, minus the reported work; negative when the work is
 larger) and `dropped_zero_pauses` (zero-length pauses dropped from the request).
