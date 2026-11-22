@@ -562,3 +562,49 @@ def test_deeply_nested_persona_exits_2_and_writes_nothing(
     assert label_eval_cases.main([*argv, "--out", str(out)]) == 2
     assert not out.exists()
     assert capsys.readouterr().err.startswith("rejected: ")
+
+
+BIG_DECIMAL = "x = 1" + "0" * 5000 + "\n"
+BIG_HEX_LABEL = "0x" + "F" * 4000
+
+
+@pytest.mark.parametrize(
+    "persona_text",
+    [
+        pytest.param(BIG_DECIMAL + PERSONA, id="big-decimal-value"),
+        pytest.param(
+            PERSONA.replace('label = "null"', f"label = {BIG_HEX_LABEL}"),
+            id="big-hex-rule-label",
+        ),
+    ],
+)
+def test_persona_with_oversized_integer_exits_2_and_writes_nothing(
+    label_eval_cases: ModuleType,
+    tmp_path: Path,
+    persona_text: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    argv = _inputs(tmp_path, [_activity(1, _minute(1), app_name="Code")])
+    Path(argv[4]).write_text(
+        persona_text.format(name="study", study_app="Code"), encoding="utf-8"
+    )
+    out = tmp_path / "cases.jsonl"
+
+    assert label_eval_cases.main([*argv, "--out", str(out)]) == 2
+    assert not out.exists()
+    assert capsys.readouterr().err.startswith("rejected: ")
+
+
+def test_owner_label_names_with_oversized_integer_exit_2_and_write_nothing(
+    label_eval_cases: ModuleType, tmp_path: Path
+) -> None:
+    argv = _inputs(tmp_path, [_activity(1, _minute(1), app_name="Code")])
+    owner_labels = tmp_path / "owner-labels.jsonl"
+    owner_labels.write_text("", encoding="utf-8")
+    names = tmp_path / "owner-names.toml"
+    names.write_text(BIG_DECIMAL + 'labels = ["공부", "휴식"]\n', encoding="utf-8")
+    out = tmp_path / "cases.jsonl"
+
+    argv += ["--owner-labels", str(owner_labels), "--owner-label-names", str(names)]
+    assert label_eval_cases.main([*argv, "--out", str(out)]) == 2
+    assert not out.exists()

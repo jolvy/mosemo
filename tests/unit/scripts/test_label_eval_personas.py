@@ -1,3 +1,4 @@
+import tomllib
 from pathlib import Path
 from types import ModuleType
 from uuid import NAMESPACE_URL, uuid5
@@ -147,3 +148,20 @@ def test_owner_label_names_have_no_rules_and_are_named_owner(
         label_eval_cases.parse_persona(
             {"name": "me", "labels": LABELS}, with_rules=False
         )
+
+
+def test_non_string_rule_label_is_named_by_type_not_value(
+    label_eval_cases: ModuleType,
+) -> None:
+    text = f"""
+name = "p"
+labels = ["공부", "휴식"]
+[[rules]]
+app_name = ["Slack"]
+label = 0x{"F" * 4000}
+"""
+    data = tomllib.loads(text)
+
+    with pytest.raises(label_eval_cases.InputError) as excinfo:
+        label_eval_cases.parse_persona(data)
+    assert str(excinfo.value) == "rule 0 label is not in labels: a int value"
