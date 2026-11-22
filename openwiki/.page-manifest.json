@@ -9,18 +9,18 @@
       "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
     },
     "/openwiki/architecture/persistence-and-messaging.md": {
+      "gitHead": "387d20554d2553b546a03492335705fbfc2cee3f",
+      "sourceFingerprint": "sha256:a5ca6b0f6db3e48272f2635a31328bc658e7df79986dc9cda8121ae09ac2b2ec",
       "pageVersion": "sha256:acca4ead5e53d6f81926e752cfbbc667a6f0ca9b9e64dc5302511f46620ab207",
       "completedBy": "claude-code",
-      "completedRunId": "f54199e2-7078-4e08-b3f4-b7e8829c9d4f",
-      "gitHead": "387d20554d2553b546a03492335705fbfc2cee3f",
-      "sourceFingerprint": "sha256:a5ca6b0f6db3e48272f2635a31328bc658e7df79986dc9cda8121ae09ac2b2ec"
+      "completedRunId": "f54199e2-7078-4e08-b3f4-b7e8829c9d4f"
     },
     "/openwiki/decisions/active-decisions.md": {
+      "gitHead": "387d20554d2553b546a03492335705fbfc2cee3f",
+      "sourceFingerprint": "sha256:a5ca6b0f6db3e48272f2635a31328bc658e7df79986dc9cda8121ae09ac2b2ec",
       "pageVersion": "sha256:bf018b16aa786f2af02874ffe0f46b2088f3df85d667f67e4cd1d96f3c84c1bc",
       "completedBy": "claude-code",
-      "completedRunId": "f54199e2-7078-4e08-b3f4-b7e8829c9d4f",
-      "gitHead": "387d20554d2553b546a03492335705fbfc2cee3f",
-      "sourceFingerprint": "sha256:a5ca6b0f6db3e48272f2635a31328bc658e7df79986dc9cda8121ae09ac2b2ec"
+      "completedRunId": "f54199e2-7078-4e08-b3f4-b7e8829c9d4f"
     },
     "/openwiki/decisions/active-prds.md": {
       "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",
@@ -37,11 +37,11 @@
       "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
     },
     "/openwiki/development/testing-and-verification.md": {
-      "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",
-      "sourceFingerprint": "sha256:bf6b7477215d174b1aae53b433011cfc2c26e197a1f56a09403897c66f52e287",
-      "pageVersion": "sha256:d1f8c7da36a354d4d2011d3330f902c5b912c80bec8be052f4951338913e9281",
+      "pageVersion": "sha256:230ee31e60e2ed7f8474e61be3d15411a02955892c88b7c97e8e613e724e596d",
       "completedBy": "claude-code",
-      "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
+      "completedRunId": "c79c5d3b-8534-4008-9eb6-36cbfb109ad2",
+      "gitHead": "694bf0af3692c939410598fcc67a9f8719425b5a",
+      "sourceFingerprint": "sha256:5cb1f5df8c1708e3f77837c62a036e540af0a4dd1353d4c9991d75ad8e543af1"
     },
     "/openwiki/domain/activity-analytics.md": {
       "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",

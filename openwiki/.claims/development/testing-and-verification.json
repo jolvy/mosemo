@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:d1f8c7da36a354d4d2011d3330f902c5b912c80bec8be052f4951338913e9281",
+  "pageVersion": "sha256:230ee31e60e2ed7f8474e61be3d15411a02955892c88b7c97e8e613e724e596d",
   "claims": [
     {
       "id": "claim_914662bc78194b91873e79f37f592051",
@@ -131,10 +131,48 @@
           "version": "repo-lines-v1:sha256:76c8799f53fee4e564a27d2b00f5d102eb23cdfcbb25e43d14fc32cf9322390d:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiZGFiM2MxYjA1YjZjYWM3N2VkMGViMjY3MWVjMmI2NDVhODE0ODg1ZTlmN2M4MGM1Y2FiYzVjNDRjOTE3ZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
+    },
+    {
+      "id": "claim_305bc569fb2145668668ada78837ac86",
+      "statement": "label_eval_cases.py의 snapshot 명령은 --as-of 시점의 읽기 전용 트랜잭션에서 타임라인을 읽어 기간 [from, to)에 끝난 닫힌 상세 구간만 종료 시각·활동 ID 순으로 내보내며, --to가 --as-of보다 늦으면 거절한다.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/label_eval_cases.py#L104-L146",
+          "version": "repo-lines-v1:sha256:bab1acc91f69729ebab7201d7d7d383bc7e822d99be3865463bbe60591e42385:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjN2JmODExZmY5OTI4NTFiZDQwMzIxMzY0Mzk5ZWU5ZTc3YjA4ZmM1ODgyNGJjYmIxODZjZTBmYzkxZTY0YjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4YmQ1NmZkZTZhZGVkM2JmYmUzMmYxZjE4NGJmNTcyZTdhNTQyMDBlNzZiYWU5NDc5Y2MyMmY3ODIwMmFiNzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAxYmJmYjBlNWZiNmQwYmI1NmNiMTY0MmZmNzUzMzk5MjEyYWNkNTdlZmMyMjU0YjlmODAwMDY0ZjVlZTA2ZGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYTEzYzM0OGE3MmY0MjdjZTg3YTYyNDVkZDZhNGQzZTNlMWFhZmM1ODhjYjE3MzI4NmFjN2YxODIwZjA5ZGEifQ"
+        },
+        {
+          "resource": "repo://scripts/label_eval_cases.py#L572-L587",
+          "version": "repo-lines-v1:sha256:27c29747b7e1c8147b51b574decc3ab36ec717c99e87e0c5a7f66122f1b8b137:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5YzFlODQzNTk3MzEwMTcwNzcyNGJjZjVhOWY5OWJjODc4YWJlOTM5ZTJhZDVjNzUxNjY0OGQ4OTdlZDE5ODIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2MjMzYjNmZmVhMzJhMjNkZjUzMDY1MzQzNDhmMmRlZTc3NmE1YTZmNzRmYjUzMzE3NWRkYzUzOWE4ZmU0NjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkOGJjYmYwOTM3NGJkZGI2MDlmMTgxNzliYjA2ZTY4OTA2ZjdkYTY1ZDcxMmZhZWM3MTlhMmIxYjRkMzI0OWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk1MWQxNTVjNjBiM2UwYTRjMmNhN2FkZmQyZDVhMjJhZWUzM2M2N2FlOWY4OTU1MjUzZmZkZTU1ODQ1ODdmNmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_79e87a5061074416b46faed172a920f7",
+      "statement": "cases 명령은 각 사례의 few-shot 예시를 엄격히 앞선 사례만 최신순으로 MAX_EXAMPLES개까지 다시 만들고, cold_start·gold_null·new_host·personas_disagree 태그를 붙인다.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/label_eval_cases.py#L354-L402",
+          "version": "repo-lines-v1:sha256:d8a7cc5be3898888abdcc7b36459afe2b13dfaefe6e961897c44b8ed69f2c708:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2OTcwYTc5ZjNmZmU1NTc5ZjFiMGMzZTkxMzllNDg3NmRjZmZlMzFiMDkzOWM1MGE4ZDBiYzUyYTlkMDNlOTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBiYWE5ZmZhODFlZDRkY2E0OTcwMTY3Yjg3NWZiOTRjMWQyZTAxMDQ4YmRkNjg5OTQwOWMzZmIyZmY1NDY5MGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkwZWViNWMyNWZmMGZlYTBkZTBjNDM2YmEyMzgwNDQ3YzdhYTc5ODg0YWZjNTVlMDE1YTYyZGEzNTI3YTUwMWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM2NGYyZWNhZmY1M2E4NWI4MDczOWEyYWYzM2QyZTE3OGY2YjQ4OTczNTY5YWJmZTUzZmFmZGZkMmQ1NGU2MTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c131ba53372f4363a5ce884b4010e021",
+      "statement": "write_jsonl은 출력과 .sha256 다이제스트를 0600 임시 파일로 만든 뒤 교체해 쓰며, 다이제스트 교체가 실패하면 출력도 지워 다이제스트 없는 출력이 남지 않게 한다. 잘못된 입력은 InputError로 종료 코드 2를 내고 아무것도 쓰지 않는다.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/label_eval_cases.py#L439-L476",
+          "version": "repo-lines-v1:sha256:a0437e21bf0219843486eb0f0b583b5151ebb6e1f6d87cb21bb13208bcc058a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmNmEyMzk2YjNhMjcxYWM5Y2Y1ZWQxMzU0NTEyOTMxNzczN2NlZmUzOTY3MjA3OWEzMTY2NzVkYWMzMTc4ZTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzMDFjNGMyOGIyZTg4ZTU2MDQ4YmFlYzljNTYxYmIwOWM0NDVjNjViZjllMDM0MDVmMDkxODgxMGEwMmI4YzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhjYzRhN2QxY2M3OTZhYmEzZTQ2NzIzMzI3ZjUxN2U5ZjgxMTk4MmQyNTBmMDcwMjk4NmU0YjU3NjRhZDk1ODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIyMDU2NDkxZDIzNTVkYmZhYzMxNDIyNTBhZWZmYTg4NGExZGRkNjg0OWFmOTcwNmMwNmIzYWU4ZDJlMzEyNDgifQ"
+        },
+        {
+          "resource": "repo://scripts/label_eval_cases.py#L560-L569",
+          "version": "repo-lines-v1:sha256:38fdae4c89fa4467d9f48684c71fd9d813776621f425eb0d650220ba8dc46170:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiM2FhNzIzMDEyYWY3OTIxYTY2NjMyODU5ZDZkN2IyZDU0ZWY4NDJkYzEwOTY0NTZkNmNjMWUyMTEwOWZmYTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmNTE3YzhjYTdjODNlMjBhYTRiM2YzNjJlMGJjMDhmMTc2YTVkZjY4NGJjNDk0MDliYTIwOTQwY2QxYjE5ODIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlkZGM4OTM3NTAxN2YxODU1OWFmNDA4Njc2MzUyZDYyYWI0MDY1ODQxM2JhMTAyZWM1MmNmYTlkNjVkMWJjOTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2YzU4NzMzYjMxOGIzMmFhODMwMDBkNjViM2M5ZWEzZGY0ZjRjZjJiYTA4YjZiNjZlM2UzMWNhMzk1YmUwMDQifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-20T11:18:18.429Z"
+    "at": "2026-11-22T11:03:17.070Z"
   }
 }
