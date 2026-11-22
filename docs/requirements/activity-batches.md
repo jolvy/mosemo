@@ -49,7 +49,7 @@ DB에 반영된 관찰 타임라인을 주기적으로 조회한다.
   partition 간은 병렬로 최대 두 배치를 처리한다. 다른 partition의 미처리 offset을
   넘어 확정하지 않는다. 계정 순서는 Kafka 기록 순서이며 관찰 원본 정렬 규칙과 구분한다.
 - API와 Consumer는 별도 진입점·프로세스로 실행하고 코드·업무 처리를 공유한다.
-- 발행은 acks=all·producer idempotence를 사용한다. DB 중복 보호를 대신하지 않는다.
+- 발행은 acks=1을 사용하고 producer idempotence는 쓰지 않는다. producer 재전송으로 생긴 중복도 receipt가 막는다.
   유효한 committed offset은 이어서 읽고 없을 때에만 earliest로 현재 보관된 처음부터 읽는다.
 - Consumer 정상 종료는 새 배치 실행을 멈추고 실행 중인 최대 두 배치의 DB·offset 확정을
   최대 30초 기다린 후 자원을 정리한다. 전체 대기 메시지를 처리하는 종료가 아니며
@@ -257,8 +257,8 @@ Kafka 연결 정보는 환경별로 구성하며 개발·운영 환경에 같은
   accountId의 UTF-8 문자열이다. header에 계정을 중복하지 않고 Consumer가 일치를 검증한다.
 - AC-6022: 초기 partition 2개에서 내부 순차·partition 간 병렬 처리를 지원하며 최대 두
   배치를 실행한다. API·Consumer는 별도 프로세스이며 계정 순서는 Kafka 기록 순서다.
-- AC-6023: acks=all·producer idempotence를 사용하고 정상 DB commit 후 해당 offset을
-  확정한다. 두 commit 사이 재전달에도 receipt로 중복 반영하지 않는다.
+- AC-6023: acks=1을 사용하고 producer idempotence는 쓰지 않으며 정상 DB commit 후
+  해당 offset을 확정한다. 두 commit 사이 재전달에도 receipt로 중복 반영하지 않는다.
 - AC-6024: 유효한 offset에서 재개하며 없을 때에만 earliest를 사용한다. 정상 종료는 새
   실행을 멈추고 진행 중 배치만 최대 30초 기다리며 broker·DB 자원을 정리한다.
   이는 Consumer 종료 대기이며 FastAPI 서버 종료 설정과 구분한다.
@@ -301,3 +301,5 @@ DB 오류를 종류별로 나눈 건너뛰기, 건너뛴 배치의 재처리 도
 2026-11-22 [Issue #349](https://github.com/jolvy/mosemo/issues/349)에 따라 FR-15·AC-6013에 처리 실패 정책을 반영하고, 실패 원본 보관·Device별 보류 요구를 지웠다.
 
 2026-11-22 [Issue #350](https://github.com/jolvy/mosemo/issues/350)에 따라 FR-5에 NUL 문자·`sequence`·`utcOffsetMinutes` 제약을, FR-21에 422 `INVALID_ARGUMENT`를 받은 클라이언트의 원본 폐기 규칙을 더했다.
+
+2026-11-22 [Issue #369](https://github.com/jolvy/mosemo/issues/369)에 따라 발행을 acks=1·producer idempotence 미사용으로 바꾸고, DB 중복 보호 문장을 producer 재전송으로 생긴 중복도 receipt가 막는다는 내용으로 고쳤다.

@@ -94,8 +94,8 @@ Replication factor is 1 for the local broker and its internal topics. This does
 not provide replicated durability. Broker retention and production deployment
 remain infrastructure concerns. Environment settings change addresses and names;
 the approved message contract remains the same in local and production environments.
-The API publishes through FastStream KafkaBroker with `acks=all` and
-idempotence enabled. It returns 202
+The API publishes through FastStream KafkaBroker with `acks=1` and producer
+idempotence disabled. It returns 202
 after Kafka confirms publication, with a five second publication deadline and
 the existing ten second overall HTTP admission deadline. A 503 with
 `Retry-After: 1` means retry the same batch ID and content; a timeout can still

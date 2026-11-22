@@ -61,9 +61,7 @@ async def test_api_lifecycle_closes_producer_and_preserves_inner_state(
         assert failure is None
     assert app.state.batch_publisher is None
     producer.stop.assert_awaited_once()
-    constructor.assert_called_once_with(
-        "test:9092", logger=None, acks="all", enable_idempotence=True
-    )
+    constructor.assert_called_once_with("test:9092", logger=None, acks=1)
     assert events == ["inner-start", "inner-stop"]
 
 
