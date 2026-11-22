@@ -33,15 +33,17 @@ uv run --locked python scripts/label_eval_cases.py cases \
 
 uv run --locked --env-file .env python scripts/label_eval_run.py \
   --cases "$EVAL/cases.jsonl" --engine a --min-interval-ms 4000 \
-  --max-requests 1500 --out "$EVAL/results.jsonl"
-uv run --locked python scripts/label_eval_run.py \
+  --max-requests 18000 --out "$EVAL/results.jsonl"
+uv run --locked --env-file .env python scripts/label_eval_run.py \
   --cases "$EVAL/cases.jsonl" --engine c --c-route openrouter \
-  --max-requests 500 --out "$EVAL/results.jsonl"
+  --max-requests 2000 --out "$EVAL/results.jsonl"
 
 uv run --locked python scripts/label_eval_score.py \
   --cases "$EVAL/cases.jsonl" --results "$EVAL/results.jsonl" \
   --prices "$EVAL/prices.toml" --decision "$EVAL/decision.toml" --out "$EVAL/score"
 ```
+
+실행 스크립트는 키를 환경 변수로만 읽으므로 키가 `.env`에 있으면 `--env-file`을 준다. 예시의 `--max-requests`는 사례 2,000건(활동 500개 × 페르소나 4개)을 `LABEL_MODEL=openai:...`의 A(요청당 9)와 C(요청당 1)로 한 번씩 부르는 값이고, 실제 값은 「운영 절차」 6의 식으로 계산한다.
 
 명령마다 `--help`로 같은 옵션 목록을 볼 수 있다. 아래 표는 `--help`를 뺀 옵션 전부다(테스트가 `--help` 출력과 같은지 검사한다).
 
@@ -140,7 +142,7 @@ C 경로:
 JSONL 파일은 UTF-8, 한 줄에 JSON 객체 하나, 키 정렬 직렬화다. 시각은 timezone이 붙은 ISO 8601이다.
 
 - 스냅샷 행: `{"activity_id", "account_id", "version", "ended_at", "activity", "fields"}`. `activity_id`는 구간의 `first_event_id`, `activity`는 운영 `summarize_context` 결과(엔진 입력), `fields`는 같은 규칙(값 256자 절단, URL은 host만)으로 뽑은 `app_bundle_id`·`app_name`·`window_title`·`tab_title`·`web_host`(없으면 null)다. `.sha256`은 `sha256sum` 형식이다.
-- 페르소나 TOML: `name`, `labels`(2~254개, 중복·`"null"`·`"none"` 금지), `[[rules]]`. 규칙 조건은 `app_bundle_id`·`app_name`(정확히 일치 목록), `web_host_suffix`(host 접미사 목록), `title_contains_any`(`window_title` 또는 `tab_title` 부분 문자열, 대소문자 무시)이고, 규칙 안은 AND, 목록 안은 OR이다. 위에서부터 처음 맞는 규칙의 `label`(`labels`의 이름 또는 기권 정답 `"null"`)이 정답이고, 맞는 규칙이 없으면 정답은 null이다. 알 수 없는 키, `labels`에 없는 라벨, 조건 없는 규칙은 거부한다. 형식 예시는 `scripts/label_eval_personas/example.toml`이다. 실제 평가용 페르소나는 저장소 밖에 둔다.
+- 페르소나 TOML: `name`, `labels`(2~254개, 중복·`"null"`·`"none"` 금지), `[[rules]]`. 규칙 조건은 `app_bundle_id`·`app_name`(정확히 일치 목록), `web_host_suffix`(host 자신 또는 그 하위 도메인과 맞는 도메인 목록, 대소문자 무시), `title_contains_any`(`window_title` 또는 `tab_title` 부분 문자열, 대소문자 무시)이고, 규칙 안은 AND, 목록 안은 OR이다. 위에서부터 처음 맞는 규칙의 `label`(`labels`의 이름 또는 기권 정답 `"null"`)이 정답이고, 맞는 규칙이 없으면 정답은 null이다. 알 수 없는 키, `labels`에 없는 라벨, 조건 없는 규칙은 거부한다. 형식 예시는 `scripts/label_eval_personas/example.toml`이다. 실제 평가용 페르소나는 저장소 밖에 둔다.
 - 소유자 직접 라벨: `--owner-labels`는 `{"activity_id", "label"}` JSONL(`label`은 라벨 이름 또는 `"null"`), `--owner-label-names`는 `labels`만 있는 TOML이다. 페르소나 `owner`로 라벨이 붙은 활동만 사례가 된다.
 - 사례 행: `{"case_id": "{persona}/{activity_id}", "persona", "activity_id", "activity", "fields", "labels": [{"label_id", "name"}], "examples": [{"activity_id", "activity", "label_id"}], "gold", "tags"}`. 라벨 id는 `uuid5(NAMESPACE_URL, "mosemo-label-eval/{persona}/{label}")`다. `examples`는 같은 페르소나에서 스냅샷 순서상 엄격히 앞선 사례 중 최근 최대 8개, 최신순이며 정답 null 사례도 들어간다. `tags`는 `gold_null`, `cold_start`(예시 3개 미만), `new_host`(예시에 없는 `web_host`), `personas_disagree`(같은 활동의 페르소나 정답이 다름, owner 제외)다.
 - 결과 행: `{"case_id", "engine", "batch_size", "rep", "call_id", "pred", "confidence", "prob", "refused", "latency_ms", "input_tokens", "output_tokens", "cost_usd", "attempts", "error"}`.
