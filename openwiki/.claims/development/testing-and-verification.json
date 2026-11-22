@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:52eb18cf66fce1c8e63d7250ef70cbaac3169d2f70dce97605e7fc38fe898fd7",
+  "pageVersion": "sha256:df4c66928940e4299b1643b6c117eba7cbbfb25ca289a31468f48b274762e371",
   "claims": [
     {
       "id": "claim_914662bc78194b91873e79f37f592051",
@@ -141,7 +141,7 @@
           "version": "repo-lines-v1:sha256:bab1acc91f69729ebab7201d7d7d383bc7e822d99be3865463bbe60591e42385:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjN2JmODExZmY5OTI4NTFiZDQwMzIxMzY0Mzk5ZWU5ZTc3YjA4ZmM1ODgyNGJjYmIxODZjZTBmYzkxZTY0YjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4YmQ1NmZkZTZhZGVkM2JmYmUzMmYxZjE4NGJmNTcyZTdhNTQyMDBlNzZiYWU5NDc5Y2MyMmY3ODIwMmFiNzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAxYmJmYjBlNWZiNmQwYmI1NmNiMTY0MmZmNzUzMzk5MjEyYWNkNTdlZmMyMjU0YjlmODAwMDY0ZjVlZTA2ZGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYTEzYzM0OGE3MmY0MjdjZTg3YTYyNDVkZDZhNGQzZTNlMWFhZmM1ODhjYjE3MzI4NmFjN2YxODIwZjA5ZGEifQ"
         },
         {
-          "resource": "repo://scripts/label_eval_cases.py#L575-L590",
+          "resource": "repo://scripts/label_eval_cases.py#L578-L593",
           "version": "repo-lines-v1:sha256:27c29747b7e1c8147b51b574decc3ab36ec717c99e87e0c5a7f66122f1b8b137:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5YzFlODQzNTk3MzEwMTcwNzcyNGJjZjVhOWY5OWJjODc4YWJlOTM5ZTJhZDVjNzUxNjY0OGQ4OTdlZDE5ODIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2MjMzYjNmZmVhMzJhMjNkZjUzMDY1MzQzNDhmMmRlZTc3NmE1YTZmNzRmYjUzMzE3NWRkYzUzOWE4ZmU0NjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkOGJjYmYwOTM3NGJkZGI2MDlmMTgxNzliYjA2ZTY4OTA2ZjdkYTY1ZDcxMmZhZWM3MTlhMmIxYjRkMzI0OWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk1MWQxNTVjNjBiM2UwYTRjMmNhN2FkZmQyZDVhMjJhZWUzM2M2N2FlOWY4OTU1MjUzZmZkZTU1ODQ1ODdmNmIifQ"
         }
       ]
@@ -151,7 +151,7 @@
       "statement": "cases 명령은 각 사례의 few-shot 예시를 엄격히 앞선 사례만 최신순으로 MAX_EXAMPLES개까지 다시 만들고, cold_start·gold_null·new_host·personas_disagree 태그를 붙인다.",
       "evidence": [
         {
-          "resource": "repo://scripts/label_eval_cases.py#L355-L403",
+          "resource": "repo://scripts/label_eval_cases.py#L358-L406",
           "version": "repo-lines-v1:sha256:d8a7cc5be3898888abdcc7b36459afe2b13dfaefe6e961897c44b8ed69f2c708:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2OTcwYTc5ZjNmZmU1NTc5ZjFiMGMzZTkxMzllNDg3NmRjZmZlMzFiMDkzOWM1MGE4ZDBiYzUyYTlkMDNlOTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBiYWE5ZmZhODFlZDRkY2E0OTcwMTY3Yjg3NWZiOTRjMWQyZTAxMDQ4YmRkNjg5OTQwOWMzZmIyZmY1NDY5MGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkwZWViNWMyNWZmMGZlYTBkZTBjNDM2YmEyMzgwNDQ3YzdhYTc5ODg0YWZjNTVlMDE1YTYyZGEzNTI3YTUwMWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM2NGYyZWNhZmY1M2E4NWI4MDczOWEyYWYzM2QyZTE3OGY2YjQ4OTczNTY5YWJmZTUzZmFmZGZkMmQ1NGU2MTEifQ"
         }
       ]
@@ -161,11 +161,11 @@
       "statement": "write_jsonl은 출력과 .sha256 다이제스트를 0600 임시 파일로 만든 뒤 교체해 쓰며, 다이제스트 교체가 실패하면 출력도 지워 다이제스트 없는 출력이 남지 않게 한다. 잘못된 입력은 InputError로 종료 코드 2를 내고 아무것도 쓰지 않는다.",
       "evidence": [
         {
-          "resource": "repo://scripts/label_eval_cases.py#L440-L477",
+          "resource": "repo://scripts/label_eval_cases.py#L443-L480",
           "version": "repo-lines-v1:sha256:a0437e21bf0219843486eb0f0b583b5151ebb6e1f6d87cb21bb13208bcc058a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmNmEyMzk2YjNhMjcxYWM5Y2Y1ZWQxMzU0NTEyOTMxNzczN2NlZmUzOTY3MjA3OWEzMTY2NzVkYWMzMTc4ZTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzMDFjNGMyOGIyZTg4ZTU2MDQ4YmFlYzljNTYxYmIwOWM0NDVjNjViZjllMDM0MDVmMDkxODgxMGEwMmI4YzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhjYzRhN2QxY2M3OTZhYmEzZTQ2NzIzMzI3ZjUxN2U5ZjgxMTk4MmQyNTBmMDcwMjk4NmU0YjU3NjRhZDk1ODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIyMDU2NDkxZDIzNTVkYmZhYzMxNDIyNTBhZWZmYTg4NGExZGRkNjg0OWFmOTcwNmMwNmIzYWU4ZDJlMzEyNDgifQ"
         },
         {
-          "resource": "repo://scripts/label_eval_cases.py#L563-L572",
+          "resource": "repo://scripts/label_eval_cases.py#L566-L575",
           "version": "repo-lines-v1:sha256:38fdae4c89fa4467d9f48684c71fd9d813776621f425eb0d650220ba8dc46170:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiM2FhNzIzMDEyYWY3OTIxYTY2NjMyODU5ZDZkN2IyZDU0ZWY4NDJkYzEwOTY0NTZkNmNjMWUyMTEwOWZmYTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmNTE3YzhjYTdjODNlMjBhYTRiM2YzNjJlMGJjMDhmMTc2YTVkZjY4NGJjNDk0MDliYTIwOTQwY2QxYjE5ODIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlkZGM4OTM3NTAxN2YxODU1OWFmNDA4Njc2MzUyZDYyYWI0MDY1ODQxM2JhMTAyZWM1MmNmYTlkNjVkMWJjOTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2YzU4NzMzYjMxOGIzMmFhODMwMDBkNjViM2M5ZWEzZGY0ZjRjZjJiYTA4YjZiNjZlM2UzMWNhMzk1YmUwMDQifQ"
         }
       ]
@@ -251,7 +251,7 @@
       "statement": "label_eval_cases.py와 label_eval_run.py의 read_jsonl은 줄을 \\n으로만 나누고 JSON 공백뿐인 줄은 건너뛰며, JSON·UTF-8 오류와 RecursionError를 InputError로 바꾼다.",
       "evidence": [
         {
-          "resource": "repo://scripts/label_eval_cases.py#L480-L495",
+          "resource": "repo://scripts/label_eval_cases.py#L483-L498",
           "version": "repo-lines-v1:sha256:e14648c12412aea7c852cd803da90bb15bbc04f3a8a06f966457133e845fdc9d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1ZGY5NDJiMDY4ZGM2MGYyOGNjMjIzMGY5YzZhNDQxNWM1MTFmNjhhYjY5NjIwOTk3Yzk5MjQ0NGU2M2U4NjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJjMzUwYWZkMTkyMGUwNDdkNjQ0ZDk2OTYwODFmZTAyNzljN2ZkZWRlZTM4MDNjODk3ZTA0OGVjNzYwMmM2ZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUyOTA3OWIyZWIyMDUzYjZlOWUyOWE0MGE3MTcyYWE2YzMzMTExZDAwOThkYjVjOGU3ZWQwNGQxMjlhNzlhOTQifQ"
         },
         {
@@ -259,10 +259,20 @@
           "version": "repo-lines-v1:sha256:e73ead979d4f0f3c0f5d8d9446ab5d7b35744fb83abe8db85f908326058e2e0a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1ZGY5NDJiMDY4ZGM2MGYyOGNjMjIzMGY5YzZhNDQxNWM1MTFmNjhhYjY5NjIwOTk3Yzk5MjQ0NGU2M2U4NjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkwZWViNWMyNWZmMGZlYTBkZTBjNDM2YmEyMzgwNDQ3YzdhYTc5ODg0YWZjNTVlMDE1YTYyZGEzNTI3YTUwMWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzMTZjMTU1Y2E2MzBhMmMzM2Y0OTFmYTY2OTY1YjgxYTQzMWMwZTBlZDYyOTY2NGY5MTM1Nzc0NTUwMTk1MDMifQ"
         }
       ]
+    },
+    {
+      "id": "claim_3477f526c3cc4d679b760f272483211c",
+      "statement": "label_eval_cases.py의 load_persona는 ValueError(TOML 문법 오류·너무 큰 정수 포함), OSError, RecursionError를 InputError로 바꾸고, 문자열이 아닌 규칙 라벨은 오류 메시지에 값 대신 타입 이름만 담는다.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/label_eval_cases.py#L245-L281",
+          "version": "repo-lines-v1:sha256:2a103c4cb689d2bef6eac1c7d599add9863884194894e4db67a4202ad4c03da6:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkYTVjNjZlMTdiMTQ1Mzk3ODM0YjhjODU0ZGM0MTkzZTIxMjUxODBhODk5NmExNGMzMTg4MzMyNmIyZWZiY2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxMGEyZmZhZTZjZjRhY2NmYmIwNzEwODEyYmU4Y2IxZWFmNGQ0NGE4NzhlNjEzNmIzODgzYjE5ZTE2MGZmMDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk1MDkyZDdkZjA1NTRiZjU4MjRhZjZiN2ZiMzc2YWMxYWY0MGE5YTdiOWU5MjQ4ZTdmOTkxODVmZGJkZDFkYmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5Mjk0OGIxMzUwNDM5YTA3OGZiODNkOTZlMWZlY2RhMWI1YmZmNjc4NzY2MjZjM2M3MDk5MTVlN2ZiYTE4M2IifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T13:43:44.268Z"
+    "at": "2026-11-22T14:10:36.442Z"
   }
 }
