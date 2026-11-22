@@ -25,8 +25,7 @@ async def kafka_publisher(
     broker = KafkaBroker(
         bootstrap_servers,
         logger=None,
-        acks="all",
-        enable_idempotence=True,
+        acks=1,
     )
     try:
         await broker.start()

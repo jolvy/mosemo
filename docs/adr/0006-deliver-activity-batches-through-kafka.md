@@ -28,8 +28,8 @@ FastStream Handler를 실행한다. 따라서 202 이후에도 API 프로세스�
 - 로컬은 Docker Kafka와 영속 volume을 사용하고, 환경별 연결 설정을 주입한다.
   실제 Kafka를 사용하며 TestBroker는 테스트 대역으로만 둔다. HTTP 수락용 메모리
   큐·발행 Worker를 제거한다. 운영 broker 배포·복제 정책은 별도 범위다.
-- 인증·입력·Device 귀속 확인 후 배치 전체를 발행한다. `acks=all`과 producer
-  idempotence를 사용하고 ACK 확인 후 `202 {"batchId": "...", "status": "accepted"}`를
+- 인증·입력·Device 귀속 확인 후 배치 전체를 발행한다. 발행은 `acks=1`을 쓰고
+  producer idempotence를 쓰지 않으며, 리더의 ACK 확인 후 `202 {"batchId": "...", "status": "accepted"}`를
   반환한다. DB 처리 완료·원본별 성공·consumer offset commit을 기다리는 응답이 아니다.
 - 발행 불가·ACK 제한시간 초과는 기존 503·Retry-After 계약을 따른다. 미확인이
   미발행을 뜻하지 않으므로 같은 batchId·내용 재시도와 DB 중복 방어를 유지한다.
@@ -53,7 +53,7 @@ FastStream Handler를 실행한다. 따라서 202 이후에도 API 프로세스�
   `auto_offset_reset=earliest`로 현재 보관된 가장 오래된 위치부터 처리한다.
 - 채택 원본·타임라인·receipt를 같은 DB 트랜잭션에서 commit한 뒤 offset을 확정한다.
   두 commit은 원자적이지 않으므로 그 사이 종료·재전달은 receipt로 안전하게 처리한다.
-  producer idempotence가 HTTP 재요청·DB 중복까지 제거한다고 간주하지 않는다.
+  producer idempotence를 쓰지 않으므로 producer 재전송으로 생긴 중복도 receipt가 막는다.
 - Consumer 정상 종료는 새 배치 실행을 멈추고 진행 중인 최대 두 배치의 DB·offset commit을
   최대 30초 기다린 뒤 자원을 정리한다. 전체 backlog를 비우는 종료가 아니며
   FastAPI/Uvicorn의 종료 대기 설정과 구분한다.
@@ -106,7 +106,7 @@ Consumer 진입점(`src/mosemo/entrypoints/consumer/activity_batches.py`)에 둔
 
 - 연속 건너뛰기 상한, DB 오류를 SQLSTATE로 나눈 일부 건너뛰기, 분류에 없는 인프라성 예외의
   추가 구분, 건너뛴 배치를 다시 처리하는 도구, 실패한 배치를 클라이언트에 알리는 API와 배치 상태
-  조회, 토픽 보관 기간 설정, 발행 쪽 설정과 수락 뒤 Consumer에 도착하지 않은 배치의 대응, 경보
+  조회, 토픽 보관 기간 설정, 수락 뒤 Consumer에 도착하지 않은 배치의 대응, 경보
   연동은 이 결정에 넣지 않는다. 입력 검증을 통과했지만 DB가 거절하는 값은 5회 재시도 뒤 Consumer를
   멈추며, 이 값을 수락 전에 거절하는 일은 [Issue #350](https://github.com/jolvy/mosemo/issues/350)에서 다룬다.
 - group/topic 이름, broker 이미지 버전과 환경별 retention·디스크 상한은 실행 구성에서
@@ -122,6 +122,7 @@ Consumer 진입점(`src/mosemo/entrypoints/consumer/activity_batches.py`)에 둔
 | 메모리 큐와 TestBroker 유지 | 외부 Kafka 없이 실행 가능하고 현재 동작을 유지한다. | API 종료 시 미처리 원본 유실, 실제 브로커·offset·재할당 검증 불가. | 전환 대상 |
 | 독립된 Kafka 브로커에 발행 후 ACK를 기다림 | 수락 원본을 API 메모리와 분리하고 환경별 브로커에 같은 전달 계약을 적용한다. | 브로커 왕복 지연, Kafka 인프라·저장 공간, consumer 복구 설계가 필요하다. | 채택 방향 |
 | HTTP 요청에서 DB 처리 완료 후 응답 | 응답과 DB 결과의 관계가 단순하고 별도 전달 인프라가 없다. | 응답이 전체 계산·DB 처리 시간에 종속되며 수락과 비동기 처리를 분리하는 목표에 맞지 않는다. | 미채택 |
+| 지금 설정(`acks=all`과 producer idempotence) 유지 | 수락한 배치가 리더 장애로 사라지지 않는다. | 복제본을 늘리면 복제 대기만큼 발행이 느려진다. | 미채택 |
 
 ## 결과와 트레이드오프
 
@@ -145,6 +146,16 @@ Consumer 진입점(`src/mosemo/entrypoints/consumer/activity_batches.py`)에 둔
   처리하는 경로도 실제 브로커로 검증한다.
 - 최초 이력 정렬 전환의 부분 재구성 최적화는 별도 과제이며 이번 전달 경로
   변경과 결합하지 않는다.
+- 발행은 `acks=1`을 쓰고 producer idempotence를 쓰지 않는다. 리더의 확인만 기다려 발행
+  지연을 줄이고, 수락 뒤 드물게 생기는 유실은 감수한다.
+  - 감수하는 것 1: 복제본이 둘 이상일 때 리더가 확인을 보낸 직후 복제 전에 죽으면, 202를
+    받은 배치가 사라진다. 클라이언트는 202 뒤 로컬 배치를 지우므로 되살릴 방법이 없다.
+  - 감수하는 것 2: producer가 확인을 받지 못해 다시 보내면 같은 배치가 토픽에 두 번 기록될
+    수 있다. 두 번째는 receipt가 걸러 DB에는 한 번만 반영된다([ADR 0007](0007-store-batch-receipts-with-activity-transactions.md)).
+  - 측정(2026-11-22, 로컬 단일 브로커·replication factor 1·20KB 메시지·설정별 1,800건 순차
+    발행): `acks=all`+idempotence는 p50 1.65ms·p99 3.46ms, `acks=1`은 p50 1.46ms·p99
+    2.11ms였다. 복제본이 하나일 때는 차이가 거의 없다. 차이는 복제본을 늘려 `acks=all`이
+    복제를 기다리게 될 때 생긴다.
 
 ## 대체한 ADR
 
@@ -172,3 +183,5 @@ Consumer 진입점(`src/mosemo/entrypoints/consumer/activity_batches.py`)에 둔
 2026-11-22 [Issue #346](https://github.com/jolvy/mosemo/issues/346)에 따라 Kafka 경로도 트랜잭션 시작에 계정 advisory 잠금을 잡도록 반영했다. 근거는 [ADR 0016](0016-compute-activity-analytics-on-read-and-store-daily-stats.md)이다.
 
 2026-11-22 [Issue #349](https://github.com/jolvy/mosemo/issues/349)에 따라 처리 실패 정책(영구 실패와 그 밖의 예외는 건너뛰고, 일시 실패는 5회까지 재시도한 뒤 ACK 없이 종료)을 정하고 빈 실패·복구 경계 객체를 지웠다.
+
+2026-11-22 [Issue #369](https://github.com/jolvy/mosemo/issues/369)에 따라 발행을 `acks=all`·producer idempotence에서 `acks=1`·producer idempotence 미사용으로 바꾸고, 감수하는 유실·중복과 측정값, 기존 설정 유지 대안을 더했다.

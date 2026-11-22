@@ -16,9 +16,7 @@ async def test_real_broker_publishes_and_consumes_both_partitions(
     config = integration_kafka.config
     account_id = str(uuid4())
     payload = json.dumps({"accountId": account_id, "records": []}).encode()
-    broker = KafkaBroker(
-        config.bootstrap_servers, acks="all", enable_idempotence=True, logger=None
-    )
+    broker = KafkaBroker(config.bootstrap_servers, acks=1, logger=None)
     try:
         await broker.start()
         assert await integration_kafka.admin.offsets(config.group_id) == {}
