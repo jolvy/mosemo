@@ -1,6 +1,7 @@
 """AC-7: checks, decision and determinism of label_eval_score."""
 
 import json
+import re
 from fractions import Fraction
 from pathlib import Path
 from random import Random
@@ -542,10 +543,33 @@ def test_a_total_that_is_not_finite_exits_2_and_writes_nothing(
             DECISION.format(primary='["b"]').replace("0.0", "1" + "0" * 5000),
             id="too-many-digits",
         ),
+        pytest.param(
+            DECISION.format(primary='["b"]')
+            + "deep = "
+            + "[" * 100_000
+            + "]" * 100_000
+            + "\n",
+            id="deep-array",
+        ),
+        pytest.param(
+            DECISION.format(primary='["b"]').replace(
+                "= 0.01", "= " + "0x" + "F" * 4000
+            ),
+            id="hex-too-many-digits",
+        ),
+        pytest.param(
+            DECISION.format(primary='["b"]').replace(
+                "= 0.01", "= [" + "0x" + "F" * 4000 + "]"
+            ),
+            id="hex-in-array",
+        ),
     ],
 )
 def test_bad_decision_file_exits_2(
-    label_eval_score: ModuleType, tmp_path: Path, decision: str
+    label_eval_score: ModuleType,
+    tmp_path: Path,
+    decision: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     path = tmp_path / "bad.toml"
     path.write_text(decision, encoding="utf-8")
@@ -559,6 +583,9 @@ def test_bad_decision_file_exits_2(
     )
 
     assert (code, summary) == (2, None)
+    err = capsys.readouterr().err
+    assert err.startswith("rejected: ")
+    assert not re.search(r"\d{50}", err)  # no repr of a long number
 
 
 def test_line_separators_inside_activity_text_are_data(

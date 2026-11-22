@@ -52,6 +52,7 @@ type Clock = Callable[[], float]
 type Sleep = Callable[[float], Awaitable[None]]
 
 EXIT_USAGE = 2
+JSON_WHITESPACE = " \t\r"
 MAX_BATCH_SIZE = 50
 TIMEOUT_SECONDS = 30
 ENGINES = ("a", "a-batch", "b", "b-none", "c", "c-none", "oracle", "random")
@@ -158,13 +159,15 @@ def read_cases(path: Path) -> list[Case]:
 
 
 def read_jsonl(path: Path) -> list[Row]:
+    # Split on "\n" only: unescaped U+2028 and similar inside titles are data.
+    # A line of JSON whitespace only, "\r" of CRLF included, is skipped.
     try:
         rows = [
             json.loads(line)
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if line
+            for line in path.read_text(encoding="utf-8").split("\n")
+            if line.strip(JSON_WHITESPACE)
         ]
-    except (OSError, ValueError) as exc:  # JSON and UTF-8 decoding errors
+    except (OSError, ValueError, RecursionError) as exc:  # JSON, UTF-8, nesting
         raise InputError(f"{path}: {exc}") from exc
     if not all(isinstance(row, dict) for row in rows):
         raise InputError(f"{path}: every line must be a JSON object")

@@ -489,3 +489,76 @@ def test_output_inside_the_repository_is_refused(
 
     assert exc.value.code == 2
     assert not repository_file.exists()
+
+
+@pytest.mark.parametrize("key", ["window_title", "tab_title"])
+@pytest.mark.parametrize("separator", ["\u2028", "\u2029", "\u0085"])
+def test_line_separators_inside_titles_are_data(
+    label_eval_cases: ModuleType, tmp_path: Path, key: str, separator: str
+) -> None:
+    title = f"a{separator}b"
+    out = tmp_path / "cases.jsonl"
+    row = _activity(1, _minute(1), app_name="Code", **{key: title})
+
+    exit_code = label_eval_cases.main([*_inputs(tmp_path, [row]), "--out", str(out)])
+
+    assert exit_code == 0
+    [case] = [
+        json.loads(line) for line in out.read_text(encoding="utf-8").split("\n")[:-1]
+    ]
+    assert case["fields"][key] == title
+    assert f"{key}: {title}" in case["activity"]
+
+
+def test_crlf_snapshots_with_blank_lines_are_read(
+    label_eval_cases: ModuleType, tmp_path: Path
+) -> None:
+    rows = [_activity(number, _minute(number), app_name="Code") for number in (1, 2)]
+    argv = _inputs(tmp_path, rows)
+    snapshot = Path(argv[2])
+    text = "".join(json.dumps(row, ensure_ascii=False) + "\r\n\r\n" for row in rows)
+    snapshot.write_text(text, encoding="utf-8", newline="")
+    out = tmp_path / "cases.jsonl"
+
+    assert label_eval_cases.main([*argv, "--out", str(out)]) == 0
+    assert len(out.read_text(encoding="utf-8").splitlines()) == len(rows)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        pytest.param("1" * 5000, id="long-integer"),
+        pytest.param("[" * 100_000 + "]" * 100_000, id="deep-array"),
+        pytest.param("\u2028", id="line-separator-only"),
+    ],
+)
+def test_unreadable_snapshot_lines_exit_2_and_write_nothing(
+    label_eval_cases: ModuleType,
+    tmp_path: Path,
+    line: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    argv = _inputs(tmp_path, [_activity(1, _minute(1), app_name="Code")])
+    snapshot = Path(argv[2])
+    snapshot.write_text(
+        snapshot.read_text(encoding="utf-8") + line + "\n", encoding="utf-8"
+    )
+    out = tmp_path / "cases.jsonl"
+
+    assert label_eval_cases.main([*argv, "--out", str(out)]) == 2
+    assert not out.exists()
+    assert capsys.readouterr().err.startswith("rejected: ")
+
+
+def test_deeply_nested_persona_exits_2_and_writes_nothing(
+    label_eval_cases: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = _inputs(tmp_path, [_activity(1, _minute(1), app_name="Code")])
+    persona = Path(argv[4])
+    nested = "x = " + "[" * 2000 + "]" * 2000 + "\n"
+    persona.write_text(nested + persona.read_text(encoding="utf-8"), encoding="utf-8")
+    out = tmp_path / "cases.jsonl"
+
+    assert label_eval_cases.main([*argv, "--out", str(out)]) == 2
+    assert not out.exists()
+    assert capsys.readouterr().err.startswith("rejected: ")

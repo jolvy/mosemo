@@ -2,6 +2,7 @@
 
 import json
 import math
+import re
 from fractions import Fraction
 from pathlib import Path
 from random import Random
@@ -528,9 +529,30 @@ def test_prices_file_fills_missing_keys_with_zero_by_engine_name(
         pytest.param(
             '["c@openrouter"]\nusd_per_request = 1' + "0" * 400 + "\n", id="too-large"
         ),
+        pytest.param(
+            '["c@openrouter"]\nusd_per_request = '
+            + "[" * 100_000
+            + "]" * 100_000
+            + "\n",
+            id="deep-array",
+        ),
+        pytest.param(
+            '["c@openrouter"]\nusd_per_request = ' + "0x" + "F" * 4000 + "\n",
+            id="hex-too-many-digits",
+        ),
+        pytest.param(
+            '["c@openrouter"]\nusd_per_request = [' + "0x" + "F" * 4000 + "]\n",
+            id="hex-in-array",
+        ),
     ],
 )
 def test_bad_prices_file_exits_2_and_writes_nothing(
-    label_eval_score: ModuleType, tmp_path: Path, prices: str
+    label_eval_score: ModuleType,
+    tmp_path: Path,
+    prices: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert _score_cli(label_eval_score, tmp_path, OPENROUTER_ROWS, prices) == (2, None)
+    err = capsys.readouterr().err
+    assert err.startswith("rejected: ")
+    assert not re.search(r"\d{50}", err)  # no repr of a long number

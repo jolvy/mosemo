@@ -45,6 +45,7 @@ type Row = dict[str, object]
 type Fields = dict[str, str | None]
 
 EXIT_USAGE = 2
+JSON_WHITESPACE = " \t\r"
 MAX_VALUE_LENGTH = 256
 NULL_LABEL = "null"
 RESERVED_LABELS = frozenset({NULL_LABEL, "none"})
@@ -244,7 +245,7 @@ def load_persona(path: Path, *, with_rules: bool = True) -> Persona:
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
         return parse_persona(data, with_rules=with_rules)
-    except (OSError, tomllib.TOMLDecodeError, InputError) as exc:
+    except (OSError, tomllib.TOMLDecodeError, RecursionError, InputError) as exc:
         raise InputError(f"{path}: {exc}") from exc
 
 
@@ -477,13 +478,15 @@ def _private_temporary(path: Path, content: bytes) -> Path:
 
 
 def read_jsonl(path: Path) -> list[Row]:
+    # Split on "\n" only: unescaped U+2028 and similar inside titles are data.
+    # A line of JSON whitespace only, "\r" of CRLF included, is skipped.
     try:
         rows = [
             json.loads(line)
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if line
+            for line in path.read_text(encoding="utf-8").split("\n")
+            if line.strip(JSON_WHITESPACE)
         ]
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
         raise InputError(f"{path}: {exc}") from exc
     if not all(isinstance(row, dict) for row in rows):
         raise InputError(f"{path}: every line must be a JSON object")
