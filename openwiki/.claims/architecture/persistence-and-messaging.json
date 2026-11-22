@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:0800a427175a1a941965d92e41b0e6e4b602064d406666663a9d2238d3555fc4",
+  "pageVersion": "sha256:a9215c2f855e80183fadf59449d4ee1ed91abfcf29001ae60193cfc0edf03dcc",
   "claims": [
     {
       "id": "claim_a8566894407046f1b480ac28882ee551",
@@ -52,7 +52,7 @@
       "evidence": [
         {
           "resource": "repo://docs/adr/0006-deliver-activity-batches-through-kafka.md#L31-L36",
-          "version": "repo-lines-v1:sha256:ab9e866e2f0bf5907b9f2cbb84499eb11489c4efef0a251b6c38ab19a0f6a952:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTg1MWE4NTY3OThiNmU2ZThmMGE2ZTZjYTZkMTgzNDkxNzRjNWI0MWMxMzhkY2E3MzA2OGE3YjFjN2QwZWQxMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGI3MDEyMjNhODA1OWM0YmMwYTYwYWE2YmM1NDg5NjE3ZWJiYjc3NzBkZDhmZWM1YzM5YWViOGRlOTMyOTRjNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDdlYzUxNTcyZWY4NTg2NzQxNDk2MmNmZjJmODA5MGJkMTcwYzYyMDIxM2E2MTE3MzRkMWVlNTI0NzI1MDEzYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmE0MGY5MWI5ZGYzNmJjYjNhYTdkNzcwMWQwYWZlZTIwZWM1ZTNmZjQwZDRhZjQ4NWU5NjRiMTJjMGRmZjk1ZiJ9"
+          "version": "repo-lines-v1:sha256:59a9d05f59dfee9c587e14397649bd6ca2541c66b9cb928c89a82c106d5686e5:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTllOWIxNTc1YjM3YWVkNjU0NzRhNmRjZTZlMWJhZTJkMjI4ZWRmMGVmZWZlMzIzMGE5ZDM3MWRmMzQwYWQ4YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGI3MDEyMjNhODA1OWM0YmMwYTYwYWE2YmM1NDg5NjE3ZWJiYjc3NzBkZDhmZWM1YzM5YWViOGRlOTMyOTRjNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDdlYzUxNTcyZWY4NTg2NzQxNDk2MmNmZjJmODA5MGJkMTcwYzYyMDIxM2E2MTE3MzRkMWVlNTI0NzI1MDEzYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmE0MGY5MWI5ZGYzNmJjYjNhYTdkNzcwMWQwYWZlZTIwZWM1ZTNmZjQwZDRhZjQ4NWU5NjRiMTJjMGRmZjk1ZiJ9"
         },
         {
           "resource": "repo://src/mosemo/observation/presentation/activities/router.py#L85-L109",
@@ -62,11 +62,15 @@
     },
     {
       "id": "claim_e6189bbb953c4903b9067c1a3f5e7d53",
-      "statement": "Kafka Publisher는 acks=all과 producer idempotence로 설정되고, Consumer 브로커는 consumer_only로 만들어진다.",
+      "statement": "Kafka Publisher는 acks=1로 설정되고 producer idempotence를 쓰지 않으며, Consumer 브로커는 consumer_only로 만들어진다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/platform/messaging/runtime.py#L11-L35",
-          "version": "repo-lines-v1:sha256:fa48ab08fd4e29c5c3e5703d391e6787887785de1160269317ce25db91f017f6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlODExOWUxMjQzYmJjZGQxZTg2NmRmYzlmYzA0OGQ1NGI4MGY4ZmFiMmM0Y2YyZmY1N2E5ZDJiM2E1NDRlMTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjN2I4ZThiYTY4YzY4NGYxOTI4YzFhMzI0NzYzNTBkMTI1MTkzODUyMDhlMmFjZGJjYTQzNDFjYWUyZDc2OTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY0YWZhZmIzZDNmNzU4NWNhNTcxOTc1MDYyNjI3MDg1ZThlYjZmNDA2ZjE3MDcyNzI4OTg1NWQ2NTY4NGE0YWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://docs/adr/0006-deliver-activity-batches-through-kafka.md#L31-L36",
+          "version": "repo-lines-v1:sha256:59a9d05f59dfee9c587e14397649bd6ca2541c66b9cb928c89a82c106d5686e5:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTllOWIxNTc1YjM3YWVkNjU0NzRhNmRjZTZlMWJhZTJkMjI4ZWRmMGVmZWZlMzIzMGE5ZDM3MWRmMzQwYWQ4YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGI3MDEyMjNhODA1OWM0YmMwYTYwYWE2YmM1NDg5NjE3ZWJiYjc3NzBkZDhmZWM1YzM5YWViOGRlOTMyOTRjNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDdlYzUxNTcyZWY4NTg2NzQxNDk2MmNmZjJmODA5MGJkMTcwYzYyMDIxM2E2MTE3MzRkMWVlNTI0NzI1MDEzYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmE0MGY5MWI5ZGYzNmJjYjNhYTdkNzcwMWQwYWZlZTIwZWM1ZTNmZjQwZDRhZjQ4NWU5NjRiMTJjMGRmZjk1ZiJ9"
+        },
+        {
+          "resource": "repo://src/mosemo/platform/messaging/runtime.py#L11-L34",
+          "version": "repo-lines-v1:sha256:4cb8643cb50574776622660758c0196c754b52c1efe5b36bbee4499514402a11:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlODExOWUxMjQzYmJjZGQxZTg2NmRmYzlmYzA0OGQ1NGI4MGY4ZmFiMmM0Y2YyZmY1N2E5ZDJiM2E1NDRlMTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjN2I4ZThiYTY4YzY4NGYxOTI4YzFhMzI0NzYzNTBkMTI1MTkzODUyMDhlMmFjZGJjYTQzNDFjYWUyZDc2OTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY0YWZhZmIzZDNmNzU4NWNhNTcxOTc1MDYyNjI3MDg1ZThlYjZmNDA2ZjE3MDcyNzI4OTg1NWQ2NTY4NGE0YWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     },
@@ -303,6 +307,6 @@
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T12:16:52.428Z"
+    "at": "2026-11-22T14:16:24.936Z"
   }
 }
