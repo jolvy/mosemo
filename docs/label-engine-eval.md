@@ -29,6 +29,7 @@ uv run --locked --env-file .env python scripts/label_eval_cases.py snapshot \
 uv run --locked python scripts/label_eval_cases.py cases \
   --activities "$EVAL/activities.jsonl" \
   --persona "$EVAL/personas/study.toml" --persona "$EVAL/personas/work.toml" \
+  --persona "$EVAL/personas/rest.toml" --persona "$EVAL/personas/social.toml" \
   --out "$EVAL/cases.jsonl"
 
 uv run --locked --env-file .env python scripts/label_eval_run.py \
