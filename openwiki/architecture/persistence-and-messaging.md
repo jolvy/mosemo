@@ -5,7 +5,7 @@ description: dataclass aggregate와 imperative mapping, 트랜잭션 헬퍼와 �
 tags: [persistence, sqlalchemy, domain-events, kafka, batch-jobs, alembic]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T11:15:40.775Z
+    at: 2026-11-22T11:39:33.794Z
 sources:
   - id: openwiki-source-d1449bb9b8fd8b54431d973d
     resource: repo://docs/adr/0004-project-observation-timeline-on-write.md
@@ -43,6 +43,8 @@ sources:
     resource: repo://src/mosemo/observation/infrastructure/tables.py
   - id: openwiki-source-731f34422dbd773b6c36c5ab
     resource: repo://src/mosemo/observation/presentation/activities/router.py
+  - id: openwiki-source-4574ae2cdea3d947c0cc8c37
+    resource: repo://src/mosemo/observation/presentation/activities/schemas.py
   - id: openwiki-source-5e193d69747cf2f2e6517922
     resource: repo://src/mosemo/platform/database/persistence.py
   - id: openwiki-source-927994764141916779f261b9
@@ -55,7 +57,7 @@ sources:
     resource: repo://src/mosemo/shared/application/events.py
   - id: openwiki-source-bf64c7f959111123b762b90b
     resource: repo://tests/integration/platform/test_transactions.py
-generated: { by: "claude-code", at: "2026-11-22T11:15:40.775Z" }
+generated: { by: "claude-code", at: "2026-11-22T11:39:33.794Z" }
 ---
 
 # 영속성·메시징·배치 실행
@@ -133,6 +135,7 @@ sequenceDiagram
 ```
 
 - API의 `POST /api/v1/activities/batches`는 인증·입력·Device 귀속 확인과 24시간 수락 기간 검사 뒤 배치를 Kafka에 발행하고, 발행 ACK를 받으면 `202`를 돌려준다. 수락 기간 검사는 모든 원본의 `observedAt`이 `수락 시각 − 24시간 ≤ observedAt ≤ 수락 시각`(양 끝 포함, 절대 시간)인지 보며, 하나라도 벗어나면 발행하지 않고 배치 전체를 422 `ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW`로 거절한다. Device 귀속 404가 먼저다. 직접 처리 경로 `/activities/batches/legacy`도 타임라인 잠금 전에 같은 검사를 하고 아무것도 저장하지 않는다. Consumer는 다시 검사하지 않는다. DB 처리나 Consumer offset commit을 기다리지 않는다. 발행할 수 없거나 ACK가 늦으면 `503`과 `Retry-After: 1`을 돌려주고, 클라이언트는 같은 `batchId`·내용으로 재시도한다.
+- 요청 스키마는 DB가 저장할 수 없는 값도 발행 전에 422 `INVALID_ARGUMENT`로 거절한다. 레코드의 문자열 값(`value`·`reason`)은 NUL 문자를 포함할 수 없고(PostgreSQL JSONB·Text가 거부), `sequence`는 0 이상 2^63 − 1 이하, `utcOffsetMinutes`는 −1440 이상 1440 이하다. 오류 `details`의 `loc`은 `["body", "records", i, ...]`로 틀린 원본의 요청 내 순번을 가리키며, 클라이언트는 그 원본만 버리고 남은 원본을 새 `batchId`로 보낸다([src/mosemo/observation/presentation/activities/schemas.py](../../src/mosemo/observation/presentation/activities/schemas.py), [PRD](../../docs/prd/activity-batches.md)).
 - Publisher는 `acks="all"`, `enable_idempotence=True`로 만든 `KafkaBroker`를 쓴다([src/mosemo/platform/messaging/runtime.py](../../src/mosemo/platform/messaging/runtime.py)). 메시지 key는 계정 ID라서 같은 계정은 같은 partition으로 모인다.
 - 기본 토픽은 `activities.registration-requested`, Consumer group은 `mosemo.activity-batches`다([src/mosemo/platform/messaging/config.py](../../src/mosemo/platform/messaging/config.py)).
 - Consumer 진입점(`poe batch-consumer`, [src/mosemo/entrypoints/consumer/activity_batches.py](../../src/mosemo/entrypoints/consumer/activity_batches.py))은 `BATCH_ENABLED=true`가 아니면 시작하지 않는다. 시작할 때 identity·labels·observation·analytics의 테이블을 매핑하고 analytics handler를 등록한 뒤, 메시지마다 새 세션을 열어 observation의 배치 처리 UseCase를 부른다. 처리하지 못한 메시지는 아래 「처리 실패 정책」대로 다룬다.

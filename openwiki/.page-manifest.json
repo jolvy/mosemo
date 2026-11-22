@@ -9,25 +9,25 @@
       "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
     },
     "/openwiki/architecture/persistence-and-messaging.md": {
-      "pageVersion": "sha256:41f8cdfc6997c43f5ee5580774dcdae60bd337e07550e6d4ee5fa00aa716a6a5",
+      "pageVersion": "sha256:af2fbf13f8465a9b05d7a177f14dcd9b574e842d9a3e06c490e6510c993f1f6c",
       "completedBy": "claude-code",
-      "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5",
-      "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
-      "sourceFingerprint": "sha256:686c83f8042504e07f36110fb083bd6b3a1fbc139e423291a72ad710bea4e5da"
+      "completedRunId": "20395cbd-22ce-475d-aaa5-97ce41d0a9af",
+      "gitHead": "c88a9be5e8d1d122d2396e4293e67430595f2f63",
+      "sourceFingerprint": "sha256:b3083b5e711706c8d22e1240eca5a77622e1808110cb88f4ef46cec7dece85da"
     },
     "/openwiki/decisions/active-decisions.md": {
+      "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
+      "sourceFingerprint": "sha256:686c83f8042504e07f36110fb083bd6b3a1fbc139e423291a72ad710bea4e5da",
       "pageVersion": "sha256:1c971dc056390d316ea3a34dd3d42fca37ebb341d342d46374b087075f22735a",
       "completedBy": "claude-code",
-      "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5",
-      "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
-      "sourceFingerprint": "sha256:686c83f8042504e07f36110fb083bd6b3a1fbc139e423291a72ad710bea4e5da"
+      "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5"
     },
     "/openwiki/decisions/active-prds.md": {
-      "pageVersion": "sha256:63e4248b01550f8e8b8629671c4aa16b25f0f5ffdbfefe8c2915e5d2b206328a",
+      "pageVersion": "sha256:c8134bbb8df81c252406b48de8bc6fa28e8fe092a1779c182d178476f8d71561",
       "completedBy": "claude-code",
-      "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5",
-      "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
-      "sourceFingerprint": "sha256:686c83f8042504e07f36110fb083bd6b3a1fbc139e423291a72ad710bea4e5da"
+      "completedRunId": "20395cbd-22ce-475d-aaa5-97ce41d0a9af",
+      "gitHead": "c88a9be5e8d1d122d2396e4293e67430595f2f63",
+      "sourceFingerprint": "sha256:b3083b5e711706c8d22e1240eca5a77622e1808110cb88f4ef46cec7dece85da"
     },
     "/openwiki/development/engineering-harness.md": {
       "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",
@@ -58,11 +58,11 @@
       "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
     },
     "/openwiki/operations/aws-eks-lab.md": {
+      "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
+      "sourceFingerprint": "sha256:686c83f8042504e07f36110fb083bd6b3a1fbc139e423291a72ad710bea4e5da",
       "pageVersion": "sha256:00f3c9c11f47a00479003255d1440045162dde25bbddb2091c94021487d4d09b",
       "completedBy": "claude-code",
-      "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5",
-      "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
-      "sourceFingerprint": "sha256:686c83f8042504e07f36110fb083bd6b3a1fbc139e423291a72ad710bea4e5da"
+      "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5"
     },
     "/openwiki/operations/load-measurement.md": {
       "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",

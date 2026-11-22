@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:41f8cdfc6997c43f5ee5580774dcdae60bd337e07550e6d4ee5fa00aa716a6a5",
+  "pageVersion": "sha256:af2fbf13f8465a9b05d7a177f14dcd9b574e842d9a3e06c490e6510c993f1f6c",
   "claims": [
     {
       "id": "claim_a8566894407046f1b480ac28882ee551",
@@ -285,10 +285,24 @@
           "version": "repo-lines-v1:sha256:948d8bd554d3744e6511a8887a83e6c1b97c08a111d9068888998d5a13c8f879:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiZWIxYjI3Y2I3MGRiODY1ZDc5ZmM4ODU0NGYwNGQ3OTlmYWYwYTdmOTM4NjQ2NGU0MTUzODJkNTc0NDkxYWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5YzFmY2RlYzE1ZWFmZTIwMDk5N2YzZmVlOWViMTg4Yzk4NmQzMTNiYjg4MDU0MWU5YjJhN2RiNGQyYWI5YzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBjZGE0MmQwNjhlYmYzODdiMmFlOWUwNTJiNWY2MTUyMDY5M2U3Y2UwNjc5MjljNWZlYjY2MTFkNjQ2MDk0NTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4NWYwNDAxOTBmYjIzZDkzMzhmNTNhMGEzN2Q2NDQyNWM0ODNkNzQ5N2I4NjAxN2ViNjU5Y2E5MzEyNmU1ZWIifQ"
         }
       ]
+    },
+    {
+      "id": "claim_741864c4864a4aecb5c11e3b3b0bd2c8",
+      "statement": "활동 배치 요청 스키마는 DB가 저장할 수 없는 값(문자열 값의 NUL 문자, 2^63−1을 넘는 sequence, −1440~1440 밖의 utcOffsetMinutes)을 발행 전에 422로 거절한다.",
+      "evidence": [
+        {
+          "resource": "repo://src/mosemo/observation/presentation/activities/schemas.py#L220-L233",
+          "version": "repo-lines-v1:sha256:70b32dcebcfacd6204432b8947331585a40a937e268ce431aa417b970ab321eb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkYTdiNTI4ODFlYzZiZWUwZTA1MTUwNjRkMTk2OGVmMTNhMzYxMjFjM2Y3MTAzNThlODMxYzVkMmUzY2U0NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc4NWM4NzM3NTUwZTc5MTVmOGY3NDBkYmI3Zjk3YjU0OTM2ODE4MDM2ZGU2YmYyMzBjMTQ4YzBjYzUzNDk3NjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEyNzI0OGQyMWE5NmExMDViODkzNDVkYjA1Y2ZlODZiYjM1ZjdkODhkOGI1NjVhYTE1OTQ2NmYxOTA2ODk2MWQifQ"
+        },
+        {
+          "resource": "repo://src/mosemo/observation/presentation/activities/schemas.py#L30-L32",
+          "version": "repo-lines-v1:sha256:16e173425c6d200ef54285d506b6974a61139f00ff1f576c1ff47604925f0373:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWE3NWE0MWI5ZGRiYzgwZmNiZjE0ZDhkZTU0ZDkwMTBlZWNjYTU5YzhkZjI5ZjEwMjdkZTcxNTY1YzBjZTY5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTNmOTVlODRjYTcxOWFmMDljYTY5MTdmNzMyOTVjYWQ1ZmQ1NzAwOTU2MGMxYzJhM2E1MGRjODUwYjRmNDUzYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWMzYTg2NzVlMDgyY2E5MTkzN2MxOTkyYjMxYmNmZThiYTgzOTU5Zjc1ZmEwM2VjZjQzYWI0YWRkZjZjMDRjMyJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T11:15:40.775Z"
+    "at": "2026-11-22T11:39:33.794Z"
   }
 }
