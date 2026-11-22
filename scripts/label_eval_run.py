@@ -605,7 +605,9 @@ class DecisionsEngine:
 class _CChoice(BaseModel):
     type: Literal["choice"]
     choice: str
-    confidence: float | None = None  # optional in OpenRouter's schema
+    # Optional in OpenRouter's schema. The routes share this model, so AI/ML API
+    # answers without it are accepted too: a null confidence is kept, not an error.
+    confidence: float | None = None
     probabilities: dict[str, float] = {}
 
 
@@ -920,12 +922,13 @@ def _engine_name(args: argparse.Namespace) -> str:
 
 def _required_key(variable: str) -> str:
     key = os.environ.get(variable)
-    # Messages name only the variable, never a value. A non-ASCII key would fail
-    # to encode as a header with a message that shows part of it.
+    # Messages name only the variable, never a value. A key with non-ASCII,
+    # control or surrounding space characters would fail as a header value with
+    # a message that shows it.
     if not key:
         raise InputError(f"{variable} is required")
-    if not key.isascii():
-        raise InputError(f"{variable} must be ASCII")
+    if not (key.isascii() and key.isprintable() and key == key.strip()):
+        raise InputError(f"{variable} must be printable ASCII without spaces")
     return key
 
 

@@ -115,7 +115,7 @@ def c_choice(
         "type": "choice",
         "choice": choice,
         "confidence": confidence,
-        "probabilities": probabilities or {choice: 1.0},
+        "probabilities": {choice: 1.0} if probabilities is None else probabilities,
     }
     for name in omit:
         del answer[name]

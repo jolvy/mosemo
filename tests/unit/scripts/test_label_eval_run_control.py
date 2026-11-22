@@ -677,17 +677,26 @@ def test_c_route_is_refused_for_engines_without_routes(
 
 @pytest.mark.parametrize(
     ("name", "variable"),
-    [("b", "OPENAI_API_KEY"), ("c@openrouter", "OPENROUTER_API_KEY")],
+    [
+        ("b", "OPENAI_API_KEY"),
+        ("c@aimlapi", "AIMLAPI_API_KEY"),
+        ("c@openrouter", "OPENROUTER_API_KEY"),
+    ],
 )
-def test_non_ascii_keys_are_refused_without_showing_them(
+@pytest.mark.parametrize(
+    "secret",
+    ["sk-test-cl\u00e9-secret", "sk-test-secret\n", "sk-test-secret "],
+    ids=["non-ascii", "newline", "trailing-space"],
+)
+def test_unsendable_keys_are_refused_without_showing_them(
     label_eval_run: ModuleType,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     name: str,
     variable: str,
+    secret: str,
 ) -> None:
-    secret = "sk-test-cl\u00e9-secret"
     monkeypatch.setenv(variable, secret)
     cases = write_cases(tmp_path / "cases.jsonl", [case_row(1)])
     out = tmp_path / "results.jsonl"
@@ -699,5 +708,4 @@ def test_non_ascii_keys_are_refused_without_showing_them(
     assert handler.requests == []
     err = capsys.readouterr().err
     assert variable in err
-    assert secret not in err
-    assert "\u00e9" not in err
+    assert "secret" not in err
