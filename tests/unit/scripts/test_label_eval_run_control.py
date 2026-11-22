@@ -749,7 +749,7 @@ def test_crlf_cases_with_blank_lines_are_read(
 
 
 def test_deeply_nested_case_line_exits_2_and_writes_no_rows(
-    label_eval_run: ModuleType, tmp_path: Path
+    label_eval_run: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     cases = write_cases(tmp_path / "cases.jsonl", [case_row(1)])
     with cases.open("a", encoding="utf-8") as file:
@@ -758,3 +758,4 @@ def test_deeply_nested_case_line_exits_2_and_writes_no_rows(
 
     assert label_eval_run.main(_argv(cases, out, "--engine", "oracle")) == 2
     assert not out.exists()
+    assert capsys.readouterr().err.startswith("rejected: ")

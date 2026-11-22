@@ -533,7 +533,10 @@ def test_crlf_snapshots_with_blank_lines_are_read(
     ],
 )
 def test_unreadable_snapshot_lines_exit_2_and_write_nothing(
-    label_eval_cases: ModuleType, tmp_path: Path, line: str
+    label_eval_cases: ModuleType,
+    tmp_path: Path,
+    line: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     argv = _inputs(tmp_path, [_activity(1, _minute(1), app_name="Code")])
     snapshot = Path(argv[2])
@@ -544,10 +547,11 @@ def test_unreadable_snapshot_lines_exit_2_and_write_nothing(
 
     assert label_eval_cases.main([*argv, "--out", str(out)]) == 2
     assert not out.exists()
+    assert capsys.readouterr().err.startswith("rejected: ")
 
 
 def test_deeply_nested_persona_exits_2_and_writes_nothing(
-    label_eval_cases: ModuleType, tmp_path: Path
+    label_eval_cases: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     argv = _inputs(tmp_path, [_activity(1, _minute(1), app_name="Code")])
     persona = Path(argv[4])
@@ -557,3 +561,4 @@ def test_deeply_nested_persona_exits_2_and_writes_nothing(
 
     assert label_eval_cases.main([*argv, "--out", str(out)]) == 2
     assert not out.exists()
+    assert capsys.readouterr().err.startswith("rejected: ")

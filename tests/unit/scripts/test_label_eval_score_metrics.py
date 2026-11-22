@@ -546,6 +546,12 @@ def test_prices_file_fills_missing_keys_with_zero_by_engine_name(
     ],
 )
 def test_bad_prices_file_exits_2_and_writes_nothing(
-    label_eval_score: ModuleType, tmp_path: Path, prices: str
+    label_eval_score: ModuleType,
+    tmp_path: Path,
+    prices: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert _score_cli(label_eval_score, tmp_path, OPENROUTER_ROWS, prices) == (2, None)
+    err = capsys.readouterr().err
+    assert err.startswith("rejected: ")
+    assert "FFF" not in err

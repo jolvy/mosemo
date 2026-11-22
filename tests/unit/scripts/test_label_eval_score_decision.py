@@ -565,7 +565,10 @@ def test_a_total_that_is_not_finite_exits_2_and_writes_nothing(
     ],
 )
 def test_bad_decision_file_exits_2(
-    label_eval_score: ModuleType, tmp_path: Path, decision: str
+    label_eval_score: ModuleType,
+    tmp_path: Path,
+    decision: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     path = tmp_path / "bad.toml"
     path.write_text(decision, encoding="utf-8")
@@ -579,6 +582,9 @@ def test_bad_decision_file_exits_2(
     )
 
     assert (code, summary) == (2, None)
+    err = capsys.readouterr().err
+    assert err.startswith("rejected: ")
+    assert "FFF" not in err
 
 
 def test_line_separators_inside_activity_text_are_data(
