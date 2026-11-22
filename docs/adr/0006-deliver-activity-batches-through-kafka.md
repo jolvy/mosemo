@@ -44,10 +44,10 @@ FastStream Handler를 실행한다. 따라서 202 이후에도 API 프로세스�
 - partition 내부에서는 배치의 DB commit과 해당 처리 위치의 offset commit을
   마친 뒤 다음 배치를 처리한다. partition 간은 병렬로 최대 두 배치를 처리한다.
   다른 partition의 미처리 위치를 넘어 commit하지 않는다. 보장하는 순서는 Kafka
-  기록 순서이며 동시 HTTP 요청 시작 순서가 아니다. Kafka는 계정 advisory lock을
-  사용하지 않는다. 같은 Topic·Consumer Group·계정 Key 매핑을 유지하고 같은 계정의
+  기록 순서이며 동시 HTTP 요청 시작 순서가 아니다. Kafka도 트랜잭션 시작에
+  계정 advisory lock을 잡는다([ADR 0016](0016-compute-activity-analytics-on-read-and-store-daily-stats.md)). 같은 Topic·Consumer Group·계정 Key 매핑을 유지하고 같은 계정의
   legacy 동시 사용을 금지한다. 경로 전환 전 기존 처리를 종료한다. 트랜잭션과
-  legacy 전용 Lock의 책임은 ADR 0007과 Plan #74의 승인된 변경을 따른다.
+  계정 Lock의 책임은 ADR 0007과 Plan #74의 승인된 변경을 따른다.
 - API와 Consumer는 같은 저장소·업무 코드를 공유하되 별도 진입점·프로세스로 실행한다.
 - 유효한 committed offset이 있으면 이어서 처리하고, 없는 경우에만
   `auto_offset_reset=earliest`로 현재 보관된 가장 오래된 위치부터 처리한다.
@@ -128,3 +128,5 @@ FastStream Handler를 실행한다. 따라서 202 이후에도 API 프로세스�
 2026-10-18 사용자의 “0006에 반영해” 지시에 따라 본 ADR을 직접 갱신했다. 발행 확인
 5초·Consumer 종료 대기 30초·Publisher 동시 발행 및 내부 메시지 크기 추가 제한 없음의
 승인을 반영하며, 새 ADR을 생성하지 않는다. 구현·검증 완료를 뜻하지 않는다.
+
+2026-11-22 [Issue #346](https://github.com/jolvy/mosemo/issues/346)에 따라 Kafka 경로도 트랜잭션 시작에 계정 advisory 잠금을 잡도록 반영했다. 근거는 [ADR 0016](0016-compute-activity-analytics-on-read-and-store-daily-stats.md)이다.

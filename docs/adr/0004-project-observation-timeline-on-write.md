@@ -76,5 +76,8 @@ POST가 원본과 projection을 같은 트랜잭션에서 갱신하고 GET은 pr
 
 2026-10-20 Plan #74 승인에 따라 배치 처리의 트랜잭션 소유와 계정 Lock 적용 범위는
 [ADR 0007](0007-store-batch-receipts-with-activity-transactions.md)이 대체한다.
-Kafka는 Partition별 순차 실행으로 직렬화하고 legacy에만 계정 advisory lock을 적용한다.
+Kafka는 Partition별 순차 실행으로 직렬화하고, legacy와 Kafka 모두 트랜잭션 시작에 계정 advisory lock을
+잡는다([ADR 0016](0016-compute-activity-analytics-on-read-and-store-daily-stats.md)의 원천 handler·세션 완료와 같은 잠금 순서).
 동일 계정의 두 경로를 혼용하지 않고 경로 전환 전 기존 처리를 종료한다.
+
+2026-11-22 [Issue #346](https://github.com/jolvy/mosemo/issues/346)에 따라 Kafka 경로도 트랜잭션 시작에 계정 advisory 잠금을 잡도록 반영했다. 근거는 [ADR 0016](0016-compute-activity-analytics-on-read-and-store-daily-stats.md)이다.

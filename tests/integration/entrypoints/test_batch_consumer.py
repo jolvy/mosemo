@@ -26,9 +26,13 @@ from tests.support.observation import activity_request, batch_executor
 
 
 def session_double() -> Mock:
-    """A session that `unit_of_work` can open: no open transaction, no events."""
+    """A session that `unit_of_work` can open: no open transaction, no events.
+
+    Its statements, such as the account lock, succeed without a database.
+    """
     session = Mock()
     session.in_transaction.return_value = False
+    session.execute = AsyncMock()
     session.flush = AsyncMock()
     session.sync_session.info = {}
     return session

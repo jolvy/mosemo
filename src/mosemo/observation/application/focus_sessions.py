@@ -136,8 +136,9 @@ class CompleteFocusSession(UseCase):
         first_completion = False
         async with unit_of_work(db_session, self._dispatcher):
             # The analytics marking of the completion takes this lock anyway; take
-            # it before the session row lock, in the order activity recording
-            # uses, so the two cannot deadlock.
+            # it before the session row lock, in the order every activity
+            # recording path (single, legacy and Consumer) uses, so none can
+            # deadlock.
             await self._segments.lock_timeline(db_session, account_id)
             stored = await self._focus_sessions.find_owned(
                 db_session, account_id=account_id, focus_session_id=focus_session_id
