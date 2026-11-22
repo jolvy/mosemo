@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-20T11:18:18.429Z
+    at: 2026-11-22T11:03:17.070Z
 sources:
   - id: openwiki-source-3c6b76d80d7f929dde842165
     resource: repo://.codex/skills/verification/scripts/ci_gate.py
@@ -21,6 +21,8 @@ sources:
     resource: repo://pyproject.toml
   - id: openwiki-source-1c9ddf72032c2bd4da068cd8
     resource: repo://scripts/check_coverage.py
+  - id: openwiki-source-e8577da5ba062a695378f268
+    resource: repo://scripts/label_eval_cases.py
   - id: openwiki-source-5063b6aa8934c32dd8a94ee1
     resource: repo://tests/AGENTS.md
   - id: openwiki-source-f0a6e7dc03522b2682f88655
@@ -31,7 +33,7 @@ sources:
     resource: repo://tests/support/acceptance.py
   - id: openwiki-source-7963bb1002d4efe2b24fef6a
     resource: repo://tests/unit/harness/test_tests_layout.py
-generated: { by: "claude-code", at: "2026-11-20T10:08:17.353Z" }
+generated: { by: "claude-code", at: "2026-11-22T11:03:17.070Z" }
 ---
 
 # 테스트와 검증
@@ -78,6 +80,17 @@ generated: { by: "claude-code", at: "2026-11-20T10:08:17.353Z" }
 | `poe ci` | `act`로 pull request Quality job을 로컬에서 실행 |
 
 `poe test`·`poe coverage`만 `.env.example`을 먼저 읽고, 있으면 `.env`, `.env.test` 순서로 덮어쓴다.
+
+## 라벨 제안 평가 입력 스크립트
+
+[scripts/label_eval_cases.py](../../scripts/label_eval_cases.py)는 라벨 제안 엔진 평가(Plan #309)의 입력을 만드는 CLI다. 앱 코드가 아니라 `scripts/`의 저장소 도구이며 `tests/unit/scripts/`·`tests/integration/scripts/`가 검증한다. 현재 시각을 읽지 않고, 개인 활동이 들어 있으므로 결과를 저장소 안에 쓰지 않는다.
+
+- `snapshot`: `--account-id`, `--from`, `--to`, `--as-of`, `--out`을 받아 `--as-of` 시점의 읽기 전용 트랜잭션(`read_snapshot`)에서 관찰 타임라인을 읽고, 기간 `[from, to)`에 끝난 닫힌 상세 구간(`CLOSED_DETAILED_ACTIVITY`)만 종료 시각·활동 ID 순으로 JSONL에 쓴다. `--to`가 `--as-of`보다 늦으면 거절한다. `--as-of` 시점에 진행 중인 구간은 빠지므로 재실행 결과가 같다.
+- `cases`: 스냅샷(`--activities`)에 persona 규칙 TOML(`--persona`, 반복 가능, 예시는 `scripts/label_eval_personas/example.toml`)을 적용해 정답 라벨(`gold`)을 매기고, 각 사례 시점에 있었을 few-shot 예시를 다시 만든다. 예시는 엄격히 앞선 사례만 최신순으로 `MAX_EXAMPLES`개까지 쓴다(운영 retriever와 같은 방식). 사례에는 `cold_start`(예시 3개 미만)·`gold_null`·`new_host`·`personas_disagree` 태그가 붙는다. 소유자 라벨은 `--owner-labels`와 `--owner-label-names`를 함께 줄 때만 `owner` persona 사례로 더해진다.
+- 출력은 `write_jsonl`이 `{path}`와 `{path}.sha256`을 0600 임시 파일로 만든 뒤 교체해 쓴다. 심볼릭 링크를 따라가지 않고, 다이제스트를 못 쓰면 본문도 지운다.
+- 잘못된 인자·입력(알 수 없는 키, 중복 활동 ID, 예약어 persona 이름 등)은 `InputError`로 `rejected: ...`를 stderr에 내고 종료 코드 2로 끝나며 아무것도 쓰지 않는다.
+
+단위 테스트는 `tests/unit/scripts/test_label_eval_cases.py`(스냅샷 행·사례·파일 쓰기)와 `test_label_eval_personas.py`(persona 파싱·검증)이고, `tests/integration/scripts/test_label_eval_snapshot.py`는 실제 PostgreSQL에서 범위 안 닫힌 구간만 담기는지, 진행 중 구간이 빠지고 재실행이 같은지, `--to`가 `--as-of` 뒤면 출력 없이 거절되는지를 확인한다.
 
 ## 커밋 전 검증
 
