@@ -633,23 +633,27 @@ def test_c_none_offers_none_and_reads_it_as_null_with_its_probability(
     assert row["prob"] == 0.7
 
 
-def test_c_refusal_and_missing_probabilities_give_null_values(
+def test_c_refusal_and_optional_fields_give_null_values(
     label_eval_run: ModuleType, tmp_path: Path
 ) -> None:
+    # OpenRouter documents the refusal answer and makes confidence and
+    # probabilities optional.
     rows = [case_row(1), case_row(2)]
     handler = Decisions(
         c_response(
-            "aimlapi",
+            "openrouter",
             {
                 rows[0]["case_id"]: {"type": "refusal"},
-                rows[1]["case_id"]: c_choice(STUDY),
+                rows[1]["case_id"]: c_choice(
+                    STUDY, omit=("confidence", "probabilities")
+                ),
             },
         )
     )
 
     refused, chosen = _run(
         label_eval_run,
-        _c(label_eval_run, handler, "aimlapi"),
+        _c(label_eval_run, handler, "openrouter"),
         rows,
         tmp_path / "r.jsonl",
         batch_size=2,
@@ -661,9 +665,10 @@ def test_c_refusal_and_missing_probabilities_give_null_values(
         None,
         None,
     )
+    assert {row["error"] for row in (refused, chosen)} == {None}
     assert chosen["pred"] == STUDY
-    assert chosen["prob"] is None
-    assert chosen["cost_usd"] == C_COSTS["aimlapi"]
+    assert (chosen["confidence"], chosen["prob"]) == (None, None)
+    assert chosen["cost_usd"] == C_COSTS["openrouter"]
 
 
 def _engine(module: ModuleType, name: str, handler: Decisions) -> Any:
@@ -705,6 +710,29 @@ def test_decision_http_errors_are_error_rows_after_one_request(
     assert {row["prob"] for row in results} == {None}
     assert {row["cost_usd"] for row in results} == {None}
     assert {row["refused"] for row in results} == {False}
+
+
+@pytest.mark.parametrize("name", DECISION_ENGINES)
+@pytest.mark.parametrize("error", [httpx2.ReadTimeout, httpx2.ConnectTimeout])
+def test_decision_client_timeouts_share_the_timeout_error_name(
+    label_eval_run: ModuleType,
+    tmp_path: Path,
+    name: str,
+    error: type[httpx2.TimeoutException],
+) -> None:
+    requests: list[httpx2.Request] = []
+
+    def timed_out(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        raise error("timed out", request=request)
+
+    engine = _engine(label_eval_run, name, Decisions())
+    engine._client = httpx2.AsyncClient(transport=httpx2.MockTransport(timed_out))
+
+    (row,) = _run(label_eval_run, engine, [case_row(1)], tmp_path / "r.jsonl")
+
+    assert len(requests) == 1
+    assert row["error"] == "TimeoutError"
 
 
 @pytest.mark.parametrize("name", DECISION_ENGINES)

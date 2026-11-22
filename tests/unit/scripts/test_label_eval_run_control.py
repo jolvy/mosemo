@@ -584,11 +584,17 @@ def test_decision_budget_counts_one_request_per_call(
         assert not out.exists()
 
 
-def test_c_ollama_runs_without_any_key_variable(
-    label_eval_run: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("keys_set", [False, True])
+def test_c_ollama_runs_without_any_key_variable_and_never_sends_one(
+    label_eval_run: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    keys_set: bool,
 ) -> None:
     for variable in DECISION_KEYS:
         monkeypatch.delenv(variable, raising=False)
+    if keys_set:
+        _set_decision_keys(monkeypatch)
     rows = [case_row(1)]
     cases = write_cases(tmp_path / "cases.jsonl", rows)
     out = tmp_path / "results.jsonl"
@@ -646,3 +652,52 @@ def test_resume_uses_the_routed_c_engine_name(
     (body,) = handler.bodies()
     assert list(body["questions"]) == [rows[1]["case_id"]]
     assert read_rows(out)[-1]["engine"] == "c@ollama"
+
+
+def test_c_route_is_refused_for_engines_without_routes(
+    label_eval_run: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _set_decision_keys(monkeypatch)
+    cases = write_cases(tmp_path / "cases.jsonl", [case_row(1)])
+    out = tmp_path / "results.jsonl"
+    handler = Decisions(_good_response("b", []))
+    argv = _argv(
+        cases, out, "--engine", "b", "--c-route", "aimlapi", "--max-requests", "1"
+    )
+
+    assert label_eval_run.main(argv, http_client=handler.client()) == 2
+
+    assert handler.requests == []
+    assert not out.exists()
+    assert "--c-route" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("name", "variable"),
+    [("b", "OPENAI_API_KEY"), ("c@openrouter", "OPENROUTER_API_KEY")],
+)
+def test_non_ascii_keys_are_refused_without_showing_them(
+    label_eval_run: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    name: str,
+    variable: str,
+) -> None:
+    secret = "sk-test-cl\u00e9-secret"
+    monkeypatch.setenv(variable, secret)
+    cases = write_cases(tmp_path / "cases.jsonl", [case_row(1)])
+    out = tmp_path / "results.jsonl"
+    handler = Decisions(_good_response(name, []))
+    argv = _argv(cases, out, *ENGINE_ARGS[name], "--max-requests", "1")
+
+    assert label_eval_run.main(argv, http_client=handler.client()) == 2
+
+    assert handler.requests == []
+    err = capsys.readouterr().err
+    assert variable in err
+    assert secret not in err
+    assert "\u00e9" not in err

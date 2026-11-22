@@ -431,7 +431,7 @@ class Pick:
     """One choice answer: the chosen value and its probability when given."""
 
     choice: str | bool
-    confidence: float
+    confidence: float | None
     prob: float | None
 
 
@@ -477,7 +477,8 @@ def decision_answer(
             preds[case.case_id] = pick.choice
         else:
             raise ResponseError("an answer chose a value that was not offered")
-        confidences[case.case_id] = pick.confidence
+        if pick.confidence is not None:
+            confidences[case.case_id] = pick.confidence
         if pick.prob is not None:
             probs[case.case_id] = pick.prob
     return Answer(
@@ -495,12 +496,19 @@ def decision_answer(
 async def post_decision(
     client: httpx2.AsyncClient, url: str, *, body: object, key: str | None
 ) -> bytes:
-    """One request, no retry, within the timeout; a non-2xx status raises."""
+    """One request, no retry, within the timeout; a non-2xx status raises.
+
+    Either timeout, the overall one or the client's, raises ``TimeoutError`` so
+    one cause has one error name in the result rows.
+    """
     headers = {} if key is None else {"Authorization": f"Bearer {key}"}
-    async with asyncio.timeout(TIMEOUT_SECONDS):
-        response = await client.post(
-            url, json=body, headers=headers, timeout=TIMEOUT_SECONDS
-        )
+    try:
+        async with asyncio.timeout(TIMEOUT_SECONDS):
+            response = await client.post(
+                url, json=body, headers=headers, timeout=TIMEOUT_SECONDS
+            )
+    except httpx2.TimeoutException as exc:
+        raise TimeoutError from exc
     response.raise_for_status()
     return response.content
 
@@ -597,7 +605,7 @@ class DecisionsEngine:
 class _CChoice(BaseModel):
     type: Literal["choice"]
     choice: str
-    confidence: float
+    confidence: float | None = None  # optional in OpenRouter's schema
     probabilities: dict[str, float] = {}
 
 
@@ -902,6 +910,8 @@ async def _execute(
 def _engine_name(args: argparse.Namespace) -> str:
     """The result-row engine name; the C engines carry their route."""
     if args.engine not in C_ENGINES:
+        if args.c_route is not None:
+            raise InputError("--c-route applies only to engines c and c-none")
         return args.engine
     if args.c_route is None:
         raise InputError(f"--c-route is required for engine {args.engine}")
@@ -910,8 +920,12 @@ def _engine_name(args: argparse.Namespace) -> str:
 
 def _required_key(variable: str) -> str:
     key = os.environ.get(variable)
+    # Messages name only the variable, never a value. A non-ASCII key would fail
+    # to encode as a header with a message that shows part of it.
     if not key:
-        raise InputError(f"{variable} is required")  # the name only, never a value
+        raise InputError(f"{variable} is required")
+    if not key.isascii():
+        raise InputError(f"{variable} must be ASCII")
     return key
 
 

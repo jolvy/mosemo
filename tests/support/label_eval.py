@@ -66,17 +66,17 @@ def b_choice(
     confidence: float = 0.8,
     probabilities: dict[str, float] | None = None,
 ) -> dict[str, Any]:
-    answer: dict[str, Any] = {
+    """A Choice answer; without ``probabilities`` the documented array is empty."""
+    return {
         "type": "choice",
         "name": name,
         "choice": choice,
         "confidence": confidence,
+        "probabilities": [
+            {"value": value, "probability": p}
+            for value, p in (probabilities or {}).items()
+        ],
     }
-    if probabilities is not None:
-        answer["probabilities"] = [
-            {"value": value, "probability": p} for value, p in probabilities.items()
-        ]
-    return answer
 
 
 def b_refusal(name: str) -> dict[str, Any]:
@@ -105,14 +105,20 @@ def c_choice(
     *,
     confidence: float = 0.8,
     probabilities: dict[str, float] | None = None,
+    omit: tuple[str, ...] = (),
 ) -> dict[str, Any]:
+    """A choice answer with every field AI/ML API requires, less ``omit``.
+
+    OpenRouter's schema requires only ``type`` and ``choice``.
+    """
     answer: dict[str, Any] = {
         "type": "choice",
         "choice": choice,
         "confidence": confidence,
+        "probabilities": probabilities or {choice: 1.0},
     }
-    if probabilities is not None:
-        answer["probabilities"] = probabilities
+    for name in omit:
+        del answer[name]
     return answer
 
 
