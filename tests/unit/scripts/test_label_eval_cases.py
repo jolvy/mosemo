@@ -596,7 +596,7 @@ def test_persona_with_oversized_integer_exits_2_and_writes_nothing(
 
 
 def test_owner_label_names_with_oversized_integer_exit_2_and_write_nothing(
-    label_eval_cases: ModuleType, tmp_path: Path
+    label_eval_cases: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     argv = _inputs(tmp_path, [_activity(1, _minute(1), app_name="Code")])
     owner_labels = tmp_path / "owner-labels.jsonl"
@@ -608,3 +608,4 @@ def test_owner_label_names_with_oversized_integer_exit_2_and_write_nothing(
     argv += ["--owner-labels", str(owner_labels), "--owner-label-names", str(names)]
     assert label_eval_cases.main([*argv, "--out", str(out)]) == 2
     assert not out.exists()
+    assert capsys.readouterr().err.startswith("rejected: ")
