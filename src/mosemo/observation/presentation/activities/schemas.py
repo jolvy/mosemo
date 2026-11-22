@@ -27,13 +27,17 @@ class ActivityRequestModel(ApiRequestModel):
     """Base model for activity collection request data."""
 
 
+# PostgreSQL JSONB and Text reject NUL characters.
+ActivityText = Annotated[str, Field(pattern=r"^[^\x00]*$")]
+
+
 class CapturedString(ActivityRequestModel):
     """A string value captured by the client."""
 
     status: Literal["captured"] = Field(
         description="값을 정상적으로 수집했음을 나타냅니다."
     )
-    value: str = Field(description="클라이언트가 수집한 원문 값입니다.")
+    value: ActivityText = Field(description="클라이언트가 수집한 원문 값입니다.")
 
 
 class CapturedText(CapturedString):
@@ -80,7 +84,7 @@ class UnavailableValue(ActivityRequestModel):
     status: Literal["unavailable"] = Field(
         description="해당 값을 읽을 수 없었음을 나타냅니다."
     )
-    reason: str = Field(
+    reason: ActivityText = Field(
         min_length=1,
         description="값을 읽을 수 없었던 이유입니다.",
     )
@@ -92,7 +96,7 @@ class RedactedValue(ActivityRequestModel):
     status: Literal["redacted"] = Field(
         description="개인정보 정책에 따라 값을 저장하지 않았음을 나타냅니다."
     )
-    reason: str = Field(
+    reason: ActivityText = Field(
         min_length=1,
         description="값을 저장하지 않은 개인정보 정책상의 이유입니다.",
     )
@@ -142,7 +146,7 @@ class UnavailableWindow(ActivityRequestModel):
     status: Literal["unavailable"] = Field(
         description="포커스 창을 읽을 수 없었음을 나타냅니다."
     )
-    reason: str = Field(
+    reason: ActivityText = Field(
         min_length=1,
         description="포커스 창을 읽을 수 없었던 이유입니다.",
     )
@@ -215,6 +219,7 @@ class BatchRecordBase(ActivityRequestModel):
     event_id: UUID = Field(description="레코드 중복 제거에 사용하는 식별자입니다.")
     sequence: int = Field(
         ge=0,
+        lt=2**63,
         description="Device 안에서 단조 증가하는 레코드 순번입니다.",
     )
     observed_at: ObservationTimestamp = Field(
@@ -224,7 +229,7 @@ class BatchRecordBase(ActivityRequestModel):
         description="관찰 당시의 지원 시간대 식별자입니다.",
     )
     utc_offset_minutes: int = Field(
-        description="관찰 당시 UTC와 현지 시간의 차이(분)입니다."
+        ge=-1440, le=1440, description="관찰 당시 UTC와 현지 시간의 차이(분)입니다."
     )
 
 
@@ -246,7 +251,7 @@ class BatchCollectionStateChanged(BatchRecordBase):
         description="수집 가능 상태 변경 레코드임을 나타냅니다."
     )
     state: CollectionState = Field(description="변경된 활동 수집 가능 상태입니다.")
-    reason: str = Field(
+    reason: ActivityText = Field(
         min_length=1,
         description="수집 상태가 변경된 이유입니다.",
     )

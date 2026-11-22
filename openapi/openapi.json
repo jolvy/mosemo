@@ -582,6 +582,7 @@
           },
           "sequence": {
             "description": "Device 안에서 단조 증가하는 레코드 순번입니다.",
+            "exclusiveMaximum": 9.223372036854776e+18,
             "minimum": 0.0,
             "title": "Sequence",
             "type": "integer"
@@ -592,6 +593,8 @@
           },
           "utcOffsetMinutes": {
             "description": "관찰 당시 UTC와 현지 시간의 차이(분)입니다.",
+            "maximum": 1440.0,
+            "minimum": -1440.0,
             "title": "Utcoffsetminutes",
             "type": "integer"
           }
@@ -641,6 +644,7 @@
           "reason": {
             "description": "수집 상태가 변경된 이유입니다.",
             "minLength": 1,
+            "pattern": "^[^\\x00]*$",
             "title": "Reason",
             "type": "string"
           },
@@ -652,6 +656,7 @@
           },
           "sequence": {
             "description": "Device 안에서 단조 증가하는 레코드 순번입니다.",
+            "exclusiveMaximum": 9.223372036854776e+18,
             "minimum": 0.0,
             "title": "Sequence",
             "type": "integer"
@@ -666,6 +671,8 @@
           },
           "utcOffsetMinutes": {
             "description": "관찰 당시 UTC와 현지 시간의 차이(분)입니다.",
+            "maximum": 1440.0,
+            "minimum": -1440.0,
             "title": "Utcoffsetminutes",
             "type": "integer"
           }
@@ -858,6 +865,7 @@
           },
           "value": {
             "description": "클라이언트가 수집한 원문 값입니다.",
+            "pattern": "^[^\\x00]*$",
             "title": "Value",
             "type": "string"
           }
@@ -900,6 +908,7 @@
           },
           "value": {
             "description": "클라이언트가 수집한 원문 값입니다.",
+            "pattern": "^[^\\x00]*$",
             "title": "Value",
             "type": "string"
           }
@@ -2408,6 +2417,7 @@
           "reason": {
             "description": "값을 저장하지 않은 개인정보 정책상의 이유입니다.",
             "minLength": 1,
+            "pattern": "^[^\\x00]*$",
             "title": "Reason",
             "type": "string"
           },
@@ -2657,6 +2667,7 @@
           "reason": {
             "description": "값을 읽을 수 없었던 이유입니다.",
             "minLength": 1,
+            "pattern": "^[^\\x00]*$",
             "title": "Reason",
             "type": "string"
           },
@@ -2681,6 +2692,7 @@
           "reason": {
             "description": "포커스 창을 읽을 수 없었던 이유입니다.",
             "minLength": 1,
+            "pattern": "^[^\\x00]*$",
             "title": "Reason",
             "type": "string"
           },
