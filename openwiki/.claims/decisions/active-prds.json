@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:63e4248b01550f8e8b8629671c4aa16b25f0f5ffdbfefe8c2915e5d2b206328a",
+  "pageVersion": "sha256:c8134bbb8df81c252406b48de8bc6fa28e8fe092a1779c182d178476f8d71561",
   "claims": [
     {
       "id": "claim_efe0b064e0a343819b7259e37e76b304",
@@ -69,10 +69,20 @@
           "version": "repo-lines-v1:sha256:0f3fc4fe4baf40637a5cdee350e761233e0e9274fc8a697a2ce29a52cccc5854:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwMzViNjA5NGFmMjZlYzg0YWE0MjM2M2YxYWYxY2VmYmYzN2JiNWQwNTgyNTUyYjE4OGMwMDA2NTNlYzFkZTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4Njg5MGUxZTljNTMwOTAyMzU3MDJhODg1NDgwNmU1Yjg0MmU3YTcxMjFkYTY3MDk0NDFkMzYzMDg1MjJhMzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBhZGI0Yjk1NjA1NzMzZWZlZmIyOTc3OGU2MTgyZTZjOGMyYzU1MDY1OTk3YzUwMjRjNzZkZGUzMDE5ZTZlODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJkMDc1NzE4ZjlhNzIzNjZmZTU1NDFhZmYwOTU1MzNhYjczYzkwNzMzOWJmN2JiZmEzNGUxZDZmZTg0Y2YyNmEifQ"
         }
       ]
+    },
+    {
+      "id": "claim_ce8b5cf0231f414bb6c48cc0dd884c72",
+      "statement": "활동 배치 PRD는 422 INVALID_ARGUMENT를 받은 클라이언트가 배치를 같은 내용으로 재시도하지 않고, details의 loc이 records 순번을 가리키면 그 원본만, 아니면 배치 전체를 버리도록 정한다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/prd/activity-batches.md#L211-L218",
+          "version": "repo-lines-v1:sha256:e436b3c36e559d8939a80976621153d0096d8fe44c0f5d784a3c10115b4b6c4c:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2NhNTdhYzI3NDYzZTcwZTA1NmNmMzgwOGViMTA3YjAzNDBmZTZjNTFjOWRmMzYzYzkwMTY1N2JkYzRjZjI1YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDRmNDBkZjQ2NDdjYjBhNTRmMTMwYjZlNjQxNDMzZGE4MGVjZWMxYTBmMGQ0YThjODBhMmU0N2VjYTkwYzU1OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjNhMjkzYTRkMzY3ZmZiN2U1ZDIyZTBiOWJhYmE3MGQyZTgyOWMzYmRjNzQ1MTIzYmY2ZWMzMzcyYTQ4N2E0MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWZlMTA1NWJhYzY1ZjI5MThhMWZlMGRiNTZiNjU4MDIyYTQyYzg1NjQ2Y2VkYmY4NDU5MTVjZWE0ZTI1NThiZiJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T11:15:40.775Z"
+    "at": "2026-11-22T11:39:33.794Z"
   }
 }
