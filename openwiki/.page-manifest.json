@@ -9,18 +9,18 @@
       "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
     },
     "/openwiki/architecture/persistence-and-messaging.md": {
-      "pageVersion": "sha256:7ca6be19007d17bc0517b2b4f9e731f20e866b9fefd41ee52020c37639a4bf35",
+      "pageVersion": "sha256:acca4ead5e53d6f81926e752cfbbc667a6f0ca9b9e64dc5302511f46620ab207",
       "completedBy": "claude-code",
-      "completedRunId": "0bf105e3-5246-46e6-bb78-a7bb0f921967",
-      "gitHead": "34063009ffa77c6d88df090f1fc301ee5f7421d8",
-      "sourceFingerprint": "sha256:4649bf763da4994875bb381112377088157fb85add22b512286be682e1ce89fd"
+      "completedRunId": "f54199e2-7078-4e08-b3f4-b7e8829c9d4f",
+      "gitHead": "387d20554d2553b546a03492335705fbfc2cee3f",
+      "sourceFingerprint": "sha256:a5ca6b0f6db3e48272f2635a31328bc658e7df79986dc9cda8121ae09ac2b2ec"
     },
     "/openwiki/decisions/active-decisions.md": {
-      "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",
-      "sourceFingerprint": "sha256:bf6b7477215d174b1aae53b433011cfc2c26e197a1f56a09403897c66f52e287",
-      "pageVersion": "sha256:cb56aae87b3a369aa242ec3c477176dab5820a54ad61b67d55e21cf5d9d2485e",
+      "pageVersion": "sha256:bf018b16aa786f2af02874ffe0f46b2088f3df85d667f67e4cd1d96f3c84c1bc",
       "completedBy": "claude-code",
-      "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
+      "completedRunId": "f54199e2-7078-4e08-b3f4-b7e8829c9d4f",
+      "gitHead": "387d20554d2553b546a03492335705fbfc2cee3f",
+      "sourceFingerprint": "sha256:a5ca6b0f6db3e48272f2635a31328bc658e7df79986dc9cda8121ae09ac2b2ec"
     },
     "/openwiki/decisions/active-prds.md": {
       "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",

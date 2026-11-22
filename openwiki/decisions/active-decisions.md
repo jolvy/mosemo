@@ -5,7 +5,7 @@ description: docs/adr의 ADR 중 앞부분 status가 accepted인 유효한 결�
 tags: [adr, decisions, supersession]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-20T11:18:18.429Z
+    at: 2026-11-22T06:28:07.710Z
 sources:
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
@@ -39,7 +39,7 @@ sources:
     resource: repo://docs/adr/0015-group-entrypoints-and-platform-packages.md
   - id: openwiki-source-254df237bb9ef98aebc51d56
     resource: repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md
-generated: { by: "claude-code", at: "2026-11-18T09:42:15.104Z" }
+generated: { by: "claude-code", at: "2026-11-22T06:28:07.710Z" }
 ---
 
 # 유효한 결정
@@ -87,7 +87,7 @@ ADR 0002는 유효 목록에 넣지 않는다. 원문은 당시 판단의 근거
 
 부분 대체는 대체된 ADR이 여전히 `status: accepted`로 남아 있고, 바뀐 조항만 새 ADR을 따른다는 뜻이다. 아래 관계에서는 두 ADR을 함께 읽는다.
 
-- **[0004](../../docs/adr/0004-project-observation-timeline-on-write.md) ← [0007](../../docs/adr/0007-store-batch-receipts-with-activity-transactions.md)**: 0004의 쓰기 경계 중 Kafka 경로의 DB 쓰기를 receipt와 함께 Handler에서 수행하고, 계정 advisory lock을 legacy 경로에만 적용하도록 바꾼다. 읽기 모델 구조, 날짜 경계, Device 출처 비노출 등 나머지는 0004를 유지한다.
+- **[0004](../../docs/adr/0004-project-observation-timeline-on-write.md) ← [0007](../../docs/adr/0007-store-batch-receipts-with-activity-transactions.md)**: 0004의 쓰기 경계 중 Kafka 경로의 DB 쓰기를 receipt와 함께 Handler에서 수행하고, 트랜잭션 소유를 Executor로 나누고 legacy 직접 처리에 계정 advisory lock을 적용한다. 2026-11-22 Issue #346 이후 Kafka 처리 트랜잭션도 시작에 같은 잠금을 잡는다([ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md)의 잠금 순서). 읽기 모델 구조, 날짜 경계, Device 출처 비노출 등 나머지는 0004를 유지한다.
 - **[0004](../../docs/adr/0004-project-observation-timeline-on-write.md) ← [0008](../../docs/adr/0008-order-observations-and-transition-existing-timelines.md)**: `receivedAt` 동률 정렬을 Device별 관찰 순서와 결정적 병합으로 바꾸고, Device별 `sequence`를 관찰 순서에도 쓴다. 원본·projection 원자성, 계정 잠금, 날짜 경계는 0004를 유지한다.
 - **[0001](../../docs/adr/0001-public-api-error-boundary.md) ← [0014](../../docs/adr/0014-align-public-identifiers-and-error-codes-with-contexts.md)**: 단일 `ErrorCode` Enum 대신 BC별 오류 코드 enum과 `CommonErrorCode`(공통 기반 `ApiErrorCode`)가 오류를 소유하고, BC별 `ERROR_DOCS`를 조립 루트가 합친다. 런타임과 OpenAPI 분리, 헤더의 전송 문맥 소유, 공통 오류 구조, validation detail 규칙은 0001을 유지한다.
 - **[0010](../../docs/adr/0010-run-batch-jobs-in-apscheduler-process.md) ← [0011](../../docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md)**: `mosemo/batch_jobs` 패키지와 `python -m mosemo.batch_jobs` 실행 경로를 스케줄링 기반 모듈, `batch` 조립 루트, 각 BC `bootstrap.py`로 바꾼다. job 정의와 실행 방식 분리, 단일 프로세스, 겹침 방지·misfire 정책은 0010을 유지한다.

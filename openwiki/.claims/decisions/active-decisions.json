@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:cb56aae87b3a369aa242ec3c477176dab5820a54ad61b67d55e21cf5d9d2485e",
+  "pageVersion": "sha256:bf018b16aa786f2af02874ffe0f46b2088f3df85d667f67e4cd1d96f3c84c1bc",
   "claims": [
     {
       "id": "claim_93af9bd871914769b8fa49b637ad6f5f",
@@ -47,16 +47,6 @@
         {
           "resource": "repo://docs/adr/0013-persist-dataclass-aggregates-with-imperative-mapping.md#L1-L4",
           "version": "repo-lines-v1:sha256:5a63ba6669bfcb0857e435fd50e4ffbb3835b4638ca497a35e2f51de221fa75c:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2NlODEyZTAxYjBiODEyNTE1MGJkN2E1ZGM4NmRlOTY5MTA1MDJhYmMxYTY0MTkxMWRlYTIxOTQ4MjkxNTdjNCJ9"
-        }
-      ]
-    },
-    {
-      "id": "claim_89d8f765489145c0ba1134b3cf8b1ef5",
-      "statement": "ADR 0007은 ADR 0004의 쓰기 경계를 부분 대체해 Kafka DB 쓰기를 receipt와 함께 수행하고 계정 advisory lock을 legacy에만 적용한다.",
-      "evidence": [
-        {
-          "resource": "repo://docs/adr/0007-store-batch-receipts-with-activity-transactions.md#L93-L102",
-          "version": "repo-lines-v1:sha256:4e426fd2a91b6810db6f02037e208139e08a47043a59950caa3c2bf93c86e9bc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3OTgyNjc0MzI3MTI4OTAwNTM5MTBlMzEzMmU2ZGQ0ZjYwMDMzNWFiNDZhY2JlMWFlYzg1ZmYyMzA1YjFjYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNmNGFmYzE4NTdiOWFkNDRmODlmMmYwY2NkMWRkZjY2NjQ2NWI4MDI5MmZhNDllMjQ0NGIxOGZlZDVhY2Y0N2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4MmFhYzI2ODA1YjgxYjBiZWEzYjcxOWFlMzliN2YyYzEyYjg5Y2FmZDM1ZWM3ZTJkMWUyMWY2YjUzYzY1NmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZlOTRhNDJkYWY2ZTZlYzcyYmY1YjgwNjQ2MDFlMGU5NzYwOTg3NTYwMDQxMmY5MTk0MjRkZmY3MmZkOTdmNjYifQ"
         }
       ]
     },
@@ -147,10 +137,24 @@
           "version": "repo-lines-v1:sha256:c66961867ddae2a418fe300f2482a09c24513a8d1da78d13e00a52d1413388b1:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWQ1MmZiYzNlMThlYTgyNGUwNTM1NTNjODM3MTQyZTVkY2FhNGI3ODBmNDRjNzUxMTJhNjY1ZTcyMDQ5NGI0YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjZmNzdiYWU4MWEyYTExZTZlNTVlZjIwMTAzMTdjYWM5NTkwYjlmZWUyNTUwODc4YTRjYmYzM2QyMzRmMDY4YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjQ1MjE5NmFkMmE2YzQ5YmI3M2I3YTY3YWY0NjhmYjlmZTM3MTQ4ZDI2MDRlNzUyY2MwNzM3ZGRjOWIyN2Q1MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWIxYmM1YmM0YTIzN2Y1NzhlNmFmNGE0MTVkMDY0N2Y5OTEwYjAzYjM2NGUxZTI3YzFmMWRiYWE3NDNkMDNiYSJ9"
         }
       ]
+    },
+    {
+      "id": "claim_ecdc8b6d40e94b62bf272a8165682f13",
+      "statement": "ADR 0007은 ADR 0004의 쓰기 경계를 부분 대체해 Kafka DB 쓰기를 receipt와 함께 수행하며, 계정 advisory lock은 legacy 직접 처리에 적용하고 이후 Kafka 처리 트랜잭션도 시작에 같은 잠금을 잡는다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0007-store-batch-receipts-with-activity-transactions.md#L33-L45",
+          "version": "repo-lines-v1:sha256:1fe9408bcbd20212c234a56d46f39852f1c05cd6575b62197dc0990724525e2e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI0MTAyYTQzZTI0MjA3MzNkMGYzMTMzOTE0NjY3YWYxNmU2NjkwNDRkOWVhZGZlODI0MjM3NjI3MTI2N2JkOWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxODQ2MjFmNDhmZmEzNmVkYjM4YWNjYWNhMDI0MWNiMTY3YTg4M2YxMGJjM2FhOWNjY2YwYTc0MTU4OTc3MWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA0ODUyMTNhYzkxNzZhNGRmMTIxMDU2YjM1MzA2ZTNiZTM3NDg3NDQxNTE2Yjk4MjEyYjA1NmNhZGI5NDIzZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkZDNlNGRjMmRkY2E2OWFhOGU3NTI5NTQxMGEzMWFhODk1MDg5NjBhOTViYWU1MDQzMmUyZDAxYzYzOTVmMDUifQ"
+        },
+        {
+          "resource": "repo://docs/adr/0007-store-batch-receipts-with-activity-transactions.md#L97-L104",
+          "version": "repo-lines-v1:sha256:5a437846b88a28e4017faa95d1e4617886c340f40f3b379e84683726c04f7ff8:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzZmYTg2MWFlYTU3ZmFiOTJhMThlNjlkMTRmMDQxNDlhNjMzYjQ5NTFkNjIxZjJmNGM1OTMyNzc0NTliN2QwMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjQ4NjFiYjc2N2Q1NmExYzQ1MmE5OGY1YTA5MWZlMGViMzY1MWI4NWQ5NGZlY2I5MzQyODc4YzdiMjFhMGY5YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzUyNjIzMjc1NWMxMzdlMmI0YjEyNjdkNmI3M2JmYjgyMWNiZjNiMjYyNTQ4YmVmMGFiOGMzYzU0NzliYmJjNiJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-20T11:18:18.429Z"
+    "at": "2026-11-22T06:28:07.710Z"
   }
 }
