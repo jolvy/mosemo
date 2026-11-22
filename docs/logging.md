@@ -25,7 +25,10 @@ result line: `saved`, `superseded`, `stale`, `failed` with `failed_compute`,
 `failed_lock_timeout`, `failed_statement_timeout` and `failed_serialization`,
 `quarantined_new`, `released` (claimed dates given back when the time budget ran out), `definition_mismatch`, `aborted` (`connection` or
 `definition`), `max_source_read_ms` and `max_compute_ms`. The definition marks
-(`analytics-definition-mark`) add `accounts` and `markers`. Do not put user activity URLs, window or activity
+(`analytics-definition-mark`) add `accounts` and `markers`.
+The activity Consumer (`operation="activity_batch_consume"`) adds the Kafka
+message position `topic`, `partition` and `offset` to each skipped, retrying or
+failed batch line so the message can be found again in Kafka. Do not put user activity URLs, window or activity
 titles, account or device identifiers, tokens, cookies, authorization data, or
 request and response bodies in log messages or fields. Uvicorn access logging is
 disabled because its raw request target can contain authentication values in URL

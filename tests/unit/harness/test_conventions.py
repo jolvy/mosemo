@@ -423,6 +423,14 @@ ALLOWED_BROAD_EXCEPTS = {
         "async def execute_job():\n    try:\n        pass\n    except Exception:\n"
         "        log()\n"
     ),
+    "src/mosemo/entrypoints/consumer/activity_batches.py": (
+        "def activity_batch_handler():\n"
+        "    async def process():\n"
+        "        try:\n"
+        "            pass\n"
+        "        except Exception:\n"
+        "            log()\n"
+    ),
 }
 
 

@@ -12,6 +12,7 @@ from mosemo.observation.application.batches import (
     AcceptActivityBatch,
     ProcessActivityBatch,
     ProcessLegacyActivityBatch,
+    TerminalBatchError,
 )
 from mosemo.observation.application.focus_session_log import FocusSessionLog
 from mosemo.observation.application.focus_sessions import (
@@ -55,6 +56,7 @@ __all__ = [
     "ActivityRegistrationRequested",
     "Observation",
     "ProcessActivityBatch",
+    "TerminalBatchError",
     "create_focus_session_log",
     "create_observation_timeline",
     "create_process_activity_batch",

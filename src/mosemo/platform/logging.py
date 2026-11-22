@@ -46,6 +46,10 @@ OPTIONAL_FIELDS: Final = (
     "max_compute_ms",
     "accounts",
     "markers",
+    # Kafka message position of a consumed activity batch.
+    "topic",
+    "partition",
+    "offset",
 )
 REDACTIONS: Final = (
     (

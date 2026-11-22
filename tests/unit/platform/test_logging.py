@@ -84,6 +84,23 @@ def test_json_formatter_emits_analytics_read_timings() -> None:
     assert {name: payload[name] for name in fields} == fields
 
 
+def test_json_formatter_emits_kafka_message_position() -> None:
+    fields = {"topic": "activity-batches", "partition": 1, "offset": 0}
+    record = logging.makeLogRecord(
+        {
+            "name": "mosemo.test",
+            "levelno": logging.WARNING,
+            "levelname": "WARNING",
+            "msg": "activity batch skipped",
+            **fields,
+        }
+    )
+
+    payload = json.loads(JsonFormatter().format(record))
+
+    assert {name: payload[name] for name in fields} == fields
+
+
 def test_json_formatter_excludes_exception_message() -> None:
     formatter = JsonFormatter()
 

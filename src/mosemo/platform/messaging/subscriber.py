@@ -15,6 +15,9 @@ from mosemo.platform.messaging.kafka_compat import BatchPartition, BatchRebalanc
 class RawMessage:
     key: bytes | None
     value: bytes | None
+    topic: str
+    partition: int
+    offset: int
 
 
 type MessageProcessor = Callable[[RawMessage], Awaitable[None]]
@@ -133,7 +136,9 @@ class MessageConsumer:
     async def _execute(self, message: KafkaMessage) -> None:
         raw = message.raw_message
         assert not isinstance(raw, tuple)
-        await self.process(RawMessage(raw.key, raw.value))
+        await self.process(
+            RawMessage(raw.key, raw.value, raw.topic, raw.partition, raw.offset)
+        )
         # FastStream manual mode disables auto-commit; each native worker
         # handles one message at a time and ACKs before reading its next one.
         await message.ack()
