@@ -685,8 +685,16 @@ def test_c_route_is_refused_for_engines_without_routes(
 )
 @pytest.mark.parametrize(
     "secret",
-    ["sk-test-cl\u00e9-secret", "sk-test-secret\n", "sk-test-secret "],
-    ids=["non-ascii", "newline", "trailing-space"],
+    [
+        "sk-test-cl\u00e9-secret",
+        "sk-test-secret\n",
+        "sk-test-secret ",
+        " sk-test-secret",
+        "sk-test-sec\tret",
+        "sk-test-sec\x0bret",
+        "sk-test-sec\x7fret",
+    ],
+    ids=["non-ascii", "newline", "trailing-space", "leading-space", "tab", "vt", "del"],
 )
 def test_unsendable_keys_are_refused_without_showing_them(
     label_eval_run: ModuleType,
@@ -708,4 +716,5 @@ def test_unsendable_keys_are_refused_without_showing_them(
     assert handler.requests == []
     err = capsys.readouterr().err
     assert variable in err
+    assert "sk-test" not in err
     assert "secret" not in err

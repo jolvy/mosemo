@@ -928,7 +928,9 @@ def _required_key(variable: str) -> str:
     if not key:
         raise InputError(f"{variable} is required")
     if not (key.isascii() and key.isprintable() and key == key.strip()):
-        raise InputError(f"{variable} must be printable ASCII without spaces")
+        raise InputError(
+            f"{variable} must be printable ASCII without surrounding spaces"
+        )
     return key
 
 
