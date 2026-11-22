@@ -5,7 +5,7 @@ description: dataclass aggregate와 imperative mapping, 트랜잭션 헬퍼와 �
 tags: [persistence, sqlalchemy, domain-events, kafka, batch-jobs, alembic]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T06:28:07.710Z
+    at: 2026-11-22T11:15:40.775Z
 sources:
   - id: openwiki-source-d1449bb9b8fd8b54431d973d
     resource: repo://docs/adr/0004-project-observation-timeline-on-write.md
@@ -55,7 +55,7 @@ sources:
     resource: repo://src/mosemo/shared/application/events.py
   - id: openwiki-source-bf64c7f959111123b762b90b
     resource: repo://tests/integration/platform/test_transactions.py
-generated: { by: "claude-code", at: "2026-11-22T06:28:07.710Z" }
+generated: { by: "claude-code", at: "2026-11-22T11:15:40.775Z" }
 ---
 
 # 영속성·메시징·배치 실행
@@ -135,9 +135,26 @@ sequenceDiagram
 - API의 `POST /api/v1/activities/batches`는 인증·입력·Device 귀속 확인과 24시간 수락 기간 검사 뒤 배치를 Kafka에 발행하고, 발행 ACK를 받으면 `202`를 돌려준다. 수락 기간 검사는 모든 원본의 `observedAt`이 `수락 시각 − 24시간 ≤ observedAt ≤ 수락 시각`(양 끝 포함, 절대 시간)인지 보며, 하나라도 벗어나면 발행하지 않고 배치 전체를 422 `ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW`로 거절한다. Device 귀속 404가 먼저다. 직접 처리 경로 `/activities/batches/legacy`도 타임라인 잠금 전에 같은 검사를 하고 아무것도 저장하지 않는다. Consumer는 다시 검사하지 않는다. DB 처리나 Consumer offset commit을 기다리지 않는다. 발행할 수 없거나 ACK가 늦으면 `503`과 `Retry-After: 1`을 돌려주고, 클라이언트는 같은 `batchId`·내용으로 재시도한다.
 - Publisher는 `acks="all"`, `enable_idempotence=True`로 만든 `KafkaBroker`를 쓴다([src/mosemo/platform/messaging/runtime.py](../../src/mosemo/platform/messaging/runtime.py)). 메시지 key는 계정 ID라서 같은 계정은 같은 partition으로 모인다.
 - 기본 토픽은 `activities.registration-requested`, Consumer group은 `mosemo.activity-batches`다([src/mosemo/platform/messaging/config.py](../../src/mosemo/platform/messaging/config.py)).
-- Consumer 진입점(`poe batch-consumer`, [src/mosemo/entrypoints/consumer/activity_batches.py](../../src/mosemo/entrypoints/consumer/activity_batches.py))은 `BATCH_ENABLED=true`가 아니면 시작하지 않는다. 시작할 때 identity·labels·observation·analytics의 테이블을 매핑하고 analytics handler를 등록한 뒤, 메시지마다 새 세션을 열어 observation의 배치 처리 UseCase를 부른다.
+- Consumer 진입점(`poe batch-consumer`, [src/mosemo/entrypoints/consumer/activity_batches.py](../../src/mosemo/entrypoints/consumer/activity_batches.py))은 `BATCH_ENABLED=true`가 아니면 시작하지 않는다. 시작할 때 identity·labels·observation·analytics의 테이블을 매핑하고 analytics handler를 등록한 뒤, 메시지마다 새 세션을 열어 observation의 배치 처리 UseCase를 부른다. 처리하지 못한 메시지는 아래 「처리 실패 정책」대로 다룬다.
 - 배치 처리는 receipt claim, 원본별 채택·거절, 원본 저장, 관찰 타임라인 갱신, 처리 결과 저장을 하나의 DB 트랜잭션에서 수행한다. receipt의 식별 범위는 `(accountId, deviceId, batchId)`다(ADR 0007). Kafka 경로도 트랜잭션 시작에 계정 advisory 잠금을 잡아(`ProcessActivityBatch`), 집중 세션 행 잠금보다 먼저 얻는 다른 쓰기 경로(legacy 배치·집중 세션 완료)와 같은 순서로 직렬화한다. 잠금 전 Device 귀속·수락 기간 검사는 legacy 경로만 먼저 하고, Consumer에서는 처리기 안에 남는다.
 - 원본 순서는 같은 Device 안에서는 `sequence`, 여러 Device 사이에서는 `(observedAt, deviceId, sequence, eventId)` 오름차순으로 병합한다(ADR 0008).
+
+### 처리 실패 정책
+
+근거: [ADR 0006](../../docs/adr/0006-deliver-activity-batches-through-kafka.md) 「처리 실패 정책」, [src/mosemo/entrypoints/consumer/activity_batches.py](../../src/mosemo/entrypoints/consumer/activity_batches.py)
+
+분류와 재시도는 Consumer 진입점에 있다. `platform.messaging`의 `MessageConsumer`는 업무 예외를 모르며, 처리 함수가 정상 반환하면 ACK하고 예외가 올라오면 ACK 없이 끝낸다는 계약만 지킨다.
+
+| 종류 | 예외 | 처리 |
+| --- | --- | --- |
+| 영구 실패 | `InvalidBatchMessageError`, `TerminalBatchError` | 재시도 없이 WARNING 로그 후 ACK, 다음 메시지로 진행 |
+| 일시 실패 | `ActivityTimelineBusyError`, `DBAPIError`, 연결 풀 `TimeoutError`, `OSError` | 같은 메시지를 최초 포함 5회까지 재시도(대기 1·2·4·8초, jitter 없음, 시도마다 새 세션·트랜잭션). 모두 실패하면 ERROR 로그 후 ACK 없이 Consumer 종료 |
+| 그 밖의 예외 | 위에 없는 모든 `Exception` | 재시도 없이 ERROR 로그(`logger.exception`) 후 ACK, 다음 메시지로 진행 |
+
+- 건너뛴 배치의 원문은 따로 보관하지 않는다. 토픽 보관 기간 동안 Kafka에 남고 로그의 `topic`·`partition`·`offset`으로 찾는다. 같은 Device의 뒤 배치는 보류하지 않는다. 관찰 타임라인이 역순 도착을 재구성하기 때문이다(ADR 0008).
+- 일시 실패를 다 쓰면 건너뛰지 않고 끝낸다. offset이 그대로라 장애가 풀린 뒤 이어서 처리한다.
+- 예외를 잡았을 때 현재 task가 취소 중(`task.cancelling() > 0`)이면 건너뛰거나 재시도하지 않고 그대로 올려, 취소가 다른 예외로 바뀌어도 ACK하지 않는다.
+- 로그에는 `operation="activity_batch_consume"`과 메시지 위치를 담고 계정·기기 식별자와 메시지 내용은 넣지 않는다.
 
 ## 관찰 타임라인 projection
 

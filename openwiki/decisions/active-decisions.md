@@ -5,7 +5,7 @@ description: docs/adr의 ADR 중 앞부분 status가 accepted인 유효한 결�
 tags: [adr, decisions, supersession]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T06:28:07.710Z
+    at: 2026-11-22T11:15:40.775Z
 sources:
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
@@ -39,7 +39,7 @@ sources:
     resource: repo://docs/adr/0015-group-entrypoints-and-platform-packages.md
   - id: openwiki-source-254df237bb9ef98aebc51d56
     resource: repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md
-generated: { by: "claude-code", at: "2026-11-22T06:28:07.710Z" }
+generated: { by: "claude-code", at: "2026-11-22T11:15:40.775Z" }
 ---
 
 # 유효한 결정
@@ -54,7 +54,7 @@ generated: { by: "claude-code", at: "2026-11-22T06:28:07.710Z" }
 | [0003](../../docs/adr/0003-devices-own-device-identity.md) | `Device`·`deviceId`를 공통 용어로 쓰고 Device 등록 API는 `POST /api/v1/devices`다 | 패키지 위치는 이후 0011로 identity BC에 속한다 |
 | [0004](../../docs/adr/0004-project-observation-timeline-on-write.md) | 활동 원본은 유지하고 관찰 타임라인은 쓰기 시 `activity_timeline_segments`로 projection한다 | 0002를 대체. 일부를 0007·0008이 부분 대체 |
 | [0005](../../docs/adr/0005-separate-observation-and-personal-label-confirmation.md) | 관찰 사실과 개인 라벨 확정을 분리한다. AI는 제안만 하고 사용자의 최신 확정값만 집계에 반영한다 | 없음 |
-| [0006](../../docs/adr/0006-deliver-activity-batches-through-kafka.md) | 활동 배치는 독립 Kafka 브로커로 전달하고 발행 ACK 후 `202`로 수락한다 | 없음 |
+| [0006](../../docs/adr/0006-deliver-activity-batches-through-kafka.md) | 활동 배치는 독립 Kafka 브로커로 전달하고 발행 ACK 후 `202`로 수락한다. 2026-11-22 Issue #349로 「처리 실패 정책」을 더했다: 영구 실패와 분류에 없는 예외는 로그 후 ACK하고 그 배치만 건너뛰며(원문 미보관·Device별 보류 없음), 일시 실패는 5회(1·2·4·8초) 재시도한 뒤 ACK 없이 Consumer를 끝낸다 | 없음 |
 | [0007](../../docs/adr/0007-store-batch-receipts-with-activity-transactions.md) | 배치 처리 receipt를 원본·타임라인과 같은 DB 트랜잭션에 저장한다 | 0004의 쓰기 경계를 부분 대체 |
 | [0008](../../docs/adr/0008-order-observations-and-transition-existing-timelines.md) | Device별 관찰 순번(`sequence`)과 결정적 병합으로 원본 순서를 정하고 기존 이력을 전환한다 | 0004의 원본 순서·이력 전환을 부분 대체 |
 | [0009](../../docs/adr/0009-define-public-json-timestamps-and-responses.md) | 공개 JSON은 camelCase, 시각은 UTC `Z` 문자열, 성공 응답은 공통 envelope 없이 도메인 데이터를 직접 반환한다 | 없음 |
@@ -87,8 +87,8 @@ ADR 0002는 유효 목록에 넣지 않는다. 원문은 당시 판단의 근거
 
 부분 대체는 대체된 ADR이 여전히 `status: accepted`로 남아 있고, 바뀐 조항만 새 ADR을 따른다는 뜻이다. 아래 관계에서는 두 ADR을 함께 읽는다.
 
-- **[0004](../../docs/adr/0004-project-observation-timeline-on-write.md) ← [0007](../../docs/adr/0007-store-batch-receipts-with-activity-transactions.md)**: 0004의 쓰기 경계 중 Kafka 경로의 DB 쓰기를 receipt와 함께 Handler에서 수행하고, 트랜잭션 소유를 Executor로 나누고 legacy 직접 처리에 계정 advisory lock을 적용한다. 2026-11-22 Issue #346 이후 Kafka 처리 트랜잭션도 시작에 같은 잠금을 잡는다([ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md)의 잠금 순서). 읽기 모델 구조, 날짜 경계, Device 출처 비노출 등 나머지는 0004를 유지한다.
-- **[0004](../../docs/adr/0004-project-observation-timeline-on-write.md) ← [0008](../../docs/adr/0008-order-observations-and-transition-existing-timelines.md)**: `receivedAt` 동률 정렬을 Device별 관찰 순서와 결정적 병합으로 바꾸고, Device별 `sequence`를 관찰 순서에도 쓴다. 원본·projection 원자성, 계정 잠금, 날짜 경계는 0004를 유지한다.
+- **[0004](../../docs/adr/0004-project-observation-timeline-on-write.md) ← [0007](../../docs/adr/0007-store-batch-receipts-with-activity-transactions.md)**: 0004의 쓰기 경계 중 Kafka 경로의 DB 쓰기를 receipt와 함께 Handler에서 수행하고, 트랜잭션 소유를 Executor로 나누고 legacy 직접 처리에 계정 advisory lock을 적용한다. 2026-11-22 Issue #346 이후 Kafka 처리 트랜잭션도 시작에 같은 잠금을 잡는다([ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md)의 잠금 순서). 읽기 모델 구조, 날짜 경계, Device 출처 비노출 등 나머지는 0004를 유지한다. Consumer의 재시도·실패 처리는 0007이 아니라 [0006](../../docs/adr/0006-deliver-activity-batches-through-kafka.md) 「처리 실패 정책」을 따른다.
+- **[0004](../../docs/adr/0004-project-observation-timeline-on-write.md) ← [0008](../../docs/adr/0008-order-observations-and-transition-existing-timelines.md)**: `receivedAt` 동률 정렬을 Device별 관찰 순서와 결정적 병합으로 바꾸고, Device별 `sequence`를 관찰 순서에도 쓴다. 원본·projection 원자성, 계정 잠금, 날짜 경계는 0004를 유지한다. 같은 Device에서 sequence가 증가하는데 observedAt이 역행한 배치는 전체를 롤백하고 Consumer가 건너뛴다(원본 보관·후속 보류 없음, ADR 0006 「처리 실패 정책」).
 - **[0001](../../docs/adr/0001-public-api-error-boundary.md) ← [0014](../../docs/adr/0014-align-public-identifiers-and-error-codes-with-contexts.md)**: 단일 `ErrorCode` Enum 대신 BC별 오류 코드 enum과 `CommonErrorCode`(공통 기반 `ApiErrorCode`)가 오류를 소유하고, BC별 `ERROR_DOCS`를 조립 루트가 합친다. 런타임과 OpenAPI 분리, 헤더의 전송 문맥 소유, 공통 오류 구조, validation detail 규칙은 0001을 유지한다.
 - **[0010](../../docs/adr/0010-run-batch-jobs-in-apscheduler-process.md) ← [0011](../../docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md)**: `mosemo/batch_jobs` 패키지와 `python -m mosemo.batch_jobs` 실행 경로를 스케줄링 기반 모듈, `batch` 조립 루트, 각 BC `bootstrap.py`로 바꾼다. job 정의와 실행 방식 분리, 단일 프로세스, 겹침 방지·misfire 정책은 0010을 유지한다.
 - **[0011](../../docs/adr/0011-split-bounded-contexts-logically-with-layered-packages.md) ← [0015](../../docs/adr/0015-group-entrypoints-and-platform-packages.md)**: `infra/`, `api/`, `consumer/`, `batch/`의 위치와 이름을 `platform/`, `entrypoints/{api,consumer,batch}/`로 바꾸고, BC → `mosemo.entrypoints` 금지 계약을 더한다. BC 구성, Context Map, BC 내부 계층은 0011을 유지한다. 그래서 0011 본문의 `infra.scheduling`은 지금 `platform.scheduling`이다.

@@ -9,25 +9,25 @@
       "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
     },
     "/openwiki/architecture/persistence-and-messaging.md": {
-      "gitHead": "387d20554d2553b546a03492335705fbfc2cee3f",
-      "sourceFingerprint": "sha256:a5ca6b0f6db3e48272f2635a31328bc658e7df79986dc9cda8121ae09ac2b2ec",
-      "pageVersion": "sha256:acca4ead5e53d6f81926e752cfbbc667a6f0ca9b9e64dc5302511f46620ab207",
+      "pageVersion": "sha256:41f8cdfc6997c43f5ee5580774dcdae60bd337e07550e6d4ee5fa00aa716a6a5",
       "completedBy": "claude-code",
-      "completedRunId": "f54199e2-7078-4e08-b3f4-b7e8829c9d4f"
+      "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5",
+      "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
+      "sourceFingerprint": "sha256:686c83f8042504e07f36110fb083bd6b3a1fbc139e423291a72ad710bea4e5da"
     },
     "/openwiki/decisions/active-decisions.md": {
-      "gitHead": "387d20554d2553b546a03492335705fbfc2cee3f",
-      "sourceFingerprint": "sha256:a5ca6b0f6db3e48272f2635a31328bc658e7df79986dc9cda8121ae09ac2b2ec",
-      "pageVersion": "sha256:bf018b16aa786f2af02874ffe0f46b2088f3df85d667f67e4cd1d96f3c84c1bc",
+      "pageVersion": "sha256:1c971dc056390d316ea3a34dd3d42fca37ebb341d342d46374b087075f22735a",
       "completedBy": "claude-code",
-      "completedRunId": "f54199e2-7078-4e08-b3f4-b7e8829c9d4f"
+      "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5",
+      "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
+      "sourceFingerprint": "sha256:686c83f8042504e07f36110fb083bd6b3a1fbc139e423291a72ad710bea4e5da"
     },
     "/openwiki/decisions/active-prds.md": {
-      "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",
-      "sourceFingerprint": "sha256:bf6b7477215d174b1aae53b433011cfc2c26e197a1f56a09403897c66f52e287",
-      "pageVersion": "sha256:7e6af083591cd3c69c9f578749a9e30a500452a341ac40870df147e57a432908",
+      "pageVersion": "sha256:63e4248b01550f8e8b8629671c4aa16b25f0f5ffdbfefe8c2915e5d2b206328a",
       "completedBy": "claude-code",
-      "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
+      "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5",
+      "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
+      "sourceFingerprint": "sha256:686c83f8042504e07f36110fb083bd6b3a1fbc139e423291a72ad710bea4e5da"
     },
     "/openwiki/development/engineering-harness.md": {
       "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",
@@ -37,11 +37,11 @@
       "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
     },
     "/openwiki/development/testing-and-verification.md": {
+      "gitHead": "694bf0af3692c939410598fcc67a9f8719425b5a",
+      "sourceFingerprint": "sha256:5cb1f5df8c1708e3f77837c62a036e540af0a4dd1353d4c9991d75ad8e543af1",
       "pageVersion": "sha256:230ee31e60e2ed7f8474e61be3d15411a02955892c88b7c97e8e613e724e596d",
       "completedBy": "claude-code",
-      "completedRunId": "c79c5d3b-8534-4008-9eb6-36cbfb109ad2",
-      "gitHead": "694bf0af3692c939410598fcc67a9f8719425b5a",
-      "sourceFingerprint": "sha256:5cb1f5df8c1708e3f77837c62a036e540af0a4dd1353d4c9991d75ad8e543af1"
+      "completedRunId": "c79c5d3b-8534-4008-9eb6-36cbfb109ad2"
     },
     "/openwiki/domain/activity-analytics.md": {
       "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",
@@ -58,11 +58,11 @@
       "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
     },
     "/openwiki/operations/aws-eks-lab.md": {
-      "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",
-      "sourceFingerprint": "sha256:bf6b7477215d174b1aae53b433011cfc2c26e197a1f56a09403897c66f52e287",
-      "pageVersion": "sha256:89814c05ea3cd492b81bab2b7e255766a836eccfe5218b4d045b315564be9dcc",
+      "pageVersion": "sha256:00f3c9c11f47a00479003255d1440045162dde25bbddb2091c94021487d4d09b",
       "completedBy": "claude-code",
-      "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
+      "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5",
+      "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
+      "sourceFingerprint": "sha256:686c83f8042504e07f36110fb083bd6b3a1fbc139e423291a72ad710bea4e5da"
     },
     "/openwiki/operations/load-measurement.md": {
       "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:7e6af083591cd3c69c9f578749a9e30a500452a341ac40870df147e57a432908",
+  "pageVersion": "sha256:63e4248b01550f8e8b8629671c4aa16b25f0f5ffdbfefe8c2915e5d2b206328a",
   "claims": [
     {
       "id": "claim_efe0b064e0a343819b7259e37e76b304",
@@ -51,7 +51,7 @@
       "statement": "활동 배치 PRD는 서버 수락 시각 기준 24시간 밖에서 관찰한 원본이 하나라도 있으면 배치 전체를 422로 거절하도록 정하고, 집중 세션 PRD는 완료 후 도착한 관찰도 이 수락 기간 안에서만 받는다고 정한다.",
       "evidence": [
         {
-          "resource": "repo://docs/prd/activity-batches.md#L118-L130",
+          "resource": "repo://docs/prd/activity-batches.md#L114-L126",
           "version": "repo-lines-v1:sha256:b6f15d27ce21a28c0535d4958137a793ba7c9c4f484e4b8dd8ba1b58b929f790:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiYzcxM2VkZDYyZjUxN2Q0MWNlNmRiNGVjNmZhMWNjYzdhMzEzZTQyNWU0NjEyZTUzMWMyM2Y2MzQ4NWE5NTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYzNDcyNjZhMTFiOTg1MWZjNzJjOWE2NjgwZWNjOGU0YzAzOTczYzQ3MzFlMTQyODUwMGUwZDFlODQxYTcyNzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRiMjg0ZDg1OTQ0MWE5MzZhNjhhMDNkMmQzOWExMzcxYjgzZmQ3NWIyMTY3OGM4YWRmMjc1YmZhYzA4MjZlZjAifQ"
         },
         {
@@ -59,10 +59,20 @@
           "version": "repo-lines-v1:sha256:b7d84dc2ca1829595e55d977addb3e44108a68eb7f399df0a2daced547949d03:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjdkODRkYzJjYTE4Mjk1OTVlNTVkOTc3YWRkYjNlNDQxMDhhNjhlYjdmMzk5ZGYwYTJkYWNlZDU0Nzk0OWQwMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjdkODRkYzJjYTE4Mjk1OTVlNTVkOTc3YWRkYjNlNDQxMDhhNjhlYjdmMzk5ZGYwYTJkYWNlZDU0Nzk0OWQwMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDA4ZTMwM2MwNDk5MGZmOWI2ODExN2YwZjk3NTVhMGE2Y2ViMTQwZTg1ZmZiZTI4YzQ5MTU2OWQ4NTkxOTRlNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDBlN2E0MDhmNDM2YWVhYmViOTJmZTE0M2YzOGYxNDhiYTFhZjQzYmQ1M2M1ZDljNzdkYTg1NDI2NjE3MjE3NSJ9"
         }
       ]
+    },
+    {
+      "id": "claim_24b048604a76453f913da7c8dbdb2e7e",
+      "statement": "활동 배치 PRD는 처리하지 못한 배치를 영구 실패·분류 없는 예외(건너뜀, 원문 미보관, 같은 Device 뒤 배치 보류 없음)와 일시 실패(최대 5회 재시도 후 ACK 없이 종료)로 나눠 다룬다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/prd/activity-batches.md#L176-L196",
+          "version": "repo-lines-v1:sha256:0f3fc4fe4baf40637a5cdee350e761233e0e9274fc8a697a2ce29a52cccc5854:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwMzViNjA5NGFmMjZlYzg0YWE0MjM2M2YxYWYxY2VmYmYzN2JiNWQwNTgyNTUyYjE4OGMwMDA2NTNlYzFkZTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4Njg5MGUxZTljNTMwOTAyMzU3MDJhODg1NDgwNmU1Yjg0MmU3YTcxMjFkYTY3MDk0NDFkMzYzMDg1MjJhMzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBhZGI0Yjk1NjA1NzMzZWZlZmIyOTc3OGU2MTgyZTZjOGMyYzU1MDY1OTk3YzUwMjRjNzZkZGUzMDE5ZTZlODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJkMDc1NzE4ZjlhNzIzNjZmZTU1NDFhZmYwOTU1MzNhYjczYzkwNzMzOWJmN2JiZmEzNGUxZDZmZTg0Y2YyNmEifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-20T11:18:18.429Z"
+    "at": "2026-11-22T11:15:40.775Z"
   }
 }

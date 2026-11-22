@@ -5,7 +5,7 @@ description: 운영 복제 AWS 환경(Terraform root 3개, EKS·RDS·ALB, Kubern
 tags: [operations, aws, eks, terraform, kubernetes, deployment, measurement]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-20T11:18:18.429Z
+    at: 2026-11-22T11:15:40.775Z
 sources:
   - id: openwiki-source-b4c3599391634fa467609ba0
     resource: repo://docs/activity-analytics-operations.md
@@ -19,7 +19,7 @@ sources:
     resource: repo://infra/terraform/infrastructure/variables.tf
   - id: openwiki-source-a399ef57993632bd3c3ad8b3
     resource: repo://infra/terraform/README.md
-generated: { by: "claude-code", at: "2026-11-19T07:46:46.571Z" }
+generated: { by: "claude-code", at: "2026-11-22T11:15:40.775Z" }
 ---
 
 # AWS EKS 랩과 측정 세션
@@ -46,7 +46,7 @@ generated: { by: "claude-code", at: "2026-11-19T07:46:46.571Z" }
 | 프로세스 | manifest(`infra/kubernetes/`) | 실행 |
 | --- | --- | --- |
 | API | `deployment.yaml` | uvicorn `mosemo.entrypoints.api.main:app`, port 8000. probe는 `/openapi.json` |
-| 활동 consumer | `consumer-deployment.yaml` | `python -m mosemo.entrypoints.consumer`. HTTP Service·probe 없음. 실패하면 종료하고 Kubernetes가 재시작, 종료 유예 45초 > drain 30초 |
+| 활동 consumer | `consumer-deployment.yaml` | `python -m mosemo.entrypoints.consumer`. HTTP Service·probe 없음. 영구 실패·분류에 없는 예외 배치는 로그 후 ACK하고 건너뛴다(Pod 신호 없음, `"outcome":"skipped"` 로그로만 확인). 일시 실패는 5회 재시도 뒤 ACK 없이 종료해 Kubernetes가 재시작한다. 종료 유예 45초 > drain 30초. 배포 뒤 `kubectl -n mosemo logs deploy/mosemo-consumer`에서 `skipped`·`failed` 줄을 확인하며, 로그는 Pod 교체 시 사라진다([ADR 0006](../../docs/adr/0006-deliver-activity-batches-through-kafka.md) 「처리 실패 정책」) |
 | 배치 job | `batch-deployment.yaml` | `python -m mosemo.entrypoints.batch serve`. 라벨 제안 job과 analytics 일간 통계 job(`analytics-daily-stats`)을 주기 실행한다. replicas=1·maxSurge=0으로 중복 실행 방지 |
 | 마이그레이션 | `migration-job.yaml` | `alembic upgrade head` |
 | 랩 Kafka | `kafka.yaml` | StatefulSet 1개, KRaft, PLAINTEXT·replication 1(격리된 실습용) |
