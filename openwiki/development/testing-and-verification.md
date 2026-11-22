@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T11:03:17.070Z
+    at: 2026-11-22T11:56:08.783Z
 sources:
   - id: openwiki-source-3c6b76d80d7f929dde842165
     resource: repo://.codex/skills/verification/scripts/ci_gate.py
@@ -23,6 +23,8 @@ sources:
     resource: repo://scripts/check_coverage.py
   - id: openwiki-source-e8577da5ba062a695378f268
     resource: repo://scripts/label_eval_cases.py
+  - id: openwiki-source-54be5439a09872ff7ef8f145
+    resource: repo://scripts/label_eval_run.py
   - id: openwiki-source-5063b6aa8934c32dd8a94ee1
     resource: repo://tests/AGENTS.md
   - id: openwiki-source-f0a6e7dc03522b2682f88655
@@ -33,7 +35,7 @@ sources:
     resource: repo://tests/support/acceptance.py
   - id: openwiki-source-7963bb1002d4efe2b24fef6a
     resource: repo://tests/unit/harness/test_tests_layout.py
-generated: { by: "claude-code", at: "2026-11-22T11:03:17.070Z" }
+generated: { by: "claude-code", at: "2026-11-22T11:56:08.783Z" }
 ---
 
 # 테스트와 검증
@@ -91,6 +93,16 @@ generated: { by: "claude-code", at: "2026-11-22T11:03:17.070Z" }
 - 잘못된 인자·입력(알 수 없는 키, 중복 활동 ID, 예약어 persona 이름 등)은 `InputError`로 `rejected: ...`를 stderr에 내고 종료 코드 2로 끝나며 아무것도 쓰지 않는다.
 
 단위 테스트는 `tests/unit/scripts/test_label_eval_cases.py`(스냅샷 행·사례·파일 쓰기)와 `test_label_eval_personas.py`(persona 파싱·검증)이고, `tests/integration/scripts/test_label_eval_snapshot.py`는 실제 PostgreSQL에서 범위 안 닫힌 구간만 담기는지, 진행 중 구간이 빠지고 재실행이 같은지, `--to`가 `--as-of` 뒤면 출력 없이 거절되는지를 확인한다.
+
+### 평가 실행: `label_eval_run.py`
+
+[scripts/label_eval_run.py](../../scripts/label_eval_run.py)는 `cases`가 만든 사례 파일에 라벨 제안 엔진을 돌려 사례마다 결과 행 하나를 `--out` JSONL에 덧붙인다(Plan #309). 호출은 한 번에 하나씩 순서대로 실행한다.
+
+- 엔진(`--engine`)은 `a`(사례당 한 번 호출, `--batch-size 1`만 허용), `a-batch`(여러 사례를 한 호출로 처리, 배치 크기 최대 50), `oracle`, `random`이다. `a`·`a-batch`만 실제 모델을 부르며 `LABEL_MODEL`을 `<provider>:<model>`(provider는 `openai`·`google`) 형식으로 요구한다. 값이 틀려도 키가 노출되지 않도록 값을 출력하지 않는다.
+- 재개: 오류 없는 행이 이미 있는 키 `(case_id, engine, batch_size, rep)`는 다시 호출하지 않고, 오류 행만 있는 키는 다시 호출해 새 행을 남긴다. 호출은 persona별로 사례 파일 순서대로 묶는다.
+- 예산 보호: 모델 엔진은 `--max-requests`가 필수이며, 남은 호출 수 × 호출당 최대 시도 횟수(openai 9, google 3)가 그 값을 넘으면 호출 전에 종료 코드 2로 거절한다. `--min-interval-ms`로 호출 시작 간격을 둔다.
+- 실패 처리: 모델·HTTP·타임아웃 실패는 예외 타입 이름만 담은 오류 행이 되고, 그 밖의 예외는 실행을 멈추되 이미 쓴 행은 남아 재실행이 이어받는다.
+- 테스트는 `tests/unit/scripts/test_label_eval_run_control.py`(재개·예산·페이싱·CLI)와 `test_label_eval_run_engines.py`(엔진)이고, 공유 보조 코드는 `tests/support/label_eval.py`다.
 
 ## 커밋 전 검증
 

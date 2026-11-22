@@ -9,11 +9,11 @@
       "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
     },
     "/openwiki/architecture/persistence-and-messaging.md": {
+      "gitHead": "c88a9be5e8d1d122d2396e4293e67430595f2f63",
+      "sourceFingerprint": "sha256:b3083b5e711706c8d22e1240eca5a77622e1808110cb88f4ef46cec7dece85da",
       "pageVersion": "sha256:af2fbf13f8465a9b05d7a177f14dcd9b574e842d9a3e06c490e6510c993f1f6c",
       "completedBy": "claude-code",
-      "completedRunId": "20395cbd-22ce-475d-aaa5-97ce41d0a9af",
-      "gitHead": "c88a9be5e8d1d122d2396e4293e67430595f2f63",
-      "sourceFingerprint": "sha256:b3083b5e711706c8d22e1240eca5a77622e1808110cb88f4ef46cec7dece85da"
+      "completedRunId": "20395cbd-22ce-475d-aaa5-97ce41d0a9af"
     },
     "/openwiki/decisions/active-decisions.md": {
       "gitHead": "2a76957c2a1ff414a4ddc4516dcbbda0a874219c",
@@ -23,11 +23,11 @@
       "completedRunId": "f3b4739e-a413-4814-b434-25cdb4363bf5"
     },
     "/openwiki/decisions/active-prds.md": {
+      "gitHead": "c88a9be5e8d1d122d2396e4293e67430595f2f63",
+      "sourceFingerprint": "sha256:b3083b5e711706c8d22e1240eca5a77622e1808110cb88f4ef46cec7dece85da",
       "pageVersion": "sha256:c8134bbb8df81c252406b48de8bc6fa28e8fe092a1779c182d178476f8d71561",
       "completedBy": "claude-code",
-      "completedRunId": "20395cbd-22ce-475d-aaa5-97ce41d0a9af",
-      "gitHead": "c88a9be5e8d1d122d2396e4293e67430595f2f63",
-      "sourceFingerprint": "sha256:b3083b5e711706c8d22e1240eca5a77622e1808110cb88f4ef46cec7dece85da"
+      "completedRunId": "20395cbd-22ce-475d-aaa5-97ce41d0a9af"
     },
     "/openwiki/development/engineering-harness.md": {
       "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",
@@ -37,11 +37,11 @@
       "completedRunId": "c0b958a1-272f-469c-aa25-6a3fd5bfc72b"
     },
     "/openwiki/development/testing-and-verification.md": {
-      "gitHead": "694bf0af3692c939410598fcc67a9f8719425b5a",
-      "sourceFingerprint": "sha256:5cb1f5df8c1708e3f77837c62a036e540af0a4dd1353d4c9991d75ad8e543af1",
-      "pageVersion": "sha256:230ee31e60e2ed7f8474e61be3d15411a02955892c88b7c97e8e613e724e596d",
+      "pageVersion": "sha256:cba22ae03d9e0a17b76bc50102109d7910a57d47f3075c30bdc0ae6318f92bc7",
       "completedBy": "claude-code",
-      "completedRunId": "c79c5d3b-8534-4008-9eb6-36cbfb109ad2"
+      "completedRunId": "c52e3ec3-54bd-4779-84de-625d1576d05a",
+      "gitHead": "cf968f58f1985e69c6439f51ee9e4294705b6ccf",
+      "sourceFingerprint": "sha256:e008e11a23e2c0c87183454991244806bd128c35adde8002bc39143b5abc45e6"
     },
     "/openwiki/domain/activity-analytics.md": {
       "gitHead": "5c537f72199159bea2e565fd34372d6b2340122b",
