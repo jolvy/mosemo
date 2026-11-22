@@ -1,0 +1,28 @@
+# Format example and test fixture; real evaluation personas live outside the repo.
+name = "example"
+labels = ["공부", "업무", "휴식", "소통"]
+
+[[rules]]
+web_host_suffix = ["youtube.com"]
+title_contains_any = ["강의", "tutorial"]   # window_title or tab_title, ignoring case
+label = "공부"
+
+[[rules]]
+app_name = ["Slack", "KakaoTalk"]
+label = "소통"
+
+[[rules]]
+app_bundle_id = ["com.microsoft.VSCode", "com.jetbrains.pycharm", "com.apple.Terminal"]
+label = "업무"
+
+[[rules]]
+web_host_suffix = ["github.com", "docs.python.org", "stackoverflow.com"]
+label = "업무"
+
+[[rules]]
+web_host_suffix = ["youtube.com", "shopping.naver.com"]
+label = "휴식"
+
+[[rules]]
+app_name = ["Notion"]
+label = "null"   # abstaining is the gold answer for this activity
