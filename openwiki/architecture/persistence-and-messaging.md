@@ -5,7 +5,7 @@ description: dataclass aggregate와 imperative mapping, 트랜잭션 헬퍼와 �
 tags: [persistence, sqlalchemy, domain-events, kafka, batch-jobs, alembic]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-21T12:49:50.697Z
+    at: 2026-11-22T06:28:07.710Z
 sources:
   - id: openwiki-source-d1449bb9b8fd8b54431d973d
     resource: repo://docs/adr/0004-project-observation-timeline-on-write.md
@@ -35,6 +35,8 @@ sources:
     resource: repo://src/mosemo/labeling/infrastructure/tables.py
   - id: openwiki-source-c9cecb972e94c477c68a5801
     resource: repo://src/mosemo/observation/application/batches.py
+  - id: openwiki-source-ff1c6873748c2e03d4e8cb06
+    resource: repo://src/mosemo/observation/application/focus_sessions.py
   - id: openwiki-source-fb0ec792c4101db3f47d9358
     resource: repo://src/mosemo/observation/domain/activities.py
   - id: openwiki-source-b4c795e80f40a7592c64b17c
@@ -53,7 +55,7 @@ sources:
     resource: repo://src/mosemo/shared/application/events.py
   - id: openwiki-source-bf64c7f959111123b762b90b
     resource: repo://tests/integration/platform/test_transactions.py
-generated: { by: "claude-code", at: "2026-11-21T12:49:50.697Z" }
+generated: { by: "claude-code", at: "2026-11-22T06:28:07.710Z" }
 ---
 
 # 영속성·메시징·배치 실행
@@ -100,6 +102,7 @@ generated: { by: "claude-code", at: "2026-11-21T12:49:50.697Z" }
 
 - `lock_account(db_session, account_id)`는 `pg_advisory_xact_lock`으로 계정 잠금을 트랜잭션 끝까지 잡는다(같은 트랜잭션에서 재진입 가능). `SET LOCAL lock_timeout = '3s'` 안에 못 잡으면 `AccountLockTimeoutError`를 낸다.
 - 잠금 키는 `activity_timeline:{account_id}`의 blake2b 8바이트 해시다. 계정의 모든 원천 쓰기가 이 키로 직렬화되므로 배포 사이에도 키 바이트를 바꾸면 안 된다.
+- 활동 배치는 legacy와 Kafka 경로 모두 이 잠금을 트랜잭션 시작에 잡으므로, Kafka 배치 처리 동안 같은 계정의 다른 쓰기는 잠금을 기다린다.
 - observation 타임라인 쓰기와 identity의 계정 시간대 변경(`ChangeAccountTimezone`)이 이 잠금을 쓴다. analytics 표시 handler도 타임라인 잠금을 먼저 잡은 뒤 계정 시간대를 읽으므로, 동시에 시간대가 바뀌어도 옛 시간대 날짜에 표시가 남지 않는다.
 
 ## 마이그레이션
@@ -133,7 +136,7 @@ sequenceDiagram
 - Publisher는 `acks="all"`, `enable_idempotence=True`로 만든 `KafkaBroker`를 쓴다([src/mosemo/platform/messaging/runtime.py](../../src/mosemo/platform/messaging/runtime.py)). 메시지 key는 계정 ID라서 같은 계정은 같은 partition으로 모인다.
 - 기본 토픽은 `activities.registration-requested`, Consumer group은 `mosemo.activity-batches`다([src/mosemo/platform/messaging/config.py](../../src/mosemo/platform/messaging/config.py)).
 - Consumer 진입점(`poe batch-consumer`, [src/mosemo/entrypoints/consumer/activity_batches.py](../../src/mosemo/entrypoints/consumer/activity_batches.py))은 `BATCH_ENABLED=true`가 아니면 시작하지 않는다. 시작할 때 identity·labels·observation·analytics의 테이블을 매핑하고 analytics handler를 등록한 뒤, 메시지마다 새 세션을 열어 observation의 배치 처리 UseCase를 부른다.
-- 배치 처리는 receipt claim, 원본별 채택·거절, 원본 저장, 관찰 타임라인 갱신, 처리 결과 저장을 하나의 DB 트랜잭션에서 수행한다. receipt의 식별 범위는 `(accountId, deviceId, batchId)`다(ADR 0007).
+- 배치 처리는 receipt claim, 원본별 채택·거절, 원본 저장, 관찰 타임라인 갱신, 처리 결과 저장을 하나의 DB 트랜잭션에서 수행한다. receipt의 식별 범위는 `(accountId, deviceId, batchId)`다(ADR 0007). Kafka 경로도 트랜잭션 시작에 계정 advisory 잠금을 잡아(`ProcessActivityBatch`), 집중 세션 행 잠금보다 먼저 얻는 다른 쓰기 경로(legacy 배치·집중 세션 완료)와 같은 순서로 직렬화한다. 잠금 전 Device 귀속·수락 기간 검사는 legacy 경로만 먼저 하고, Consumer에서는 처리기 안에 남는다.
 - 원본 순서는 같은 Device 안에서는 `sequence`, 여러 Device 사이에서는 `(observedAt, deviceId, sequence, eventId)` 오름차순으로 병합한다(ADR 0008).
 
 ## 관찰 타임라인 projection
