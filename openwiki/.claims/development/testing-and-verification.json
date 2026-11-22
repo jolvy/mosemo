@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:230ee31e60e2ed7f8474e61be3d15411a02955892c88b7c97e8e613e724e596d",
+  "pageVersion": "sha256:cba22ae03d9e0a17b76bc50102109d7910a57d47f3075c30bdc0ae6318f92bc7",
   "claims": [
     {
       "id": "claim_914662bc78194b91873e79f37f592051",
@@ -169,10 +169,34 @@
           "version": "repo-lines-v1:sha256:38fdae4c89fa4467d9f48684c71fd9d813776621f425eb0d650220ba8dc46170:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiM2FhNzIzMDEyYWY3OTIxYTY2NjMyODU5ZDZkN2IyZDU0ZWY4NDJkYzEwOTY0NTZkNmNjMWUyMTEwOWZmYTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmNTE3YzhjYTdjODNlMjBhYTRiM2YzNjJlMGJjMDhmMTc2YTVkZjY4NGJjNDk0MDliYTIwOTQwY2QxYjE5ODIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlkZGM4OTM3NTAxN2YxODU1OWFmNDA4Njc2MzUyZDYyYWI0MDY1ODQxM2JhMTAyZWM1MmNmYTlkNjVkMWJjOTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2YzU4NzMzYjMxOGIzMmFhODMwMDBkNjViM2M5ZWEzZGY0ZjRjZjJiYTA4YjZiNjZlM2UzMWNhMzk1YmUwMDQifQ"
         }
       ]
+    },
+    {
+      "id": "claim_8355a003c4b14652a0c773658e11fcc7",
+      "statement": "label_eval_run.py는 이미 오류 없는 행이 있는 키 (case_id, engine, batch_size, rep)는 다시 호출하지 않고 오류 행만 있는 키는 다시 호출하며, 모델 엔진은 호출 수 × 최대 시도 횟수가 --max-requests를 넘으면 호출 전에 종료 코드 2로 거절한다.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/label_eval_run.py#L179-L195",
+          "version": "repo-lines-v1:sha256:8d024bd91c4433adac8d5a1c727b792a048a6dddcb2074b3b644ee36b85a05f2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2NTJhNGM2ZTI0YmU0NjIyNjFmZDIzZTBjODM1NTdmNGJhMTdhOGJjNjMwMGM5ZjZiZGIwNmI2NTY1M2FmMGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwZDNjMGMwZmM3NDk3MGExY2U5NDZlMjc3YWIwNGRiNTI2MDE3MDc4MzA2ZjhiZTRlNWQ0ZWE3MGQzMmM0YWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNmNzcyMTNlMzY3YTVlOGIyNGQwZDYzNjY0ZTgwN2VkMzUwNWIwODllNjgyNDMwOWIyZGVkYjRkNDJiZWVlZGUifQ"
+        },
+        {
+          "resource": "repo://scripts/label_eval_run.py#L556-L599",
+          "version": "repo-lines-v1:sha256:e7c2e074de2c7c070e56266cacccf0c24427427dc78cf1471238486aeb8df723:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5NzdmNDhmMGNhNDM5YzM4MGY0YjVkYTFlNjZiYmIxMDE3MTE1NjhkODk3MzlmZmY5YmM2MmMxNzFkMGZmYjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA1NzIyYjhjNGYyODMxYTA4YTZmZjE2OGQxNjUxMTRiNmZkYmFjZjk4NDIxNTM2NjI3NzY5M2JkY2IzYmQwMjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmZGIyNzQxOGM2NGE4YWMyMWFhN2VjNTU5YWYzNzFmYjllMzdiYmZhNDkzYWU5NGE5NzNmYmQ2ZTlkYmU4NjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_52bb338c7ce94192a30e11831c428a2b",
+      "statement": "label_eval_run.py에서 모델·HTTP·타임아웃 실패는 예외 타입 이름만 담은 오류 행이 되고, 그 밖의 예외는 실행을 멈추지만 이미 쓴 행은 남아 재실행이 이어받는다.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/label_eval_run.py#L449-L486",
+          "version": "repo-lines-v1:sha256:c8386f337fdfb7daa0440c513d01748236c1d09dc2fa1d5fe466ce7c580297a0:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3Njk3ZjkzMGExZDgzOWUwNjAzNDRlOWEyNGFjOWQ4NTg5ZWUxYzViYWJjNmQxMDk5MTc0ZDQ0YzJlYWMwMTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRhNzY2ZWM0YmZhMDU3YjBmZTAxMTcxNjYxYmQwNzYwZjI0ZGZjYjA0YzcyMzUyNTQ0MGZlMjg4YzdmYWEwODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhODJlYmU5ZWQ0MDdjM2E2YmE0YjAwMzQyOTJiYWE1MmMxMWNlNWFlMjg2MTA3NDAyZGU0NzkyZWVlY2FjZmMifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T11:03:17.070Z"
+    "at": "2026-11-22T11:56:08.783Z"
   }
 }
