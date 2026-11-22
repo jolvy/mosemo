@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T12:16:52.428Z
+    at: 2026-11-22T12:55:45.334Z
 sources:
   - id: openwiki-source-3c6b76d80d7f929dde842165
     resource: repo://.codex/skills/verification/scripts/ci_gate.py
@@ -37,7 +37,7 @@ sources:
     resource: repo://tests/support/acceptance.py
   - id: openwiki-source-7963bb1002d4efe2b24fef6a
     resource: repo://tests/unit/harness/test_tests_layout.py
-generated: { by: "claude-code", at: "2026-11-22T12:16:52.428Z" }
+generated: { by: "claude-code", at: "2026-11-22T12:55:45.334Z" }
 ---
 
 # 테스트와 검증
@@ -100,10 +100,11 @@ generated: { by: "claude-code", at: "2026-11-22T12:16:52.428Z" }
 
 [scripts/label_eval_run.py](../../scripts/label_eval_run.py)는 `cases`가 만든 사례 파일에 라벨 제안 엔진을 돌려 사례마다 결과 행 하나를 `--out` JSONL에 덧붙인다(Plan #309). 호출은 한 번에 하나씩 순서대로 실행한다.
 
-- 엔진(`--engine`)은 `a`(사례당 한 번 호출, `--batch-size 1`만 허용), `a-batch`(여러 사례를 한 호출로 처리, 배치 크기 최대 50), `oracle`, `random`이다. `a`·`a-batch`만 실제 모델을 부르며 `LABEL_MODEL`을 `<provider>:<model>`(provider는 `openai`·`google`) 형식으로 요구한다. 값이 틀려도 키가 노출되지 않도록 값을 출력하지 않는다.
+- 엔진(`--engine`)은 `a`(사례당 한 번 호출, `--batch-size 1`만 허용), `a-batch`(여러 사례를 한 호출로 처리, 배치 크기 최대 50), 결정 모델 `b`·`b-none`(OpenAI Decisions), `c`·`c-none`(TypeSafe Jev), 점검용 `oracle`·`random`이다. `-none` 엔진은 선택지에 "라벨 없음"을 더해 null 예측을 허용한다. `a`·`a-batch`는 `LABEL_MODEL`을 `<provider>:<model>`(provider는 `openai`·`google`) 형식으로 요구하며, 값이 틀려도 키가 노출되지 않도록 값을 출력하지 않는다.
+- 결정 모델 엔진(`DecisionsEngine`·`JevEngine`)은 `httpx2`로 호출당 요청 하나를 보내고 재시도하지 않는다(`max_attempts = 1`). 결과 행은 `confidence`, `prob`, `refused`, 경로가 주는 비용(`cost_usd`)을 담는다. `b`는 `OPENAI_API_KEY`를 읽는다. `c`는 `--c-route`(`aimlapi`·`openrouter`·로컬 시험용 `ollama`)가 필수이고 행의 엔진 이름은 `c@<route>`다. 경로별 키(`AIMLAPI_API_KEY`·`OPENROUTER_API_KEY`, ollama는 키 없음)는 헤더로만 쓰며, 헤더로 보낼 수 없는 값(비ASCII·제어 문자·앞뒤 공백)은 호출 전에 변수 이름만 밝히고 거절한다. `c` 계열이 아닌 엔진에 `--c-route`를 주면 거절한다.
 - 재개: 오류 없는 행이 이미 있는 키 `(case_id, engine, batch_size, rep)`는 다시 호출하지 않고, 오류 행만 있는 키는 다시 호출해 새 행을 남긴다. 호출은 persona별로 사례 파일 순서대로 묶는다.
-- 예산 보호: 모델 엔진은 `--max-requests`가 필수이며, 남은 호출 수 × 호출당 최대 시도 횟수(openai 9, google 3)가 그 값을 넘으면 호출 전에 종료 코드 2로 거절한다. `--min-interval-ms`로 호출 시작 간격을 둔다.
-- 실패 처리: 모델·HTTP·타임아웃 실패는 예외 타입 이름만 담은 오류 행이 되고, 그 밖의 예외는 실행을 멈추되 이미 쓴 행은 남아 재실행이 이어받는다.
+- 예산 보호: `oracle`·`random`을 뺀 모든 엔진은 `--max-requests`가 필수이며, 남은 호출 수 × 호출당 최대 시도 횟수(openai 9, google 3, 결정 모델 엔진 1)가 그 값을 넘으면 호출 전에 종료 코드 2로 거절한다. `--min-interval-ms`로 호출 시작 간격을 둔다.
+- 실패 처리: 모델·HTTP·타임아웃 실패와 스키마에 맞지 않는 응답(`ValidationError`)·질문과 맞지 않는 답(`ResponseError`)은 예외 타입 이름만 담은 오류 행이 되고, 그 밖의 예외는 실행을 멈추되 이미 쓴 행은 남아 재실행이 이어받는다.
 - 테스트는 `tests/unit/scripts/test_label_eval_run_control.py`(재개·예산·페이싱·CLI)와 `test_label_eval_run_engines.py`(엔진)이고, 공유 보조 코드는 `tests/support/label_eval.py`다.
 
 ### 점수와 판정: `label_eval_score.py`
