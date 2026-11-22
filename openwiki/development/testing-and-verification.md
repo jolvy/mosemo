@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T13:31:20.917Z
+    at: 2026-11-22T13:43:44.268Z
 sources:
   - id: openwiki-source-3c6b76d80d7f929dde842165
     resource: repo://.codex/skills/verification/scripts/ci_gate.py
@@ -41,7 +41,7 @@ sources:
     resource: repo://tests/unit/harness/test_tests_layout.py
   - id: openwiki-source-3a7152c9aed17d92a34fc06a
     resource: repo://tests/unit/scripts/test_label_eval_docs.py
-generated: { by: "claude-code", at: "2026-11-22T13:31:20.917Z" }
+generated: { by: "claude-code", at: "2026-11-22T13:43:44.268Z" }
 ---
 
 # 테스트와 검증
@@ -97,6 +97,7 @@ generated: { by: "claude-code", at: "2026-11-22T13:31:20.917Z" }
 - `cases`: 스냅샷(`--activities`)에 persona 규칙 TOML(`--persona`, 반복 가능, 예시는 `scripts/label_eval_personas/example.toml`)을 적용해 정답 라벨(`gold`)을 매기고, 각 사례 시점에 있었을 few-shot 예시를 다시 만든다. 예시는 엄격히 앞선 사례만 최신순으로 `MAX_EXAMPLES`개까지 쓴다(운영 retriever와 같은 방식). 사례에는 `cold_start`(예시 3개 미만)·`gold_null`·`new_host`·`personas_disagree` 태그가 붙는다. 소유자 라벨은 `--owner-labels`와 `--owner-label-names`를 함께 줄 때만 `owner` persona 사례로 더해진다.
 - 출력은 `write_jsonl`이 `{path}`와 `{path}.sha256`을 0600 임시 파일로 만든 뒤 교체해 쓴다. 심볼릭 링크를 따라가지 않고, 다이제스트를 못 쓰면 본문도 지운다.
 - 잘못된 인자·입력(알 수 없는 키, 중복 활동 ID, 예약어 persona 이름 등)은 `InputError`로 `rejected: ...`를 stderr에 내고 종료 코드 2로 끝나며 아무것도 쓰지 않는다.
+- JSONL 읽기(`read_jsonl`)는 `\n`으로만 줄을 나눠 제목 안의 이스케이프 안 된 U+2028 같은 문자를 데이터로 취급하고, JSON 공백(`" \t\r"`)뿐인 줄(CRLF의 `\r` 포함)은 건너뛴다. JSON·UTF-8 오류와 너무 깊은 중첩(`RecursionError`)은 persona TOML 읽기와 마찬가지로 `InputError`가 된다. `label_eval_run.py`의 `read_jsonl`도 같은 규칙이다.
 
 단위 테스트는 `tests/unit/scripts/test_label_eval_cases.py`(스냅샷 행·사례·파일 쓰기)와 `test_label_eval_personas.py`(persona 파싱·검증)이고, `tests/integration/scripts/test_label_eval_snapshot.py`는 실제 PostgreSQL에서 범위 안 닫힌 구간만 담기는지, 진행 중 구간이 빠지고 재실행이 같은지, `--to`가 `--as-of` 뒤면 출력 없이 거절되는지를 확인한다.
 
@@ -113,7 +114,7 @@ generated: { by: "claude-code", at: "2026-11-22T13:31:20.917Z" }
 
 ### 점수와 판정: `label_eval_score.py`
 
-[scripts/label_eval_score.py](../../scripts/label_eval_score.py)는 `cases`의 사례 파일(`--cases`)과 실행 스크립트가 덧붙인 결과 JSONL(`--results`)을 합쳐 `--out` 폴더에 `summary.json`과 `report.md`를 쓴다(Plan #309). 같은 입력과 `--seed`는 같은 바이트를 만들고, 통계는 표준 라이브러리만 쓴다. 인자나 입력이 거절되면 아무것도 쓰지 않고 종료 코드 2로 끝난다.
+[scripts/label_eval_score.py](../../scripts/label_eval_score.py)는 `cases`의 사례 파일(`--cases`)과 실행 스크립트가 덧붙인 결과 JSONL(`--results`)을 합쳐 `--out` 폴더에 `summary.json`과 `report.md`를 쓴다(Plan #309). 같은 입력과 `--seed`는 같은 바이트를 만들고, 통계는 표준 라이브러리만 쓴다. 인자나 입력이 거절되면 아무것도 쓰지 않고 종료 코드 2로 끝난다. TOML 읽기는 중첩이 너무 깊어도(`RecursionError`) 거절로 처리하며, 숫자가 아니거나 너무 큰 값의 오류 메시지에는 값 자체 대신 타입 이름만 담는다.
 
 - 엔진·배치 크기별 지표를 내고, `(a, 배치 1, rep 0)`을 기준선으로 같은 사례 범위(same coverage)에서 비교한다. 선택 입력은 `--prices`(가격 TOML), `--latency-results`(지연 시간 전용 결과), `--decision`(미리 정해 둔 판정 기준 TOML)이다.
 - `--decision`을 주면 기준에 정한 primary 엔진마다 batch 1 비교로 판정한다. 판정 순서는 reject(정확도 차 신뢰구간 상한이 `min_accuracy_diff` 미만이거나 p95 지연·정답당 비용이 상한 초과) → adopt(신뢰구간 하한이 `min_accuracy_diff` 이상이고 비용과 p95가 모두 있음) → inconclusive다. 비용이나 p95가 비어 있으면 adopt만 막는다.
