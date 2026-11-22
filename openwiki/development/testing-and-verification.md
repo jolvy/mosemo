@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T11:56:08.783Z
+    at: 2026-11-22T12:16:52.428Z
 sources:
   - id: openwiki-source-3c6b76d80d7f929dde842165
     resource: repo://.codex/skills/verification/scripts/ci_gate.py
@@ -25,6 +25,8 @@ sources:
     resource: repo://scripts/label_eval_cases.py
   - id: openwiki-source-54be5439a09872ff7ef8f145
     resource: repo://scripts/label_eval_run.py
+  - id: openwiki-source-8a0d68881049fe3690cd258c
+    resource: repo://scripts/label_eval_score.py
   - id: openwiki-source-5063b6aa8934c32dd8a94ee1
     resource: repo://tests/AGENTS.md
   - id: openwiki-source-f0a6e7dc03522b2682f88655
@@ -35,7 +37,7 @@ sources:
     resource: repo://tests/support/acceptance.py
   - id: openwiki-source-7963bb1002d4efe2b24fef6a
     resource: repo://tests/unit/harness/test_tests_layout.py
-generated: { by: "claude-code", at: "2026-11-22T11:56:08.783Z" }
+generated: { by: "claude-code", at: "2026-11-22T12:16:52.428Z" }
 ---
 
 # 테스트와 검증
@@ -103,6 +105,15 @@ generated: { by: "claude-code", at: "2026-11-22T11:56:08.783Z" }
 - 예산 보호: 모델 엔진은 `--max-requests`가 필수이며, 남은 호출 수 × 호출당 최대 시도 횟수(openai 9, google 3)가 그 값을 넘으면 호출 전에 종료 코드 2로 거절한다. `--min-interval-ms`로 호출 시작 간격을 둔다.
 - 실패 처리: 모델·HTTP·타임아웃 실패는 예외 타입 이름만 담은 오류 행이 되고, 그 밖의 예외는 실행을 멈추되 이미 쓴 행은 남아 재실행이 이어받는다.
 - 테스트는 `tests/unit/scripts/test_label_eval_run_control.py`(재개·예산·페이싱·CLI)와 `test_label_eval_run_engines.py`(엔진)이고, 공유 보조 코드는 `tests/support/label_eval.py`다.
+
+### 점수와 판정: `label_eval_score.py`
+
+[scripts/label_eval_score.py](../../scripts/label_eval_score.py)는 `cases`의 사례 파일(`--cases`)과 실행 스크립트가 덧붙인 결과 JSONL(`--results`)을 합쳐 `--out` 폴더에 `summary.json`과 `report.md`를 쓴다(Plan #309). 같은 입력과 `--seed`는 같은 바이트를 만들고, 통계는 표준 라이브러리만 쓴다. 인자나 입력이 거절되면 아무것도 쓰지 않고 종료 코드 2로 끝난다.
+
+- 엔진·배치 크기별 지표를 내고, `(a, 배치 1, rep 0)`을 기준선으로 같은 사례 범위(same coverage)에서 비교한다. 선택 입력은 `--prices`(가격 TOML), `--latency-results`(지연 시간 전용 결과), `--decision`(미리 정해 둔 판정 기준 TOML)이다.
+- `--decision`을 주면 기준에 정한 primary 엔진마다 batch 1 비교로 판정한다. 판정 순서는 reject(정확도 차 신뢰구간 상한이 `min_accuracy_diff` 미만이거나 p95 지연·정답당 비용이 상한 초과) → adopt(신뢰구간 하한이 `min_accuracy_diff` 이상이고 비용과 p95가 모두 있음) → inconclusive다. 비용이나 p95가 비어 있으면 adopt만 막는다.
+- 결론은 adopt된 엔진 중 신뢰구간 하한이 가장 높은(동률이면 정답당 비용이 낮은) 엔진 이름이다. adopt가 없으면 inconclusive가 하나라도 있을 때 `판단 불가`, 아니면 `A 유지`다. primary가 여러 개면 신뢰 수준을 `1 − 0.05 / primary 수`로 보정한다.
+- 테스트는 `tests/unit/scripts/test_label_eval_score_metrics.py`(지표·비교)와 `test_label_eval_score_decision.py`(판정·CLI)이고 보조 코드는 `tests/support/label_eval_score.py`다.
 
 ## 커밋 전 검증
 

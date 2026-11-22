@@ -5,7 +5,7 @@ description: 활동 분석 C1~C7의 범위, 제안 ADR 0016을 바탕으로 구�
 tags: [analytics, domain, daily-stats, adr-0016, batch-jobs, reference-implementation, protocol-model]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-20T11:18:18.429Z
+    at: 2026-11-22T12:16:52.428Z
 sources:
   - id: openwiki-source-b4c3599391634fa467609ba0
     resource: repo://docs/activity-analytics-operations.md
