@@ -419,22 +419,29 @@ class ProcessActivityBatch(UseCase):
     ) -> None:
         self._processor = ActivityBatchProcessor(clock=clock, devices=devices)
         self._dispatcher = dispatcher
+        self._segments = TimelineSegmentRepository()
 
     async def execute(
         self, db_session: AsyncSession, *, account_id: UUID, batch: ActivityBatch
     ) -> list[dict[str, str]]:
         """Process the batch once; a redelivery returns the stored results.
 
-        Raises `TerminalBatchError` with a safe diagnostic code.
+        Raises `ActivityTimelineBusyError` when the account timeline lock is not
+        acquired in time and `TerminalBatchError` with a safe diagnostic code.
         """
         async with unit_of_work(db_session, self._dispatcher):
+            # Take the account lock before any focus session row lock, in the
+            # order every other writer of the account uses, so none can deadlock.
+            # No client waits here, so the checks the legacy path runs first
+            # stay inside the processor.
+            await self._segments.lock_timeline(db_session, account_id)
             return await self._processor.process(
                 db_session, account_id=account_id, batch=batch
             )
 
 
 class ProcessLegacyActivityBatch(UseCase):
-    """Direct path: holds the account timeline lock, unlike the Consumer path."""
+    """Direct path: rejects a batch before the account timeline lock it holds."""
 
     def __init__(
         self,

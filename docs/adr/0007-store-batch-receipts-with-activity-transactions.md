@@ -33,10 +33,12 @@ date: 2026-10-17
 - HTTP 수락 경로에서 receipt를 조회·저장하지 않는다. Kafka의
   `BatchProcessingExecutor`는 시도별 독립 Session과 트랜잭션을 소유한다.
   legacy 직접 처리의 `LegacyBatchExecutor`는 요청 Session에서 트랜잭션을 열고
-  계정 advisory lock을 획득한다. 공통 `ActivityBatchProcessor`는 열린 트랜잭션에서
+  계정 advisory lock을 획득한다. Kafka의 처리 트랜잭션도 시작에 같은 계정 advisory lock을
+  획득한다. 공통 `ActivityBatchProcessor`는 열린 트랜잭션에서
   Device 귀속 확인과 원본·타임라인·receipt 처리를 수행하며 Lock·commit·rollback·ACK를 소유하지 않는다.
-- Kafka는 DB 계정 advisory lock 없이 같은 Topic·Consumer Group·계정 Key 매핑과
-  Partition별 순차 실행으로 직렬화한다. 같은 계정의 Kafka·legacy 동시 사용은 금지하며
+- Kafka는 같은 Topic·Consumer Group·계정 Key 매핑과 Partition별 순차 실행으로
+  직렬화하고, 트랜잭션 시작에 계정 advisory lock을 잡아 집중 세션 행 잠금보다 먼저
+  얻는다([ADR 0016](0016-compute-activity-analytics-on-read-and-store-daily-stats.md)의 원천 handler·세션 완료와 같은 순서). 같은 계정의 Kafka·legacy 동시 사용은 금지하며
   경로 전환 전에 기존 경로의 해당 계정 처리를 종료한다. DB 커밋 이후에만
   Kafka ACK 또는 legacy 성공 응답을 반환한다.
 - receipt claim, 원본별 채택·거절, 채택 원본 저장, 타임라인 갱신과 처리 결과
@@ -75,7 +77,8 @@ DB commit 후 재전달에도 receipt로 중복 반영을 막지만, DB와 Kafka
 ## 결과와 트레이드오프
 
 - HTTP 수락 경로에는 receipt DB 왕복을 추가하지 않지만 Handler에는 receipt
-  claim·조회·결과 저장 비용이 생긴다. 계정별 잠금 대기 비용은 legacy에만 남는다.
+  claim·조회·결과 저장 비용이 생긴다. 계정별 잠금 대기 비용은
+  legacy와 Kafka에 모두 있다. Kafka 배치 처리 동안 같은 계정의 다른 쓰기는 계정 잠금을 기다린다.
 - 요청 본문 전체를 보존하지 않으므로 receipt에서 거절 원본의 전체 내용을 복원할 수
   없다. 대신 fingerprint로 내용 변경을 감지하고 원본별 stored·duplicate·거절 결과를
   입력 순서로 보존한다. 실패 보관소를 대신하는 용도로 receipt를 확장하지 않는다.
@@ -95,7 +98,7 @@ DB commit 후 재전달에도 receipt로 중복 반영을 막지만, DB와 Kafka
 [ADR 0004](0004-project-observation-timeline-on-write.md)의 쓰기 경계를 일부
 대체한다(supersedes in part). 원본·projection 원자성을 유지하며 Kafka DB 쓰기는
 Handler에서 receipt와 함께 수행한다. 2026-10-20 승인된 Executor 분리에 따라
-계정 advisory lock은 legacy에만 적용한다. Kafka의 처리 오류는 이미 완료된
+legacy에 계정 advisory lock을 적용했고, 이후 [ADR 0016](0016-compute-activity-analytics-on-read-and-store-daily-stats.md)에 따라 Kafka도 트랜잭션 시작에 같은 잠금을 잡는다. Kafka의 처리 오류는 이미 완료된
 수락 응답을 변경하지 않는다.
 
 원본 정렬·기존 이력 전환의 변경 범위는 ADR 0008에서 다룬다. 읽기 모델 구조,
@@ -117,3 +120,5 @@ Handler에서 receipt와 함께 수행한다. 2026-10-20 승인된 Executor 분�
 
 2026-10-20 [Plan #74](https://github.com/jolvy/mosemo/issues/74)의 사용자 승인에 따라
 Executor의 트랜잭션 소유와 legacy 전용 Lock, 동일 계정 경로 혼용 금지를 반영했다.
+
+2026-11-22 [Issue #346](https://github.com/jolvy/mosemo/issues/346)에 따라 Kafka 경로도 트랜잭션 시작에 계정 advisory 잠금을 잡도록 반영했다. 근거는 [ADR 0016](0016-compute-activity-analytics-on-read-and-store-daily-stats.md)이다.

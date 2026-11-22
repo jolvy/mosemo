@@ -25,6 +25,7 @@ from mosemo.observation.infrastructure.timeline_segments import (
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
 from mosemo.observation.presentation.messages import ActivityRegistrationRequested
 from mosemo.platform.clock import utc_now
+from mosemo.platform.database.persistence import account_lock_key
 from mosemo.platform.messaging.kafka_compat import BatchPartition
 from mosemo.platform.messaging.subscriber import MessageConsumer
 from tests.support.clock import FakeClock
@@ -594,30 +595,54 @@ async def test_registered_faststream_handler_rejects_invalid_message_without_pro
 
 
 @pytest.mark.asyncio
-async def test_kafka_commits_and_acks_while_account_advisory_lock_is_held(
+async def test_kafka_waits_for_account_advisory_lock_then_commits(
     integration_kafka, consumption_db
 ):
 
     config = integration_kafka.config
     sessions, owners, devices = consumption_db
+    key = account_lock_key(owners[0])
+
+    async def waiting():
+        async with sessions() as observer:
+            return await observer.scalar(
+                text(
+                    "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' "
+                    "AND classid::bigint = :high AND objid::bigint = :low "
+                    "AND NOT granted)"
+                ),
+                {"high": (key >> 32) & 0xFFFFFFFF, "low": key & 0xFFFFFFFF},
+            )
+
     # This is an independent lock holder, not concurrent legacy processing.
-    async with sessions() as holder, holder.begin():
-        await TimelineSegmentRepository().lock_timeline(holder, owners[0])
-        await publish(config, owners[:1], devices[:1], 1)
-        async with running(
-            config,
-            batch_executor(sessions, clock=FakeClock(utc_now())),
-        ) as (
-            consumer,
-            _,
-            _,
-        ):
+    async with sessions() as holder:
+        transaction = await holder.begin()
+        try:
+            await TimelineSegmentRepository().lock_timeline(holder, owners[0])
+            await publish(config, owners[:1], devices[:1], 1)
+            async with running(
+                config,
+                batch_executor(sessions, clock=FakeClock(utc_now())),
+            ) as (
+                consumer,
+                _,
+                _,
+            ):
+                await eventually(waiting)
+                assert await receipt_count(sessions, owners[0]) == 0
+                # The Consumer gives up after the 3 s lock timeout; release now.
+                await transaction.commit()
 
-            async def committed():
-                return await consumer.committed(BatchPartition(config.topic, 0)) == 1
+                async def committed():
+                    return (
+                        await consumer.committed(BatchPartition(config.topic, 0)) == 1
+                    )
 
-            await eventually(committed)
-            assert await receipt_count(sessions, owners[0]) == 1
+                await eventually(committed)
+                assert await receipt_count(sessions, owners[0]) == 1
+        finally:
+            if transaction.is_active:
+                await transaction.rollback()
 
 
 @pytest.mark.asyncio
