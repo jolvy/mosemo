@@ -37,11 +37,11 @@
       "completedRunId": "eb214932-2053-4e52-bd83-782babd88e58"
     },
     "/openwiki/development/testing-and-verification.md": {
-      "pageVersion": "sha256:f74d7a9a9d37949b8f00de3c22786e3b4d4ef1130af0a38c17436af8672690aa",
+      "pageVersion": "sha256:90dcb7b231a79c9b93251f71721ba60c4f178b0f65661a36e0d6317f6aabc05d",
       "completedBy": "claude-code",
-      "completedRunId": "f674450a-9fff-4241-8822-0cd2976a126b",
-      "gitHead": "47c423f9ee6b6ddc7d219c7c58573869e6f26c4a",
-      "sourceFingerprint": "sha256:863f485872c33999da84f235412e2bc83f8aaf3ea8a03ce9637fa6116220455e"
+      "completedRunId": "986f0f40-c19e-41d9-a3cf-3046664adeef",
+      "gitHead": "fcd0339d2c43c5065c244b6aaf7692a3f944a659",
+      "sourceFingerprint": "sha256:5d1f340774730581ec343f1a887f89d18619db941133b9226240323a677a15ae"
     },
     "/openwiki/domain/activity-analytics.md": {
       "gitHead": "c70cd6284e63bff7ec12782abce527292f8cd1f0",

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:f74d7a9a9d37949b8f00de3c22786e3b4d4ef1130af0a38c17436af8672690aa",
+  "pageVersion": "sha256:90dcb7b231a79c9b93251f71721ba60c4f178b0f65661a36e0d6317f6aabc05d",
   "claims": [
     {
       "id": "claim_914662bc78194b91873e79f37f592051",
@@ -231,10 +231,24 @@
           "version": "repo-lines-v1:sha256:904dc7cef88e5a159a1f2284d0152f2bfe0e5e11245ca087aa60cd47ae573be6:eyJzZWxlY3RlZExpbmVDb3VudCI6ODksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkYWUxYzljOWQ4YTIxZmY3MDY0OTNjOTQ2NGI5NmUzMTMxOTkxYTFhMDUxODExZjhjZGY0NDZhM2MxZGY5MzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdlMTcyZTEyMjIyMTg4NTZjYTI0NWM1ZjQyYjQ0NzY2YjE4OTk3NjNlN2FmOGY0MjFhNjRkZDcwYmM3NzQ4MmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAxNWYwMDA4YmY3ZGRjNzMxMDY0Mjk2N2JlNjY3NjRjZTJjODlmZGE3NzA1YWIxNWM3YWZlYjllZjYzMzY4MGQifQ"
         }
       ]
+    },
+    {
+      "id": "claim_27345ceeb35147d9bf98bfd3511e7df0",
+      "statement": "tests/unit/scripts/test_label_eval_docs.py compares each label-eval command's --help option set with the option column of the corresponding table in docs/label-engine-eval.md, so changing script options requires updating the guide.",
+      "evidence": [
+        {
+          "resource": "repo://docs/label-engine-eval.md#L1-L30",
+          "version": "repo-lines-v1:sha256:fcaee30a367515a724b0a3c1b839ea68465d7fb94338b46021a24bdaf7f6b3b8:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5ODNjOGQ5Yzk2MTg4NTMwM2QwODY3MzNiZTNlNDcxNWFjMjg2YjNmMjZhZGZjMTQ3ZDE0Yjc2MTZlMmUxMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjYTYzY2FkZDU4ZDgxNjdlZTViMTBjYTc0ODUyMDUyYjhlOThjN2RjNjBhNDc0MWQ3YTNkNzExNDkzNzQzMTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1NjhkYzI5NDFiNGVkYzUwNjEyMDNmNTgzNWYwMmY1Y2Q0YWNkNzhkMmVkYmI0MGExMTA1ZjRkYmUxMWUzNDAifQ"
+        },
+        {
+          "resource": "repo://tests/unit/scripts/test_label_eval_docs.py#L1-L45",
+          "version": "repo-lines-v1:sha256:c0200a323091d54f6a3e1f0fe704b7d87c256f7a78afa066ea8b181abc8d8bfd:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4MzAzMzMzMTJjNGM5YzIyMzNiYjAyNzYyYmQ0OTgyMDNiMWMzYmYwNTI3NjE0NzM1NjkzYjRiNzlmNmQxNjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5ZmQ5YTdiNTVlOTE3NjMxMTE5MTU4Njg0OGYwYmQ2OTAzYWVmZWMxNzU2MzI1NWEwYWZiMTEzNTYyNTg1NzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T12:55:45.334Z"
+    "at": "2026-11-22T13:31:20.917Z"
   }
 }

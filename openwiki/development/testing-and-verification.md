@@ -5,7 +5,7 @@ description: 테스트 분류(Unit·Integration·E2E)와 위치, Docker가 필�
 tags: [testing, pytest, coverage, ci, verification]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T12:55:45.334Z
+    at: 2026-11-22T13:31:20.917Z
 sources:
   - id: openwiki-source-3c6b76d80d7f929dde842165
     resource: repo://.codex/skills/verification/scripts/ci_gate.py
@@ -17,6 +17,8 @@ sources:
     resource: repo://.github/workflows/ci.yml
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
+  - id: openwiki-source-eedd75e99cec32f986d7b768
+    resource: repo://docs/label-engine-eval.md
   - id: openwiki-source-05ccef8d4cf1698187f20464
     resource: repo://pyproject.toml
   - id: openwiki-source-1c9ddf72032c2bd4da068cd8
@@ -37,7 +39,9 @@ sources:
     resource: repo://tests/support/acceptance.py
   - id: openwiki-source-7963bb1002d4efe2b24fef6a
     resource: repo://tests/unit/harness/test_tests_layout.py
-generated: { by: "claude-code", at: "2026-11-22T12:55:45.334Z" }
+  - id: openwiki-source-3a7152c9aed17d92a34fc06a
+    resource: repo://tests/unit/scripts/test_label_eval_docs.py
+generated: { by: "claude-code", at: "2026-11-22T13:31:20.917Z" }
 ---
 
 # 테스트와 검증
@@ -115,6 +119,10 @@ generated: { by: "claude-code", at: "2026-11-22T12:55:45.334Z" }
 - `--decision`을 주면 기준에 정한 primary 엔진마다 batch 1 비교로 판정한다. 판정 순서는 reject(정확도 차 신뢰구간 상한이 `min_accuracy_diff` 미만이거나 p95 지연·정답당 비용이 상한 초과) → adopt(신뢰구간 하한이 `min_accuracy_diff` 이상이고 비용과 p95가 모두 있음) → inconclusive다. 비용이나 p95가 비어 있으면 adopt만 막는다.
 - 결론은 adopt된 엔진 중 신뢰구간 하한이 가장 높은(동률이면 정답당 비용이 낮은) 엔진 이름이다. adopt가 없으면 inconclusive가 하나라도 있을 때 `판단 불가`, 아니면 `A 유지`다. primary가 여러 개면 신뢰 수준을 `1 − 0.05 / primary 수`로 보정한다.
 - 테스트는 `tests/unit/scripts/test_label_eval_score_metrics.py`(지표·비교)와 `test_label_eval_score_decision.py`(판정·CLI)이고 보조 코드는 `tests/support/label_eval_score.py`다.
+
+### 사용 가이드: `docs/label-engine-eval.md`
+
+[docs/label-engine-eval.md](../../docs/label-engine-eval.md)는 위 세 스크립트를 스냅샷 → 사례 생성 → 실행 → 채점 순서로 쓰는 절차와 옵션 표, 엔진·C 경로 표를 담은 사용 가이드다. 평가 디렉터리는 개인 활동이 들어 있으므로 저장소 밖에 두고, `snapshot`·`cases`는 `--out`이 git work tree 안이면 종료 코드 2로 거부한다. 가이드의 옵션 표가 실제 CLI와 어긋나지 않도록 `tests/unit/scripts/test_label_eval_docs.py`가 각 명령의 `--help` 옵션 집합(`--help` 제외)과 가이드 표의 옵션 열을 비교한다. 스크립트 옵션을 바꾸면 가이드 표도 함께 고쳐야 이 테스트가 통과한다.
 
 ## 커밋 전 검증
 
