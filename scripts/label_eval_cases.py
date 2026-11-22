@@ -245,7 +245,7 @@ def load_persona(path: Path, *, with_rules: bool = True) -> Persona:
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
         return parse_persona(data, with_rules=with_rules)
-    except (OSError, tomllib.TOMLDecodeError, RecursionError, InputError) as exc:
+    except (OSError, ValueError, RecursionError, InputError) as exc:
         raise InputError(f"{path}: {exc}") from exc
 
 
@@ -274,7 +274,10 @@ def _rule(raw: object, labels: tuple[str, ...], *, index: int) -> Rule:
     _reject_unknown(data, {*CONDITION_KEYS, "label"}, where=f"rule {index}")
     label = data.get("label")
     if not isinstance(label, str) or (label != NULL_LABEL and label not in labels):
-        raise InputError(f"rule {index} label is not in labels: {label!r}")
+        shown = (
+            repr(label) if isinstance(label, str) else f"a {type(label).__name__} value"
+        )
+        raise InputError(f"rule {index} label is not in labels: {shown}")
     conditions = {
         key: _strings(data[key], key) for key in CONDITION_KEYS if key in data
     }
