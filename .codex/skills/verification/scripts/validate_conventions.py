@@ -45,6 +45,11 @@ BROAD_EXCEPT_ALLOWED = {
     ): 1,
     # job 하나의 실패가 스케줄러를 멈추지 않고, 예외 메시지를 로그에 남기지 않음
     ("src/mosemo/platform/scheduling.py", "execute_job"): 1,
+    # 메시지 하나의 처리 예외는 ERROR로 기록하고 건너뛰어 Consumer를 멈추지 않음
+    (
+        "src/mosemo/entrypoints/consumer/activity_batches.py",
+        "activity_batch_handler.process",
+    ): 1,
 }
 RUFF_CONFIG = tomllib.loads("""
 line-length = 88

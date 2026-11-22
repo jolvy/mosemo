@@ -515,17 +515,3 @@ class AcceptActivityBatch(UseCase):
         if publisher is None:
             raise ActivityDeliveryUnavailableError
         await publisher.publish(account_id, batch)
-
-
-class BatchFailureHandler:
-    """Future failure boundary. No storage, blocking, retry or ACK policy exists."""
-
-    async def handle(self) -> None:
-        raise NotImplementedError("batch failure policy is not implemented")
-
-
-class BatchRecoveryService:
-    """Future recovery boundary; never report a successful recovery."""
-
-    async def recover(self) -> None:
-        raise NotImplementedError("batch recovery policy is not implemented")

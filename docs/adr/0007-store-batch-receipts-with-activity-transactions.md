@@ -51,8 +51,8 @@ date: 2026-10-17
 - eventId와 `(deviceId, sequence)`의 기존 UNIQUE 제약을 유지한다. 원본 INSERT의
   충돌은 DB에서 결정된 기존 원본을 다시 읽어 판정한다. receipt는 원본별
   중복·충돌 검사와 계정 격리를 대신하지 않는다.
-- legacy의 3초 잠금 경합은 해당 트랜잭션을 롤백하고 기존 HTTP 503 계약을 유지한다. 재시도·실패·복구 정책의
-  논의는 후속으로 넘기며 이미 완료된 HTTP 수락 응답을 DB 처리 오류로 바꾸지 않는다.
+- legacy의 3초 잠금 경합은 해당 트랜잭션을 롤백하고 기존 HTTP 503 계약을 유지한다. Consumer의 재시도·실패
+  처리는 [ADR 0006](0006-deliver-activity-batches-through-kafka.md) 「처리 실패 정책」을 따르며 이미 완료된 HTTP 수락 응답을 DB 처리 오류로 바꾸지 않는다.
 - 2026-10-18 사용자 승인에 따라 source 모델·저장·Processor bytes 인자를 제거한다.
   운영·보존 데이터가 없다는 전제로 기존 receipt 생성 migration에서 컬럼을 직접
   제거하며 새 migration·데이터 이관은 만들지 않는다. 기존 로컬 DB reset은 별도 실행 요청 없이 수행하지 않는다.
@@ -64,7 +64,7 @@ DB commit 후 재전달에도 receipt로 중복 반영을 막지만, DB와 Kafka
 정상 경로와 commit 사이 종료·재전달의 재현 테스트는
 [README](../../README.md#real-broker-tests)에 연결하며, 실제 실행 증거는
 [검증 Issue #66](https://github.com/jolvy/mosemo/issues/66)에서 관리한다.
-실패·복구 경로는 미구현이며 이 receipt 결정의 검증을 운영 준비 완료로 해석하지 않는다.
+처리 실패의 건너뜀·재시도·중단은 [ADR 0006](0006-deliver-activity-batches-through-kafka.md) 「처리 실패 정책」을 따르며, 이 receipt 결정의 검증을 운영 준비 완료로 해석하지 않는다.
 
 ## 고려한 대안
 
@@ -122,3 +122,5 @@ legacy에 계정 advisory lock을 적용했고, 이후 [ADR 0016](0016-compute-a
 Executor의 트랜잭션 소유와 legacy 전용 Lock, 동일 계정 경로 혼용 금지를 반영했다.
 
 2026-11-22 [Issue #346](https://github.com/jolvy/mosemo/issues/346)에 따라 Kafka 경로도 트랜잭션 시작에 계정 advisory 잠금을 잡도록 반영했다. 근거는 [ADR 0016](0016-compute-activity-analytics-on-read-and-store-daily-stats.md)이다.
+
+2026-11-22 [Issue #349](https://github.com/jolvy/mosemo/issues/349)에 따라 Consumer의 재시도·실패 처리를 ADR 0006 「처리 실패 정책」으로 가리키도록 고쳤다.

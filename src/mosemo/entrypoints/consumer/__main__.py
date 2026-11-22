@@ -5,6 +5,9 @@ import signal
 
 
 async def run() -> None:
+    from mosemo.platform.logging import configure_logging
+
+    configure_logging()
     # Configuration and engine initialization must also stay inside main's
     # protected boundary: validation errors can contain credential input values.
     from mosemo.entrypoints.consumer.activity_batches import run_consumer
@@ -34,9 +37,7 @@ def main() -> None:
         asyncio.run(run())
     except Exception, asyncio.CancelledError:  # safe process boundary
         # Do not print payloads, Pydantic input values, SQL parameters or secrets.
-        raise SystemExit(
-            "Activity Consumer failed; exiting without an in-process retry"
-        ) from None
+        raise SystemExit("Activity Consumer failed") from None
 
 
 if __name__ == "__main__":

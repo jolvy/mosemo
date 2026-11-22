@@ -545,53 +545,82 @@ async def test_separate_api_consumer_processes_crash_after_db_commit_replay_with
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("invalid", ["account", "schema"])
-async def test_registered_faststream_handler_rejects_invalid_message_without_processing_or_ack(
+async def test_registered_faststream_handler_skips_invalid_message_without_processing(
     integration_kafka, consumption_db, invalid
 ):
     from unittest.mock import AsyncMock
 
-    from mosemo.entrypoints.consumer.activity_batches import InvalidBatchMessageError
-
     config = integration_kafka.config
     _, owners, devices = consumption_db
-    broker = KafkaBroker(config.bootstrap_servers, logger=None, graceful_timeout=0)
     executor = AsyncMock()
-    worker = MessageConsumer(broker, activity_batch_handler(executor))
-    pending = asyncio.create_task(
-        worker.run(config.topic, asyncio.Event(), group_id=config.group_id)
+    msg = ActivityRegistrationRequested.from_batch(
+        owners[0],
+        ActivityBatchRequest.model_validate(batch(devices[0], [record(0, 0)])),
     )
+    value = (
+        msg.model_dump_json(by_alias=True).encode()
+        if invalid == "account"
+        else b'{"private": "invalid"}'
+    )
+    producer = KafkaBroker(config.bootstrap_servers, acks="all", logger=None)
     try:
-
-        async def started():
-            if pending.done():
-                pending.result()
-            return broker.running
-
-        await eventually(started)
-        assert len(broker.subscribers) == 1
-        assert len(broker.subscribers[0].calls) == 1
-        msg = ActivityRegistrationRequested.from_batch(
-            owners[0],
-            ActivityBatchRequest.model_validate(batch(devices[0], [record(0, 0)])),
+        await producer.start()
+        metadata = await producer.publish(
+            value, topic=config.topic, key=str(uuid4()).encode()
         )
-        value = (
-            msg.model_dump_json(by_alias=True).encode()
-            if invalid == "account"
-            else b'{"private": "invalid"}'
-        )
-        await broker.publish(value, topic=config.topic, key=str(uuid4()).encode())
-        with pytest.raises(
-            InvalidBatchMessageError, match="invalid_activity_batch_message"
-        ):
-            await asyncio.wait_for(pending, 10)
-        executor.execute.assert_not_called()
-        assert not broker.running
-        offsets = await integration_kafka.admin.offsets(config.group_id)
-        assert not offsets
     finally:
-        if not pending.done():
-            pending.cancel()
-        await asyncio.gather(pending, return_exceptions=True)
+        await producer.stop()
+    tp = BatchPartition(config.topic, metadata.partition)
+    async with running(config, executor) as (consumer, _, task):
+
+        async def committed():
+            return await consumer.committed(tp) == 1
+
+        await eventually(committed)
+        assert not task.done()
+    executor.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_terminal_batch_is_skipped_and_next_batch_is_processed(
+    integration_kafka, consumption_db
+):
+    config = integration_kafka.config
+    sessions, owners, devices = consumption_db
+    executor = batch_executor(sessions, clock=FakeClock(utc_now()))
+    terminal = batch(devices[0], [{**record(0, 0), "focusSessionId": str(uuid4())}])
+    following = batch(devices[0], [record(1, 10)])
+    producer = KafkaBroker(config.bootstrap_servers, acks="all", logger=None)
+    try:
+        await producer.start()
+        for body in (terminal, following):
+            msg = ActivityRegistrationRequested.from_batch(
+                owners[0], ActivityBatchRequest.model_validate(body)
+            )
+            metadata = await producer.publish(
+                topic=config.topic,
+                key=str(owners[0]).encode(),
+                message=msg.model_dump_json(by_alias=True).encode(),
+            )
+            assert metadata.partition == 0
+    finally:
+        await producer.stop()
+    async with running(config, executor) as (consumer, _, task):
+
+        async def committed():
+            return await consumer.committed(BatchPartition(config.topic, 0)) == 2
+
+        await eventually(committed)
+        assert not task.done()
+    async with sessions() as session:
+        batch_ids = (
+            await session.scalars(
+                select(activity_batch_receipts.c.batch_id).where(
+                    activity_batch_receipts.c.account_id == owners[0]
+                )
+            )
+        ).all()
+    assert [str(batch_id) for batch_id in batch_ids] == [following["batchId"]]
 
 
 @pytest.mark.asyncio
@@ -660,15 +689,18 @@ async def test_real_kafka_commit_failure_rolls_back_every_write_without_ack(
     broker = KafkaBroker(config.bootstrap_servers, logger=None, graceful_timeout=0)
     worker = MessageConsumer(
         broker,
-        activity_batch_handler(batch_executor(sessions, clock=FakeClock(utc_now()))),
+        activity_batch_handler(
+            batch_executor(sessions, clock=FakeClock(utc_now())),
+            retry_delays=(0, 0, 0, 0),
+        ),
     )
 
     def fail_commit(session):
-        raise RuntimeError("injected Kafka DB commit failure")
+        raise OSError("injected Kafka DB commit failure")
 
     event.listen(sessions.class_.sync_session_class, "before_commit", fail_commit)
     try:
-        with pytest.raises(RuntimeError, match="injected Kafka DB commit failure"):
+        with pytest.raises(OSError, match="injected Kafka DB commit failure"):
             await asyncio.wait_for(
                 worker.run(config.topic, asyncio.Event(), group_id=config.group_id), 20
             )

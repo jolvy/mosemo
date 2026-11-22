@@ -134,8 +134,9 @@ no raw producer/consumer or FastStream private state is accessed.
 It validates the message and matching account key, creates a fresh DB
 session per attempt. BatchProcessingExecutor owns its transaction; the shared
 ActivityBatchProcessor writes raw records, timeline and receipt within it.
-Kafka processing takes no account advisory lock: serialization requires the same
-topic, consumer group and account-key mapping, with sequential partition execution.
+Kafka processing also takes the account advisory lock at the start of its
+transaction, and keeps the same topic, consumer group and account-key mapping
+with sequential partition execution.
 Each native worker waits for the registered handler, DB transaction and FastStream
 message ACK before reading its next message. The two initial partitions run
 concurrently; no unprocessed position is committed.
@@ -170,13 +171,17 @@ This process boundary does not guarantee FastStream's internal cleanup of
 partially started resources. It does not change normal shutdown's 30-second
 Consumer drain or the DB-commit-before-offset-ACK contract.
 
-Message processing failure handling and recovery remain unimplemented object
-boundaries. An unhandled
-validation, processing or commit error is surfaced to the process boundary with
-a nonzero exit and a payload-free diagnostic; it never reports processing success
-or commits the failed record. This processing-error propagation does not implement
-failure storage, blocking, message retry or recovery policies. Those remain follow-up work;
-this Consumer is not a claim of production readiness for failure handling.
+The Consumer classifies a failed message ([ADR 0006](docs/adr/0006-deliver-activity-batches-through-kafka.md)).
+An invalid message or a terminal batch error is logged at WARNING, acknowledged
+and skipped. A transient failure (account lock timeout, database error, pool
+timeout or `OSError`) is retried in the process up to five attempts with 1, 2, 4
+and 8 second waits; when every attempt fails it is logged at ERROR and surfaced
+to the process boundary with a nonzero exit and a payload-free diagnostic,
+without acknowledging the message. Any other exception is logged at ERROR with
+its type and last frame, acknowledged and skipped. Skipped messages are not
+stored anywhere else and later batches of the same device are not held back;
+each log line carries the `topic`, `partition` and `offset` to find the message
+in Kafka while the topic retains it.
 The `/activities/batches/legacy` route continues to return 200 after direct DB
 processing.
 
@@ -254,6 +259,7 @@ bash .codex/skills/verification/scripts/validate.sh
 
 DB feature regressions in `tests/support/batches.py` use the direct `/batches/legacy`
 route; they verify processing rules, not Kafka delivery. The real broker tests
-above exercise the delivery path. Failure storage, blocking, retry exhaustion
-and manual recovery remain outside this verification scope and unimplemented;
-passing this gate does not establish production readiness.
+above exercise the delivery path, including skipping a terminal batch while the
+next batch of the same device is processed and surfacing a commit failure after
+the retries without an ACK. Passing this gate does not establish production
+readiness.

@@ -1,4 +1,7 @@
 import asyncio
+import json
+import logging
+from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import cast
@@ -8,6 +11,8 @@ from uuid import uuid4
 import pytest
 from faststream import AckPolicy
 from faststream.kafka import KafkaBroker
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 
 from mosemo.entrypoints.consumer.activity_batches import (
     InvalidBatchMessageError,
@@ -15,14 +20,20 @@ from mosemo.entrypoints.consumer.activity_batches import (
     decode_batch,
     run_consumer,
 )
+from mosemo.observation.bootstrap import TerminalBatchError
 from mosemo.observation.presentation.activities.schemas import ActivityBatchRequest
 from mosemo.observation.presentation.messages import ActivityRegistrationRequested
+from mosemo.observation.public import ActivityTimelineBusyError
 from mosemo.platform.clock import utc_now
+from mosemo.platform.logging import JsonFormatter
 from mosemo.platform.messaging.config import BatchDeliveryConfig
 from mosemo.platform.messaging.kafka_compat import BatchPartition
-from mosemo.platform.messaging.subscriber import MessageConsumer
+from mosemo.platform.messaging.subscriber import MessageConsumer, RawMessage
 from tests.support.clock import FakeClock
 from tests.support.observation import activity_request, batch_executor
+
+CONSUMER_LOGGER = "mosemo.entrypoints.consumer.activity_batches"
+NO_WAIT = (0, 0, 0, 0)
 
 
 def session_double() -> Mock:
@@ -238,15 +249,16 @@ async def test_revoke_cancels_session_and_does_not_commit_unprocessed_offset():
 async def test_processing_exception_surfaces_without_ack_or_fictitious_recovery():
     broker = Broker()
     executor = AsyncMock()
-    executor.execute.side_effect = RuntimeError("failed")
+    executor.execute.side_effect = OSError("failed")
     worker = MessageConsumer(
         cast(KafkaBroker, broker),
-        activity_batch_handler(executor),
+        activity_batch_handler(executor, retry_delays=NO_WAIT),
         shutdown_timeout=0.01,
     )
     broker.put(next(iter(broker.queues)), 0)
-    with pytest.raises(RuntimeError, match="failed"):
+    with pytest.raises(OSError, match="failed"):
         await asyncio.wait_for(worker.run("test", asyncio.Event(), group_id="group"), 1)
+    assert executor.execute.await_count == 5
     broker.commit.assert_not_called()
     broker.stop.assert_awaited_once()
 
@@ -338,11 +350,11 @@ async def test_error_during_shutdown_drain_is_not_reported_as_success():
     async def execute(msg):
         entered.set()
         await release.wait()
-        raise RuntimeError("failed during drain")
+        raise OSError("failed during drain")
 
     worker = MessageConsumer(
         cast(KafkaBroker, broker),
-        activity_batch_handler(AsyncMock(execute=execute)),
+        activity_batch_handler(AsyncMock(execute=execute), retry_delays=NO_WAIT),
         shutdown_timeout=0.02,
     )
     stop = asyncio.Event()
@@ -352,7 +364,7 @@ async def test_error_during_shutdown_drain_is_not_reported_as_success():
     stop.set()
     await asyncio.sleep(0)
     release.set()
-    with pytest.raises(RuntimeError, match="failed during drain"):
+    with pytest.raises(OSError, match="failed during drain"):
         await asyncio.wait_for(pending, 1)
     broker.commit.assert_not_called()
     broker.stop.assert_awaited_once()
@@ -411,10 +423,7 @@ def test_cli_initialization_errors_never_expose_credentials():
     )
     assert result.returncode != 0
     assert result.stdout == ""
-    assert (
-        result.stderr
-        == "Activity Consumer failed; exiting without an in-process retry\n"
-    )
+    assert result.stderr == "Activity Consumer failed\n"
     assert "private-db-marker" not in result.stderr
     assert "private-jwt-marker" not in result.stderr
 
@@ -431,7 +440,7 @@ async def test_consumer_waits_for_executor_commit_and_never_acks_failed_commit(
         committing.set()
         await release.wait()
         if commit_fails:
-            raise RuntimeError("commit failed")
+            raise OSError("commit failed")
 
     transaction.__aexit__.side_effect = finish
     session = session_double()
@@ -449,7 +458,10 @@ async def test_consumer_waits_for_executor_commit_and_never_acks_failed_commit(
     broker.commit.side_effect = lambda: acked.set()
     worker = MessageConsumer(
         cast(KafkaBroker, broker),
-        activity_batch_handler(batch_executor(sessions, clock=FakeClock(utc_now()))),
+        activity_batch_handler(
+            batch_executor(sessions, clock=FakeClock(utc_now())),
+            retry_delays=NO_WAIT,
+        ),
     )
     stop = asyncio.Event()
     pending = asyncio.create_task(worker.run("test", stop, group_id="group"))
@@ -459,7 +471,7 @@ async def test_consumer_waits_for_executor_commit_and_never_acks_failed_commit(
         broker.commit.assert_not_called()
         release.set()
         if commit_fails:
-            with pytest.raises(RuntimeError, match="commit failed"):
+            with pytest.raises(OSError, match="commit failed"):
                 await asyncio.wait_for(pending, 1)
             broker.commit.assert_not_called()
         else:
@@ -528,3 +540,172 @@ async def test_revocation_waits_for_target_cleanup_and_leaves_other_partition_ru
             await asyncio.gather(revoked, return_exceptions=True)
         await asyncio.wait_for(pending, 2)
     broker.commit.assert_awaited_once()
+
+
+@pytest.fixture
+def consumer_logs(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
+    """Deliver the Consumer's records to caplog alone; `mosemo` does not
+    propagate once an app configures logging in this process."""
+    logger = logging.getLogger(CONSUMER_LOGGER)
+    saved = (logger.disabled, logger.propagate, logger.level)
+    logger.disabled, logger.propagate = False, False
+    logger.setLevel(logging.INFO)
+    logger.addHandler(caplog.handler)
+    try:
+        yield
+    finally:
+        logger.removeHandler(caplog.handler)
+        logger.disabled, logger.propagate = saved[:2]
+        logger.setLevel(saved[2])
+
+
+def formatted(caplog: pytest.LogCaptureFixture) -> list[dict]:
+    return [json.loads(JsonFormatter().format(r)) for r in caplog.records]
+
+
+def raw_message(*, valid: bool = True) -> RawMessage:
+    msg = message()
+    return RawMessage(
+        str(msg.account_id).encode(),
+        msg.model_dump_json(by_alias=True).encode() if valid else b"private-invalid",
+        "activity-batches",
+        1,
+        7,
+    )
+
+
+POSITION = {"topic": "activity-batches", "partition": 1, "offset": 7}
+
+
+def failing(*errors: BaseException | None) -> AsyncMock:
+    return AsyncMock(execute=AsyncMock(side_effect=list(errors)))
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("consumer_logs")
+async def test_terminal_failure_is_logged_and_acknowledged(caplog):
+    executor = failing(TerminalBatchError("device_not_owned"))
+    await activity_batch_handler(executor, retry_delays=NO_WAIT)(raw_message())
+    assert executor.execute.await_count == 1
+    [log] = formatted(caplog)
+    assert log["level"] == "WARNING"
+    assert log["event"] == "activity batch skipped"
+    assert {k: log[k] for k in (*POSITION, "operation", "outcome", "retryable")} == {
+        **POSITION,
+        "operation": "activity_batch_consume",
+        "outcome": "skipped",
+        "retryable": False,
+    }
+    assert log["error_code"] == "device_not_owned"
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("consumer_logs")
+async def test_invalid_message_is_logged_and_acknowledged(caplog):
+    executor = failing()
+    await activity_batch_handler(executor, retry_delays=NO_WAIT)(
+        raw_message(valid=False)
+    )
+    executor.execute.assert_not_called()
+    [log] = formatted(caplog)
+    assert log["level"] == "WARNING"
+    assert log["outcome"] == "skipped"
+    assert log["retryable"] is False
+    assert log["error_code"] == "invalid_activity_batch_message"
+    assert {k: log[k] for k in POSITION} == POSITION
+    assert "private-invalid" not in json.dumps(log)
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("consumer_logs")
+async def test_transient_failure_is_retried_until_it_succeeds(caplog):
+    executor = failing(ActivityTimelineBusyError(), ActivityTimelineBusyError(), None)
+    await activity_batch_handler(executor, retry_delays=NO_WAIT)(raw_message())
+    assert executor.execute.await_count == 3
+    logs = formatted(caplog)
+    assert [(log["level"], log["outcome"], log["attempt"]) for log in logs] == [
+        ("WARNING", "retrying", 1),
+        ("WARNING", "retrying", 2),
+    ]
+    assert all(log["retryable"] is True for log in logs)
+    assert all(log["error_code"] == "ActivityTimelineBusyError" for log in logs)
+    assert all({k: log[k] for k in POSITION} == POSITION for log in logs)
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("consumer_logs")
+@pytest.mark.parametrize(
+    "error",
+    [
+        ActivityTimelineBusyError(),
+        DBAPIError("SELECT 1", None, Exception("private")),
+        PoolTimeoutError(),
+        OSError("private"),
+    ],
+    ids=type,
+)
+async def test_transient_failure_surfaces_after_five_attempts(caplog, error):
+    executor = failing(*[error] * 5)
+    with pytest.raises(type(error)):
+        await activity_batch_handler(executor, retry_delays=NO_WAIT)(raw_message())
+    assert executor.execute.await_count == 5
+    *retries, failed = formatted(caplog)
+    assert [log["attempt"] for log in retries] == [1, 2, 3, 4]
+    assert failed["level"] == "ERROR"
+    assert failed["event"] == "activity batch failed"
+    assert failed["outcome"] == "failed"
+    assert failed["retryable"] is False
+    assert failed["error_code"] == type(error).__name__
+    assert {k: failed[k] for k in POSITION} == POSITION
+
+
+@pytest.mark.asyncio
+async def test_retries_wait_the_given_delays_between_attempts(monkeypatch):
+    waits = []
+
+    async def sleep(delay):
+        waits.append(delay)
+
+    monkeypatch.setattr(
+        "mosemo.entrypoints.consumer.activity_batches.asyncio.sleep", sleep
+    )
+    executor = failing(*[OSError("down")] * 5)
+    with pytest.raises(OSError, match="down"):
+        await activity_batch_handler(executor)(raw_message())
+    assert waits == [1, 2, 4, 8]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("consumer_logs")
+async def test_unknown_failure_is_logged_at_error_and_acknowledged(caplog):
+    executor = failing(RuntimeError("private-detail"))
+    await activity_batch_handler(executor, retry_delays=NO_WAIT)(raw_message())
+    assert executor.execute.await_count == 1
+    [log] = formatted(caplog)
+    assert log["level"] == "ERROR"
+    assert log["outcome"] == "skipped"
+    assert log["retryable"] is False
+    assert log["error_code"] == "RuntimeError"
+    assert {k: log[k] for k in POSITION} == POSITION
+    assert log["exception"]["type"] == "RuntimeError"
+    assert "private-detail" not in json.dumps(log)
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("consumer_logs")
+@pytest.mark.parametrize("error", [RuntimeError, TerminalBatchError, OSError])
+async def test_failure_while_cancelling_is_not_skipped(caplog, error):
+    async def execute(batch):
+        current = asyncio.current_task()
+        assert current is not None
+        current.cancel()
+        raise error("cleanup")
+
+    process = activity_batch_handler(AsyncMock(execute=execute), retry_delays=NO_WAIT)
+
+    async def consume():
+        await process(raw_message())
+
+    with pytest.raises(error, match="cleanup"):
+        await asyncio.create_task(consume())
+    assert not caplog.records

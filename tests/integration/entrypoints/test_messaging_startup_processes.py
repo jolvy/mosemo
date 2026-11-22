@@ -76,9 +76,7 @@ def test_startup_error_or_task_cancellation_exits_real_entrypoint(entrypoint, sc
     if scenario == "cancel":
         assert "KAFKA_START_CANCELLED" in result.stdout
     if entrypoint == "consumer":
-        assert result.stderr.endswith(
-            "Activity Consumer failed; exiting without an in-process retry\n"
-        )
+        assert result.stderr.endswith("Activity Consumer failed\n")
 
 
 @pytest.mark.asyncio

@@ -29,7 +29,10 @@ deploy.sh는 시작 직후 실행한 작업의 성공 로그로 확인한다. �
 API와 consumer는 같은 DB·BATCH_TOPIC·BATCH_GROUP_ID·Kafka 주소를 사용한다.
 consumer에는 HTTP Service·가짜 HTTP probe를 붙이지 않는다. consumer Pod Running은
 구독·DB 처리 성공의 증거가 아니므로 실제 메시지→DB 저장과 group/offset을 확인한다.
-consumer는 실패 시 프로세스를 종료하고 Kubernetes가 재시작한다. 종료 유예 45초는
+consumer는 형식 오류·영구 실패 배치(WARNING)와 분류에 없는 예외(ERROR)를 로그로 남기고 ACK한 뒤
+건너뛴다. 일시 실패(계정 잠금 초과, DB 오류, 연결 풀 대기 초과, `OSError`)는 프로세스 안에서 1·2·4·8초
+간격으로 총 5회 시도하고, 모두 실패하면 ACK 없이 프로세스를 종료해 Kubernetes가 재시작한다
+([ADR 0006](../../docs/adr/0006-deliver-activity-batches-through-kafka.md) 「처리 실패 정책」). 종료 유예 45초는
 consumer의 30초 drain보다 길게 두었다. API probes는 /openapi.json만 확인한다.
 
 ## 노드 배치와 자원
@@ -168,6 +171,21 @@ AWS·kubectl·terraform을 호출하기 전에 멈춘다.
 뒤에만 삭제·재실행한다. Secret과 RDS CA는 서버 측 apply로 등록해 client-side last-applied
 annotation에 복제하지 않는다. 디렉터리 전체를 일괄 apply하지 않는다.
 인증된 활동 발행 202 후 consumer의 DB 처리와 실제 Kakao 로그인은 스크립트가 검증하지 않는다.
+
+배포 뒤 consumer 확인: 배치의 건너뜀과 중단은 Pod 재시작 같은 신호 없이 로그로만 드러난다. 배포 뒤
+다음 명령으로 `outcome`이 `skipped`·`failed`인 줄을 확인한다.
+
+```sh
+kubectl -n mosemo logs deploy/mosemo-consumer | grep -E '"outcome":"(skipped|failed)"'
+```
+
+- ERROR 수준의 `"outcome":"skipped"` 줄은 분류에 없는 예외, 곧 코드 버그다. 버그를 고쳐 배포한 뒤
+  Consumer group의 offset을 그 줄의 `topic`·`partition`·`offset`으로 되돌려 다시 처리한다. receipt가
+  이미 처리한 배치를 걸러 중복이 생기지 않으며, 다시 읽을 수 있는 기간은 토픽 보관 기간까지다.
+- WARNING 수준의 `skipped`는 형식 오류·영구 실패라 다시 처리해도 같은 결과다.
+- `failed`는 일시 실패의 재시도를 다 써서 consumer가 끝나기 직전의 위치다. offset을 확정하지 않았으므로
+  장애가 풀리면 재시작한 consumer가 그 위치부터 이어서 처리한다.
+- 로그는 Pod 안에만 있어 Pod가 교체되면 사라진다. 배포·재시작 전에 필요한 줄을 확인해 둔다.
 
 ## 5단계 측정 세션
 
