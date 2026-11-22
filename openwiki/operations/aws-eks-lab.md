@@ -5,7 +5,7 @@ description: 운영 복제 AWS 환경(Terraform root 3개, EKS·RDS·ALB, Kubern
 tags: [operations, aws, eks, terraform, kubernetes, deployment, measurement]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T11:15:40.775Z
+    at: 2026-11-22T12:16:52.428Z
 sources:
   - id: openwiki-source-b4c3599391634fa467609ba0
     resource: repo://docs/activity-analytics-operations.md

@@ -5,7 +5,7 @@ description: Mosemo 서버의 Bounded Context(identity·labels·observation·lab
 tags: [architecture, bounded-context, layering, import-linter]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-20T11:18:18.429Z
+    at: 2026-11-22T12:16:52.428Z
 sources:
   - id: openwiki-source-362e06c30ccfdafd87339cb0
     resource: repo://ARCHITECTURE.md

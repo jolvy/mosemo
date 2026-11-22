@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:cba22ae03d9e0a17b76bc50102109d7910a57d47f3075c30bdc0ae6318f92bc7",
+  "pageVersion": "sha256:b652bad9df395dcfca0bad641279c9c46731c89e4895ff43167aecca1b9f6b2d",
   "claims": [
     {
       "id": "claim_914662bc78194b91873e79f37f592051",
@@ -193,10 +193,30 @@
           "version": "repo-lines-v1:sha256:c8386f337fdfb7daa0440c513d01748236c1d09dc2fa1d5fe466ce7c580297a0:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3Njk3ZjkzMGExZDgzOWUwNjAzNDRlOWEyNGFjOWQ4NTg5ZWUxYzViYWJjNmQxMDk5MTc0ZDQ0YzJlYWMwMTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRhNzY2ZWM0YmZhMDU3YjBmZTAxMTcxNjYxYmQwNzYwZjI0ZGZjYjA0YzcyMzUyNTQ0MGZlMjg4YzdmYWEwODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhODJlYmU5ZWQ0MDdjM2E2YmE0YjAwMzQyOTJiYWE1MmMxMWNlNWFlMjg2MTA3NDAyZGU0NzkyZWVlY2FjZmMifQ"
         }
       ]
+    },
+    {
+      "id": "claim_28efa116a0e040d7a453c7d589103ae9",
+      "statement": "label_eval_score.py는 사례 파일과 결과 JSONL을 합쳐 summary.json과 report.md를 쓰며, 거절된 인자·입력은 아무것도 쓰지 않고 종료 코드 2로 끝난다.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/label_eval_score.py#L1008-L1045",
+          "version": "repo-lines-v1:sha256:47de4af8bb0a22c9edd326fd5df108f6cc690cdc4a4a26347fe8b10d28ea2046:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3ZDgxNzYxYjIyZjFkZGY3NDdhMWI1Yjg5MjMxOWYwZGE4OTViNjI1Y2M2YjE2MjRlZWYzNDMyNTZlZDcyZTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2MjMzYjNmZmVhMzJhMjNkZjUzMDY1MzQzNDhmMmRlZTc3NmE1YTZmNzRmYjUzMzE3NWRkYzUzOWE4ZmU0NjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlkZGM4OTM3NTAxN2YxODU1OWFmNDA4Njc2MzUyZDYyYWI0MDY1ODQxM2JhMTAyZWM1MmNmYTlkNjVkMWJjOTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkNDEzNDBjYzIzOWExNTljZTliNjAyMmU5ZjYzMjI4MzJlMmVhZDc2Y2FlOWU0NzU0ZDIxMGViOGZiNmQ1ZTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bf04302c6dda4f60b6f0cef8c71be9e1",
+      "statement": "판정은 reject(신뢰구간 상한 미달 또는 p95·비용 상한 초과) → adopt(신뢰구간 하한 충족, 비용·p95 존재) → inconclusive 순서이며, 결론은 adopt 중 신뢰구간 하한이 가장 높은 엔진이고 없으면 판단 불가 또는 A 유지다.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/label_eval_score.py#L721-L793",
+          "version": "repo-lines-v1:sha256:8291f3cd47bd78d558f38e5642d11b51efffa03bbb850671f327cff91617a60c:eyJzZWxlY3RlZExpbmVDb3VudCI6NzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyOTAxYjgxNWM4NGRiMTY5OTk4NDdjYzI4MjUyMGQ3ZjkyNzdhY2E1NjBkZjIyOWNmMzg2Y2FiMzhjNWUzMWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5ZjQ5ZWFkZTI5ZTYzMjkwZDljYTZlMzVkOGM2ZGZmNDlkNzk4ZTM0NDQ1N2M3YWFjY2Q2YmZhNWE0ZGQ0ODIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY5YjQzNWJhY2M3NjM3MWM0NWE2MzBiNWQzY2NkNmYyYTJmNTU3NDg3YmYzZTNlMjI0MzU0MzRiN2I0NTMzMTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYwMjJmNzVjNzE5Y2I2OTcwOTc5ODg0OWMyZTkxMDJiOGFlOTE1ZmRhM2M1MzUzYzhiNmY4ODUzOWNmYThiNzkifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T11:56:08.783Z"
+    "at": "2026-11-22T12:16:52.428Z"
   }
 }
