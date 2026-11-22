@@ -542,6 +542,26 @@ def test_a_total_that_is_not_finite_exits_2_and_writes_nothing(
             DECISION.format(primary='["b"]').replace("0.0", "1" + "0" * 5000),
             id="too-many-digits",
         ),
+        pytest.param(
+            DECISION.format(primary='["b"]')
+            + "deep = "
+            + "[" * 100_000
+            + "]" * 100_000
+            + "\n",
+            id="deep-array",
+        ),
+        pytest.param(
+            DECISION.format(primary='["b"]').replace(
+                "= 0.01", "= " + "0x" + "F" * 4000
+            ),
+            id="hex-too-many-digits",
+        ),
+        pytest.param(
+            DECISION.format(primary='["b"]').replace(
+                "= 0.01", "= [" + "0x" + "F" * 4000 + "]"
+            ),
+            id="hex-in-array",
+        ),
     ],
 )
 def test_bad_decision_file_exits_2(

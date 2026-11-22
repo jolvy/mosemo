@@ -528,6 +528,21 @@ def test_prices_file_fills_missing_keys_with_zero_by_engine_name(
         pytest.param(
             '["c@openrouter"]\nusd_per_request = 1' + "0" * 400 + "\n", id="too-large"
         ),
+        pytest.param(
+            '["c@openrouter"]\nusd_per_request = '
+            + "[" * 100_000
+            + "]" * 100_000
+            + "\n",
+            id="deep-array",
+        ),
+        pytest.param(
+            '["c@openrouter"]\nusd_per_request = ' + "0x" + "F" * 4000 + "\n",
+            id="hex-too-many-digits",
+        ),
+        pytest.param(
+            '["c@openrouter"]\nusd_per_request = [' + "0x" + "F" * 4000 + "]\n",
+            id="hex-in-array",
+        ),
     ],
 )
 def test_bad_prices_file_exits_2_and_writes_nothing(

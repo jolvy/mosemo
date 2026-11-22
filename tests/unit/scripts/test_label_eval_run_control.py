@@ -718,3 +718,43 @@ def test_unsendable_keys_are_refused_without_showing_them(
     assert variable in err
     assert "sk-test" not in err
     assert "secret" not in err
+
+
+def test_line_separators_inside_activity_text_are_data(
+    label_eval_run: ModuleType, tmp_path: Path
+) -> None:
+    example = {"activity_id": "e1", "activity": "title: a\u0085b", "label_id": None}
+    rows = [case_row(1, examples=[example]), case_row(2)]
+    rows[0]["activity"] = "title: a\u2028b"
+    rows[1]["activity"] = "title: a\u0085b"
+    cases = write_cases(tmp_path / "cases.jsonl", rows)
+    assert "\u2028" in cases.read_text(encoding="utf-8")
+    out = tmp_path / "results.jsonl"
+
+    assert label_eval_run.main(_argv(cases, out, "--engine", "oracle")) == 0
+    assert [row["case_id"] for row in read_rows(out)] == [r["case_id"] for r in rows]
+
+
+def test_crlf_cases_with_blank_lines_are_read(
+    label_eval_run: ModuleType, tmp_path: Path
+) -> None:
+    rows = [case_row(1), case_row(2)]
+    cases = tmp_path / "cases.jsonl"
+    text = "".join(json.dumps(row, ensure_ascii=False) + "\r\n\r\n" for row in rows)
+    cases.write_text(text, encoding="utf-8", newline="")
+    out = tmp_path / "results.jsonl"
+
+    assert label_eval_run.main(_argv(cases, out, "--engine", "oracle")) == 0
+    assert [row["case_id"] for row in read_rows(out)] == [r["case_id"] for r in rows]
+
+
+def test_deeply_nested_case_line_exits_2_and_writes_no_rows(
+    label_eval_run: ModuleType, tmp_path: Path
+) -> None:
+    cases = write_cases(tmp_path / "cases.jsonl", [case_row(1)])
+    with cases.open("a", encoding="utf-8") as file:
+        file.write("[" * 100_000 + "]" * 100_000 + "\n")
+    out = tmp_path / "results.jsonl"
+
+    assert label_eval_run.main(_argv(cases, out, "--engine", "oracle")) == 2
+    assert not out.exists()

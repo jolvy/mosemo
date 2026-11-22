@@ -256,7 +256,7 @@ def join(cases: Mapping[str, Case], results: Iterable[Result]) -> list[Answer]:
 def _load_toml(path: Path) -> dict[str, Any]:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
         raise InputError(f"{path}: {exc}") from exc
 
 
@@ -298,11 +298,11 @@ def load_prices(path: Path) -> dict[str, Price]:
 
 def _number(path: Path, value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
-        raise InputError(f"{path}: {value!r} is not a number")
+        raise InputError(f"{path}: a {type(value).__name__} is not a number")
     try:
         number = float(value)
     except OverflowError as exc:
-        raise InputError(f"{path}: {value!r} is too large") from exc
+        raise InputError(f"{path}: a number is too large") from exc
     if not math.isfinite(number):
         raise InputError(f"{path}: {value!r} is not a finite number")
     return number
