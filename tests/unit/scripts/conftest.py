@@ -26,3 +26,13 @@ def label_eval_cases() -> ModuleType:
     module = module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@pytest.fixture(scope="session")
+def label_eval_run() -> ModuleType:
+    spec = spec_from_file_location("label_eval_run", SCRIPTS / "label_eval_run.py")
+    assert spec is not None
+    assert spec.loader is not None
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
