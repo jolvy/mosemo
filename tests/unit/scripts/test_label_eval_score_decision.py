@@ -1,6 +1,7 @@
 """AC-7: checks, decision and determinism of label_eval_score."""
 
 import json
+import re
 from fractions import Fraction
 from pathlib import Path
 from random import Random
@@ -584,7 +585,7 @@ def test_bad_decision_file_exits_2(
     assert (code, summary) == (2, None)
     err = capsys.readouterr().err
     assert err.startswith("rejected: ")
-    assert "FFF" not in err
+    assert not re.search(r"\d{50}", err)  # no repr of a long number
 
 
 def test_line_separators_inside_activity_text_are_data(
