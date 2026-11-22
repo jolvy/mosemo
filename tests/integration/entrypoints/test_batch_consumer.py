@@ -55,7 +55,7 @@ def message():
     )
 
 
-@pytest.mark.parametrize("invalid", ["missing", "mismatch", "json", "schema"])
+@pytest.mark.parametrize("invalid", ["missing", "mismatch", "json", "schema", "nul"])
 def test_invalid_message_never_reaches_processing(invalid):
     msg = message()
     key, value = (
@@ -68,6 +68,15 @@ def test_invalid_message_never_reaches_processing(invalid):
         key = str(uuid4()).encode()
     elif invalid == "json":
         value = b"private-invalid-json"
+    elif invalid == "nul":
+        record = msg.records[0].model_dump(mode="json", by_alias=True)
+        record.pop("context")
+        record.update(
+            recordType="collection_state_changed", state="active", reason="lo\x00ck"
+        )
+        value = json.dumps(
+            {**msg.model_dump(mode="json", by_alias=True), "records": [record]}
+        ).encode()
     else:
         value = b'{"private-field": "sensitive"}'
     with pytest.raises(

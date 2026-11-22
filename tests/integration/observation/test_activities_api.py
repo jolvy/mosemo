@@ -116,7 +116,17 @@ def test_batch_admission_hides_missing_and_foreign_devices(identity_config):
 
 @pytest.mark.parametrize(
     "invalid",
-    ["legacy_device", "timezone", "record_type", "state", "privacy", "nested_device"],
+    [
+        "legacy_device",
+        "timezone",
+        "record_type",
+        "state",
+        "privacy",
+        "nested_device",
+        "nul",
+        "sequence",
+        "utc_offset",
+    ],
 )
 def test_batch_rejects_invalid_record_before_admission(identity_config, invalid):
     app, token = make_app(
@@ -139,6 +149,15 @@ def test_batch_rejects_invalid_record_before_admission(identity_config, invalid)
         )
     elif invalid == "privacy":
         record["context"] = {"kind": "opaque", "title": "forbidden"}
+    elif invalid == "nul":
+        record.pop("context")
+        record.update(
+            recordType="collection_state_changed", state="active", reason="lo\x00ck"
+        )
+    elif invalid == "sequence":
+        record["sequence"] = 2**63
+    elif invalid == "utc_offset":
+        record["utcOffsetMinutes"] = 1441
     else:
         record["deviceId"] = payload["deviceId"]
     with TestClient(app) as client:
@@ -149,6 +168,46 @@ def test_batch_rejects_invalid_record_before_admission(identity_config, invalid)
         )
     assert response.status_code == 422
     assert response.json()["error"]["status"] == "INVALID_ARGUMENT"
+    app.state.batch_publisher.publish.assert_not_called()
+
+
+def test_batch_validation_details_point_at_the_invalid_record(identity_config):
+    app, token = make_app(
+        identity_config=identity_config,
+        account_id=uuid4(),
+        service=create_autospec(GetObservationTimeline, instance=True),
+    )
+    payload = activity_request()
+    valid = payload["records"][0]
+    payload["records"].append(
+        {
+            **valid,
+            "eventId": str(uuid4()),
+            "sequence": valid["sequence"] + 1,
+            "context": {
+                "kind": "detailed",
+                "app": {
+                    "bundleId": {"status": "absent"},
+                    "name": {"status": "captured", "value": "Saf\x00ari"},
+                },
+                "window": {"status": "absent"},
+                "web": {"kind": "not_applicable"},
+            },
+        }
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/activities/batches",
+            headers={"Authorization": f"Bearer {token}"},
+            json=payload,
+        )
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["status"] == "INVALID_ARGUMENT"
+    assert error["details"]
+    for detail in error["details"]:
+        loc = detail["loc"]
+        assert loc[loc.index("records") + 1] == 1
     app.state.batch_publisher.publish.assert_not_called()
 
 

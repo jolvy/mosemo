@@ -134,7 +134,7 @@ macOS 클라이언트는 수집한 활동 레코드를 함께 전송하고, 서�
 | 인증 실패 | 401 |
 | Device 미등록·귀속 불일치 | 404 |
 | JSON 본문 크기 초과 | 413 |
-| 스키마·빈 배열·건수·필드 검증 실패 | 422 `INVALID_ARGUMENT` |
+| 스키마·빈 배열·건수·필드 검증 실패(문자열 값의 NUL 문자, `sequence` > 2^63 − 1, `utcOffsetMinutes`가 −1440~1440 밖 포함) | 422 `INVALID_ARGUMENT` |
 | 수락 기간을 벗어난 원본 포함 | 422 `ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW` |
 | 발행 실패·ACK 제한 시간 초과·미시작·종료 중·용량 부족 | 503 |
 
@@ -208,6 +208,14 @@ Consumer는 처리하지 못한 배치를 실패 종류에 따라 다루며 근�
 - 기기 시계 기준으로 수락 기간을 벗어난 원본은 전송 전에 버린다. 422
   `ACTIVITY_RECORD_OUTSIDE_ACCEPTANCE_WINDOW`를 받으면 `details`가 가리키는 원본을
   버리고 남은 원본을 새 batchId로 보낸다. 24시간 넘게 전송하지 못한 원본은 버려진다.
+- 422 `INVALID_ARGUMENT`를 받은 배치는 같은 내용으로 재시도하지 않는다. `details`가 한 개
+  이상이고 모든 `loc`이 `["body", "records", 3, ...]`처럼 `records`의 순번을 가리키면(둘째
+  원소가 `records`, 셋째 원소가 정수) 그 원본만 버리고 남은 원본을 새 batchId로 보낸다.
+  `details`가 비었거나 순번을 가리키지 않는 `loc`이 하나라도 있으면 배치 전체를 버린다.
+  봉투 오류와 legacy의 `projection_time_regression`처럼 `details` 없이 오는 422
+  `INVALID_ARGUMENT`가 여기에 든다. 버리고 남은 원본이 없으면 보내지 않는다. 이 규칙은
+  422 `INVALID_ARGUMENT` 전체에 적용한다. 같은 내용의 재시도는 같은 422를 반복해 Device의
+  뒤 배치를 모두 막는다. sequence 연속성은 요구하지 않으므로 틀린 원본만 버려도 된다.
 - 화면 열기·재활성화 시 즉시 조회하고, 열린 화면은 초기 5초 간격으로 polling한다.
   화면을 숨기면 중단하고 요청 겹침·오래된 응답 반영을 방지한다. 조회 실패 시
   기존 화면을 유지하고 backoff한다.
@@ -270,6 +278,9 @@ Kafka 연결 정보는 환경별로 구성하며 개발·운영 환경에 같은
   ACK를 확인하기 전에는 202를 반환하지 않는다.
 - AC-6002: 잘못된 스키마·빈 배열·건수 초과는 422, 512 KiB 초과는 413,
   인증 실패는 401, Device 미등록·귀속 불일치는 404이며 일부 원본도 전달하지 않는다.
+  DB가 저장할 수 없는 값(문자열 값의 NUL 문자, 2^63 − 1을 넘는 `sequence`, −1440~1440 밖의
+  `utcOffsetMinutes`)도 422 `INVALID_ARGUMENT`이며, `details`의 `loc`은 `records` 다음 원소로
+  틀린 원본의 요청 내 순번(0부터)을 가리킨다.
 - AC-6003: 발행 실패·5초 내 ACK 미확인·미시작·종료 중·전달 자원 부족에는 503으로 응답하고
   수락 성공을 반환하지 않는다.
 - AC-6004: 동일 계정·Device·batchId와 같은 내용의 재시도는 결과를 중복 반영하지
@@ -366,3 +377,5 @@ supervisor 재시작 책임을 승인했다. 실제 소켓·task 누수는 입�
 라이브러리 내부 정리 보장으로 확대하지 않는다.
 
 2026-11-22 [Issue #349](https://github.com/jolvy/mosemo/issues/349)에 따라 「처리 실패」와 AC-6013에 처리 실패 정책을 반영하고, 실패 원본 보관·Device별 보류·개발용 재처리 서술을 지웠다.
+
+2026-11-22 [Issue #350](https://github.com/jolvy/mosemo/issues/350)에 따라 수락 실패 조건 표와 AC-6002에 NUL 문자·`sequence`·`utcOffsetMinutes` 제약을, 「클라이언트 전송과 조회」에 422 `INVALID_ARGUMENT`를 받은 클라이언트의 원본 폐기 규칙을 더했다.
