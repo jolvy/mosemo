@@ -33,7 +33,8 @@ from mosemo.shared.application.events import EventDispatcher
 logger = logging.getLogger(__name__)
 
 # Failures another attempt of the same message can overcome; a batch whose
-# processing fails for any other reason is skipped (ADR 0006).
+# processing fails for any other reason is skipped (ADR 0006). A DB data or
+# integrity error that outlasts every attempt is skipped as well.
 TRANSIENT_FAILURES = (
     ActivityTimelineBusyError,
     DBAPIError,
@@ -43,6 +44,9 @@ TRANSIENT_FAILURES = (
 # Waits between the five attempts of a message (requirement FR-15).
 RETRY_DELAYS = (1.0, 2.0, 4.0, 8.0)
 OPERATION = "activity_batch_consume"
+# SQLSTATE classes 22 (data exception) and 23 (integrity constraint violation):
+# the DB rejected the batch itself, so another attempt fails the same way.
+DATA_ERROR_CLASSES = ("22", "23")
 
 
 class InvalidBatchMessageError(ValueError):
@@ -104,6 +108,16 @@ def _position(message: RawMessage) -> dict[str, object]:
     }
 
 
+def data_error_code(error: Exception) -> str | None:
+    """The SQLSTATE of a DB error that rejects the batch, else `None`."""
+    if not isinstance(error, DBAPIError):
+        return None
+    state = getattr(error.orig, "sqlstate", None)
+    if isinstance(state, str) and state.startswith(DATA_ERROR_CLASSES):
+        return state
+    return None
+
+
 def _cancelling() -> bool:
     # A revocation or shutdown cancellation can turn into another exception
     # while the session closes; that message must stay unacknowledged.
@@ -127,6 +141,19 @@ async def _execute_with_retries(
                 raise
             fields = {**_position(message), "error_code": type(error).__name__}
             if attempt == attempts:
+                code = data_error_code(error)
+                if code is not None:
+                    # ACKs the batch; its offset is logged for reprocessing.
+                    logger.error(
+                        "activity batch skipped",
+                        extra={
+                            **fields,
+                            "error_code": code,
+                            "outcome": "skipped",
+                            "retryable": False,
+                        },
+                    )
+                    return
                 # Ends the Consumer without ACK; this position resumes it.
                 logger.error(
                     "activity batch failed",
