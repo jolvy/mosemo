@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b535ab11de716256cc07675c8063b1f6554ae864bd534f585b9ab01b823c85ca",
+  "pageVersion": "sha256:b5a26913429fadae7c9474a882c25f9561ed8327e5cfdeda9d8e4cf5b45cb407",
   "claims": [
     {
       "id": "claim_28b03ceb00064c7c92a5a9f450193c5f",
@@ -17,8 +17,8 @@
       "statement": "API·consumer·batch·migration은 같은 이미지 digest를 쓰고, batch는 중복 실행을 막기 위해 replicas=1·maxSurge=0이며 consumer에는 HTTP Service·probe가 없다.",
       "evidence": [
         {
-          "resource": "repo://infra/deployment/README.md#L7-L36",
-          "version": "repo-lines-v1:sha256:b1cc9e594c127d11926f08e668928cf75763be5c6ac053c379f2050810289e46:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwNGU3MmE0NDFjYTZjOTM0ZmQ5ZmUzM2UzMDE1M2EzYzBhNWU5ZjA1ZmExOWNjZTBhYTkyMzY2YWYzYmFkNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNzdhMmU5ZjhjNTZmNjEwYWUxZThkNzc4ZGVkOTExZTNkMTQ5YmUyMWRiOGQ1MzE0MjQ5N2I2ZDE1Njg2OTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmMjIxYWUxMDAzOWUzZDVjMGRmZDA1M2IzYjY5YjcxZmUxMjY1ZGVjMzBiM2E5MWI1YmZkZjk1OTI2YzJmYWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyZWZiNjA3YzNjMGY3MDQzNjc0MjQyMmFiM2E2NzgxMGI3MzAyYzk5NTg2MzdhMTQ0NWFlN2ZlNTRhNmJjZmEifQ"
+          "resource": "repo://infra/deployment/README.md#L7-L37",
+          "version": "repo-lines-v1:sha256:032c8a7c0cec89b92d5bdfd9c94d2b1991323214d52f70f9f57169cf46056cdb:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwNGU3MmE0NDFjYTZjOTM0ZmQ5ZmUzM2UzMDE1M2EzYzBhNWU5ZjA1ZmExOWNjZTBhYTkyMzY2YWYzYmFkNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNzdhMmU5ZjhjNTZmNjEwYWUxZThkNzc4ZGVkOTExZTNkMTQ5YmUyMWRiOGQ1MzE0MjQ5N2I2ZDE1Njg2OTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmMjIxYWUxMDAzOWUzZDVjMGRmZDA1M2IzYjY5YjcxZmUxMjY1ZGVjMzBiM2E5MWI1YmZkZjk1OTI2YzJmYWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyZWZiNjA3YzNjMGY3MDQzNjc0MjQyMmFiM2E2NzgxMGI3MzAyYzk5NTg2MzdhMTQ0NWFlN2ZlNTRhNmJjZmEifQ"
         }
       ]
     },
@@ -27,11 +27,11 @@
       "statement": "세션 사이 데이터는 보존하지 않으며 session-down.sh는 destroy 전에 Kafka StatefulSet·PVC와 Retain EBS 볼륨을 지운다.",
       "evidence": [
         {
-          "resource": "repo://infra/deployment/README.md#L119-L173",
+          "resource": "repo://infra/deployment/README.md#L120-L174",
           "version": "repo-lines-v1:sha256:ce275d5522b7b33f50f3becf7ce1237bee427155641d93a12432dafcafa405a2:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJjY2NiZmNiZDAzZGM4ODQ3MTRjNzQ5MjdmOTY1OWU1ZDMyNjI3YzdlZjhmMDhlMTRlYzJmODI5YzEyMjUwMzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkZmMyZjNlZjVmNDlmNzljMTRkMDc5NjdkYTdlZjllYjEyOGI3MjkxZDEyYWJlYTRkNjI1Yzk2YjhjN2I0NjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI4MjBiMmIwNDliZTY5YWFmYzJlZTg5YTk4ZmRlYTYyYzY1NzMzNzcxYjRiY2Y3ZjY3YzM0MzNmNTRjYzZjMGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3ZDIzMDc3YWM4NTZlZGRjOWZlNTQxOWM2ZDk0NGFhMDNjZjQ4MDQxZDcwZDk3ZGNmOGNiMTVjMTcxNzhiOTUifQ"
         },
         {
-          "resource": "repo://infra/deployment/README.md#L71-L81",
+          "resource": "repo://infra/deployment/README.md#L72-L82",
           "version": "repo-lines-v1:sha256:0d6f99f782d6583f1dd5d405cce57895b33f6befdf682952babf283b0d2c086f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMDc4OGY2ZWJkNGFmODU3MmE5MWQ0ZTIyYWJhOTQ0ZTI1NjEwOGZkMmI5ZjNiZGY2NDY0ZjEwN2Y0ZjRhMTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxZTVlNWE1MjFlY2M4MGExZWFhMTkwODYzMTU2ZTk4ZjI1MGNjNDNlZTE4NzM5OTFiZTUzN2FkMzI5MjRhYWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc5OTNlNzRmYjc2MzNlYTlhZTgwNjNkMTRhYjhiNjYxNTczN2E4ZjVjZWUwMTE3ODI3MTA2NTk2YmRiYzQ5NTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0MTQyMmZkNjIyOWY4NWM4NmY1ZWRkYmVlNzU3YjY1ZjM5OWYzNzhhNDkxZDUzYjE4ZWUxYWU3NGMyMDQ4M2QifQ"
         }
       ]
@@ -41,7 +41,7 @@
       "statement": "측정 프로필 세션은 loadgen 노드 그룹을 더하고 batch를 빼며 m7i.large 노드, app 4대, 토픽 파티션 8개, API·consumer 4 replica를 쓴다.",
       "evidence": [
         {
-          "resource": "repo://infra/deployment/README.md#L190-L203",
+          "resource": "repo://infra/deployment/README.md#L193-L206",
           "version": "repo-lines-v1:sha256:1f68d6c92b088d1d75adcf249bd266e91b5733c61510039fbc6d9d3e7dbab913:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwZTE0Y2RjNjEzMWVlZjRmZjg3MGIxZjE0OWQyOWUyYzI2YTdlYmYwMDkwNmUzOTkxZTljY2U3ZDlhZjVmYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkNDRlMjcwNTcyZGRkYTdjODMwMGY2ZmFjMDAyMGFjZWUzODI2MzQ3NjBjNzMxOTIzNWRlMGUyNzVlMDRkMWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEyZDU3ZTdmN2EzMGI0ZWY1NmVhZmZkMDE4NmIzN2MwYjFhNzJlNGM5MTU3OGIwM2QyMjIyZjVmODA0NzQ2YzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMyY2M4ZDcwNTE3YjNjOTI4NmRlMjA0YzE0ZDIzNzg0NGY1NGZjNDIxNWQ0NzYxMmRhOTNkZjU2ZDMzNTYzZjkifQ"
         }
       ]
@@ -51,7 +51,7 @@
       "statement": "measurement.lock이 있으면 session-up·deploy·session-down·measurement-ready는 AWS·kubectl·terraform 호출 전에 멈춘다.",
       "evidence": [
         {
-          "resource": "repo://infra/deployment/README.md#L163-L166",
+          "resource": "repo://infra/deployment/README.md#L164-L167",
           "version": "repo-lines-v1:sha256:83b54f8cdf2e1459f665824c75c2d8cbbbef37d41725e573969aa3ad1427403e:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWY2YjE4ZjQ3NTA4ZTQ4YjhjN2U1OGE3ZmEzODY1NTM4NTljYThmODNhOGIwMjJiODliNTljOWI4NzZjZTUyOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWNlOTFlZTAyOGFkNmRmMDc4OGM3OGUzYzAwYjUxMGRkN2U5OWVlMWJjZDlkZGY1ZDAwNGJjYzE1MjY2ODU3ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjU5NGIwYjIxOTc4ZTg2N2MxNzVjMGRlMWQyMTc0Mjg3MjAxNjQ3MmYwNzVhY2VkMTVlYjAzMmU4YjFmZGNiOCJ9"
         }
       ]
@@ -86,21 +86,21 @@
     },
     {
       "id": "claim_14220815c76844cdb82bda1c8672cf0a",
-      "statement": "consumer는 영구 실패·분류에 없는 예외 배치를 로그 후 ACK하고 건너뛰어 Pod 재시작 같은 신호가 없으므로 배포 뒤 로그의 outcome skipped·failed 줄로 확인해야 하며, 일시 실패를 5회 다 쓰면 ACK 없이 종료해 Kubernetes가 재시작한다.",
+      "statement": "consumer는 영구 실패·분류에 없는 예외 배치를 로그 후 ACK하고 건너뛰어 Pod 재시작 같은 신호가 없으므로 배포 뒤 로그의 outcome skipped·failed 줄로 확인해야 하며, 일시 실패를 5회 다 쓰면 ACK 없이 종료해 Kubernetes가 재시작한다. 단 마지막 예외가 SQLSTATE 22·23 DB 오류이면 ERROR 로그 후 ACK하고 건너뛴다.",
       "evidence": [
         {
-          "resource": "repo://infra/deployment/README.md#L175-L188",
-          "version": "repo-lines-v1:sha256:ba5f08112d0a5dd07549c149012953d150b792a60b79bba8ec65cbc561bd377c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzZGRmODAyMjViZGMwNWQ1ZjkzNDcyNTliZjU4MzVhMGZhMGZlNzMyNTMzZTA2OTFlM2NiMDIxNmEyY2ViNjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzMTc0YjllYWNmNjQ5MGJhZmRjMzgwN2Y0Zjg2MjdiMTg3MTRlZDliOWFlYWViZDhjNjU5ZTA1ODA1MjIyZjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEyZDU3ZTdmN2EzMGI0ZWY1NmVhZmZkMDE4NmIzN2MwYjFhNzJlNGM5MTU3OGIwM2QyMjIyZjVmODA0NzQ2YzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3ZDIzMDc3YWM4NTZlZGRjOWZlNTQxOWM2ZDk0NGFhMDNjZjQ4MDQxZDcwZDk3ZGNmOGNiMTVjMTcxNzhiOTUifQ"
+          "resource": "repo://infra/deployment/README.md#L175-L190",
+          "version": "repo-lines-v1:sha256:e8d048ad8fdeb1a847358542360d6bbdd8a654caaf7efbcef97c70b968de18eb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlNzYyNWM0OTFkNTM5MTkwODBjMDU4Mjg4ZTk1ZWI1NzRlYTAxZTI2ZTQ1M2UwNmZjNDEyYzliY2I1OWIwNzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg2YTQ3YzIzMDY4YmFmNmIwNWVlM2NlZDM0MTY1OThjZTM0YmNlYTBhMTczODY5N2QzYzM2MGZkOGM3ZmM0MWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcwMmE1MGI4YWQ0ZDEwNjQ3NDg1MzkwZjBhZjRhMjRmZWYwOWI1OWViOTI5NjFjMmIyMWMxYmY5MjU3OGYyYjIifQ"
         },
         {
-          "resource": "repo://infra/deployment/README.md#L29-L37",
-          "version": "repo-lines-v1:sha256:4cd32af528cc426dca688fe0f4c0d8e7f3ba865e332702a0a70e2b7227c6cda0:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjA2ODhhYTQwMmE4Y2RiNjRhZWMwNTBjYjdmNDFiMjRlZmM4MmNmNzQ3ODFjODZiODdhZGUxOWM1ZmY5ZTNhZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjZiZGZlMzE1YjM2ZmZiNjI1ZTA4MGM0NDA4MDVkZmU0MDZiYWQ2ODZjYjkwZGI1YTJiYWU3YzQzM2E1ZjIxOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjk0N2UyMTZkYjBmZGE4NTQ3M2I0OWEyZmViOTdmYTc5OTY0NjEzNTQyOTZlZjE1Y2I1ZTlhNjY1OTgyYzVlNyJ9"
+          "resource": "repo://infra/deployment/README.md#L29-L38",
+          "version": "repo-lines-v1:sha256:1843e470d36b108e9ef468c5ffcc0a00e37d608f8a382579afbcb88f041a0a54:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwNjg4YWE0MDJhOGNkYjY0YWVjMDUwY2I3ZjQxYjI0ZWZjODJjZjc0NzgxYzg2Yjg3YWRlMTljNWZmOWUzYWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI2YmRmZTMxNWIzNmZmYjYyNWUwODBjNDQwODA1ZGZlNDA2YmFkNjg2Y2I5MGRiNWEyYmFlN2M0MzNhNWYyMTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY5NDdlMjE2ZGIwZmRhODU0NzNiNDlhMmZlYjk3ZmE3OTk2NDYxMzU0Mjk2ZWYxNWNiNWU5YTY2NTk4MmM1ZTcifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T12:16:52.428Z"
+    "at": "2026-11-28T10:22:43.083Z"
   }
 }

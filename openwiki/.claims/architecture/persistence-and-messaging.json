@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:a9215c2f855e80183fadf59449d4ee1ed91abfcf29001ae60193cfc0edf03dcc",
+  "pageVersion": "sha256:0ea03c329aa5052bd7e3bae412ad271fe9e535e4a9639b01303c6da9be6e1b92",
   "claims": [
     {
       "id": "claim_a8566894407046f1b480ac28882ee551",
@@ -79,11 +79,11 @@
       "statement": "활동 Consumer는 BATCH_ENABLED가 켜져 있어야 시작하고, 테이블 매핑과 analytics handler 등록 뒤 메시지마다 새 세션에서 observation의 배치 처리 UseCase를 호출한다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L181-L205",
+          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L208-L232",
           "version": "repo-lines-v1:sha256:3a7e46de8636c4310912c0849f7fd693131c10992805ab690d016ad3b7d7b09b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmMjIyYWFjNzMzMTQyOWVjYmYxODIzM2NlOGRiZjc5ZGM2YTMyN2MwYTdkYjE5NzIyZGNlYTU3YWZiZTlmNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NDc3NWU2MmIzY2E4ZDYwZGYwN2E5NWMyODIxYWExNGY1MTZkNTJmODZhMmVhNDFmZTZkMTQzNmNmOGJlYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4Y2Q4ZDAzZTBhMmRiMjM4YTM1NjYzMjllMGU4OGMyOWQ3ZDRkMzg3YjcwODFkYzRhZWNiZDI2OGIzNmRkN2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         },
         {
-          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L64-L84",
+          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L68-L88",
           "version": "repo-lines-v1:sha256:b8f6dcfa88212b42f78138fd85b37e37bce8292a4fc7dd28eddc7d53a18fb471:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxNThiZTA2YzMyYTYyMWYyY2I5MDlhNDM2NDRjMDk3MDViYWNhYmEzYTY3OGUyNTg3YjlkMjg3NzViMGU4YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1MDMyZTk2NGQwOTMyMzUxZTVkMTg1MjY5MjgxYjE3MWEzYTA5YjA4YjI4NmU2NjFlYTQ3MDMyM2M4MmViNGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQxYjgwOTFkNDNiMWQxYWFmYzk5YmY3YTkyNGQ3NzkzYmZiMmIwN2FmNmQxMmQyZjhlYWEzM2RkMTY1MTA5MzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE5YjE0MGE2NzQ2NjU1MWRmMjE4MDFlMDYyM2ZjODNiNzhiNDM2MWY3M2U4MDMwMDZiMWUxNDNjNzZjNmNhZGMifQ"
         }
       ]
@@ -264,15 +264,15 @@
     },
     {
       "id": "claim_d0c618f6c61b46ba8cdb28e36c9ea7e8",
-      "statement": "Consumer는 영구 실패(InvalidBatchMessageError, TerminalBatchError)와 분류에 없는 예외는 로그 후 ACK하고 건너뛰며, 일시 실패(잠금 경합, DB 오류, 풀 대기 초과, OSError)는 최초 포함 5회·1/2/4/8초 대기로 재시도하고 모두 실패하면 예외를 올려 ACK 없이 종료한다.",
+      "statement": "Consumer는 영구 실패와 분류에 없는 예외는 로그 후 ACK하고 건너뛰며, 일시 실패는 최초 포함 5회·1/2/4/8초 대기로 재시도한다. 모두 실패하면 ACK 없이 종료하지만, 마지막 예외가 SQLSTATE 22·23으로 시작하는 DBAPIError이면 ERROR 로그 후 ACK하고 건너뛴다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L114-L178",
-          "version": "repo-lines-v1:sha256:115bbc30ccb189630dddd2ced8a9809d1d0cef8808302250deb18a7254ea2455:eyJzZWxlY3RlZExpbmVDb3VudCI6NjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlMDI5YzdlYjZjYTkxMTRjNjkwYjY3NTBhMTM3OTQxYjEyYWNkMDJhMjM5OGZlMzJjZjk1ODY2MjMzZDk1NTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5YzFmY2RlYzE1ZWFmZTIwMDk5N2YzZmVlOWViMTg4Yzk4NmQzMTNiYjg4MDU0MWU5YjJhN2RiNGQyYWI5YzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFiZjAwOTQ3ODk1ZTI4MGI5NDE2YTBiMGMyM2Q1YTRhNWQ3ODg1ZWNhNzY5YThkM2Q2YWE3ZTIwZmU2YmEwYTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4NWYwNDAxOTBmYjIzZDkzMzhmNTNhMGEzN2Q2NDQyNWM0ODNkNzQ5N2I4NjAxN2ViNjU5Y2E5MzEyNmU1ZWIifQ"
+          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L111-L174",
+          "version": "repo-lines-v1:sha256:52d0f542509b6ff21764fcd921806aaff7359a0b3d5865067be0b3b42d5a71cc:eyJzZWxlY3RlZExpbmVDb3VudCI6NjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmZTU0NWVjMmEzODk3OTJiMGFlYzhjZWQwZGFiYzkzMjc3OWM5MzkyOTEyNzkxMjZlYmY1ODAxZDBlNDY1YWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjMjgwZTQ2MjdjYWUxMGRhMzM0MWM1ZjIwN2QwNmE4YTdjMTFjYjI0NjUwODMzYTQxMDlmMWQyY2M1NjFhNjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmYmQwMDkzMTRiYzI3MDg0MTY3MzRhMDJhZTVmZjM5YTFlNDhhMDUwYmU5MWY0M2IyZmFhOTIwMDJjNjJiZmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM1ZjQ1YWM1YTliNzJjMmY3YWUzYTI5ODFmNGQ4NjZjYzc1OTRjMDUxNTE3YzYxNWM5NDY5NWNjMmFkY2Y2ZjUifQ"
         },
         {
-          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L35-L45",
-          "version": "repo-lines-v1:sha256:4d8f7de3cb73d1280c3914b14a35dcd52955bd90f4024bfc4192266304719800:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwNmE0ZTJkYjc1NzAyMjY4MjFmZWU1NDljYWZlNzg5NmI1MmUzNmI0OTE0MGZlMjMzNGM0MjMyODE1MWNjMjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxZjQ4NDUyM2ZlODlmMzBiNDgwMjU4YjIwODViYWY0ZTEwMDA2Y2JhODk4NDIxNWU1ZGIyM2IwMjNkY2VmYTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1YzFjNDYyZTJhMzlkNzQ3NTlmNWUxYjEyNmY3NjgzYTJiNzMwMTE4ZTE4ZjUxMjJiMDhjZWRlZWI2NTBlMjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZhNGQ2YWY5N2MyZjcwMWZiYzFmZjE0OGYxMjI3NGVhMWY5MTQ1MDFmZjFlNGJlYTE1NTI4NjM2MWUyYzMzNTIifQ"
+          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L33-L49",
+          "version": "repo-lines-v1:sha256:ac1ce438c0c220b6036c1f45d9e9cc99996eda9373fce1136c514bdef77ba41d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiNDNmZDkzMzRjZGQ4YTkwNGIzMDA5MzQ4NDAxOTVhZmY0YjUxYmExOWY5YzJlNTQxNDI0OTk0OThiMmY0YTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwNzdmYjU1ZjZjNmJkODM0MjY5MTJkNjUzZTYxOGYyNWUzNzMxZDdkYmEzZjc2MzQzODlmODY0YjVmMmFjMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNiODI3ZmJjNzhkYjQ0OTk0NWNjMzFjZTQ1MGI3MTA4ZWVhYzZkNjRmMTIwNzk4NWFjYmE4OTY0N2I1ZjlkNWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZhNGQ2YWY5N2MyZjcwMWZiYzFmZjE0OGYxMjI3NGVhMWY5MTQ1MDFmZjFlNGJlYTE1NTI4NjM2MWUyYzMzNTIifQ"
         }
       ]
     },
@@ -281,11 +281,11 @@
       "statement": "예외를 잡았을 때 현재 task가 취소 중이면 Consumer는 건너뛰거나 재시도하지 않고 예외를 그대로 올려 해당 메시지를 ACK하지 않는다.",
       "evidence": [
         {
-          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L107-L111",
+          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L121-L125",
           "version": "repo-lines-v1:sha256:59a69374559bc7f31629b7928593d5be376539006b1b7b8f0fc873bd885a984d:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2UxZjQ4NzRjZjcxYWExNmUyYTA4MTY2MjFhN2Q4YTM0OTlkNGZiZmVhNWNhYmQxYTA2ZmUzMzczMzliZTZjYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWRkMTM2Y2VjNjg3MjMzYWY0N2JlYzIzN2ZhNjdjZjU4YTA5NDkxNjRjZTViOWUxMGFhOGEzNmZmZjYxZTRmMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGZiZDAwOTMxNGJjMjcwODQxNjczNGEwMmFlNWZmMzlhMWU0OGEwNTBiZTkxZjQzYjJmYWE5MjAwMmM2MmJmYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWQxYzhiNmE4OGMzN2U1Y2I0MDI2NjQyZDgzYzM4NDY3M2ZjMDhlZDNmY2EzMDc0NWUyODAxMWUyYWUyYTYzNyJ9"
         },
         {
-          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L157-L178",
+          "resource": "repo://src/mosemo/entrypoints/consumer/activity_batches.py#L184-L205",
           "version": "repo-lines-v1:sha256:948d8bd554d3744e6511a8887a83e6c1b97c08a111d9068888998d5a13c8f879:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiZWIxYjI3Y2I3MGRiODY1ZDc5ZmM4ODU0NGYwNGQ3OTlmYWYwYTdmOTM4NjQ2NGU0MTUzODJkNTc0NDkxYWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5YzFmY2RlYzE1ZWFmZTIwMDk5N2YzZmVlOWViMTg4Yzk4NmQzMTNiYjg4MDU0MWU5YjJhN2RiNGQyYWI5YzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBjZGE0MmQwNjhlYmYzODdiMmFlOWUwNTJiNWY2MTUyMDY5M2U3Y2UwNjc5MjljNWZlYjY2MTFkNjQ2MDk0NTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4NWYwNDAxOTBmYjIzZDkzMzhmNTNhMGEzN2Q2NDQyNWM0ODNkNzQ5N2I4NjAxN2ViNjU5Y2E5MzEyNmU1ZWIifQ"
         }
       ]
@@ -307,6 +307,6 @@
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T14:16:24.936Z"
+    "at": "2026-11-28T10:22:43.083Z"
   }
 }

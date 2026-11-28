@@ -5,7 +5,7 @@ description: dataclass aggregate와 imperative mapping, 트랜잭션 헬퍼와 �
 tags: [persistence, sqlalchemy, domain-events, kafka, batch-jobs, alembic]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T14:16:24.936Z
+    at: 2026-11-28T10:22:43.083Z
 sources:
   - id: openwiki-source-d1449bb9b8fd8b54431d973d
     resource: repo://docs/adr/0004-project-observation-timeline-on-write.md
@@ -57,7 +57,7 @@ sources:
     resource: repo://src/mosemo/shared/application/events.py
   - id: openwiki-source-bf64c7f959111123b762b90b
     resource: repo://tests/integration/platform/test_transactions.py
-generated: { by: "claude-code", at: "2026-11-22T14:16:24.936Z" }
+generated: { by: "claude-code", at: "2026-11-28T10:22:43.083Z" }
 ---
 
 # 영속성·메시징·배치 실행
@@ -151,11 +151,11 @@ sequenceDiagram
 | 종류 | 예외 | 처리 |
 | --- | --- | --- |
 | 영구 실패 | `InvalidBatchMessageError`, `TerminalBatchError` | 재시도 없이 WARNING 로그 후 ACK, 다음 메시지로 진행 |
-| 일시 실패 | `ActivityTimelineBusyError`, `DBAPIError`, 연결 풀 `TimeoutError`, `OSError` | 같은 메시지를 최초 포함 5회까지 재시도(대기 1·2·4·8초, jitter 없음, 시도마다 새 세션·트랜잭션). 모두 실패하면 ERROR 로그 후 ACK 없이 Consumer 종료 |
+| 일시 실패 | `ActivityTimelineBusyError`, `DBAPIError`, 연결 풀 `TimeoutError`, `OSError` | 같은 메시지를 최초 포함 5회까지 재시도(대기 1·2·4·8초, jitter 없음, 시도마다 새 세션·트랜잭션). 모두 실패하면 ERROR 로그 후 ACK 없이 Consumer 종료. 단 마지막 예외가 SQLSTATE 22·23으로 시작하는 `DBAPIError`이면 ERROR 로그(`error_code`=SQLSTATE) 후 ACK하고 건너뛴다 |
 | 그 밖의 예외 | 위에 없는 모든 `Exception` | 재시도 없이 ERROR 로그(`logger.exception`) 후 ACK, 다음 메시지로 진행 |
 
 - 건너뛴 배치의 원문은 따로 보관하지 않는다. 토픽 보관 기간 동안 Kafka에 남고 로그의 `topic`·`partition`·`offset`으로 찾는다. 같은 Device의 뒤 배치는 보류하지 않는다. 관찰 타임라인이 역순 도착을 재구성하기 때문이다(ADR 0008).
-- 일시 실패를 다 쓰면 건너뛰지 않고 끝낸다. offset이 그대로라 장애가 풀린 뒤 이어서 처리한다.
+- 일시 실패를 다 쓰면 건너뛰지 않고 끝낸다. offset이 그대로라 장애가 풀린 뒤 이어서 처리한다. 예외는 5회째 실패의 `DBAPIError`가 SQLSTATE 22(데이터 예외)·23(무결성 제약 위반)인 경우다(`data_error_code`, `error.orig.sqlstate`가 문자열일 때만). DB가 배치 자체를 거절한 것이라 다시 처리해도 같으므로 건너뛰며, 1~4회째 DB 오류는 SQLSTATE와 관계없이 재시도한다. 연결·교착 같은 나머지 DB 오류는 계속 Consumer를 끝낸다.
 - 예외를 잡았을 때 현재 task가 취소 중(`task.cancelling() > 0`)이면 건너뛰거나 재시도하지 않고 그대로 올려, 취소가 다른 예외로 바뀌어도 ACK하지 않는다.
 - 로그에는 `operation="activity_batch_consume"`과 메시지 위치를 담고 계정·기기 식별자와 메시지 내용은 넣지 않는다.
 

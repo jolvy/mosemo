@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b0ad7cc7cdb5b54a3fd2a3c7e59ac012a34a195bc9d300e9421fb1c6c57c3c2d",
+  "pageVersion": "sha256:893e3c42f73689eaf96259121aacb92c6ebc6c55d3939973d3bfd9889dbee017",
   "claims": [
     {
       "id": "claim_efe0b064e0a343819b7259e37e76b304",
@@ -62,11 +62,11 @@
     },
     {
       "id": "claim_24b048604a76453f913da7c8dbdb2e7e",
-      "statement": "활동 배치 PRD는 처리하지 못한 배치를 영구 실패·분류 없는 예외(건너뜀, 원문 미보관, 같은 Device 뒤 배치 보류 없음)와 일시 실패(최대 5회 재시도 후 ACK 없이 종료)로 나눠 다룬다.",
+      "statement": "활동 배치 PRD는 처리하지 못한 배치를 영구 실패·분류 없는 예외(건너뜀, 원문 미보관, 같은 Device 뒤 배치 보류 없음)와 일시 실패(최대 5회 재시도 후 ACK 없이 종료, 단 마지막 예외가 SQLSTATE 22·23인 DBAPIError이면 건너뜀)로 나눠 다룬다.",
       "evidence": [
         {
           "resource": "repo://docs/prd/activity-batches.md#L176-L196",
-          "version": "repo-lines-v1:sha256:0f3fc4fe4baf40637a5cdee350e761233e0e9274fc8a697a2ce29a52cccc5854:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwMzViNjA5NGFmMjZlYzg0YWE0MjM2M2YxYWYxY2VmYmYzN2JiNWQwNTgyNTUyYjE4OGMwMDA2NTNlYzFkZTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4Njg5MGUxZTljNTMwOTAyMzU3MDJhODg1NDgwNmU1Yjg0MmU3YTcxMjFkYTY3MDk0NDFkMzYzMDg1MjJhMzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBhZGI0Yjk1NjA1NzMzZWZlZmIyOTc3OGU2MTgyZTZjOGMyYzU1MDY1OTk3YzUwMjRjNzZkZGUzMDE5ZTZlODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJkMDc1NzE4ZjlhNzIzNjZmZTU1NDFhZmYwOTU1MzNhYjczYzkwNzMzOWJmN2JiZmEzNGUxZDZmZTg0Y2YyNmEifQ"
+          "version": "repo-lines-v1:sha256:706c788561166dceb9994be0cbe2cd3d1fbe0349214f79a517e3570ad6d2e7a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwMzViNjA5NGFmMjZlYzg0YWE0MjM2M2YxYWYxY2VmYmYzN2JiNWQwNTgyNTUyYjE4OGMwMDA2NTNlYzFkZTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4Njg5MGUxZTljNTMwOTAyMzU3MDJhODg1NDgwNmU1Yjg0MmU3YTcxMjFkYTY3MDk0NDFkMzYzMDg1MjJhMzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBhZGI0Yjk1NjA1NzMzZWZlZmIyOTc3OGU2MTgyZTZjOGMyYzU1MDY1OTk3YzUwMjRjNzZkZGUzMDE5ZTZlODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJkMDc1NzE4ZjlhNzIzNjZmZTU1NDFhZmYwOTU1MzNhYjczYzkwNzMzOWJmN2JiZmEzNGUxZDZmZTg0Y2YyNmEifQ"
         }
       ]
     },
@@ -83,6 +83,6 @@
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T12:16:52.428Z"
+    "at": "2026-11-28T10:22:43.083Z"
   }
 }
