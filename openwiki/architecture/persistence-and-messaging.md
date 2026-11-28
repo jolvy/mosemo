@@ -5,7 +5,7 @@ description: dataclass aggregate와 imperative mapping, 트랜잭션 헬퍼와 �
 tags: [persistence, sqlalchemy, domain-events, kafka, batch-jobs, alembic]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T14:16:24.936Z
+    at: 2026-11-28T08:54:24.396Z
 sources:
   - id: openwiki-source-d1449bb9b8fd8b54431d973d
     resource: repo://docs/adr/0004-project-observation-timeline-on-write.md

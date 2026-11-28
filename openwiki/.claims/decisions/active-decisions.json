@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:55ac3b9b730711b8e96ed99dc1638e636045e0ed8152f86fc9ea026f76e2ebd6",
+  "pageVersion": "sha256:e33f75e895ffe60835c58e329f422970c19140396746e5dee5e7a3c374acda06",
   "claims": [
     {
       "id": "claim_93af9bd871914769b8fa49b637ad6f5f",
@@ -95,16 +95,6 @@
       ]
     },
     {
-      "id": "claim_948735907b07476b9964532335011f72",
-      "statement": "ADR 0016(활동 분석은 조회 때 계산하고 지난 날짜의 일간 통계만 변경 표시와 배치로 저장)은 status: proposed라서 유효한 결정 목록에 들어가지 않는다.",
-      "evidence": [
-        {
-          "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L1-L5",
-          "version": "repo-lines-v1:sha256:fe888220907e4c5b19be5fc821cb37a9eb7c1fca9d06a88ba1050704b223cdb4:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTEyZTdkYWM1ZWM3OTE2NjczNDZlYzZlZDZmYWI5NWY5MjBkNWFkMzM2NTIxOThhM2FhYmUxYTM2MWY2YmY2YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWJmYjA3Y2E1ZmE3YWFlYjRjNjBlMGVhYmYwODQ5YzM4ZWQ5M2IxZGM5ZDU1NDY0N2NhZWI0YzA4ZjZmYjUwYiJ9"
-        }
-      ]
-    },
-    {
       "id": "claim_9a4b2db09b094c56948a2458504a30c7",
       "statement": "ADR 0014의 BC별 오류 코드 접두사 표는 analytics의 AnalyticsErrorCode에 ANALYTICS_ 접두사를 배정한다.",
       "evidence": [
@@ -116,11 +106,11 @@
     },
     {
       "id": "claim_cb30e1c34e344b3cb2cb3f5e2156a7d3",
-      "statement": "ADR 0016은 status: proposed이며, 예산이 끝나 처리하지 못한 선점 날짜는 같은 version일 때만 attempts를 1 되돌리고 next_attempt_at을 실행 시작 시각으로 당기는 조항을 담는다.",
+      "statement": "ADR 0016은 status: accepted이며, 예산이 끝나 처리하지 못한 선점 날짜는 같은 version일 때만 attempts를 1 되돌리고 next_attempt_at을 실행 시작 시각으로 당기는 조항을 담는다.",
       "evidence": [
         {
           "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L1-L4",
-          "version": "repo-lines-v1:sha256:70478286e141330018fb5336e98e3a5c9592f089bcac4fa2868fe9f00d41b226:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmQ0NDkyZGU4ZTkyYTg4YzIwYTkzMjM4ZTUwYTkzNTNiYTJjMTQ4ZjIyNGQ5MTM5YzMyMTQ4OWU2MDIzZTg0MyJ9"
+          "version": "repo-lines-v1:sha256:67d18f6e1dfe6a46e7e728f1eeddd5d2f53021eece60da52a9d3b176e5afc618:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmQ0NDkyZGU4ZTkyYTg4YzIwYTkzMjM4ZTUwYTkzNTNiYTJjMTQ4ZjIyNGQ5MTM5YzMyMTQ4OWU2MDIzZTg0MyJ9"
         },
         {
           "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L196-L199",
@@ -171,10 +161,20 @@
           "version": "repo-lines-v1:sha256:1e71b347dc4705659e0ef65c22ed64ae4685a404088119f366ed4834147ca147:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhNTc3ZjgzZWNjZWQzMzI5OTcxMzNkMDU2NDAzNTY5M2U2M2UzYTY2ZmQ1YWVjNmQ2MDQwMDVjY2NlZTA5NTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdjNzU0ZjhlZGZjMjlhMGU5MjZlNzJlOGM1Yjg0NjZmZjZmN2RlYjFkZDFiMjU3YzJlMmE0NjE1M2QwOWRmNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJiM2U4MThkZmE4MTU2NmZiZmNhZjUzM2Y2ZGQ1OTgxOGU1YjRjMGUxZTI4MTUxNTk3NDVjNjUxNzBlMGQwZWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMwYTliODIxYWY1NWE3ZTYwM2YxNDY0YmQ3Mzg3NjY3MWQyNzBiNzQ4OTllMjIwNGMwMTA2ZjcyNGRmMGZjNWIifQ"
         }
       ]
+    },
+    {
+      "id": "claim_040016e92eae4689a9239f389ecd9c40",
+      "statement": "ADR 0016(활동 분석은 조회 때 계산하고 지난 날짜의 일간 통계만 변경 표시와 배치로 저장)은 status: accepted라서 유효한 결정 목록에 들어간다.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L1-L5",
+          "version": "repo-lines-v1:sha256:53de6ec84b7c1485720205a9c50a16480832c274cfe99b6af42428c82e39b313:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTEyZTdkYWM1ZWM3OTE2NjczNDZlYzZlZDZmYWI5NWY5MjBkNWFkMzM2NTIxOThhM2FhYmUxYTM2MWY2YmY2YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWJmYjA3Y2E1ZmE3YWFlYjRjNjBlMGVhYmYwODQ5YzM4ZWQ5M2IxZGM5ZDU1NDY0N2NhZWI0YzA4ZjZmYjUwYiJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T14:16:24.936Z"
+    "at": "2026-11-28T08:54:24.396Z"
   }
 }

@@ -1,11 +1,11 @@
 ---
 type: decision-index
 title: 유효한 결정
-description: docs/adr의 ADR 중 앞부분 status가 accepted인 유효한 결정 목록과, 전체 대체(0002 → 0004)·부분 대체 관계, 아직 유효하지 않은 제안 ADR(0016)을 원본 ADR 링크와 함께 정리한다.
+description: docs/adr의 ADR 중 앞부분 status가 accepted인 유효한 결정 목록과, 전체 대체(0002 → 0004)·부분 대체 관계, 최근 accepted된 ADR 0016을 원본 ADR 링크와 함께 정리한다.
 tags: [adr, decisions, supersession]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T14:16:24.936Z
+    at: 2026-11-28T08:54:24.396Z
 sources:
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
@@ -39,7 +39,7 @@ sources:
     resource: repo://docs/adr/0015-group-entrypoints-and-platform-packages.md
   - id: openwiki-source-254df237bb9ef98aebc51d56
     resource: repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md
-generated: { by: "claude-code", at: "2026-11-22T14:16:24.936Z" }
+generated: { by: "claude-code", at: "2026-11-28T08:54:24.396Z" }
 ---
 
 # 유효한 결정
@@ -64,16 +64,11 @@ generated: { by: "claude-code", at: "2026-11-22T14:16:24.936Z" }
 | [0013](../../docs/adr/0013-persist-dataclass-aggregates-with-imperative-mapping.md) | dataclass aggregate와 imperative mapping으로 영속화하고, 쓰기는 UseCase·Repository, 읽기는 Query로 나눈다 | 없음 |
 | [0014](../../docs/adr/0014-align-public-identifiers-and-error-codes-with-contexts.md) | 오류 코드는 BC가 소유하고 공개 식별자·오류 코드 이름을 BC 경계에 맞춘다. BC별 허용 접두사 표에 analytics의 `AnalyticsErrorCode`(`ANALYTICS_`)도 있다 | 0001을 부분 대체 |
 | [0015](../../docs/adr/0015-group-entrypoints-and-platform-packages.md) | 진입점을 `entrypoints`로 묶고 기술 기반을 `platform`으로 재구성하며 설정 소유 규칙을 정한다 | 0011을 부분 대체 |
+| [0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md) | 활동 분석은 조회 때 계산하고, 지난 날짜의 일간 통계만 변경 표시와 배치로 저장한다. 앞선 15분 칸 저장 초안을 하루 활성 사용자 1천 명 목표로 다시 검토한 결과다 | 없음 |
 
-## 제안 중인 결정
+## ADR 0016 (accepted)
 
-`status: proposed`인 ADR은 아직 유효한 결정이 아니므로 위 목록에 넣지 않는다. 받아들여지면 `accepted`로 바뀐다.
-
-| ADR | 제안 요지 |
-| --- | --- |
-| [0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md) | 활동 분석은 조회 때 계산하고, 지난 날짜의 일간 통계만 변경 표시와 배치로 저장한다. 앞선 15분 칸 저장 초안을 하루 활성 사용자 1천 명 목표로 다시 검토한 결과다 |
-
-ADR 0016은 아직 `proposed`지만 `analytics` BC 구현(조회 API, 다시 계산 표시 handler, 일간 통계 테이블과 배치 job)과 `consistent_snapshot` 헬퍼가 이 제안을 바탕으로 들어왔다. 구현 중 리뷰에서 나온 조항(예: 시간 예산이 끝나 처리하지 못한 선점 날짜는 같은 version일 때만 시도 횟수를 되돌리는 규칙)도 이 ADR에 더해진다. 내용은 [활동 분석](../domain/activity-analytics.md)을 본다.
+ADR 0016은 `status: accepted`(2026-11-12)이며 위 목록에 포함된다. `analytics` BC 구현(조회 API, 다시 계산 표시 handler, 일간 통계 테이블과 배치 job)과 `consistent_snapshot` 헬퍼가 이 결정을 바탕으로 한다. 시간 예산이 끝나 처리하지 못한 선점 날짜는 같은 version일 때만 attempts를 1 되돌리고 `next_attempt_at`을 실행 시작 시각으로 당기는 조항도 이 ADR에 있다. 내용은 [활동 분석](../domain/activity-analytics.md)을 본다.
 
 ## 대체된 결정
 
@@ -107,7 +102,7 @@ graph RL
 
 - [현재 구조](../architecture/current-structure.md): ADR 0011·0015가 정한 패키지 구조
 - [영속성·메시징·배치 실행](../architecture/persistence-and-messaging.md): ADR 0004·0006·0007·0008·0010·0012·0013의 현재 구현
-- [활동 분석](../domain/activity-analytics.md): 제안 ADR 0016의 설계와 근거 문서
+- [활동 분석](../domain/activity-analytics.md): ADR 0016의 설계와 근거 문서
 - [유효한 기획](active-prds.md): 같은 방식으로 정리한 유효한 PRD 목록
 
 `docs/adr/`·`docs/prd/`를 열거하거나 검색하기 전에 이 페이지와 [유효한 기획](active-prds.md)에서 현재 유효한 문서를 먼저 확인하고 링크된 원본으로 확정한다. 이 규칙은 [AGENTS.md](../../AGENTS.md) 「기획·결정 확인」에 있다.
