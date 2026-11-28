@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:70a49adcdf97b473919b0ee27bf2c3e3bfba9a5a920b3f9dd7ff933f88615482",
+  "pageVersion": "sha256:6eaf3a8e1cc6e7495ab78c5e92c75a7e29c25146fa21050b171da2a0cf026668",
   "claims": [
     {
       "id": "claim_93af9bd871914769b8fa49b637ad6f5f",
@@ -144,11 +144,11 @@
     },
     {
       "id": "claim_fbf6d17122a74e86860dc8eabebf8089",
-      "statement": "ADR 0006은 Issue #349로 처리 실패 정책을 정했다: 영구 실패와 분류에 없는 예외는 로그 후 ACK하고 그 배치만 건너뛰며 원문을 보관하거나 같은 Device 뒤 배치를 보류하지 않고, 일시 실패는 5회 재시도 뒤 ACK 없이 Consumer를 끝낸다.",
+      "statement": "ADR 0006은 처리 실패 정책으로 영구 실패와 분류에 없는 예외를 로그 후 ACK하고 건너뛰며 원문 보관·Device별 보류를 하지 않고, 일시 실패는 5회 재시도 뒤 ACK 없이 Consumer를 끝내되 마지막 예외가 SQLSTATE 22·23인 DBAPIError이면 건너뛴다(Issue #349, #380).",
       "evidence": [
         {
-          "resource": "repo://docs/adr/0006-deliver-activity-batches-through-kafka.md#L66-L110",
-          "version": "repo-lines-v1:sha256:a1ea1583935d8f2873e395ed36f103d112799903a264fc6d3995f82c4f705de4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjNzI3NzI3MGI4Y2ZhNDEzZTg4NmU4NGViYmRlMzAwZmYxMzljM2NkZjFhM2ZkYjEzODc0OTNiNGJhNzg4MGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3MGQzNTI1NDZlNmUwM2NhMGEyODc0OTQ0MWJkM2FkMmRjOGZlOGI5MWM5MzI3ZDA0OTc0Y2ViMmRhY2JiYTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzNzM5Zjk3ZTYwN2MyMGQ1ZjgxMzE2ZWEyMDY4NzJiMGVjZWFhNDYyMjA1MThjMDNjZGZmNzhlZmE0ZDk2YTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZkM2IwMTFhYWNmM2ZhMzU1ZWQ3ZWQ2ZjhkZThkZGUwMTJhYzVhNGQzNDg4M2E1YzAxM2Y5YzA1ZjI1MTU1MzMifQ"
+          "resource": "repo://docs/adr/0006-deliver-activity-batches-through-kafka.md#L66-L125",
+          "version": "repo-lines-v1:sha256:fd979e62413584c5275db38117b1ec740da5ec781c409c08a4abe019431198c3:eyJzZWxlY3RlZExpbmVDb3VudCI6NjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjNzI3NzI3MGI4Y2ZhNDEzZTg4NmU4NGViYmRlMzAwZmYxMzljM2NkZjFhM2ZkYjEzODc0OTNiNGJhNzg4MGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzNzM5Zjk3ZTYwN2MyMGQ1ZjgxMzE2ZWEyMDY4NzJiMGVjZWFhNDYyMjA1MThjMDNjZGZmNzhlZmE0ZDk2YTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2NDZjMTk4ZGE5MTE5NGQzNzBjMzcwM2ZmMjJmOTcwODQ2NzY4YmI4MWFmNTIzMmJhNTE2ZTQ5YmQzODllYjEifQ"
         }
       ]
     },
@@ -157,7 +157,7 @@
       "statement": "ADR 0006은 Issue #369로 Kafka 발행을 acks=1·producer idempotence 미사용으로 바꿨고, 복제 전 리더 장애로 인한 수락 배치 유실을 감수하며 재전송 중복은 receipt가 막는다.",
       "evidence": [
         {
-          "resource": "repo://docs/adr/0006-deliver-activity-batches-through-kafka.md#L149-L158",
+          "resource": "repo://docs/adr/0006-deliver-activity-batches-through-kafka.md#L159-L168",
           "version": "repo-lines-v1:sha256:1e71b347dc4705659e0ef65c22ed64ae4685a404088119f366ed4834147ca147:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhNTc3ZjgzZWNjZWQzMzI5OTcxMzNkMDU2NDAzNTY5M2U2M2UzYTY2ZmQ1YWVjNmQ2MDQwMDVjY2NlZTA5NTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdjNzU0ZjhlZGZjMjlhMGU5MjZlNzJlOGM1Yjg0NjZmZjZmN2RlYjFkZDFiMjU3YzJlMmE0NjE1M2QwOWRmNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJiM2U4MThkZmE4MTU2NmZiZmNhZjUzM2Y2ZGQ1OTgxOGU1YjRjMGUxZTI4MTUxNTk3NDVjNjUxNzBlMGQwZWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMwYTliODIxYWY1NWE3ZTYwM2YxNDY0YmQ3Mzg3NjY3MWQyNzBiNzQ4OTllMjIwNGMwMTA2ZjcyNGRmMGZjNWIifQ"
         }
       ]
@@ -175,6 +175,6 @@
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-28T08:56:05.513Z"
+    "at": "2026-11-28T10:22:43.083Z"
   }
 }
