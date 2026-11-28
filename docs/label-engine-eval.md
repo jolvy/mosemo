@@ -104,7 +104,7 @@ uv run --locked python scripts/label_eval_score.py \
 
 - A 계열은 `LABEL_MODEL`의 접두사(`openai:`, `google:`)로 모델을 만들고, 다른 접두사는 거부한다. 최대 시도는 운영 출력 검증 시도 3 × 공급자 SDK 기본 HTTP 시도(`openai:` 3, `google:` 1)다. 운영 어댑터를 그대로 쓰므로 SDK 재시도를 끄지 않는다.
 - B·C는 `httpx2`로 직접 한 번만 보낸다. 타임아웃은 30초다.
-- B·C 키(`OPENAI_API_KEY`, `AIMLAPI_API_KEY`, `OPENROUTER_API_KEY`)가 비었거나, 인쇄 가능한 ASCII가 아니거나, 앞뒤 공백이 있으면 호출 전에 종료 코드 2로 거부한다. 메시지에는 변수 이름만 나온다. 키 값은 결과·로그·오류 메시지에 남지 않는다.
+- A 키(`LABEL_MODEL` 공급자에 따라 `OPENAI_API_KEY`, `GOOGLE_API_KEY`)와 B·C 키(`OPENAI_API_KEY`, `AIMLAPI_API_KEY`, `OPENROUTER_API_KEY`)가 비었거나, 인쇄 가능한 ASCII가 아니거나, 앞뒤 공백이 있으면 호출 전에 종료 코드 2로 거부한다. 메시지에는 변수 이름만 나온다. A 키는 SDK의 다른 변수(`GEMINI_API_KEY`, `OPENAI_BASE_URL`)로 대신할 수 없다. 키 값은 결과·로그·오류 메시지에 남지 않는다.
 
 C 경로:
 

@@ -429,6 +429,144 @@ def test_bad_runs_are_refused_with_exit_two_before_any_call(
     assert out.exists() == (problem in {"bad-result-row", "bad-utf8"})
 
 
+A_KEY_VARIABLES = {
+    "openai:gpt-test": "OPENAI_API_KEY",
+    "google:gemini-test": "GOOGLE_API_KEY",
+}
+A_SECRET = "sk-DUMMYSECRET-a-key"
+
+
+def _clear_a_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    for variable in (*A_KEY_VARIABLES.values(), "GEMINI_API_KEY", "OPENAI_BASE_URL"):
+        monkeypatch.delenv(variable, raising=False)
+
+
+def _assert_a_refused(
+    code: int,
+    handler: Unavailable,
+    out: Path,
+    capsys: pytest.CaptureFixture[str],
+    variable: str,
+) -> None:
+    assert code == 2
+    assert handler.requests == []
+    assert not out.exists()
+    err = capsys.readouterr().err
+    assert err.startswith("rejected: ")
+    assert variable in err
+    assert "DUMMYSECRET" not in err
+
+
+@pytest.mark.parametrize("label_model", list(A_KEY_VARIABLES))
+@pytest.mark.parametrize("engine", ["a", "a-batch"])
+@pytest.mark.parametrize(
+    "secret",
+    [
+        None,
+        "",
+        f"{A_SECRET}-clé",
+        f"{A_SECRET}\x01x",
+        f"{A_SECRET}\n",
+        "sk-DUMMYSECRET\nmore",
+        f" {A_SECRET}",
+    ],
+    ids=[
+        "unset",
+        "empty",
+        "non-ascii",
+        "control",
+        "end-newline",
+        "mid-newline",
+        "lead-space",
+    ],
+)
+def test_unsendable_a_keys_are_refused_before_any_call(
+    label_eval_run: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    label_model: str,
+    engine: str,
+    secret: str | None,
+) -> None:
+    variable = A_KEY_VARIABLES[label_model]
+    _clear_a_keys(monkeypatch)
+    monkeypatch.setenv("LABEL_MODEL", label_model)
+    if secret is not None:
+        monkeypatch.setenv(variable, secret)
+    cases = write_cases(tmp_path / "cases.jsonl", [case_row(1)])
+    out = tmp_path / "results.jsonl"
+    handler = Unavailable()
+    argv = _argv(cases, out, "--engine", engine, "--max-requests", "9")
+
+    code = label_eval_run.main(
+        argv, http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    )
+
+    _assert_a_refused(code, handler, out, capsys, variable)
+
+
+@pytest.mark.parametrize(
+    ("label_model", "fallback"),
+    [("google:gemini-test", "GEMINI_API_KEY"), ("openai:gpt-test", "OPENAI_BASE_URL")],
+)
+def test_sdk_fallback_variables_do_not_stand_in_for_the_a_key(
+    label_eval_run: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    label_model: str,
+    fallback: str,
+) -> None:
+    _clear_a_keys(monkeypatch)
+    monkeypatch.setenv("LABEL_MODEL", label_model)
+    value = "http://127.0.0.1:9/v1" if fallback == "OPENAI_BASE_URL" else A_SECRET
+    monkeypatch.setenv(fallback, value)
+    cases = write_cases(tmp_path / "cases.jsonl", [case_row(1)])
+    out = tmp_path / "results.jsonl"
+    handler = Unavailable()
+    argv = _argv(cases, out, "--engine", "a", "--max-requests", "9")
+
+    code = label_eval_run.main(
+        argv, http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    )
+
+    _assert_a_refused(code, handler, out, capsys, A_KEY_VARIABLES[label_model])
+
+
+@pytest.mark.parametrize(
+    ("label_model", "header", "expected"),
+    [
+        ("openai:gpt-test", "authorization", f"Bearer {A_SECRET}"),
+        ("google:gemini-test", "x-goog-api-key", A_SECRET),
+    ],
+)
+def test_a_sends_the_checked_key_in_its_header(
+    label_eval_run: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    label_model: str,
+    header: str,
+    expected: str,
+) -> None:
+    _clear_a_keys(monkeypatch)
+    monkeypatch.setenv("LABEL_MODEL", label_model)
+    monkeypatch.setenv(A_KEY_VARIABLES[label_model], A_SECRET)
+    cases = write_cases(tmp_path / "cases.jsonl", [case_row(1)])
+    out = tmp_path / "results.jsonl"
+    handler = Unavailable()
+    argv = _argv(cases, out, "--engine", "a", "--max-requests", "9")
+
+    code = label_eval_run.main(
+        argv, http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    )
+
+    assert code == 0
+    assert handler.requests[0].headers[header] == expected
+    (row,) = read_rows(out)
+    assert row["error"] == "ModelHTTPError"
+
+
 # Decision models (B, C) --------------------------------------------------------
 
 DECISION_KEYS = {

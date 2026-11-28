@@ -32,7 +32,7 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 import httpx2
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai import Agent, ModelRetry
-from pydantic_ai.exceptions import AgentRunError, UserError
+from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.models import Model
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.models.openai import OpenAIResponsesModel
@@ -64,6 +64,8 @@ CHECK_ENGINES = frozenset({"oracle", "random"})
 # Output validation attempts (operational retries=2) x the provider SDK's HTTP
 # attempts with its default settings: openai max_retries 2, google no retry.
 MAX_ATTEMPTS = {"openai": 3 * 3, "google": 3 * 1}
+# The one variable each provider's key is read from; fallbacks are not accepted.
+A_KEYS = {"openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
 # The operational adapter's instructions, unchanged; a test checks they match.
 OPERATIONAL_INSTRUCTIONS = (
     "Choose the user's intended activity label from the supplied active labels. "
@@ -979,10 +981,9 @@ def _prepare(
     if label_model is None:
         engine, owned = _decision_engine(args, name=name, http_client=http_client)
         return engine, calls, owned
-    try:
-        model = build_model(label_model, http_client=http_client)
-    except UserError as exc:  # a missing API key; the message names only the variable
-        raise InputError(str(exc)) from exc
+    # The provider reads this same variable, so it sends the checked value.
+    _required_key(A_KEYS[label_model_provider(label_model)])
+    model = build_model(label_model, http_client=http_client)
     if args.engine == "a":
         return SingleEngine(model, max_attempts=max_attempts), calls, None
     return BatchEngine(model, max_attempts=max_attempts), calls, None
