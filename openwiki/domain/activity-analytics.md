@@ -1,11 +1,11 @@
 ---
 type: domain
 title: 활동 분석
-description: 활동 분석 C1~C7의 범위, 제안 ADR 0016을 바탕으로 구현한 analytics BC(일간 통계·세션 분석 조회 API, 다시 계산 표시 handler, 일간 통계 배치와 정의 재처리), 운영 절차, 근거 문서와 시험 자원을 정리한다.
+description: 활동 분석 C1~C7의 범위, ADR 0016을 바탕으로 구현한 analytics BC(일간 통계·세션 분석 조회 API, 다시 계산 표시 handler, 일간 통계 배치와 정의 재처리), 운영 절차, 근거 문서와 시험 자원을 정리한다.
 tags: [analytics, domain, daily-stats, adr-0016, batch-jobs, reference-implementation, protocol-model]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T12:16:52.428Z
+    at: 2026-11-28T08:56:05.513Z
 sources:
   - id: openwiki-source-b4c3599391634fa467609ba0
     resource: repo://docs/activity-analytics-operations.md
@@ -33,14 +33,14 @@ sources:
     resource: repo://tests/support/analytics_reference/__init__.py
   - id: openwiki-source-6d6144b7b2ba06f9c7310070
     resource: repo://tools/analytics_protocol_models/README.md
-generated: { by: "claude-code", at: "2026-11-20T11:18:18.429Z" }
+generated: { by: "claude-code", at: "2026-11-28T08:56:05.513Z" }
 ---
 
 # 활동 분석
 
 활동 분석은 관찰 타임라인(사실)·확정 라벨(사용자가 정한 의미)·집중 세션(사용자가 의도한 작업)을 합쳐, 하루 동안 어디에 시간을 썼고 얼마나 자주 오갔으며 집중 세션에서 무엇이 이탈을 만들었는지 보여 주는 기능이다. 세 원천의 권위는 바꾸지 않고, AI 추정이나 미관찰 시간의 추정은 결과에 넣지 않는다.
 
-**현재 상태**: 요구사항·지표 명세는 `status: draft`, 설계 ADR 0016은 `status: proposed`다. 그래도 `analytics` BC에는 조회 API 두 개, 다시 계산 표시 handler, 일간 통계 테이블과 배치 job이 구현되어 있다. 90일 지난 원천의 S3 이관과 동결(`frozen_before`)은 아직 코드에 없다. 원본 문서·코드와 이 페이지가 다르면 원본이 맞다.
+**현재 상태**: 요구사항·지표 명세는 `status: draft`, 설계 ADR 0016은 `status: accepted`다. `analytics` BC에는 조회 API 두 개, 다시 계산 표시 handler, 일간 통계 테이블과 배치 job이 구현되어 있다. 90일 지난 원천의 S3 이관과 동결(`frozen_before`)은 아직 코드에 없다. 원본 문서·코드와 이 페이지가 다르면 원본이 맞다.
 
 ## 분석 데이터 C1~C7
 

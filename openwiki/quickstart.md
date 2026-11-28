@@ -5,7 +5,7 @@ description: 처음 보는 사람을 위한 Mosemo 서버 온보딩과 위키 �
 tags: [onboarding, quickstart, setup, wiki]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T12:16:52.428Z
+    at: 2026-11-28T08:56:05.513Z
 sources:
   - id: openwiki-source-6d4b4e707b8d60b6ccfa3425
     resource: repo://.github/workflows/openwiki-update.yml
@@ -17,7 +17,7 @@ sources:
     resource: repo://pyproject.toml
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
-generated: { by: "claude-code", at: "2026-11-19T07:46:46.571Z" }
+generated: { by: "claude-code", at: "2026-11-28T08:56:05.513Z" }
 ---
 
 # Mosemo 서버 빠른 시작
@@ -99,7 +99,7 @@ git diff --cached --check
 | 기능 범위·API·도메인 용어 | [제품 기능과 도메인 용어](domain/product-overview.md) |
 | 테스트 분류·마커·검증·CI | [테스트와 검증](development/testing-and-verification.md) |
 | Skill 흐름·리뷰어·커밋 규칙·OpenWiki 생성물 보호 | [Engineering Harness 작업 흐름](development/engineering-harness.md) |
-| 활동 분석(C1~C7, 분석 API, 다시 계산 표시, 일간 통계 배치, 제안 ADR 0016) | [활동 분석](domain/activity-analytics.md) |
+| 활동 분석(C1~C7, 분석 API, 다시 계산 표시, 일간 통계 배치, ADR 0016) | [활동 분석](domain/activity-analytics.md) |
 | AWS EKS 랩, Terraform·Kubernetes, 세션·측정 스크립트 | [AWS EKS 랩과 측정 세션](operations/aws-eks-lab.md) |
 | 랩 부하 측정(측정 A·B, 7B 삭제 규모)과 측정 이력 | [부하 측정 도구](operations/load-measurement.md) |
 
