@@ -32,7 +32,8 @@ consumer에는 HTTP Service·가짜 HTTP probe를 붙이지 않는다. consumer 
 consumer는 형식 오류·영구 실패 배치(WARNING)와 분류에 없는 예외(ERROR)를 로그로 남기고 ACK한 뒤
 건너뛴다. 일시 실패(계정 잠금 초과, DB 오류, 연결 풀 대기 초과, `OSError`)는 프로세스 안에서 1·2·4·8초
 간격으로 총 5회 시도하고, 모두 실패하면 ACK 없이 프로세스를 종료해 Kubernetes가 재시작한다
-([ADR 0006](../../docs/adr/0006-deliver-activity-batches-through-kafka.md) 「처리 실패 정책」). 종료 유예 45초는
+([ADR 0006](../../docs/adr/0006-deliver-activity-batches-through-kafka.md) 「처리 실패 정책」). 다만 마지막 예외가
+SQLSTATE 22·23(값 오류·제약 위반)인 DB 오류이면 ERROR 로그를 남기고 ACK한 뒤 건너뛴다. 종료 유예 45초는
 consumer의 30초 drain보다 길게 두었다. API probes는 /openapi.json만 확인한다.
 
 ## 노드 배치와 자원
@@ -179,7 +180,9 @@ annotation에 복제하지 않는다. 디렉터리 전체를 일괄 apply하지 
 kubectl -n mosemo logs deploy/mosemo-consumer | grep -E '"outcome":"(skipped|failed)"'
 ```
 
-- ERROR 수준의 `"outcome":"skipped"` 줄은 분류에 없는 예외, 곧 코드 버그다. 버그를 고쳐 배포한 뒤
+- ERROR 수준의 `"outcome":"skipped"` 줄은 분류에 없는 예외, 곧 코드 버그다. 그 줄의 `error_code`가
+  다섯 글자 SQLSTATE(22·23으로 시작, 예: `23505`)이면 5회 재시도 뒤에도 DB가 값이나 제약 위반으로 거절한
+  DB 데이터 오류이며, 대부분 코드 버그이거나 스키마와 코드가 어긋난 환경 문제다. 원인을 고쳐 배포한 뒤
   Consumer group의 offset을 그 줄의 `topic`·`partition`·`offset`으로 되돌려 다시 처리한다. receipt가
   이미 처리한 배치를 걸러 중복이 생기지 않으며, 다시 읽을 수 있는 기간은 토픽 보관 기간까지다.
 - WARNING 수준의 `skipped`는 형식 오류·영구 실패라 다시 처리해도 같은 결과다.

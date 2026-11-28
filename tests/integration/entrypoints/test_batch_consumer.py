@@ -11,12 +11,15 @@ from uuid import uuid4
 import pytest
 from faststream import AckPolicy
 from faststream.kafka import KafkaBroker
+from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError
+from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from mosemo.entrypoints.consumer.activity_batches import (
     InvalidBatchMessageError,
     activity_batch_handler,
+    data_error_code,
     decode_batch,
     run_consumer,
 )
@@ -590,6 +593,16 @@ def failing(*errors: BaseException | None) -> AsyncMock:
     return AsyncMock(execute=AsyncMock(side_effect=list(errors)))
 
 
+class DriverError(Exception):
+    def __init__(self, sqlstate: object) -> None:
+        super().__init__("private")
+        self.sqlstate = sqlstate
+
+
+def db_error(state: object) -> DBAPIError:
+    return DBAPIError("SELECT 1", None, DriverError(state))
+
+
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("consumer_logs")
 async def test_terminal_failure_is_logged_and_acknowledged(caplog):
@@ -650,6 +663,9 @@ async def test_transient_failure_is_retried_until_it_succeeds(caplog):
         DBAPIError("SELECT 1", None, Exception("private")),
         PoolTimeoutError(),
         OSError("private"),
+        pytest.param(db_error("08006"), id="DBAPIError-08006"),
+        pytest.param(db_error("40P01"), id="DBAPIError-40P01"),
+        pytest.param(db_error(23505), id="DBAPIError-int-23505"),
     ],
     ids=type,
 )
@@ -718,3 +734,103 @@ async def test_failure_while_cancelling_is_not_skipped(caplog, error):
     with pytest.raises(error, match="cleanup"):
         await asyncio.create_task(consume())
     assert not caplog.records
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("consumer_logs")
+@pytest.mark.parametrize("state", ["22021", "23505"])
+async def test_data_error_is_skipped_after_five_attempts(caplog, state):
+    executor = failing(*[db_error(state)] * 5)
+    await activity_batch_handler(executor, retry_delays=NO_WAIT)(raw_message())
+    assert executor.execute.await_count == 5
+    *retries, skipped = formatted(caplog)
+    assert [(log["level"], log["outcome"]) for log in retries] == [
+        ("WARNING", "retrying")
+    ] * 4
+    assert skipped["level"] == "ERROR"
+    assert skipped["event"] == "activity batch skipped"
+    assert skipped["operation"] == "activity_batch_consume"
+    assert skipped["outcome"] == "skipped"
+    assert skipped["retryable"] is False
+    assert skipped["error_code"] == state
+    assert {k: skipped[k] for k in POSITION} == POSITION
+    assert "exception" not in skipped
+    assert all(log["outcome"] != "failed" for log in formatted(caplog))
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("consumer_logs")
+async def test_data_error_that_clears_within_retries_is_processed(caplog):
+    executor = failing(db_error("23505"), db_error("23505"), None)
+    await activity_batch_handler(executor, retry_delays=NO_WAIT)(raw_message())
+    assert executor.execute.await_count == 3
+    assert [log["outcome"] for log in formatted(caplog)] == ["retrying"] * 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("consumer_logs")
+async def test_data_error_on_last_attempt_while_cancelling_is_not_skipped(caplog):
+    calls = 0
+
+    async def execute(batch):
+        nonlocal calls
+        calls += 1
+        if calls == 5:
+            current = asyncio.current_task()
+            assert current is not None
+            current.cancel()
+        raise db_error("23505")
+
+    process = activity_batch_handler(AsyncMock(execute=execute), retry_delays=NO_WAIT)
+
+    async def consume():
+        await process(raw_message())
+
+    with pytest.raises(DBAPIError):
+        await asyncio.create_task(consume())
+    assert calls == 5
+    assert [log["outcome"] for log in formatted(caplog)] == ["retrying"] * 4
+
+
+async def raised_by(connection: AsyncConnection, *statements: str) -> Exception:
+    """Run statements in a new transaction and return what the DB raised."""
+    try:
+        async with connection.begin():
+            for statement in statements:
+                await connection.execute(text(statement))
+    except DBAPIError as error:
+        return error
+    raise AssertionError("the statements did not fail")
+
+
+@pytest.mark.asyncio
+async def test_real_database_errors_carry_the_sqlstate_the_consumer_reads(
+    integration_database_url,
+):
+    engine = create_async_engine(integration_database_url)
+    try:
+        async with engine.connect() as connection:
+            async with connection.begin():
+                await connection.execute(
+                    text("CREATE TEMP TABLE parents (id int PRIMARY KEY)")
+                )
+                await connection.execute(
+                    text(
+                        "CREATE TEMP TABLE children (parent_id int REFERENCES"
+                        " parents (id) DEFERRABLE INITIALLY DEFERRED)"
+                    )
+                )
+            duplicate = await raised_by(
+                connection,
+                "INSERT INTO parents VALUES (1)",
+                "INSERT INTO parents VALUES (1)",
+            )
+            overflow = await raised_by(connection, "SELECT 2147483647 + 1")
+            syntax = await raised_by(connection, "SELEC 1")
+            deferred = await raised_by(connection, "INSERT INTO children VALUES (2)")
+    finally:
+        await engine.dispose()
+    assert data_error_code(duplicate) == "23505"
+    assert data_error_code(overflow) == "22003"
+    assert data_error_code(syntax) is None
+    assert data_error_code(deferred) == "23503"

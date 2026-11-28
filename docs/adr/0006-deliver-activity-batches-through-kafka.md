@@ -73,23 +73,27 @@ Consumer 진입점(`src/mosemo/entrypoints/consumer/activity_batches.py`)에 둔
 | 종류 | 해당 예외 | 처리 |
 | --- | --- | --- |
 | 영구 실패 | `InvalidBatchMessageError`, `TerminalBatchError` | 재시도 없이 로그를 남기고 ACK한 뒤 다음 메시지로 넘어간다 |
-| 일시 실패 | `ActivityTimelineBusyError`, `sqlalchemy.exc.DBAPIError`, `sqlalchemy.exc.TimeoutError`(연결 풀 대기 초과), `OSError` | 프로세스를 유지한 채 같은 메시지를 재시도한다. 끝까지 실패하면 ACK 없이 프로세스를 끝낸다 |
+| 일시 실패 | `ActivityTimelineBusyError`, `sqlalchemy.exc.DBAPIError`, `sqlalchemy.exc.TimeoutError`(연결 풀 대기 초과), `OSError` | 프로세스를 유지한 채 같은 메시지를 재시도한다. 끝까지 실패했을 때 `DBAPIError`의 SQLSTATE가 22 또는 23으로 시작하면 ERROR 로그를 남기고 ACK한 뒤 건너뛴다. 그 밖에 끝까지 실패하면 ACK 없이 프로세스를 끝낸다 |
 | 그 밖의 예외 | 위에 없는 모든 `Exception` | 재시도 없이 ERROR 로그를 남기고 ACK한 뒤 다음 메시지로 넘어간다 |
 
 - 실패한 배치의 원문은 어디에도 따로 보관하지 않는다. DB 테이블과 별도 Kafka topic을
   만들지 않는다. 건너뛴 메시지는 토픽 보관 기간 동안 Kafka에 남고, 로그의 위치 정보로 찾는다.
 - 같은 Device의 뒤 배치를 보류하지 않는다. 건너뛴 배치만 빠지고 뒤 배치는 정상 처리한다.
 - 그 밖의 예외(분류에 없는 예외, 곧 코드 버그)도 Consumer를 멈추지 않고 건너뛴다.
-  Consumer가 끝나는 경우는 일시 실패를 5회 다 쓴 때뿐이다.
+  Consumer가 끝나는 경우는 일시 실패를 5회 다 썼고 마지막 예외가 SQLSTATE 22·23인
+  `DBAPIError`가 아닌 때뿐이다.
 - 재시도는 최초 시도를 포함해 총 5회이고 시도 사이 대기는 1·2·4·8초다. jitter는 두지
   않는다(Consumer가 하나라 동시 재시도가 몰리지 않는다). 시도마다 새 DB 세션과 새 트랜잭션을 쓴다.
-  DB 오류는 종류와 관계없이 일시 실패로 다룬다.
+  1~4회째의 DB 오류는 SQLSTATE와 관계없이 재시도하고, SQLSTATE는 5회째 실패에서만 본다.
+  SQLSTATE는 `getattr(error.orig, "sqlstate", None)`으로 읽으며 값이 없거나 문자열이 아니면
+  건너뛰지 않는다.
 - 예외를 잡았을 때 현재 task가 취소 중이면 건너뛰거나 재시도하지 않고 그대로 올려,
   partition 회수나 종료의 취소가 세션 정리 중에 다른 예외로 바뀌어도 ACK하지 않는다.
   대기 중 취소는 그대로 전파한다. 종료 신호가 와도 진행 중인 메시지의 재시도는 멈추지 않고
   drain 30초가 지나 취소될 때 끝난다. 잠금 경합의 최악은 3초×5 + 대기 15초 = 30초로
   Kubernetes 종료 유예 45초 안이다.
-- 건너뜀(영구 실패는 WARNING, 그 밖의 예외는 ERROR), 재시도(WARNING), 중단(ERROR)을
+- 건너뜀(영구 실패는 WARNING, 그 밖의 예외와 DB 데이터 오류는 ERROR. DB 데이터 오류는
+  `error_code`에 다섯 글자 SQLSTATE를 싣고 예외 정보를 넣지 않는다), 재시도(WARNING), 중단(ERROR)을
   `operation="activity_batch_consume"`과 메시지 위치(`topic`, `partition`, `offset`)를 담아
   한 줄씩 로그로 남긴다. 계정·기기 식별자와 메시지 내용은 넣지 않는다.
 
@@ -99,16 +103,22 @@ Consumer 진입점(`src/mosemo/entrypoints/consumer/activity_batches.py`)에 둔
 - 보류하지 않는 이유: 관찰 타임라인은 sequence 연속성을 요구하지 않고 역순 도착을 받아 재구성하므로(요구사항 FR-8, ADR 0008) 뒤 배치가 앞 배치를 기다릴 필요가 없다. 보류는 선두 배치의 재처리 성공으로만 풀리는데 영구 실패는 재처리해도 성공하지 않아, 풀리지 않는 보류가 쌓인다.
 - 그 밖의 예외를 건너뛰는 이유: 멈추면 한 계정의 데이터에서만 터지는 버그 하나가 고쳐서 배포할 때까지 모든 계정의 처리를 막는다. 건너뛰면 그 배치만 빠지고, 메시지는 토픽 보관 기간 동안 Kafka에 남아 버그를 고친 뒤 Consumer group의 offset을 로그의 위치로 되돌려 다시 처리할 수 있다. 다시 처리해도 receipt가 이미 처리한 배치를 걸러 중복이 생기지 않는다.
 - 그 대가로 감수하는 것: 모든 배치에서 터지는 버그를 배포하면 쌓인 배치를 전부 건너뛴다. 건너뜀은 Pod 재시작 같은 겉으로 보이는 신호가 없어 로그를 봐야 안다. 복구는 토픽 보관 기간 안에서만 된다.
-- 일시 실패를 다 쓰면 건너뛰지 않고 끝내는 이유: DB 중단 같은 장애는 배치의 문제가 아니다. 건너뛰면 장애가 이어지는 동안 쌓인 배치를 전부 넘겨 버린다. 끝내면 offset이 그대로라 장애가 풀린 뒤 이어서 처리한다.
+- 일시 실패를 다 쓰면 건너뛰지 않고 끝내는 이유: DB 중단 같은 장애는 배치의 문제가 아니다. 건너뛰면 장애가 이어지는 동안 쌓인 배치를 전부 넘겨 버린다. 끝내면 offset이 그대로라 장애가 풀린 뒤 이어서 처리한다. 예외는 SQLSTATE 22·23인 DB 오류로, 아래 근거에 따라 건너뛴다.
+- SQLSTATE 22·23을 건너뛰는 이유: SQLSTATE 22·23은 DB가 그 배치의 값이나 제약 위반을 이유로 거절한 것이라 같은 배치를 다시 처리해도 같은 결과다. 끝내면 재시작할 때마다 같은 배치를 받아 모든 계정의 처리가 멈춘다. 건너뛰면 그 배치만 빠지고, 메시지는 토픽 보관 기간 동안 Kafka에 남아 원인을 고친 뒤 offset을 로그의 위치로 되돌려 다시 처리할 수 있다.
+- 코드 버그와 같게 다루는 이유: 알려진 거절 사유(기기 미소유, 집중 세션 없음, 시간 역행, 내용 충돌)는 `TerminalBatchError`로 먼저 걸러지고 레코드 생성은 `ON CONFLICT DO NOTHING`이라, 5회 뒤에도 남는 22·23은 대부분 코드(관찰 투영과 같은 트랜잭션에서 도는 analytics 핸들러 포함)가 만든 값이나 입력 검증이 놓친 값을 DB가 거절한 경우다. 예를 들어 `activity_timeline_segments`의 CHECK(`time_order`, `kind_fields`, `last_observed_order`)와 지연 외래 키는 투영 코드의 출력을 DB가 한 번 더 검사한다. 같은 버그가 Python 예외로 드러나면 「그 밖의 예외」로 건너뛰는데 DB 제약에서 드러나면 Consumer가 멈추는 차이를 없앤다.
+- 22·23을 고른 기준: JDBC 표준(`java.sql`)은 SQLSTATE 22를 `SQLDataException`, 23을 `SQLIntegrityConstraintViolationException`으로 나누고 둘을 `SQLNonTransientException`(원인을 고치지 않으면 같은 작업을 다시 해도 실패한다) 아래에 둔다. 연결(08)과 트랜잭션 롤백(40)은 이 분류에 들지 않는다.
+- 재시도를 먼저 하는 이유: 제약 위반은 동시 쓰기와 부딪쳐 한 번만 날 수도 있다. 5회 안에 풀리면 건너뛰지 않는다.
+- 나머지 DB 오류를 끝내는 이유: 연결 끊김·교착·잠금 같은 오류는 DB나 환경의 문제다. 건너뛰면 장애가 이어지는 동안 쌓인 배치를 전부 넘겨 버린다.
+- DB 데이터 오류를 건너뛰며 감수하는 것: 코드 버그가 22·23 오류로 나타나면 그 배치는 조용히 빠지고 ERROR 로그로만 드러난다. 모든 배치에서 그런 버그가 나면 쌓인 배치를 전부 건너뛴다(배치마다 5회 재시도 15초가 걸린다). 코드보다 앞선 마이그레이션이 NOT NULL 열이나 CHECK를 더한 경우처럼 스키마와 코드가 어긋나도 같은 일이 생기며, 이때 원인은 배치가 아니라 환경이다.
+- 확인한 사실(2026-11-28, PostgreSQL 18.6·asyncpg·SQLAlchemy): 중복 키 23505, 외래 키 23503, NOT NULL 23502, CHECK 23514, 숫자 범위 22003, 문자열 안의 NUL 22021이 모두 `DBAPIError`(23 갈래는 하위 클래스 `IntegrityError`)로 올라오고 `orig.sqlstate`에 코드가 실린다. 지연 외래 키(`DEFERRABLE INITIALLY DEFERRED`) 위반은 문장 실행이 아니라 COMMIT에서 나며, 이때도 `IntegrityError`의 `orig.sqlstate`에 23503이 실린다.
 - 재시도 5회·1·2·4·8초는 보존해 둔 요구 FR-15의 값이다.
 
 ### 후속 범위와 미결정
 
-- 연속 건너뛰기 상한, DB 오류를 SQLSTATE로 나눈 일부 건너뛰기, 분류에 없는 인프라성 예외의
+- 연속 건너뛰기 상한, 분류에 없는 인프라성 예외의
   추가 구분, 건너뛴 배치를 다시 처리하는 도구, 실패한 배치를 클라이언트에 알리는 API와 배치 상태
   조회, 토픽 보관 기간 설정, 수락 뒤 Consumer에 도착하지 않은 배치의 대응, 경보
-  연동은 이 결정에 넣지 않는다. 입력 검증을 통과했지만 DB가 거절하는 값은 5회 재시도 뒤 Consumer를
-  멈추며, 이 값을 수락 전에 거절하는 일은 [Issue #350](https://github.com/jolvy/mosemo/issues/350)에서 다룬다.
+  연동은 이 결정에 넣지 않는다. 입력 검증을 통과했지만 DB가 거절하는 값은 5회 재시도 뒤 건너뛰며, 이 값을 수락 전에 거절하는 일은 [Issue #350](https://github.com/jolvy/mosemo/issues/350)에서 다룬다.
 - group/topic 이름, broker 이미지 버전과 환경별 retention·디스크 상한은 실행 구성에서
   구체화한다. 발행 확인 5초·Consumer 종료 30초와 추가 제한을 두지 않는 결정은 확정됐다.
 - 재할당 중 진행 중 처리와 종료·offset 안전성은 구현 검증 대상이다.
@@ -185,3 +195,5 @@ Consumer 진입점(`src/mosemo/entrypoints/consumer/activity_batches.py`)에 둔
 2026-11-22 [Issue #349](https://github.com/jolvy/mosemo/issues/349)에 따라 처리 실패 정책(영구 실패와 그 밖의 예외는 건너뛰고, 일시 실패는 5회까지 재시도한 뒤 ACK 없이 종료)을 정하고 빈 실패·복구 경계 객체를 지웠다.
 
 2026-11-22 [Issue #369](https://github.com/jolvy/mosemo/issues/369)에 따라 발행을 `acks=all`·producer idempotence에서 `acks=1`·producer idempotence 미사용으로 바꾸고, 감수하는 유실·중복과 측정값, 기존 설정 유지 대안을 더했다.
+
+2026-11-28 [Issue #380](https://github.com/jolvy/mosemo/issues/380)에 따라 일시 실패를 5회 다 쓴 마지막 예외가 SQLSTATE가 22 또는 23으로 시작하는 `DBAPIError`이면 ERROR 로그를 남기고 ACK한 뒤 건너뛰도록 정하고 근거를 더했다.

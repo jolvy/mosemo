@@ -119,7 +119,7 @@ DB에 반영된 관찰 타임라인을 주기적으로 조회한다.
   처리 메시지는 종료된 HTTP 요청의 DB 세션을 재사용하지 않는다.
 - FR-15: Handler의 일시 실패(계정 잠금 대기 초과, DB 오류, 연결 풀 대기 초과, `OSError`)는
   최초 시도를 포함해 총 5회 처리하며 시도 사이 대기는 1/2/4/8초다. 5회 모두 실패하면 ACK 없이
-  Consumer를 끝낸다. 정상 중복·sequence 충돌은 장애 재시도 대상이 아니다. 형식 오류·영구 실패와
+  Consumer를 끝낸다. 다만 마지막 예외가 `DBAPIError`이고 SQLSTATE가 22 또는 23으로 시작하면 ERROR 로그를 남기고 ACK한 뒤 건너뛴다. 정상 중복·sequence 충돌은 장애 재시도 대상이 아니다. 형식 오류·영구 실패와
   분류에 없는 예외는 재시도하지 않고 로그를 남긴 뒤 건너뛴다. 실패한 배치의 원문은 따로 보관하지
   않으며 같은 Device의 뒤 배치는 보류하지 않고 처리한다.
 
@@ -234,7 +234,8 @@ Kafka 연결 정보는 환경별로 구성하며 개발·운영 환경에 같은
   Handler의 집중 세션 소유권·시간 검증에 실패하면 배치 전체의 원본·타임라인
   변경을 롤백하고 그 배치를 건너뛴다.
 - AC-6013: 일시 Handler 실패(계정 잠금 대기 초과, DB 오류, 연결 풀 대기 초과, `OSError`)는 최초 포함
-  최대 5회, 1/2/4/8초 대기로 재시도하고 모두 실패하면 ACK 없이 Consumer를 끝낸다. 정상 중복·sequence
+  최대 5회, 1/2/4/8초 대기로 재시도하고 모두 실패하면 ACK 없이 Consumer를 끝낸다.
+  다만 마지막 예외가 `DBAPIError`이고 SQLSTATE가 22 또는 23으로 시작하면 ERROR 로그를 남기고 ACK한 뒤 건너뛴다. 정상 중복·sequence
   충돌에는 장애 재시도를 하지 않으며, 영구 실패와 분류에 없는 예외는 건너뛰고 같은 Device의 뒤 배치를 처리한다.
 - AC-6014: Handler는 HTTP 요청과 독립된 메시지별 세션·트랜잭션을 사용하며,
   별도 API·Consumer 프로세스 시작·종료 시 자원과 세션을 정리하고 미관찰 task 예외를 남기지 않는다.
@@ -275,7 +276,7 @@ Kafka 연결 정보는 환경별로 구성하며 개발·운영 환경에 같은
 ### 미결정
 
 정상 DB commit 후 offset 확정과 처리 실패 정책은 승인됐다([Kafka 전달 ADR](../adr/0006-deliver-activity-batches-through-kafka.md)). 연속 건너뛰기 상한,
-DB 오류를 종류별로 나눈 건너뛰기, 건너뛴 배치의 재처리 도구와 토픽 보관 기간 설정은 정하지 않았다.
+건너뛴 배치의 재처리 도구와 토픽 보관 기간 설정은 정하지 않았다.
 
 단건 원본 자체의 크기 초과 시 사용자 진단·복구 방법은 미정이다.
 원본은 보존하며 내용을 절삭하지 않는다. 처리 속도·응답 지연의 수치 목표도 미정이다.
@@ -303,3 +304,5 @@ DB 오류를 종류별로 나눈 건너뛰기, 건너뛴 배치의 재처리 도
 2026-11-22 [Issue #350](https://github.com/jolvy/mosemo/issues/350)에 따라 FR-5에 NUL 문자·`sequence`·`utcOffsetMinutes` 제약을, FR-21에 422 `INVALID_ARGUMENT`를 받은 클라이언트의 원본 폐기 규칙을 더했다.
 
 2026-11-22 [Issue #369](https://github.com/jolvy/mosemo/issues/369)에 따라 발행을 acks=1·producer idempotence 미사용으로 바꾸고, DB 중복 보호 문장을 producer 재전송으로 생긴 중복도 receipt가 막는다는 내용으로 고쳤다.
+
+2026-11-28 [Issue #380](https://github.com/jolvy/mosemo/issues/380)에 따라 FR-15·AC-6013에 5회 뒤에도 남는 SQLSTATE 22·23 DB 오류를 건너뛰는 예외를 더했다.

@@ -177,7 +177,10 @@ and skipped. A transient failure (account lock timeout, database error, pool
 timeout or `OSError`) is retried in the process up to five attempts with 1, 2, 4
 and 8 second waits; when every attempt fails it is logged at ERROR and surfaced
 to the process boundary with a nonzero exit and a payload-free diagnostic,
-without acknowledging the message. Any other exception is logged at ERROR with
+without acknowledging the message. The exception is a final `DBAPIError` whose
+SQLSTATE starts with 22 (data exception) or 23 (integrity constraint
+violation): the database rejected the batch itself, so it is logged at ERROR
+with the SQLSTATE as `error_code`, acknowledged and skipped. Any other exception is logged at ERROR with
 its type and last frame, acknowledged and skipped. Skipped messages are not
 stored anywhere else and later batches of the same device are not held back;
 each log line carries the `topic`, `partition` and `offset` to find the message
