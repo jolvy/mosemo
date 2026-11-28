@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-12
 ---
 # 활동 분석은 조회 때 계산하고 지난 날짜의 일간 통계만 변경 표시와 배치로 저장한다
