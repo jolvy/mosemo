@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:7b4104d35b8081566a8b0598f38539f013e1020fa5cce0b3f7dd801f851ed63c",
+  "pageVersion": "sha256:521c5aa1722c504b26fc26ee5ea67b5f96aa3d0fd121dd294b6b9e2b2c048c94",
   "claims": [
     {
       "id": "claim_1b31fb9b8154423c92e223a89142f304",
@@ -14,7 +14,7 @@
     },
     {
       "id": "claim_db051294c2dc4582bed2eeff0ea1e8a1",
-      "statement": "제안 ADR 0016은 세션 분석과 오늘의 일간 통계를 조회 때 계산하고 지난 날짜의 일간 통계만 (계정, 계정 시간대 날짜) 단위로 저장한다.",
+      "statement": "ADR 0016은 세션 분석과 오늘의 일간 통계를 조회 때 계산하고 지난 날짜의 일간 통계만 (계정, 계정 시간대 날짜) 단위로 저장한다.",
       "evidence": [
         {
           "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L43-L60",
@@ -24,7 +24,7 @@
     },
     {
       "id": "claim_15258cc0885049cf858ecfd71cb3b409",
-      "statement": "ADR 0016 제안에서 observation·labeling은 이벤트만 기록하고 analytics의 BEFORE_COMMIT handler가 같은 트랜잭션에서 (계정, 날짜) 다시 계산 표시를 UPSERT한다.",
+      "statement": "ADR 0016에서 observation·labeling은 이벤트만 기록하고 analytics의 BEFORE_COMMIT handler가 같은 트랜잭션에서 (계정, 날짜) 다시 계산 표시를 UPSERT한다.",
       "evidence": [
         {
           "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L68-L96",
@@ -34,7 +34,7 @@
     },
     {
       "id": "claim_fc93d8551db84e84bbdb2cc12d00fabe",
-      "statement": "ADR 0016 제안에서 표시가 남았거나 definition_version·timezone이 현재와 다른 지난 날짜는 저장 행 대신 조회 때 계산하므로 배치 실패·지연이 결과의 정확성을 깨뜨리지 않는다.",
+      "statement": "ADR 0016에서 표시가 남았거나 definition_version·timezone이 현재와 다른 지난 날짜는 저장 행 대신 조회 때 계산하므로 배치 실패·지연이 결과의 정확성을 깨뜨리지 않는다.",
       "evidence": [
         {
           "resource": "repo://docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md#L97-L106",
@@ -169,6 +169,6 @@
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-22T12:16:52.428Z"
+    "at": "2026-11-28T08:56:05.513Z"
   }
 }

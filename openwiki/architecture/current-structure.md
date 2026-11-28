@@ -5,7 +5,7 @@ description: Mosemo 서버의 Bounded Context(identity·labels·observation·lab
 tags: [architecture, bounded-context, layering, import-linter]
 verified:
   - by: openwiki/0.9.0
-    at: 2026-11-22T12:16:52.428Z
+    at: 2026-11-28T08:56:05.513Z
 sources:
   - id: openwiki-source-362e06c30ccfdafd87339cb0
     resource: repo://ARCHITECTURE.md
@@ -25,7 +25,7 @@ sources:
     resource: repo://src/mosemo/entrypoints/api/routes.py
   - id: openwiki-source-fe1140fea79716d25a3b3efa
     resource: repo://tests/unit/harness/test_assembly_roots.py
-generated: { by: "claude-code", at: "2026-11-17T16:42:07.914Z" }
+generated: { by: "claude-code", at: "2026-11-28T08:56:05.513Z" }
 ---
 
 # 현재 구조
@@ -62,7 +62,7 @@ graph LR
 
 ## analytics BC의 조립
 
-`analytics`는 가장 위 BC다. 하류 BC(identity·observation·labeling)의 `public.py`만 읽고, 그 BC들은 analytics를 모른다. 동작은 [활동 분석](../domain/activity-analytics.md)을, 설계 근거는 제안 상태의 [ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md)을 본다.
+`analytics`는 가장 위 BC다. 하류 BC(identity·observation·labeling)의 `public.py`만 읽고, 그 BC들은 analytics를 모른다. 동작은 [활동 분석](../domain/activity-analytics.md)을, 설계 근거는 [ADR 0016](../../docs/adr/0016-compute-activity-analytics-on-read-and-store-daily-stats.md)을 본다.
 
 [bootstrap.py](../../src/mosemo/analytics/bootstrap.py)가 조립 루트에 주는 입구는 다음과 같다.
 

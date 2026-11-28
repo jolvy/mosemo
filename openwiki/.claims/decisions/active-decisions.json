@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:e33f75e895ffe60835c58e329f422970c19140396746e5dee5e7a3c374acda06",
+  "pageVersion": "sha256:70a49adcdf97b473919b0ee27bf2c3e3bfba9a5a920b3f9dd7ff933f88615482",
   "claims": [
     {
       "id": "claim_93af9bd871914769b8fa49b637ad6f5f",
@@ -163,7 +163,7 @@
       ]
     },
     {
-      "id": "claim_040016e92eae4689a9239f389ecd9c40",
+      "id": "claim_1e94406cb4ac4f9d834304cd40c50425",
       "statement": "ADR 0016(활동 분석은 조회 때 계산하고 지난 날짜의 일간 통계만 변경 표시와 배치로 저장)은 status: accepted라서 유효한 결정 목록에 들어간다.",
       "evidence": [
         {
@@ -175,6 +175,6 @@
   ],
   "verification": {
     "by": "openwiki/0.9.0",
-    "at": "2026-11-28T08:54:24.396Z"
+    "at": "2026-11-28T08:56:05.513Z"
   }
 }
